@@ -179,4 +179,4 @@ saturation → skin → shot match → final render QC. Independent buttons run 
   slider calibration (`check_render`, `Calibration`); capability probe (`panel/premiere-probe.js`, `probe_measure`).
 - Partial: validation (refine once, no revert; unproven), independence (WB + exposure in one operation), rollback
   (only via Cmd+Z), colour management (Sony XML only).
-- Planned: everything else in sections 2.4–2.7, 4, 9, 10–14, statuses and audit log — ordered in `NEXT_STEPS.md` B.
+- Planned: everything else in sections 2.4–2.7, 4, 9, 10–14, statuses and audit log — ordered in `TODO.md` B.

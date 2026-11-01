@@ -1,5 +1,49 @@
+# Secrets and credentials: never commit
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.password
+*password*.txt
+credentials*.json
+secrets*.json
+*.token
+id_rsa*
+id_ed25519*
+
+# Python
 __pycache__/
+*.py[cod]
 .pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+
+# Build output and packages (rebuild with scripts/package_ccx.sh)
 dist/
+*.ccx
+*.zxp
+
+# Local runtime data and big models (live outside the repo; the YuNet face model in engine/asistent/models/ IS tracked)
+models/whisper/
+*.log
+logs/
+cache/
+frames/
+devbridge.enabled
+
+# Editor, OS
 .DS_Store
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+
+# Claude Code: personal settings and symlinks into the vault
 .claude/agents/
+.claude/settings.local.json

@@ -49,3 +49,6 @@ Plan: `docs/SUBTITLES_PLAN.md`. Done: M0 probes (0.9.39), M1 text core (0.9.40),
 5 Client profiles + Prepare Project (in the office; draft in `profiles.py`/`prepare.py`; Basecamp paste),
 7 Bulgarian subtitles, 8 rough-cut markers + export QA, 9 Windows (run `setup_win.ps1`, silent install with
 UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips, sub-frame audio alignment.
+
+## T. Housekeeping (documentation)
+T1. Refresh `BUGS.md`: last fully reviewed at 0.9.18; fold in findings from 0.9.19-0.9.41 (see `PROJECT_STATUS.md`, `PROGRESS.md`) and drop fixed items.
