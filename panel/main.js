@@ -39,7 +39,7 @@ function el(tag, cls, text) {
 function finish(text, ok, blocks) {
   show("result", true);
   try {
-    document.body.scrollTop = 0;                 // the answer is at the top of the panel: bring it into view
+    $("app").scrollTop = 0;                      // the answer is at the top of the panel: bring it into view
   } catch (e) {
     /* older UXP */
   }
@@ -243,7 +243,7 @@ function colorBlock(clip, r) {
     return box;
   }
   if (r.preview && r.preview.before) {
-    const row = el("div", "thumbs");
+    const row = el("div", r.preview.portrait ? "thumbs portrait" : "thumbs");
     for (const k of ["before", "after"]) {
       const img = document.createElement("img");
       img.src = `data:image/jpeg;base64,${r.preview[k]}`;

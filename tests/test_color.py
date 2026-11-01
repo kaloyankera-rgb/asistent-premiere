@@ -192,3 +192,15 @@ def test_probe_measures_units_and_fills_the_table(tmp_path, monkeypatch):
     assert res["units"]["exposure_stops_per_unit"] == pytest.approx(1.0, abs=0.05)
     assert res["units"]["temperature_units_per_log2"] < 0                # warmer picture = lower B/R
     assert res["identity"] == {"stops": 0.0, "temp": 0.0, "tint": 0.0}
+
+
+def test_upright_clip_keeps_its_proportions(tmp_path):
+    land = tmp_path / "land.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:d=1", "-c:v", "libx264",
+                    str(land)], check=True)
+    up = tmp_path / "upright.mp4"                                   # how a camera held upright stores it
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-display_rotation", "90", "-i", str(land), "-c", "copy", str(up)],
+                   check=True)
+    f = C.read_frames(str(up), n=1, width=320)[0]
+    assert f.shape[:2] == (320, 180)                                 # portrait, not squeezed into 16:9
+    assert C.read_frames(str(land), n=1, width=320)[0].shape[:2] == (180, 320)
