@@ -151,7 +151,7 @@ async function checkWithRetry(before, after, applied, fix) {
 }
 
 /**
- * Apply the plans: [{ clip, res, exposure (stops or null), wb (true/false) }]. Returns per clip lines and
+ * Apply the plans: [{ clip, res, exposure (Lumetri Exposure units or null), wb (true/false) }]. Returns per clip lines and
  * how many Undo steps it took.
  */
 async function apply(project, timeline, plans) {

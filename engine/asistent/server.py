@@ -263,9 +263,13 @@ class Handler(BaseHTTPRequestHandler):
                 applied, fix = body.get("applied") or {}, body.get("fix") or {}
                 if cb and res["cast_after"]:
                     cal = COLOR.Calibration()
+                    # only an axis the probe never measured, and only from a render without an Exposure change
+                    # (the highlight shoulder biases the cast: 2026-11-01 it read −84 where the probe read −50)
+                    clean = not float(applied.get("exposure") or 0)
                     res["learnt"] = {
-                        "temp": cal.learn("temp", float(applied.get("temperature") or 0), res["cast_after"][0] - cb[0]),
-                        "tint": cal.learn("tint", float(applied.get("tint") or 0), res["cast_after"][1] - cb[1])}
+                        axis: clean and not cal.from_probe(axis) and
+                        cal.learn(axis, float(applied.get(key) or 0), res["cast_after"][i] - cb[i])
+                        for i, (axis, key) in enumerate((("temp", "temperature"), ("tint", "tint")))}
                     res["residual"] = [round(res["cast_after"][0] + 0.0, 3), round(res["cast_after"][1] + 0.0, 3)]
                     res["sliders_now"] = cal.sliders(float(fix.get("fix_temp") or 0), float(fix.get("fix_tint") or 0))
                 log.info("color check: %s", {k: v for k, v in res.items() if k != "sliders_now"})

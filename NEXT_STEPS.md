@@ -7,11 +7,10 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 
 ## B. Colour engine, per `COLOR_CORRECTION_PLAN.md` (current focus of the user)
-1. **Probe: done and verified at 0.9.13** (results in `PROJECT_STATUS.md`). Still to confirm: one real apply +
-   render check (`color check` lines in the log).
-1b. **Exposure shoulder**: Lumetri Exposure gives +1 stop in shadows but ~0.7 at skin brightness; convert the
-   wanted stops at the measured brightness into Exposure units with the probe curve (store it next to the
-   slider calibration), then confirm with the render check.
+1. **Probe and exposure curve: done** (0.9.13-0.9.14, see `PROJECT_STATUS.md`). Confirm with the user: one
+   „Приложи“ at 0.9.14 on a clip with skin; the „color check“ line should show `exposure_after` near 0.
+   If it still falls short, raise once in the check step (now it only steps back on clipping).
+   Also measure darkening (Exposure −1) in the probe so the curve covers both directions.
 2. **Analyse timeline renders, not source files** (T13, T18): export the clip's frames from the active sequence
    (several moments, skip moments covered by upper layers) and run `decide()` on them; fall back to source
    frames only with status REVIEW_NEEDED. This makes re-runs idempotent.

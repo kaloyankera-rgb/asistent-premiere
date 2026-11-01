@@ -150,7 +150,8 @@ def measure(enc: np.ndarray, gamma: str | None = None) -> dict:
 
     lit = y_enc > 0.04
     if lit.any():
-        out["exp_mid"] = float(GAMMA * np.log2(MID_TARGET / max(np.median(y_enc[lit]), 1e-4)))
+        out["y_mid"] = float(np.median(y_enc[lit]))
+        out["exp_mid"] = float(GAMMA * np.log2(MID_TARGET / max(out["y_mid"], 1e-4)))
 
     ok = ~clipped & (y_lin > np.percentile(y_lin, 40)) & (y_lin < np.percentile(y_lin, 99.5))
 
@@ -204,7 +205,8 @@ def measure(enc: np.ndarray, gamma: str | None = None) -> dict:
     skin = _skin(view_fixed) & ~clipped
     out["skin"] = float(np.mean(skin))
     if out["skin"] >= 0.01:
-        out["exp_skin"] = float(GAMMA * np.log2(SKIN_TARGET / max(np.median(_luma(view_fixed)[skin]), 1e-4)))
+        out["y_skin"] = float(np.median(_luma(view_fixed)[skin]))
+        out["exp_skin"] = float(GAMMA * np.log2(SKIN_TARGET / max(out["y_skin"], 1e-4)))
     # what a given exposure would clip (for the highlight guard)
     out["_view_max"] = np.max(view, axis=-1)
     out["_lin_max"] = np.max(lin, axis=-1)
@@ -225,12 +227,15 @@ def decide(frames: list[np.ndarray], gamma: str | None = None) -> dict:
     # ---- exposure
     skin_vals = [m["exp_skin"] for m in ms if "exp_skin" in m]
     mid_vals = [m["exp_mid"] for m in ms if "exp_mid" in m]
+    # at_luma: the encoded brightness being corrected (Lumetri Exposure moves dark and bright pixels differently)
     if len(skin_vals) >= max(2, len(ms) // 2):
         raw, basis, spread = float(np.median(skin_vals)), "кожата", float(np.std(skin_vals))
+        at_luma = float(np.median([m["y_skin"] for m in ms if "y_skin" in m]))
     elif mid_vals:
         raw, basis, spread = float(np.median(mid_vals)), "средните тонове", float(np.std(mid_vals))
+        at_luma = float(np.median([m["y_mid"] for m in ms if "y_mid" in m]))
     else:
-        raw, basis, spread = 0.0, None, 9.0
+        raw, basis, spread, at_luma = 0.0, None, 9.0, None
     stops = _round_step(raw) if abs(raw) >= 0.35 else 0.0
     # highlights: a plain gain is a pessimistic model (Lumetri rolls the highlights off), so this only
     # warns; the panel checks the real Lumetri result on an exported frame and steps back if needed
@@ -297,7 +302,8 @@ def decide(frames: list[np.ndarray], gamma: str | None = None) -> dict:
     norm = 0.2126 * r + 0.7152 * g + 0.0722 * b
     return {
         "exposure": {"stops": stops, "measured": round(raw, 2), "basis": basis, "confidence": exp_conf,
-                     "burn_estimate": round(burn, 3)},
+                     "burn_estimate": round(burn, 3),
+                     "at_luma": round(at_luma, 3) if at_luma is not None else None},
         "white": {"cast_temp": round(temp, 3), "cast_tint": round(tint, 3), "fix_temp": round(fix_t, 3),
                   "fix_tint": round(fix_g, 3), "balanced": balanced, "confidence": wb_conf,
                   "neutral_area": round(neutral_frac, 4), "gains": [round(v / norm, 4) for v in (r, g, b)]},
@@ -371,6 +377,7 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
     from .sync import Cancelled
     progress = progress or (lambda f, m: None)
     done = [0]
+    cal = Calibration()
 
     def one(it):
         if cancel and cancel():
@@ -381,6 +388,8 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
             frames = read_frames(path, start=float(it.get("start") or 0), end=it.get("end"))
             r = decide(frames, gamma)
             r.update(path=path, name=os.path.basename(path))
+            # what to write into Lumetri for these stops at this brightness (Exposure has a highlight shoulder)
+            r["exposure"]["units"] = cal.exposure_units(r["exposure"]["stops"], r["exposure"]["at_luma"])
             if with_preview:                       # a sharper frame of its own for the eye (720 px long side)
                 big = read_frames(path, n=1, width=720, start=float(it.get("start") or 0), end=it.get("end"))
                 r["preview"] = preview(big, gamma, r)
@@ -415,28 +424,71 @@ class Calibration:
             pass
 
     def k(self, axis: str) -> float:
+        probe = (self.data.get("probe") or {}).get(axis)
+        if probe:
+            return float(probe)
         xs = self.data.get(axis) or []
         return float(np.median(xs[-9:])) if xs else self.GUESS[axis]
 
     def learnt(self, axis: str) -> bool:
-        return bool(self.data.get(axis))
+        return bool((self.data.get("probe") or {}).get(axis) or self.data.get(axis))
+
+    def from_probe(self, axis: str) -> bool:
+        """Temperature and Tint are pure channel gains (probe 2026-11-01): the probe, which moves one slider
+        alone and compares pixel by pixel, is exact; a render check that also changed Exposure is not (the
+        highlight shoulder squeezes the channel ratios: it read −84 where the probe read −50)."""
+        return bool((self.data.get("probe") or {}).get(axis))
+
+    def set_probe(self, axis: str, slider: float, moved: float) -> bool:
+        if abs(slider) < 5 or abs(moved) < 0.05 or not (5 <= abs(slider / moved) <= 2000):
+            return False
+        self.data.setdefault("probe", {})[axis] = round(float(slider / moved), 2)
+        self._save()
+        return True
+
+    def _save(self):
+        import json
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(self.data, f)
+        os.replace(tmp, self.path)
 
     def sliders(self, fix_temp: float, fix_tint: float) -> dict:
         return {"temperature": round(self.k("temp") * fix_temp, 1), "tint": round(self.k("tint") * fix_tint, 1)}
 
+    def exposure_units(self, stops: float, luma: float | None) -> float:
+        """Lumetri Exposure units that move pixels of this encoded brightness by `stops`.
+
+        Exposure is not a plain gain (probe 2026-11-01, C0737): +1 unit gives +1.00 stop in the shadows but
+        about +0.7 at skin brightness and +0.57 at 0.75 (soft highlight shoulder). Brightening uses the
+        probe's curve; darkening was never measured, so it stays 1 unit = 1 stop until it is. The render
+        check after applying still measures the real result."""
+        curve = self.data.get("exposure_curve") or []
+        if stops <= 0 or luma is None or len(curve) < 2:
+            return round(stops, 2)
+        ys, rates = zip(*sorted(curve))
+        rate = float(np.interp(luma, ys, rates))            # flat beyond the measured ends
+        units = stops / max(rate, 0.25)
+        return round(float(min(units, 2 * MAX_STOPS)) * 20) / 20     # Lumetri steps of 0.05
+
+    def set_exposure_curve(self, points: list[list[float]]) -> bool:
+        """[[encoded luma, stops per unit], ...] measured by the probe; replaces the old curve."""
+        points = [[round(float(y), 3), round(float(r), 3)] for y, r in points if 0 < y < 1 and 0.2 <= r <= 1.5]
+        if len(points) < 3:
+            return False
+        self.data["exposure_curve"] = points
+        self._save()
+        return True
+
     def learn(self, axis: str, slider: float, moved: float) -> bool:
         """slider units applied, cast change measured (log2): keep it when it is a clear, sane measurement."""
-        import json
         if abs(slider) < 5 or abs(moved) < 0.05:
             return False
         k = slider / moved
         if not (5 <= abs(k) <= 2000):
             return False
         self.data.setdefault(axis, []).append(float(k))
-        tmp = self.path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(self.data, f)
-        os.replace(tmp, self.path)
+        self._save()
         return True
 
 
@@ -511,6 +563,7 @@ def probe_measure(refs: dict, frames: list[dict]) -> dict:
         ss = frame_stats(read_image(src_path))
         out["identity"] = {"stops": round(float(np.log2(bs["lin_mean"] / max(ss["lin_mean"], 1e-9))), 3),
                            "temp": round(bs["temp"] - ss["temp"], 3), "tint": round(bs["tint"] - ss["tint"], 3)}
+    frame_of = {}                                  # param -> its measured frame
     for f in frames:
         rec = {k: v for k, v in f.items() if k != "path"}
         fp = _wait_file(f.get("path") or "") if f.get("path") else None
@@ -531,6 +584,7 @@ def probe_measure(refs: dict, frames: list[dict]) -> dict:
                     d_spread=round(st["spread"] - bs["spread"], 3),
                     sat_ratio=round(st["chroma"] / max(bs["chroma"], 1e-9), 3),
                     d_clipped=round(st["clipped"] - bs["clipped"], 4))
+                frame_of[rec.get("param")] = fp
         out["frames"].append(rec)
     by = {f["param"]: f for f in out["frames"]}
     # Every frame exactly like the baseline although the values were written: Premiere rendered them before or
@@ -575,5 +629,24 @@ def probe_measure(refs: dict, frames: list[dict]) -> dict:
     for key, axis in (("temperature", "temp"), ("tint", "tint")):
         f = by.get(key) or {}
         if f.get("d_" + axis) is not None:
-            cal.learn(axis, float(f["to"] - f["from"]), float(f["d_" + axis]))
+            cal.set_probe(axis, float(f["to"] - f["from"]), float(f["d_" + axis]))
+    if frame_of.get("exposure") and moved("exposure", "stops", 0.2):
+        f = by["exposure"]
+        curve = exposure_curve(base, read_image(frame_of["exposure"]), float(f["to"] - f["from"]))
+        if cal.set_exposure_curve(curve):
+            units["exposure_curve"] = curve
+    return out
+
+
+def exposure_curve(before: np.ndarray, after: np.ndarray, units: float) -> list[list[float]]:
+    """Stops gained per Exposure unit by brightness band of the frame before: [[band centre, rate], ...].
+    Pixels that burn out after are left out (they would only say "clipped", not how far it moved)."""
+    yb, ya = _luma(to_linear(before, None)), _luma(to_linear(after, None))
+    y_enc = _luma(before)
+    usable = (np.max(after, axis=-1) < 0.97) & (yb > 1e-4) & (ya > 1e-4)
+    out = []
+    for lo in np.arange(0.02, 0.9, 0.08):
+        m = usable & (y_enc >= lo) & (y_enc < lo + 0.08)
+        if m.sum() >= 200:
+            out.append([round(float(lo + 0.04), 3), round(float(np.median(np.log2(ya[m] / yb[m]))) / units, 3)])
     return out

@@ -278,8 +278,10 @@ function colorBlock(clip, r) {
     box.appendChild(el("div", "cap", "преди · след (приблизително)"));
   }
   const e = r.exposure;
+  // stops are what the picture needs; units are what goes into Lumetri (they differ above the shadows)
+  const units = e.units !== undefined && e.units !== null && e.units !== e.stops ? ` = Exposure ${e.units > 0 ? "+" : ""}${e.units} в Lumetri` : "";
   box.appendChild(el("div", "line", e.stops
-    ? `Експозиция ${e.stops > 0 ? "+" : ""}${e.stops} (${CONF[e.confidence]} сигурност)` : "Експозиция: без промяна"));
+    ? `Експозиция ${e.stops > 0 ? "+" : ""}${e.stops} стопа${units} (${CONF[e.confidence]} сигурност)` : "Експозиция: без промяна"));
   const w = r.white;
   box.appendChild(el("div", "line", w.balanced ? `Бяло: наред (${CONF[w.confidence]})`
     : `Бяло: корекция (${CONF[w.confidence]} сигурност)`));
@@ -294,7 +296,9 @@ function colorPlans(level) {
   colorState.sel.clips.forEach((clip, i) => {
     const r = colorState.results[i];
     if (!r || r.error) return;
-    const exposure = r.exposure.stops && ok(r.exposure.confidence) ? r.exposure.stops : null;
+    // Lumetri units for the wanted stops (engine: the probe's Exposure curve); older engines send stops only
+    const units = r.exposure.units ?? r.exposure.stops;
+    const exposure = r.exposure.stops && ok(r.exposure.confidence) ? units : null;
     const wb = !r.white.balanced && ok(r.white.confidence);
     if (exposure || wb) plans.push({ clip, res: r, exposure, wb });
   });

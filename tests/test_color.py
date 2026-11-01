@@ -192,6 +192,8 @@ def test_probe_measures_units_and_fills_the_table(tmp_path, monkeypatch):
     assert res["units"]["exposure_stops_per_unit"] == pytest.approx(1.0, abs=0.05)
     assert res["units"]["temperature_units_per_log2"] < 0                # warmer picture = lower B/R
     assert res["identity"] == {"stops": 0.0, "temp": 0.0, "tint": 0.0}
+    assert all(abs(r - 1.0) < 0.05 for _, r in res["units"]["exposure_curve"])   # a plain doubling: 1 stop/unit
+    assert C.Calibration().data["exposure_curve"] == res["units"]["exposure_curve"]
 
 
 def test_upright_clip_keeps_its_proportions(tmp_path):
@@ -253,3 +255,40 @@ def test_old_frames_pruned(tmp_path):
     os.utime(old, (t, t))
     assert C.prune_frames(str(tmp_path)) == 1
     assert new.exists() and not old.exists()
+
+
+def test_exposure_units_follow_the_probe_curve(tmp_path):
+    cal = C.Calibration(str(tmp_path / "lumetri.json"))
+    assert cal.exposure_units(1.0, 0.6) == 1.0                       # no curve yet: 1 unit = 1 stop
+    # the curve measured on C0737 (2026-11-01): full stop in the shadows, shoulder towards the highlights
+    assert cal.set_exposure_curve([[0.06, 1.0], [0.15, 0.99], [0.35, 0.92], [0.55, 0.79], [0.65, 0.68], [0.75, 0.57]])
+    assert cal.exposure_units(1.0, 0.1) == pytest.approx(1.0, abs=0.05)
+    assert cal.exposure_units(0.5, 0.65) == pytest.approx(0.75, abs=0.05)   # skin needs more units than stops
+    assert cal.exposure_units(-1.0, 0.65) == -1.0                    # darkening never measured: unchanged
+    assert cal.exposure_units(2.0, 0.95) <= 2 * C.MAX_STOPS          # never runs away at the bright end
+    again = C.Calibration(str(tmp_path / "lumetri.json"))            # kept on disk
+    assert again.exposure_units(0.5, 0.65) == cal.exposure_units(0.5, 0.65)
+
+
+def test_exposure_curve_reads_a_shoulder():
+    rng = np.random.default_rng(1)
+    lin = rng.uniform(0.002, 0.6, size=(200, 300, 1)) * np.ones(3)
+    # a +1 stop gain with a soft shoulder above 0.25 linear, like Lumetri's Exposure
+    up = lin * 2
+    shoulder = np.where(up > 0.25, 0.25 + (up - 0.25) / (1 + (up - 0.25) * 2), up)
+    curve = C.exposure_curve(C.encode(lin), C.encode(shoulder), 1.0)
+    rates = dict(curve)
+    assert min(rates.values()) < 0.8 and max(rates.values()) > 0.95
+    ys = sorted(rates)
+    assert rates[ys[0]] > rates[ys[-1]]                               # darker pixels move further
+
+
+def test_probe_values_win_over_render_check_learning(tmp_path):
+    cal = C.Calibration(str(tmp_path / "lumetri.json"))
+    assert cal.learn("temp", 40.0, -0.475)                              # a render check (biased: −84)
+    assert not cal.from_probe("temp")
+    assert cal.set_probe("temp", 50.0, -1.0)                            # the probe: −50, exact
+    assert cal.from_probe("temp") and cal.k("temp") == -50.0
+    assert cal.sliders(0.5, 0)["temperature"] == -25.0
+    assert C.Calibration(str(tmp_path / "lumetri.json")).k("temp") == -50.0
+    assert not cal.set_probe("tint", 50.0, 0.001)                       # nothing moved: not stored
