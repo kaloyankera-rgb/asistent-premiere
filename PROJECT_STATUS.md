@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.8 (2026-11-01)
+# Project status — Asistent 0.9.9 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.8 via
-UnifiedPluginInstallerAgent, engine 0.9.8 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit `d3fff90`. Tests: 97 pytest + 9 node, all passing at 0.9.8.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.9 via
+UnifiedPluginInstallerAgent, engine 0.9.9 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 97 pytest + 9 node, all passing at 0.9.9.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -25,8 +25,8 @@ UXP panel + Python engine on localhost, setup/release scripts for Mac, engine au
 - Panel buttons: „Оправи звука“, „Раздели L/R“, „Раздели R/L“, „Само L“, „Само R“, „Само сила“, „Изравни фразите“.
 - Verified in Premiere: Fill effects exist („Fill Left with Right“/„Fill Right with Left“), Volume Level uses
   Premiere's scale (0.1778 = 0 dB, max 1.0 = +15 dB), clone copies only the audio item.
-- NOT verified: one Undo per press, „Раздели R/L“, „Изравни фразите“ keyframe positions. Known bug: level unit
-  detection (see `BUGS_AND_LIMITATIONS.md` #1).
+- NOT verified: one Undo per press, „Раздели R/L“, „Изравни фразите“ keyframe positions. Level unit: always Premiere's scale since 0.9.9
+  (the old guess misread a clip at +15 dB).
 
 ## Phase 4 — Auto import (Done + verified)
 watchdog folder watching, browser-download completion (rename = ready after 0.3 s, copies 1.5 s), categories

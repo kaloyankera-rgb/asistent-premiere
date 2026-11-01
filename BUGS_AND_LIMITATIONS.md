@@ -1,17 +1,13 @@
-# Known bugs, limitations and warnings (0.9.8)
+# Known bugs, limitations and warnings (0.9.9)
 
 ## Open bugs
-1. **Volume level unit detection misreads a clip already at +15 dB** (`panel/premiere-audio.js`, `levelParam`).
-   The unit is guessed from the current value; at the Premiere maximum the value is exactly 1.0, which the code
-   reads as "linear". Log 11:43:19: `level fx31033.MP4: was 1 (linear), 15.5 dB` → wrong value requested.
-   Premiere's scale is confirmed (0.1778 = 0 dB, 1.0 = +15 dB): use it always, drop the guess.
-2. **Colour analysis reads the source file, not the timeline** (`engine/asistent/color.py`, `read_frames`).
+(Fixed in 0.9.9: Volume level always in Premiere's scale, no guess from the current value; `/color/probe` documented.)
+1. **Colour analysis reads the source file, not the timeline** (`engine/asistent/color.py`, `read_frames`).
    Re-running on a corrected clip suggests the same correction again (not idempotent, spec T13/T18). Applying
    twice does not stack only because a Lumetri with non-zero Exposure/Temperature/Tint is skipped.
-3. **Render check never confirmed.** Before 0.9.5 the exported files were looked for under the wrong name
+2. **Render check never confirmed.** Before 0.9.5 the exported files were looked for under the wrong name
    (`x.png` vs `x.png.png`); after the fix no apply has been logged, so `/color/check` and the slider
    calibration (`lumetri.json`) are unproven. First apply will use the guess 60/80 slider units per log2.
-4. `server.py` docstring does not list `POST /color/probe` (endpoint exists).
 
 ## Not verified in Premiere (implemented)
 One Undo per press (audio), „Раздели R/L“, „Изравни фразите“ keyframe positions (media time vs clip time;

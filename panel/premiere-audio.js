@@ -46,8 +46,13 @@ async function effect(route, ti) {
   return ppro.AudioFilterFactory.createComponentByDisplayName(name, ti);
 }
 
-// Volume > Level. Its unit is not documented for 26.0: recognised from the current value (0 dB shows as
-// 0.1778 in Premiere's own scale, 0 in dB, 1 as plain linear); confirmed on 26.0.2: Premiere's scale.
+// Volume > Level is always in Premiere's own scale on 26.0.2 (0.1778 = 0 dB, 1.0 = +15 dB, verified).
+// The unit used to be guessed from the current value, which read a clip already at +15 dB (exactly 1.0)
+// as plain linear and asked for the wrong value: never guess.
+function levelValue(db) {
+  return Math.pow(10, (db - 15) / 20);
+}
+
 async function levelParam(ti, label) {
   const { list } = await components(ti);
   const vol = list.find((c) => /^volume$/i.test(c.name) || /volume/i.test(c.match));
@@ -60,11 +65,7 @@ async function levelParam(ti, label) {
   if (!param) throw new Error(`Няма Level във Volume на ${label}.`);
   const start = await param.getStartValue();
   const v0 = Number(start && start.value !== undefined ? (start.value.value ?? start.value) : NaN);
-  let scale = "db";
-  if (Math.abs(v0 - 0.17783) < 0.002 || (v0 > 0 && v0 < 0.95)) scale = "premiere";
-  else if (Math.abs(v0 - 1) < 1e-6) scale = "linear";
-  const toValue = (db) => (scale === "premiere" ? Math.pow(10, (db - 15) / 20) : scale === "linear" ? Math.pow(10, db / 20) : db);
-  return { param, keyframed: !!(await maybe(param, "isTimeVarying")), toValue, scale, v0 };
+  return { param, keyframed: !!(await maybe(param, "isTimeVarying")), toValue: levelValue, scale: "premiere", v0 };
 }
 
 async function readLevel(param) {
