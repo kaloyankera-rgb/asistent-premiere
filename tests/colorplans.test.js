@@ -40,3 +40,27 @@ test("errors are skipped, other clips still planned", () => {
   const p = plansFor([{}, {}], [{ error: "x" }, res(0.5, "high", true, "high")], "sure");
   assert.strictEqual(p.length, 1);
 });
+
+const { mergeValues } = require("../panel/colorplans.js");
+
+test("new Lumetri: values are the suggestion itself", () => {
+  const m = mergeValues({}, 2.1, { temperature: -4.9, tint: 12.8 });
+  assert.deepStrictEqual(m.values, { exposure: 2.1, temperature: -4.9, tint: 12.8 });
+  assert.deepStrictEqual(m.applied, { exposure: 2.1, temperature: -4.9, tint: 12.8 });
+});
+
+test("fx39024 case: exposure added on top of Asistent's own white, white kept", () => {
+  const m = mergeValues({ exposure: 0, temperature: -4.9, tint: 12.8 }, 2.1, null);
+  assert.deepStrictEqual(m.values, { exposure: 2.1 });            // temperature/tint stay as they are
+  assert.deepStrictEqual(m.applied, { exposure: 2.1 });
+});
+
+test("a further difference is added to what is there", () => {
+  const m = mergeValues({ exposure: 0.5, temperature: -4.9, tint: 12.8 }, 0.25, { temperature: -1.2, tint: 0.4 });
+  assert.deepStrictEqual(m.values, { exposure: 0.75, temperature: -6.1, tint: 13.2 });
+  assert.deepStrictEqual(m.applied, { exposure: 0.25, temperature: -1.2, tint: 0.4 });
+});
+
+test("nothing suggested: nothing written", () => {
+  assert.deepStrictEqual(mergeValues({ exposure: 1 }, null, null), { values: {}, applied: {} });
+});

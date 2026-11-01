@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.23 (2026-11-01)
+# Project status — Asistent 0.9.24 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.23 via
-UnifiedPluginInstallerAgent, engine 0.9.23 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 131 pytest + 25 node, all passing at 0.9.23.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.24 via
+UnifiedPluginInstallerAgent, engine 0.9.24 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 135 pytest + 29 node, all passing at 0.9.24.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -116,7 +116,13 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
 - **Verified 13:34 (fx39024, 0.9.23):** both buttons shown; on the clean clip „Приложи и средните“ applied
   Exposure (+2 stops, capped: the clip measured +2.43) with Temperature/Tint; 1.74 % new clipping (ACCEPTED),
   white residual 0.05/−0.05 (neutral), skin still 0.68 stop under target (out-of-range clip: one capped pass,
-  as the user wants). The first try at 13:34:17 was refused by Asistent's own earlier Lumetri (B6 gap again). Attempt 12:26 on fx31031 was skipped: the
+  as the user wants). The first try at 13:34:17 was refused by Asistent's own earlier Lumetri (B6 gap again).
+- 0.9.24: managed correction ownership (B6). After every write the panel fingerprints the whole Lumetri (all
+  parameters) and the engine keeps the sha1 per clip (path + source in/out, `managed.json`, last 6 states, so
+  an undone step-back still counts). An existing Lumetri is updated only when its fingerprint matches; then the
+  new suggestion (a difference, measured on the timeline) is added to its current values; the render check
+  gets the differences. Any manual change → not Asistent's → never touched. Lumetris written before 0.9.24 have
+  no fingerprint and stay protected. NOT verified in Premiere yet. Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.

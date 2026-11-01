@@ -67,6 +67,14 @@ function colorCheck(before, after, applied, fix, final = false) {
   return call("POST", "/color/check", { before, after, applied, fix, final });
 }
 
+function managedCheck(key, snapshot) {
+  return call("POST", "/color/managed/check", { key, snapshot });
+}
+
+function managedRecord(key, snapshot, values) {
+  return call("POST", "/color/managed/record", { key, snapshot, values });
+}
+
 function waitFrame(path, timeout = 20) {
   return call("POST", "/frames/wait", { path, timeout });
 }
@@ -88,4 +96,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, job, cancel, log };

@@ -14,6 +14,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /log                  {"level": "info"|"error", "message": "..."} panel messages into the engine log
   POST /color               {"items": [{"path", "start", "end"}]} -> job: exposure + white balance + preview
   POST /color/sliders        {"fix_temp", "fix_tint"} -> Lumetri Temperature/Tint (learnt calibration)
+  POST /color/managed/check  {"key", "snapshot"} -> {"owned"}: is this Lumetri exactly as Asistent left it?
+  POST /color/managed/record {"key", "snapshot", "values"} -> remember a Lumetri Asistent just wrote
   POST /color/check          {"before", "after", "applied", "fix", "clip_tolerance"?, "final"?} -> verify a
                              Premiere render; clipping_status ACCEPTED / ACCEPTED_WITH_WARNING / REVIEW_NEEDED
   POST /color/probe          {"refs": {"baseline", "source"?}, "frames": [{"path", ...}], "report"?}
@@ -43,6 +45,7 @@ from .audio import analyze_items
 from . import color as COLOR
 from .groups import sync_groups
 from .importer import Store, Watcher
+from .managed import ManagedStore
 from .sync import sync_clips
 
 log = logging.getLogger("asistent")
@@ -231,6 +234,14 @@ class Handler(BaseHTTPRequestHandler):
                                            for r in res["items"]])
                     return res
                 return self._send(200, {"job": JOBS.submit("color", work).id})
+            if self.path in ("/color/managed/check", "/color/managed/record"):
+                store = ManagedStore(os.path.join(config.app_dir(), "managed.json"))
+                key, snap = str(body.get("key") or ""), str(body.get("snapshot") or "")
+                if self.path.endswith("check"):
+                    return self._send(200, {"owned": store.owned(key, snap)})
+                store.record(key, snap, body.get("values") or {})
+                log.info("color managed: recorded %s %s", key, body.get("values"))
+                return self._send(200, {"ok": True})
             if self.path == "/color/sliders":
                 cal = COLOR.Calibration()
                 out = cal.sliders(float(body.get("fix_temp") or 0), float(body.get("fix_tint") or 0))
