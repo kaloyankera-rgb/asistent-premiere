@@ -71,6 +71,9 @@ async function snapshot(comp) {
   return parts.join("|");
 }
 
+// clips whose last correction the render check could not see (identical frames); remembered until the next press
+const unseen = new Set();
+
 // the clip as a source range: survives moving the clip on the timeline, not trimming it (then: manual)
 function clipKey(clip) {
   return `${clip.path}|${(clip.inPt || 0).toFixed(3)}|${(clip.outPt || 0).toFixed(3)}`;
@@ -334,6 +337,13 @@ async function apply(project, timeline, plans) {
     let sliders = null;
     try {
       t = await target(pl.clip);
+      if (!t.skip && t.owned && (t.current.exposure || 0) > 0 && unseen.has(clipKey(pl.clip))) {
+        // the render check could not see the last correction on this clip (identical frames): stacking another one
+        // on a measurement that does not show it doubled Exposure 2.15 → 4.3 (fx39026, 2026-11-01)
+        t = { skip: "предишната корекция не се вижда на таймлайна (кадърът не се променя): не добавям още. "
+          + "Виж дали клипът не е под друг слой, после натисни пак." };
+        unseen.delete(clipKey(pl.clip));
+      }
       // hysteresis: on Asistent's own Lumetri a white the render check calls neutral stays as it is
       pl.keptWhite = !t.skip && t.owned && pl.wb && whiteWithinCheck(pl.res.white);
       if (!t.skip && pl.wb && !pl.keptWhite) sliders = await engine.colorSliders(pl.res.white.fix_temp, pl.res.white.fix_tint);
@@ -415,6 +425,7 @@ async function apply(project, timeline, plans) {
       continue;
     }
     debug(`color check ${pl.clip.name}: ${JSON.stringify(chk)}`);
+    if (chk.render_unchanged) unseen.add(clipKey(pl.clip)); else unseen.delete(clipKey(pl.clip));
     pl.firstChk = chk;
     pl.finalChk = chk;
     const fixValues = {};
@@ -519,4 +530,46 @@ function finalLine(chk) {
   return `${msg} Яркостта е ${Math.abs(stops).toFixed(1)} стопа ${stops > 0 ? "под" : "над"} целта.`;
 }
 
-module.exports = { readVideoSelection, apply, exportFrame, timelineFrames, lumetriState, applyShotMatch };
+// Test bridge only (devbridge.js, TEST.prproj): write values into the clip's EXISTING Lumetri, whoever's it is, in one
+// Undo step, and read back what it holds. Never creates a Lumetri.
+async function devWrite(project, clip, values) {
+  const chain = await maybe(clip.ti, "getComponentChain");
+  if (!chain) throw new Error(`Няма ефекти на ${clip.name}.`);
+  const count = await chain.getComponentCount();
+  for (let i = 0; i < count; i++) {
+    const comp = await chain.getComponentAtIndex(i);
+    if (!/lumetri/i.test((await maybe(comp, "getMatchName")) || "")) continue;
+    const t = { chain, comp, ps: await params(comp) };
+    transaction(project, "Asistent: тест на Lumetri", (c) => {
+      for (const make of setActions(t, values)) c.addAction(make());
+    });
+    const now = {};
+    for (const k of Object.keys(DEFAULTS)) now[k] = t.ps[k] ? await value(t.ps[k]) : DEFAULTS[k];
+    return now;
+  }
+  throw new Error(`${clip.name} няма Lumetri: тестът не създава нов.`);
+}
+
+// Test bridge only: every effect on the clip in chain order (match name, name, enabled) and the Lumetri values of each
+// Lumetri, to see what really acts on the picture (a second Lumetri, another effect, a disabled one).
+async function devChain(clip) {
+  const chain = await maybe(clip.ti, "getComponentChain");
+  if (!chain) return [];
+  const out = [];
+  const count = await chain.getComponentCount();
+  for (let i = 0; i < count; i++) {
+    const comp = await chain.getComponentAtIndex(i);
+    const match = (await maybe(comp, "getMatchName")) || "";
+    const row = { index: i, match, name: (await maybe(comp, "getDisplayName")) || (comp && comp.displayName) || "",
+      disabled: await maybe(comp, "getEnabled").then((v) => (v === undefined ? null : !v)) };
+    if (/lumetri/i.test(match)) {
+      const ps = await params(comp);
+      row.values = {};
+      for (const k of Object.keys(DEFAULTS)) row.values[k] = ps[k] ? await value(ps[k]) : DEFAULTS[k];
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+module.exports = { readVideoSelection, apply, exportFrame, timelineFrames, lumetriState, applyShotMatch, devWrite, devChain };

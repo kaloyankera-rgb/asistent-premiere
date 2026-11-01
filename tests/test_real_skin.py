@@ -89,3 +89,29 @@ def test_shot_match_on_the_real_pair_proposes_the_full_gap_and_leaves_saturation
     assert m["proposal"]["exposure"] > 1.5                                 # 0.9.29 proposed 1.14 on the wood
     assert m["error_after"]["exposure"] < 0.15 < m["error_before"]["exposure"]
     assert abs(m["proposal"]["saturation"] - 100) <= 20                    # no big saturation move
+
+
+def legacy_exposure(frames):
+    """„Цвят“ before 0.9.33: skin by colour box on the white-fixed view, exposure to the skin target."""
+    vals = []
+    for enc in frames:
+        lin = C.to_linear(enc, None)
+        m = C.measure(enc, faces=[])
+        t, g = m.get("cast_neutral") or m.get("cast_world") or (0.0, 0.0)
+        fixed = C.encode(lin * np.array([2 ** (t / 2 + g / 3), 2 ** (-2 * g / 3), 2 ** (-t / 2 + g / 3)]))
+        skin = C._skin(fixed) & ~(np.max(C.encode(lin), axis=-1) >= 0.97)
+        if skin.mean() >= 0.01:
+            vals.append(C.GAMMA * np.log2(C.SKIN_TARGET / max(float(np.median(C._luma(fixed)[skin])), 1e-4)))
+    return float(np.median(vals)) if vals else None
+
+
+def test_colour_button_no_longer_exposes_for_the_wood():
+    # C9023 (FX30, wood boards 20-35 % of the frame): the colour box called the boards skin and asked for +0.5 stop;
+    # the face is 1.7 stops under the target (Shot Match measured the same face 1.9 stops darker than the FX3's)
+    frames = C.read_frames(FX30, n=6, width=S.ANALYSIS_SIDE)
+    old = legacy_exposure(frames)
+    r = C.decide(frames)["exposure"]
+    assert old is not None and old < 1.0
+    assert r["basis"] == "кожата" and r["measured"] > 1.2                       # measured on faces
+    assert r["measured"] - old > 0.5
+    assert C.decide(frames)["skin_area"] < 0.05                                  # not the 20-35 % of the colour box
