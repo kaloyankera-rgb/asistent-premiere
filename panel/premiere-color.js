@@ -8,7 +8,7 @@ const { TickTime, Constants } = ppro;
 const P = require("./premiere.js");
 const engine = require("./engine.js");
 const { covered, analysisMoments } = require("./moments.js");
-const { mergeValues } = require("./colorplans.js");
+const { mergeValues, whiteWithinCheck, WHITE_OK } = require("./colorplans.js");
 
 const { UserError, transaction, has, maybe, debug } = P;
 
@@ -248,7 +248,9 @@ async function apply(project, timeline, plans) {
     let sliders = null;
     try {
       t = await target(pl.clip);
-      if (!t.skip && pl.wb) sliders = await engine.colorSliders(pl.res.white.fix_temp, pl.res.white.fix_tint);
+      // hysteresis: on Asistent's own Lumetri a white the render check calls neutral stays as it is
+      pl.keptWhite = !t.skip && t.owned && pl.wb && whiteWithinCheck(pl.res.white);
+      if (!t.skip && pl.wb && !pl.keptWhite) sliders = await engine.colorSliders(pl.res.white.fix_temp, pl.res.white.fix_tint);
     } catch (e) {
       t = { skip: `не стана за този клип (${e && e.message ? e.message : e}); другите продължават` };
     }
@@ -261,7 +263,7 @@ async function apply(project, timeline, plans) {
     const { values, applied } = mergeValues(t.current, pl.exposure, sliders);
     pl.applied = applied;
     if (!Object.keys(values).length) {
-      pl.lines = ["нищо за прилагане"];
+      pl.lines = [pl.keptWhite ? "бялото вече е неутрално (в границата на проверката): нищо за прилагане" : "нищо за прилагане"];
       continue;
     }
     pl.t = t;
@@ -302,6 +304,7 @@ async function apply(project, timeline, plans) {
     pl.lines.push([v.exposure !== undefined ? `Exposure ${v.exposure > 0 ? "+" : ""}${v.exposure}${was("exposure")}` : null,
       v.temperature !== undefined ? `Temperature ${v.temperature}${was("temperature")}` : null,
       v.tint !== undefined ? `Tint ${v.tint}${was("tint")}` : null].filter(Boolean).join(" · "));
+    if (pl.keptWhite) pl.lines.push("бялото е оставено: вече е неутрално в границата на проверката");
     pl.final = { ...pl.values };
     await remember(pl);                    // this state is Asistent's (also if the step back is undone later)
   }
@@ -332,12 +335,13 @@ async function apply(project, timeline, plans) {
       pl.lines.push(`изгоряха ${(chk.new_clipping * 100).toFixed(1)}%: експозицията свалена с ${back} на ${fixValues.exposure}`);
       pl.recheck = true;
     }
-    if (pl.wb && chk.residual && (Math.abs(chk.residual[0]) > 0.1 || Math.abs(chk.residual[1]) > 0.06) && chk.sliders_now) {
+    if (pl.wb && !pl.keptWhite && chk.residual && (Math.abs(chk.residual[0]) > WHITE_OK.temp ||
+        Math.abs(chk.residual[1]) > WHITE_OK.tint) && chk.sliders_now) {
       // on Asistent's own earlier Lumetri the refined white is added to what was there before this press
       fixValues.temperature = Math.round(((pl.t.current.temperature || 0) + chk.sliders_now.temperature) * 10) / 10;
       fixValues.tint = Math.round(((pl.t.current.tint || 0) + chk.sliders_now.tint) * 10) / 10;
       pl.lines.push(`бялото доуточнено: Temperature ${fixValues.temperature}, Tint ${fixValues.tint}`);
-    } else if (pl.wb && chk.residual) {
+    } else if (pl.wb && !pl.keptWhite && chk.residual) {
       pl.lines.push("проверено на кадър: бялото е неутрално");
     }
     if (!pl.recheck && chk.clipping_status && chk.clipping_status !== "ACCEPTED") pl.lines.push(finalLine(chk));

@@ -37,7 +37,7 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
   without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
   (97 tests; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere) and
-  `node --test tests/layout.test.js tests/channels.test.js tests/wiring.test.js tests/moments.test.js tests/colorplans.test.js` (29 tests);
+  `node --test tests/layout.test.js tests/channels.test.js tests/wiring.test.js tests/moments.test.js tests/colorplans.test.js` (32 tests);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Premiere tests only in the user's test project `TEST.prproj`, never in client projects; never close or
   restart Premiere without asking. Client footage stays local; never look at client frames as images.

@@ -46,4 +46,13 @@ function mergeValues(current, exposureUnits, sliders) {
   return { values, applied };
 }
 
-module.exports = { plansFor, corrections, mergeValues };
+// What the render check accepts as neutral (|cast| per log2 axis). The analysis alone flags a cast from 0.08 / 0.05,
+// so a white just corrected by Asistent could be „corrected" back on the next press (fx39024 16:12: residual
+// 0.096 → Temperature −4.9 turned into −0.2). On Asistent's own Lumetri a white within these limits is kept.
+const WHITE_OK = { temp: 0.1, tint: 0.06 };
+
+function whiteWithinCheck(white) {
+  return Math.abs(white.fix_temp || 0) <= WHITE_OK.temp && Math.abs(white.fix_tint || 0) <= WHITE_OK.tint;
+}
+
+module.exports = { plansFor, corrections, mergeValues, whiteWithinCheck, WHITE_OK };
