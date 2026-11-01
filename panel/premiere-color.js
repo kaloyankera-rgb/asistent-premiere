@@ -147,10 +147,11 @@ async function timelineFrames(timeline, clip, dir, index) {
   return frames;
 }
 
-async function checkWithRetry(before, after, applied, fix) {
+// final: the re-check after the one step back. The engine then gives its verdict and never proposes another step
+async function checkWithRetry(before, after, applied, fix, final = false) {
   for (let i = 0; i < 10; i++) {
     try {
-      return await engine.colorCheck(before, after, applied, fix);
+      return await engine.colorCheck(before, after, applied, fix, final);
     } catch (e) {
       await new Promise((r) => setTimeout(r, 300));          // Premiere may still be writing the file
     }
@@ -270,7 +271,7 @@ async function apply(project, timeline, plans) {
   for (const [i, pl] of prepared.entries()) {
     if (!pl.recheck) continue;
     const after2 = await exportFrame(timeline.sequence, pl.mid, `after2_${i}.png`, dir);
-    const chk2 = after2 && (await checkWithRetry(pl.before, after2, pl.final, pl.res.white));
+    const chk2 = after2 && (await checkWithRetry(pl.before, after2, pl.final, pl.res.white, true));
     if (!chk2) {
       pl.lines.push("след свалянето: проверката не успя");
       continue;

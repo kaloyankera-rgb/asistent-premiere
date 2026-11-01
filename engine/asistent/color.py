@@ -343,7 +343,7 @@ def new_clipping(before: np.ndarray, after: np.ndarray) -> float:
 
 
 def check_render(before_path: str, after_path: str, exposure_units: float = 0.0, cal=None,
-                 soft_tolerance: float = CLIP_SOFT_TOLERANCE) -> dict:
+                 soft_tolerance: float = CLIP_SOFT_TOLERANCE, final: bool = False) -> dict:
     """Two frames exported by Premiere (without / with the correction): how neutral and how bright the
     result is, and how much burnt out. Used to verify and, if needed, step the correction back."""
     b, a = read_image(before_path), read_image(after_path)
@@ -354,7 +354,9 @@ def check_render(before_path: str, after_path: str, exposure_units: float = 0.0,
            "cast_after": ma.get("cast_neutral") or ma.get("cast_world"),
            "exposure_after": ma.get("exp_skin", ma.get("exp_mid")),
            "skin_after": round(ma.get("skin", 0.0), 4)}
-    if exposure_units > 0 and out["new_clipping"] > NEW_CLIP:
+    # final: the re-check after the one step back; it gets a verdict, never another step (C0739 12:58 was
+    # labelled STEP_BACK at 3.08 % because the engine could not tell the two checks apart)
+    if exposure_units > 0 and out["new_clipping"] > NEW_CLIP and not final:
         out["pullback_units"] = pullback_units(b, a, exposure_units, cal or Calibration())
     out["clipping_regions"] = clipping_regions(b, a)
     out.update(classify_clipping(out["new_clipping"], out["clipping_regions"], out["exposure_after"], soft_tolerance))
