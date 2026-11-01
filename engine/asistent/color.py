@@ -204,6 +204,8 @@ def measure(enc: np.ndarray, gamma: str | None = None) -> dict:
                 out["cast_neutral"] = cast_n
                 cast = cast_n
     out["neutral"] = float(np.mean(neutral))
+    if neutral.any():
+        out["neutral_y"] = float(np.median(y_lin[neutral]))     # their brightness (Shot Match exposure anchor)
 
     # skin, looked for once the cast is out (a grey wall under warm light would pass for skin)
     t, g = cast

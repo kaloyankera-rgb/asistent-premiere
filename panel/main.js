@@ -491,15 +491,18 @@ async function onShotMatch(reference = null) {
     const res = await runJob(job);
     Object.assign(shotState, { project, sel, clips, res, job, reference });
     const blocks = [];
+    // the reference as a plain choice: one button per camera, the current one ticked; a press re-runs against it
     const top = el("div", "group");
-    top.appendChild(el("div", "name", `Еталон: ${res.reference} ${reference ? "(избран)" : "(най-надеждният)"}`));
+    top.appendChild(el("div", "name", "Еталон (другите камери се изравняват към него):"));
     const bar = el("div", "row buttons");
-    for (const cam of res.cameras.filter((c) => c !== res.reference)) {
-      const b = el("button", "small", `Еталон: ${cam}`);
-      onTap(b, () => onShotMatch(cam));
+    for (const cam of res.cameras) {
+      const b = el("button", "small", cam === res.reference ? `✓ ${cam}` : cam);
+      if (cam !== res.reference) onTap(b, () => onShotMatch(cam));
       bar.appendChild(b);
     }
     top.appendChild(bar);
+    top.appendChild(el("div", "reason", reference ? "Избран от теб. Натисни друга камера, за да я направиш еталон."
+      : "Избран автоматично (най-надеждната камера). Натисни друга, за да я направиш еталон."));
     for (const n of res.notes || []) top.appendChild(el("div", "warn", n));
     if (odd) top.appendChild(el("div", "warn", `${odd} клипа с променена скорост са пропуснати.`));
     blocks.push(top);

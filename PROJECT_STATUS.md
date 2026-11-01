@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.28 (2026-11-01)
+# Project status — Asistent 0.9.29 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.28 via
-UnifiedPluginInstallerAgent, engine 0.9.28 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 150 pytest + 41 node, all passing at 0.9.28.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.29 via
+UnifiedPluginInstallerAgent, engine 0.9.29 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 153 pytest + 41 node, all passing at 0.9.29.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -180,4 +180,14 @@ of force: > 1.5 stops, white > 0.5/0.3, neutrals vs skin disagreeing, no anchor,
 Apply: only changed components, new or Asistent-owned Lumetri only (manual grade → BLOCKED); each clip
 checked on a Premiere frame at a visible moment against the reference look, worse components put back in one
 step; fully covered clips: model only (said). Log/S-Log clips skipped. Audit: `kind: shotmatch`.
-NOT verified in Premiere yet (needs real multi-POV footage).
+First Premiere test (16:42, SYNC sequence, C9023 fx30 + fx39024 fx3): reference fx30 (auto); only Exposure 1.56
+applied, white/saturation/contrast flagged; render check: exposure error 1.87 → 0.54. Cause: the broad skin box
+took the OSB wood for skin (16–47 % of the frame, log2 B/R −1.9…−2.0, chroma 0.74–0.78) and whole-frame contrast
+compared different framings (+94). The user also could not find how to choose the reference.
+0.9.29: skin = only pixels in the real-skin range (log2 B/R −1.6…−0.6, chroma 0.30–0.68); white from neutrals,
+skin only as a veto when real skin is on both; exposure from real skin, else from the neutral surfaces'
+brightness on common moments; saturation only from real skin; contrast only on common moments with comparable
+content (tone-histogram intersection ≥ 0.75); flags name the reason. Replay of the same pair: fx3 skin 2.3 %,
+white −6.9/+14.1 (fx3 green removed), exposure 1.86 (error 1.44 → 0.02 stop), saturation 90, contrast flagged.
+Reference choice: one button per camera, the current one ticked, with a one-line explanation.
+NOT verified in Premiere yet at 0.9.29.
