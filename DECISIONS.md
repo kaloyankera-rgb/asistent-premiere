@@ -79,3 +79,8 @@ The first render check steps Exposure back once whenever new clipping is over 3.
 result is inside the soft tolerance. The 0.25-point tolerance (`CLIP_SOFT_TOLERANCE`) only classifies the
 final result (ACCEPTED_WITH_WARNING) and never triggers another correction: one more step would darken the
 skin to win a few hundredths of a percent.
+
+## Colour: one static best-effort value per clip (2026-11-01, user)
+Every corrected parameter is one constant value across the whole clip, the best overall from the measured
+moments; no keyframes. A clip that burns too much or is otherwise beyond the range gets one capped pass (what
+is possible) and the work moves on: no repeated attempts, and one failing clip never stops the others.

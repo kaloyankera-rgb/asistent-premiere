@@ -529,3 +529,32 @@ def test_final_recheck_gets_a_verdict_never_a_step_back(tmp_path):
     assert r["new_clipping"] > C.NEW_CLIP
     assert "pullback_units" not in r and r["clipping_status"] != "STEP_BACK"
     assert "No further correction applied" in r["clipping_message"]
+
+
+def test_one_failing_clip_never_stops_the_others(frames_dir, monkeypatch):
+    good = [_png(C.encode(scene() / 2), frames_dir / f"g_{k}.png") for k in range(3)]
+    bad = [_png(C.encode(scene()), frames_dir / f"b_{k}.png") for k in range(3)]
+    real = C.decide
+
+    def flaky(frames, gamma=None, source_gamma=None):
+        if abs(float(frames[0].mean()) - float(C.encode(scene()).mean())) < 1e-3:
+            raise ValueError("boom")                                 # anything unexpected on one clip
+        return real(frames, gamma, source_gamma)
+    monkeypatch.setattr(C, "decide", flaky)
+    res = C.analyze_items([{"path": "/nowhere/BAD.MP4", "frames": bad},
+                           {"path": "/nowhere/GOOD.MP4", "frames": good}], with_preview=False)["items"]
+    assert "error" in res[0] and "другите продължават" in res[0]["error"]
+    assert res[1]["measured_on"] == "timeline" and res[1]["exposure"]["stops"] > 0
+
+
+def test_out_of_range_clip_gets_one_capped_pass_and_says_so():
+    r = C.decide([scene() * 0 + C.encode(scene() / 2 ** 3.5)[..., :] for _ in range(3)])   # ~3.5 stops dark
+    assert r["exposure"]["stops"] == C.MAX_STOPS                     # what is possible, nothing more
+    assert any("извън обхвата" in x for x in r["reasons"])
+
+
+def test_no_keyframes_in_the_colour_path():
+    # one value per parameter across the whole clip (user, 2026-11-01)
+    import pathlib
+    src = (pathlib.Path(__file__).parent.parent / "panel" / "premiere-color.js").read_text()
+    assert "createSetTimeVaryingAction" not in src and "createAddKeyframeAction" not in src

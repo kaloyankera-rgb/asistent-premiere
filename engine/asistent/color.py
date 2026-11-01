@@ -254,6 +254,10 @@ def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str
     exp_conf = "high" if basis == "кожата" and spread < 0.4 else "medium" if basis and spread < 0.6 else "low"
     if basis:
         reasons.append(f"Експозиция по {basis}: {'+' if stops > 0 else ''}{stops:g} (измерено {raw:+.2f} стопа).")
+        if abs(raw) > MAX_STOPS + STEP / 2:
+            # too far gone: one best-effort pass within the range, then move on (user, 2026-11-01)
+            reasons.append(f"Клипът е извън обхвата ({raw:+.1f} стопа): направено е каквото може "
+                           f"({'+' if stops > 0 else ''}{stops:g}), останалото не се гони.")
 
     # ---- white balance
     neu = [m["cast_neutral"] for m in ms if "cast_neutral" in m]
@@ -523,8 +527,14 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
                     read_frames(path, n=1, width=720, start=float(it.get("start") or 0), end=it.get("end"))
                 r["preview"] = preview(big, shown_gamma, r)
                 r["preview"]["portrait"] = big[0].shape[0] > big[0].shape[1]
+        except Cancelled:
+            raise
         except MediaError as e:
             r = {"path": path, "name": os.path.basename(path), "error": str(e)}
+        except Exception as e:                     # one clip never stops the others (user, 2026-11-01)
+            import logging
+            logging.getLogger("asistent").exception("color analysis failed on %s", path)
+            r = {"path": path, "name": os.path.basename(path), "error": f"Не стана за този клип ({e}); другите продължават."}
         done[0] += 1
         progress(done[0] / len(items), f"Гледам {done[0]} от {len(items)}")
         return r
