@@ -434,3 +434,79 @@ def test_first_check_before_a_step_back_is_not_a_final_verdict(tmp_path):
     r = C.check_render(paths[0], paths[1], 1.0, C.Calibration(str(tmp_path / "l.json")))
     assert r["pullback_units"] > 0 and r["clipping_status"] == "STEP_BACK"
     assert "No further correction" not in r["clipping_message"]
+
+
+# ---- analysis on timeline renders (spec T13/T18): a corrected clip must not get the same correction again
+
+def _png(enc, path):
+    import subprocess as sp
+    raw = (np.clip(enc, 0, 1) * 65535).astype("<u2")
+    h, w = raw.shape[:2]
+    sp.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb48le", "-s", f"{w}x{h}", "-i", "-",
+            "-frames:v", "1", str(path)], input=raw.tobytes(), check=True)
+    return str(path)
+
+
+@pytest.fixture
+def frames_dir(tmp_path, monkeypatch):
+    from asistent import config
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    (tmp_path / "frames").mkdir()
+    return tmp_path / "frames"
+
+
+def test_rerun_on_a_corrected_clip_suggests_nothing(frames_dir):
+    dark = scene() / 2 ** 1.5                                         # needs about +1.5 stops
+    raw_tl = [_png(C.encode(dark * (1 + 0.01 * k)), frames_dir / f"raw_{k}.png") for k in range(3)]
+    first = C.analyze_items([{"path": "/nowhere/C0001.MP4", "frames": raw_tl}], with_preview=False)["items"][0]
+    assert first["measured_on"] == "timeline" and first["exposure"]["stops"] == 1.5
+    # the same clip after the correction: the timeline now shows it corrected
+    fixed_tl = [_png(C.encode(dark * 2 ** 1.5 * (1 + 0.01 * k)), frames_dir / f"fixed_{k}.png") for k in range(3)]
+    again = C.analyze_items([{"path": "/nowhere/C0001.MP4", "frames": fixed_tl}], with_preview=False)["items"][0]
+    assert again["measured_on"] == "timeline" and again["exposure"]["stops"] == 0.0
+    assert "status" not in again
+
+
+def test_no_timeline_frames_falls_back_to_the_file_as_review_needed(frames_dir, tmp_path):
+    import subprocess as sp
+    clip = tmp_path / "C0002.MP4"
+    sp.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:d=2", "-c:v", "libx264",
+            str(clip)], check=True)
+    r = C.analyze_items([{"path": str(clip), "frames": []}], with_preview=False)["items"][0]
+    assert r["measured_on"] == "source" and r["status"] == "REVIEW_NEEDED"
+    assert r["exposure"]["confidence"] == "low" and r["white"]["confidence"] == "low"
+    assert any("не на таймлайна" in w for w in r["warnings"])
+
+
+def test_frames_outside_the_engine_folder_are_ignored(frames_dir, tmp_path):
+    import subprocess as sp
+    clip = tmp_path / "C0003.MP4"
+    sp.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:d=2", "-c:v", "libx264",
+            str(clip)], check=True)
+    outside = [_png(C.encode(scene()), tmp_path / f"x{k}.png") for k in range(3)]
+    r = C.analyze_items([{"path": str(clip), "frames": outside}], with_preview=False)["items"][0]
+    assert r["measured_on"] == "source" and r["status"] == "REVIEW_NEEDED"
+
+
+def test_one_timeline_frame_is_not_enough(frames_dir, tmp_path):
+    import subprocess as sp
+    clip = tmp_path / "C0004.MP4"
+    sp.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:d=2", "-c:v", "libx264",
+            str(clip)], check=True)
+    one = [_png(C.encode(scene()), frames_dir / "only.png")]
+    assert C.analyze_items([{"path": str(clip), "frames": one}], with_preview=False)["items"][0]["measured_on"] == "source"
+
+
+def test_log_footage_measured_on_the_timeline_is_only_a_suggestion(frames_dir, monkeypatch):
+    from asistent import prepare
+    monkeypatch.setattr(prepare, "sony_xml", lambda p: {"gamma": "s-log3-cine"})
+    tl = [_png(C.encode(scene() / 2), frames_dir / f"log_{k}.png") for k in range(3)]
+    r = C.analyze_items([{"path": "/nowhere/C0005.MP4", "frames": tl}], with_preview=False)["items"][0]
+    assert r["measured_on"] == "timeline" and r["source_gamma"] == "s-log3-cine"
+    assert r["exposure"]["confidence"] == "low" and r["white"]["confidence"] == "low"
+
+
+def test_timeline_preview_comes_from_the_timeline_frames(frames_dir):
+    tl = [_png(C.encode(scene() / 2), frames_dir / f"p_{k}.png") for k in range(3)]
+    r = C.analyze_items([{"path": "/nowhere/C0006.MP4", "frames": tl}], with_preview=True)["items"][0]
+    assert r["preview"]["before"] and r["preview"]["after"] and r["preview"]["portrait"] is False

@@ -267,6 +267,7 @@ function colorBlock(clip, r) {
     box.appendChild(el("div", "warn", r.error));
     return box;
   }
+  if (r.measured_on === "timeline") box.appendChild(el("div", "reason", `Мерено на таймлайна (${r.frames} кадъра).`));
   if (r.preview && r.preview.before) {
     const row = el("div", r.preview.portrait ? "thumbs portrait" : "thumbs");
     for (const k of ["before", "after"]) {
@@ -315,7 +316,15 @@ async function onColor() {
     const project = await premiere.activeProject();
     const sel = await premiereColor.readVideoSelection(project);
     if (!sel.clips.length) throw new premiere.UserError("Маркирай в таймлайна поне един видео клип.");
-    const { job } = await engine.startColor(sel.clips.map((c) => ({ path: c.path, start: c.inPt, end: c.outPt })));
+    // measure what is on the timeline (an earlier correction included), not the source file
+    const dir = (await engine.status()).frames_dir;
+    const items = [];
+    for (const [i, c] of sel.clips.entries()) {
+      progress((0.4 * i) / sel.clips.length, `Кадри от таймлайна: ${i + 1} от ${sel.clips.length}…`);
+      const frames = dir ? await premiereColor.timelineFrames(sel.timeline, c, dir, i) : [];
+      items.push({ path: c.path, start: c.inPt, end: c.outPt, frames });
+    }
+    const { job } = await engine.startColor(items);
     const result = await runJob(job);
     Object.assign(colorState, { project, sel, results: result.items });
     const blocks = sel.clips.map((c, i) => colorBlock(c, result.items[i]));

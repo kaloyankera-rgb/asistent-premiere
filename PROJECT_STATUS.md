@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.17 (2026-11-01)
+# Project status — Asistent 0.9.18 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.17 via
-UnifiedPluginInstallerAgent, engine 0.9.17 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 121 pytest + 14 node, all passing at 0.9.17.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.18 via
+UnifiedPluginInstallerAgent, engine 0.9.18 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 113 pytest + 19 node, all passing at 0.9.18.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -75,7 +75,13 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   the step-back is STEP_BACK, not a verdict. Never triggers another correction. Replayed on the C0739 frames:
   first 4.42 % → 0.15 back (unchanged) → recheck 3.08 % ACCEPTED_WITH_WARNING with the specified message.
   Found while replaying: the skin box also catches warm near-white highlights (C0739: 189 scattered pixels at
-  0.94-0.97), so skin clipping counts only skin tones below 0.90. Attempt 12:26 on fx31031 was skipped: the
+  0.94-0.97), so skin clipping counts only skin tones below 0.90.
+- 0.9.18: analysis on timeline renders (spec T13/T18). The panel exports 4 frames per clip from the sequence
+  (720 px, evenly inside the clip, moments under an upper layer skipped, `moments.js`), the engine measures
+  them as Rec.709 with any existing correction included, so a corrected clip measures as fine. Fewer than two
+  usable frames (covered, export failed) → measured on the file, `status: REVIEW_NEEDED`, confidence low
+  (shown, never applied). Log sources measured on the timeline: confidence low until the colour-management
+  step shows whether Premiere converts them. NOT verified in Premiere yet. Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.
