@@ -99,10 +99,20 @@ async function readAudioSelection(project) {
 }
 
 // The Volume level as actions: one static value, or (phrase leveling) keyframes at media times.
+// Premiere's clip Volume goes up to +15 dB (1.0 in its own scale); more is clamped, so ask for at most that
+const LEVEL_MAX_DB = 15;
+
 function levelActions(lv, o, who, inPt) {
   const actions = [];
   const checks = [];
-  const lines = [levelLine(who, o)];
+  const lines = [];
+  if (o.gain_db > LEVEL_MAX_DB) {
+    lines.push(`${who}: трябваха +${o.gain_db} dB, но Volume на клип в Premiere стига до +${LEVEL_MAX_DB} dB: сложени са +${LEVEL_MAX_DB}`);
+    o = { ...o, result_lufs: Math.round((o.result_lufs - (o.gain_db - LEVEL_MAX_DB)) * 10) / 10,
+      result_peak_db: Math.round((o.result_peak_db - (o.gain_db - LEVEL_MAX_DB)) * 10) / 10, gain_db: LEVEL_MAX_DB,
+      keyframes: (o.keyframes || []).map(([t, g]) => [t, Math.min(g, LEVEL_MAX_DB)]) };
+  }
+  lines.unshift(levelLine(who, o));
   const keys = o.keyframes || [];
   if (keys.length) {
     actions.push(() => lv.param.createSetTimeVaryingAction(true));
