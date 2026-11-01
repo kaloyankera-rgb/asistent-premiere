@@ -162,6 +162,8 @@ async function apply(project, timeline, plans) {
     const t = await target(pl.clip);
     if (t.skip) {
       pl.lines = [t.skip];
+      pl.skipped = true;
+      debug(`color apply ${pl.clip.name}: skipped, ${t.skip}`);
       continue;
     }
     const values = {};

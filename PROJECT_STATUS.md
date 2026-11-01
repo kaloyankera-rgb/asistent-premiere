@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.14 (2026-11-01)
+# Project status — Asistent 0.9.15 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.14 via
-UnifiedPluginInstallerAgent, engine 0.9.14 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 104 pytest + 14 node, all passing at 0.9.14.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.15 via
+UnifiedPluginInstallerAgent, engine 0.9.15 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 104 pytest + 14 node, all passing at 0.9.15.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -57,7 +57,8 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   brightening only; darkening still 1:1, unmeasured); the panel writes units and shows stops = units.
   Probe values (`probe` in `lumetri.json`: temp −50, tint −66.67) are authoritative; a render check learns
   only an axis the probe never measured and never from a render that also changed Exposure.
-- NOT verified: an apply with the 0.9.14 units reaching the skin target.
+- NOT verified: an apply with the 0.9.14 units reaching the skin target. Attempt 12:26 on fx31031 was skipped: the
+  clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.
 - **Probe VERIFIED at 0.9.13 (12:16, C0737, TEST.prproj):** 7 distinct frames written in order ~0.33 s apart;
