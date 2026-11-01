@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.26 (2026-11-01)
+# Project status — Asistent 0.9.27 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.26 via
-UnifiedPluginInstallerAgent, engine 0.9.26 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 139 pytest + 34 node, all passing at 0.9.26.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.27 via
+UnifiedPluginInstallerAgent, engine 0.9.27 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 139 pytest + 35 node, all passing at 0.9.27.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -136,7 +136,14 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   put back to its previous value in one extra Undo step („Asistent: върни влошеното“). White: worse = outside
   the neutral limits AND further than before; exposure: further from the target by > 0.15 stop (overshoot).
   Clipping is never a revert gate (user's rule). A refined white now also gets the final re-check.
-  NOT verified in Premiere yet. Attempt 12:26 on fx31031 was skipped: the
+- **Verified 16:17-16:25 (0.9.26):** statuses and audit records written (fx39026 CORRECTED twice, gates white
+  better / exposure better, no revert); ownership in real use: „сигурните“ (white) then „Цвят“ + „средните“
+  added Exposure 2.1 to the same Lumetri in one Undo step, white kept (fx39024, fx39026). Found: a white refine
+  wrote the same sliders again (−4.7/12.5: extra Undo step, identical re-check); the Undo hint was outdated; the
+  second press showed no result line. 0.9.27: refine skipped when it would not change the sliders by ≥ 0.5,
+  every check shows one result line, hint says „Цвят“ + „Приложи и средните“ (no Undo).
+- Observation (fx39027 16:19): skin exactly on target (0.0005) but 6.4 % of the skin area clipped → REVIEW_NEEDED:
+  the 0.62 skin target may be too bright for some faces (input for „exposure taste“, NEXT_STEPS B9). Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.

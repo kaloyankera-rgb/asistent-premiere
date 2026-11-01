@@ -301,18 +301,27 @@ async function apply(project, timeline, plans) {
       fixValues.exposure = Math.max(0, Math.round((pl.values.exposure - back) * 100) / 100);
       pl.lines.push(`изгоряха ${(chk.new_clipping * 100).toFixed(1)}%: експозицията свалена с ${back} на ${fixValues.exposure}`);
     }
-    if (pl.wb && !pl.keptWhite && chk.residual && (Math.abs(chk.residual[0]) > WHITE_OK.temp ||
-        Math.abs(chk.residual[1]) > WHITE_OK.tint) && chk.sliders_now) {
+    const offWhite = pl.wb && !pl.keptWhite && chk.residual && (Math.abs(chk.residual[0]) > WHITE_OK.temp ||
+      Math.abs(chk.residual[1]) > WHITE_OK.tint);
+    if (offWhite && chk.sliders_now) {
       // on Asistent's own earlier Lumetri the refined white is added to what was there before this press
-      fixValues.temperature = Math.round(((pl.t.current.temperature || 0) + chk.sliders_now.temperature) * 10) / 10;
-      fixValues.tint = Math.round(((pl.t.current.tint || 0) + chk.sliders_now.tint) * 10) / 10;
-      pl.lines.push(`бялото доуточнено: Temperature ${fixValues.temperature}, Tint ${fixValues.tint}`);
+      const temp = Math.round(((pl.t.current.temperature || 0) + chk.sliders_now.temperature) * 10) / 10;
+      const tint = Math.round(((pl.t.current.tint || 0) + chk.sliders_now.tint) * 10) / 10;
+      // with the probe's fixed calibration the refined sliders are usually the ones just written (fx39026
+      // 16:24: −4.7/12.5 again): writing them again only cost an Undo step and an identical re-check
+      if (Math.abs(temp - pl.values.temperature) >= 0.5 || Math.abs(tint - pl.values.tint) >= 0.5) {
+        fixValues.temperature = temp;
+        fixValues.tint = tint;
+        pl.lines.push(`бялото доуточнено: Temperature ${temp}, Tint ${tint}`);
+      } else {
+        pl.lines.push("бялото: близо до неутрално, по-нататъшно уточнение не би променило нищо");
+      }
     } else if (pl.wb && !pl.keptWhite && chk.residual) {
       pl.lines.push("проверено на кадър: бялото е неутрално");
     }
     // a step back or a refined white is measured once more (the re-check); otherwise this check is final
     pl.recheck = Object.keys(fixValues).length > 0;
-    if (!pl.recheck && chk.clipping_status && chk.clipping_status !== "ACCEPTED") pl.lines.push(finalLine(chk));
+    if (!pl.recheck && chk.clipping_status) pl.lines.push(`резултат: ${finalLine(chk)}`);   // always one result line
     if (pl.recheck) second.push(...setActions(pl.t, fixValues));
     pl.final = { ...pl.values, ...fixValues };
   }

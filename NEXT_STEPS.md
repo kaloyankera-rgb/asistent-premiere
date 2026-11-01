@@ -32,7 +32,7 @@ Done in 0.9.9 (Volume scale, `/color/probe` docstring).
    differences, never copy values), Auto Color (runs only justified modules in the spec order).
 8. **Tests per the matrix** `docs/color-spec/05_TEST_MATRIX.csv` (T01–T18): engine tests with synthetic frames
    where possible, a Premiere checklist for the rest; results recorded, nothing claimed without running.
-9. **Exposure taste**: ask the user for 3–5 clips they corrected by hand; fill `06_REFERENCE_TEMPLATE.json`-style
+9. **Exposure taste** (fx39027: skin on target yet 6.4 % of the skin clipped, target 0.62 may be too bright): ask the user for 3–5 clips they corrected by hand; fill `06_REFERENCE_TEMPLATE.json`-style
    records; compare suggestions to their values and tune the skin target (now 0.62).
 
 ## C. Still to verify from earlier phases
