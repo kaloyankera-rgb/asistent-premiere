@@ -7,10 +7,11 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 
 ## B. Colour engine, per `COLOR_CORRECTION_PLAN.md` (current focus of the user)
-1. **Rerun the capability probe at 0.9.13** (earlier runs invalid, see PROJECT_STATUS) with the user (one clip without Lumetri in TEST, „Проба на Lumetri“); read
-   `~/Library/Application Support/Asistent/lumetri_capabilities.json`; record the SUPPORTED/PARTIAL/BLOCKED table,
-   parameter indices/units and the identity check in `PROJECT_STATUS.md`. Confirm one apply + render check
-   (`color check` lines in the log, `lumetri.json` created).
+1. **Probe: done and verified at 0.9.13** (results in `PROJECT_STATUS.md`). Still to confirm: one real apply +
+   render check (`color check` lines in the log).
+1b. **Exposure shoulder**: Lumetri Exposure gives +1 stop in shadows but ~0.7 at skin brightness; convert the
+   wanted stops at the measured brightness into Exposure units with the probe curve (store it next to the
+   slider calibration), then confirm with the render check.
 2. **Analyse timeline renders, not source files** (T13, T18): export the clip's frames from the active sequence
    (several moments, skip moments covered by upper layers) and run `decide()` on them; fall back to source
    frames only with status REVIEW_NEEDED. This makes re-runs idempotent.
