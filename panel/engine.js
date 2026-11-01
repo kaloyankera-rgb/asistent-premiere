@@ -75,6 +75,14 @@ function managedRecord(key, snapshot, values) {
   return call("POST", "/color/managed/record", { key, snapshot, values });
 }
 
+function startShotMatch(items, reference) {
+  return call("POST", "/shotmatch", { items, reference });
+}
+
+function shotMatchCheck(job, before, after, clip) {
+  return call("POST", "/shotmatch/check", { job, before, after, clip });
+}
+
 function colorAudit(record) {
   return call("POST", "/color/audit", { record });
 }
@@ -100,4 +108,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, job, cancel, log };

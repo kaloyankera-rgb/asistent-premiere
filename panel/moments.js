@@ -16,4 +16,37 @@ function analysisMoments(timeline, clip, n = 4) {
   return out;
 }
 
-module.exports = { covered, analysisMoments };
+// Shot Match: which camera a clip comes from. The media folder (as Sync uses it); when every clip sits in one
+// folder, the letters before the number in the file name (fx31031 → fx, C0731 → C).
+function cameras(clips) {
+  const folder = (p) => p.split(/[\\/]/).slice(-2, -1)[0] || "?";
+  const prefix = (p) => (p.split(/[\\/]/).pop() || "").replace(/\d.*$/, "") || "?";
+  const byFolder = new Set(clips.map((c) => folder(c.path)));
+  const key = byFolder.size >= 2 ? folder : prefix;
+  return clips.map((c) => key(c.path));
+}
+
+// Shot Match moments of one clip: the same real moments as clips of the other cameras when they overlap on the
+// timeline (synced POVs), evenly across the clip otherwise. Timeline seconds; `overlap` says which it is.
+function shotMoments(clip, others, n = 4) {
+  const segs = others
+    .map((o) => [Math.max(clip.start, o.start), Math.min(clip.end, o.end)])
+    .filter(([a, b]) => b - a > 0.5)
+    .sort((x, y) => x[0] - y[0]);
+  const total = segs.reduce((t, [a, b]) => t + (b - a), 0);
+  if (total >= 1) {
+    const out = [];
+    for (let k = 1; k <= n; k++) {
+      let at = (total * k) / (n + 1);
+      for (const [a, b] of segs) {
+        if (at <= b - a) { out.push(a + at); break; }
+        at -= b - a;
+      }
+    }
+    return { times: out, overlap: true };
+  }
+  const len = clip.end - clip.start;
+  return { times: Array.from({ length: n }, (_, k) => clip.start + (len * (k + 1)) / (n + 1)), overlap: false };
+}
+
+module.exports = { covered, analysisMoments, cameras, shotMoments };

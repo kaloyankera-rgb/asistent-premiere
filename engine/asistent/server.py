@@ -14,6 +14,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /log                  {"level": "info"|"error", "message": "..."} panel messages into the engine log
   POST /color               {"items": [{"path", "start", "end"}]} -> job: exposure + white balance + preview
   POST /color/sliders        {"fix_temp", "fix_tint"} -> Lumetri Temperature/Tint (learnt calibration)
+  POST /shotmatch            {"items": [{path, camera, times, overlap, current, lumetri}], "reference"?} -> job
+  POST /shotmatch/check      {"job", "before", "after", "clip"?} -> match before/after vs the reference, revert list
   POST /color/audit          {"record"} -> one JSON line per clip and press in color_audit.jsonl
   POST /color/managed/check  {"key", "snapshot"} -> {"owned"}: is this Lumetri exactly as Asistent left it?
   POST /color/managed/record {"key", "snapshot", "values"} -> remember a Lumetri Asistent just wrote
@@ -47,6 +49,9 @@ from . import color as COLOR
 from .groups import sync_groups
 from .importer import Store, Watcher
 from .managed import ManagedStore
+from . import shotmatch as SHOT
+
+SHOT_REFS: dict = {}            # shot-match job id -> reference look (for the render check after applying)
 from .sync import sync_clips
 
 log = logging.getLogger("asistent")
@@ -235,6 +240,32 @@ class Handler(BaseHTTPRequestHandler):
                                            for r in res["items"]])
                     return res
                 return self._send(200, {"job": JOBS.submit("color", work).id})
+            if self.path == "/shotmatch":
+                items = body.get("items") or []
+                if not items or not all(isinstance(i, dict) and isinstance(i.get("path"), str) for i in items):
+                    raise ValueError("Маркирай видео клипове от поне две камери.")
+                reference = body.get("reference")
+
+                def work(job):
+                    def progress(f, msg):
+                        job.progress, job.message = f, msg
+                    res = SHOT.run(items, reference, progress=progress)
+                    SHOT_REFS[job.id] = res["reference_look"]
+                    log.info("shot match: reference %s scores %s %s", res["reference"], res["scores"],
+                             [(c["name"], c["role"], c.get("proposal"), c["flags"]) for c in res["clips"]])
+                    return res
+                return self._send(200, {"job": JOBS.submit("shotmatch", work).id})
+            if self.path == "/shotmatch/check":
+                ref = SHOT_REFS.get(str(body.get("job") or ""))
+                if not ref:
+                    raise ValueError("Няма такъв анализ за изравняване: натисни пак „Изравни камерите“.")
+                before = COLOR._wait_file(str(body.get("before") or ""), 4.0)
+                after = COLOR._wait_file(str(body.get("after") or ""), 4.0)
+                if not (before and after):
+                    raise ValueError("Няма изнесени кадри за проверка.")
+                res = SHOT.check(before, after, ref)
+                log.info("shot match check %s: %s", body.get("clip"), res)
+                return self._send(200, res)
             if self.path == "/color/audit":
                 # one JSON line per clip and press (colour plan B4): what was measured, written, kept, reverted
                 import time as _time

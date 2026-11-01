@@ -84,8 +84,10 @@ def _display_size(path: str, info) -> tuple[int, int]:
     return (h, w) if abs(rot) % 180 == 90 else (w, h)
 
 
-def read_frames(path: str, n: int = 6, width: int = 480, start: float = 0.0, end: float | None = None) -> list[np.ndarray]:
-    """n frames spread over [start, end) of the media as encoded R'G'B' floats (full range).
+def read_frames(path: str, n: int = 6, width: int = 480, start: float = 0.0, end: float | None = None,
+                times: list[float] | None = None) -> list[np.ndarray]:
+    """n frames spread over [start, end) of the media as encoded R'G'B' floats (full range), or the frames at
+    exactly `times` (media seconds; Shot Match compares the same real moment from two cameras).
     `width` is the long side; the picture keeps its shown proportions (rotation included)."""
     info = probe(path)
     if not info.has_video:
@@ -101,8 +103,8 @@ def read_frames(path: str, n: int = 6, width: int = 480, start: float = 0.0, end
               "-of", "default=nk=1:nw=1", path])
     rng = "pc" if p.stdout.decode(errors="replace").strip() == "pc" else "tv"
     frames = []
-    for i in range(n):
-        t = start + dur * (0.05 + 0.9 * (i + 0.5) / n)
+    moments = list(times) if times else [start + dur * (0.05 + 0.9 * (i + 0.5) / n) for i in range(n)]
+    for t in moments:
         p = _run([_tool("ffmpeg"), "-v", "error", "-nostdin", "-ss", f"{t:.3f}", "-i", path, "-frames:v", "1",
                   "-vf", f"scale={width}:{h}:flags=area:in_color_matrix=bt709:in_range={rng}:out_range=pc,format=rgb48le",
                   "-f", "rawvideo", "-"])

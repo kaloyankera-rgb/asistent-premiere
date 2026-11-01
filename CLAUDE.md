@@ -15,12 +15,13 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
     shared helpers (`transaction`, `has`, `maybe`, `ensureBin`, `readTimeline`, `readItems`)
   - `premiere-audio.js` Fill L/R, split copy, Volume level/keyframes · `channels.js` effect-chain routing
   - `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
-  - `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
+  - `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
 - **Python engine** `engine/asistent/` (stdlib HTTP server on `127.0.0.1:47390`, requests must carry
   header `X-Asistent: 1`; web origins and foreign Host headers are rejected). Started by `engine/run_engine.py`.
   - `server.py` endpoints · `jobs.py` background jobs (progress, cancel) · `config.py` paths, version, logging
   - `media.py` ffprobe/ffmpeg · `cache.py` decoded-audio cache · `sync.py` audio sync · `groups.py` many-clip groups
   - `audio.py` channel analysis, loudness, phrase leveling · `importer.py` folder watching and queue
+  - `shotmatch.py` Auto Shot Match: anchors (skin, neutrals, tones), Lumetri simulation, absolute fit, check
   - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`)
   - `color.py` exposure/white-balance analysis, previews, render check, Lumetri calibration, probe measurement
   - `profiles.py`, `prepare.py`: Phase 5 draft, NOT wired, NOT tested
@@ -38,7 +39,7 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
   without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
   (97 tests; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere) and
-  `node --test tests/layout.test.js tests/channels.test.js tests/wiring.test.js tests/moments.test.js tests/colorplans.test.js` (35 tests);
+  `node --test tests/layout.test.js tests/channels.test.js tests/wiring.test.js tests/moments.test.js tests/colorplans.test.js` (41 tests);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Premiere tests only in the user's test project `TEST.prproj`, never in client projects; never close or
   restart Premiere without asking. Client footage stays local; never look at client frames as images.

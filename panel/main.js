@@ -7,6 +7,7 @@ const premiereImport = require("./premiere-import.js");
 const premiereColor = require("./premiere-color.js");
 const premiereProbe = require("./premiere-probe.js");
 const { plansFor, corrections, statusOf, STATUS_BG } = require("./colorplans.js");
+const { cameras, shotMoments } = require("./moments.js");
 
 const $ = (id) => document.getElementById(id);
 const state = { online: false, busy: false, jobId: null, settleUntil: 0 };
@@ -452,6 +453,142 @@ async function onProbe() {
   }
 }
 
+// ---------------------------------------------------------------- Auto Shot Match
+
+const shotState = {};
+const SHOT_NAMES = { exposure: "Exposure", temperature: "Temperature", tint: "Tint", contrast: "Contrast", saturation: "Saturation" };
+const SHOT_PART_BG = { white: "бялото", exposure: "яркостта", saturation: "наситеността", contrast: "контрастът" };
+const SHOT_STATUS_BG = { CORRECTED: "изравнено", ALREADY_MATCHED: "вече съвпада", REVERTED: "върнато (стана по-лошо)",
+  PARTLY_REVERTED: "изравнено, част е върната", BLOCKED: "не е пипано (ръчна корекция)", FAILED: "не стана" };
+
+// Selected clips from two or more cameras → a suggestion against one reference camera (chosen, or the most
+// reliable one). Nothing is written until „Приложи изравняването“.
+async function onShotMatch(reference = null) {
+  if (state.busy) return;
+  if (!state.online) return finish("Няма връзка с engine-а. Виж README.", false);
+  show("result", false);
+  setBusy(true);
+  progress(0, "Гледам камерите…");
+  try {
+    const project = await premiere.activeProject();
+    const sel = await premiereColor.readVideoSelection(project);
+    const clips = sel.clips.filter((c) => Math.abs((c.speed ?? 1) - 1) < 0.01 && !c.reversed);
+    const odd = sel.clips.length - clips.length;
+    const cams = cameras(clips);
+    if (new Set(cams).size < 2) {
+      throw new premiere.UserError("Маркирай в таймлайна клипове от поне две камери (различни папки).");
+    }
+    const items = [];
+    for (const [i, c] of clips.entries()) {
+      progress((0.3 * i) / clips.length, `Подготвям ${i + 1} от ${clips.length}…`);
+      const m = shotMoments(c, clips.filter((_, j) => cams[j] !== cams[i]));
+      const st = await premiereColor.lumetriState(c);
+      items.push({ path: c.path, camera: cams[i], times: m.times.map((t) => (c.inPt || 0) + (t - c.start)),
+        overlap: m.overlap, current: st.current, lumetri: st.lumetri });
+    }
+    const { job } = await engine.startShotMatch(items, reference);
+    state.jobId = job;
+    const res = await runJob(job);
+    Object.assign(shotState, { project, sel, clips, res, job, reference });
+    const blocks = [];
+    const top = el("div", "group");
+    top.appendChild(el("div", "name", `Еталон: ${res.reference} ${reference ? "(избран)" : "(най-надеждният)"}`));
+    const bar = el("div", "row buttons");
+    for (const cam of res.cameras.filter((c) => c !== res.reference)) {
+      const b = el("button", "small", `Еталон: ${cam}`);
+      onTap(b, () => onShotMatch(cam));
+      bar.appendChild(b);
+    }
+    top.appendChild(bar);
+    for (const n of res.notes || []) top.appendChild(el("div", "warn", n));
+    if (odd) top.appendChild(el("div", "warn", `${odd} клипа с променена скорост са пропуснати.`));
+    blocks.push(top);
+    for (const r of res.clips) blocks.push(shotBlock(clips[r.index], r));
+    const ready = res.clips.filter((r) => r.role === "match" && (r.changed || []).length && r.lumetri !== "manual").length;
+    if (ready) {
+      const b = el("button", "small", `Приложи изравняването (${ready})`);
+      onTap(b, onShotMatchApply);
+      blocks.splice(1, 0, b);
+    }
+    finish(ready ? "Само предложение: в Lumetri още нищо не е сложено. Натисни „Приложи изравняването“."
+      : "Няма какво да се изравнява със сигурност: нищо не е пипано.", true, blocks);
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `shot match: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    state.jobId = null;
+    setBusy(false);
+  }
+}
+
+function shotBlock(clip, r) {
+  const box = el("div", "group");
+  const role = r.role === "reference" ? "еталон" : r.role === "match" ? "изравнява се" : "пропуснат";
+  box.appendChild(el("div", "name", `${clip.name} · ${r.camera} · ${role}`));
+  if (r.role === "match") {
+    if (r.preview && r.preview.before) {
+      const row = el("div", r.preview.portrait ? "thumbs portrait" : "thumbs");
+      for (const k of ["before", "after"]) {
+        const img = document.createElement("img");
+        img.src = `data:image/jpeg;base64,${r.preview[k]}`;
+        row.appendChild(img);
+      }
+      box.appendChild(row);
+      box.appendChild(el("div", "reason", "сега · след (приблизително)"));
+    }
+    const ch = r.changed || [];
+    box.appendChild(el("div", "line", ch.length ? ch.map((k) => `${SHOT_NAMES[k]} ${r.proposal[k]}`).join(" · ")
+      : "без промяна: вече съвпада или разликите са отбелязани отдолу"));
+    const basis = Object.entries(r.basis || {}).map(([k, v]) => `${SHOT_PART_BG[k]} по ${v}`).join("; ");
+    if (basis) box.appendChild(el("div", "reason", `Мерено: ${basis}${r.overlap ? " (общи моменти с еталона)" : ""}.`));
+  }
+  for (const f of r.flags || []) box.appendChild(el("div", "warn", f));
+  return box;
+}
+
+async function onShotMatchApply() {
+  if (state.busy || !shotState.res) return;
+  setBusy(true);
+  progress(0.5, "Изравнявам и проверявам на кадър…");
+  try {
+    const entries = shotState.res.clips.filter((r) => r.role === "match" && (r.changed || []).length)
+      .map((r) => ({ clip: shotState.clips[r.index], r }));
+    const { steps, plans } = await premiereColor.applyShotMatch(shotState.project, shotState.sel.timeline, shotState.job, entries);
+    const blocks = plans.map((pl) => {
+      pl.status = pl.skipped ? (/не стана/.test(pl.skipReason || "") ? "FAILED" : "BLOCKED") : pl.nothing ? "ALREADY_MATCHED"
+        : (pl.reverted || []).length >= Object.keys(SHOT_PART_KEYS(pl)).length ? "REVERTED"
+          : (pl.reverted || []).length ? "PARTLY_REVERTED" : "CORRECTED";
+      engine.colorAudit({ kind: "shotmatch", clip: pl.clip.name, path: pl.clip.path, in: pl.clip.inPt, out: pl.clip.outPt,
+        status: pl.status, reference: shotState.res.reference, camera: pl.res.camera, overlap: pl.res.overlap,
+        proposal: pl.res.proposal, flags: pl.res.flags, before: pl.t ? pl.t.current : null, written: pl.values || null,
+        final: pl.final || null, reverted: pl.reverted || [], check: pl.check || null, lines: pl.lines }).catch(() => {});
+      const box = el("div", "group");
+      box.appendChild(el("div", "name", `${pl.clip.name} · ${SHOT_STATUS_BG[pl.status]}`));
+      for (const l of pl.lines) box.appendChild(el("div", "line", l));
+      for (const f of pl.res.flags || []) box.appendChild(el("div", "warn", f));
+      return box;
+    });
+    const done = plans.filter((pl) => !pl.skipped && !pl.nothing).length;
+    const undo = steps === 1 ? "Един Cmd/Ctrl+Z връща всичко." : steps > 1 ? `${steps} пъти Cmd/Ctrl+Z връщат всичко.` : "";
+    finish(done ? `Изравнени: ${done} ${done === 1 ? "клип" : "клипа"} спрямо ${shotState.res.reference}. ${undo}`
+      : "Нищо не е приложено: виж причината отдолу.", done > 0, blocks);
+    shotState.res = null;
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `shot match apply: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    setBusy(false);
+  }
+}
+
+// the parts a clip's write touched (white counts once for Temperature + Tint)
+function SHOT_PART_KEYS(pl) {
+  const parts = {};
+  for (const k of Object.keys(pl.values || {})) parts[k === "temperature" || k === "tint" ? "white" : k] = true;
+  return parts;
+}
+
+onTap($("shotmatch"), () => onShotMatch(null));
 onTap($("color"), onColor);
 onTap($("probe"), onProbeAsk);
 

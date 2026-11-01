@@ -73,3 +73,12 @@ test("a white refine that would write the same sliders is skipped (fx39026 16:24
   const main = fs.readFileSync(path.join(panel, "main.js"), "utf8");
   assert.doesNotMatch(main, /върни с Cmd\/Ctrl\+Z, натисни „Цвят“/);                   // ownership: no Undo needed
 });
+
+test("Shot Match writes only the components the engine changed, into new or Asistent-owned Lumetri", () => {
+  const color = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
+  const apply = color.slice(color.indexOf("async function applyShotMatch"), color.indexOf("const NAMES ="));
+  assert.match(apply, /for \(const k of e\.r\.changed \|\| \[\]\) values\[k\] = e\.r\.proposal\[k\];/);
+  assert.match(apply, /t = await target\(e\.clip\)/);                 // the manual-grade guard of „Цвят“
+  assert.match(apply, /engine\.shotMatchCheck\(jobId, pl\.before, after/);   // checked on Premiere's frame
+  assert.match(html, /<button id="shotmatch" class="small">Изравни камерите<\/button>/);
+});

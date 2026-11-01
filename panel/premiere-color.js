@@ -31,7 +31,9 @@ async function params(comp) {
     const p = await comp.getParam(i);
     const name = (p && p.displayName) || "";
     names.push(name);
-    for (const [key, re] of [["exposure", /^exposure$/i], ["temperature", /^temperature$/i], ["tint", /^tint$/i]]) {
+    // the first match is Basic Correction (Creative has its own Saturation further down)
+    for (const [key, re] of [["exposure", /^exposure$/i], ["temperature", /^temperature$/i], ["tint", /^tint$/i],
+      ["contrast", /^contrast$/i], ["saturation", /^saturation$/i]]) {
       if (!out[key] && re.test(name)) out[key] = p;
     }
   }
@@ -87,17 +89,136 @@ async function target(clip) {
     if (!/lumetri/i.test(match)) continue;
     const ps = await params(comp);
     const current = {};
-    for (const k of ["exposure", "temperature", "tint"]) current[k] = ps[k] ? await value(ps[k]) : 0;
-    const used = Object.keys(current).filter((k) => Math.abs(current[k]) > 1e-6);
+    for (const k of Object.keys(DEFAULTS)) current[k] = ps[k] ? await value(ps[k]) : DEFAULTS[k];
+    const used = Object.keys(current).filter((k) => Math.abs(current[k] - DEFAULTS[k]) > 1e-6);
     if (!used.length) return { chain, comp, ps, isNew: false, current };
     const own = await engine.managedCheck(clipKey(clip), await snapshot(comp)).catch(() => null);
     debug(`color target ${clip.name}: Lumetri with ${used.join(", ")}, Asistent's own: ${!!(own && own.owned)}`);
     if (own && own.owned) return { chain, comp, ps, isNew: false, current, owned: true };
-    return { skip: `вече има Lumetri с промени (${used.join(", ")}), които не са от Асистент или са пипани на ръка: не е пипано` };
+    return { skip: `вече има Lumetri с промени (${used.join(", ")}), които не са от Асистент или са пипани на ръка: не е пипано`,
+      current };
   }
   const comp = await ppro.VideoFilterFactory.createComponent(await lumetriMatch());
-  return { chain, comp, ps: null, isNew: true, current: {} };
+  return { chain, comp, ps: null, isNew: true, current: { ...DEFAULTS } };
 }
+
+// Lumetri neutral values of the parameters Asistent writes
+const DEFAULTS = { exposure: 0, temperature: 0, tint: 0, contrast: 0, saturation: 100 };
+
+// Shot Match: what is on the clip now (its values are simulated on the source by the engine) and whose it is
+async function lumetriState(clip) {
+  const t = await target(clip);
+  return { lumetri: t.skip ? "manual" : t.owned ? "own" : "none", current: { ...DEFAULTS, ...(t.current || {}) } };
+}
+
+// Shot Match apply: the engine's absolute values (only the components it changed) into a new or Asistent-owned
+// Lumetri, then each clip checked on Premiere's own frame against the reference; a component that made the
+// match worse is put back to the value it had before. Clips covered by another layer everywhere can only be
+// checked against the model (said so).
+const SHOT_PARTS = { white: ["temperature", "tint"], exposure: ["exposure"], saturation: ["saturation"], contrast: ["contrast"] };
+
+async function applyShotMatch(project, timeline, jobId, entries) {
+  const status = await engine.status();
+  const dir = status && status.frames_dir;
+  const plans = [];
+  const prepared = [];
+  for (const e of entries) {
+    const pl = { clip: e.clip, res: e.r, lines: [] };
+    plans.push(pl);
+    let t;
+    try {
+      t = await target(e.clip);
+    } catch (err) {
+      t = { skip: `не стана за този клип (${err && err.message ? err.message : err}); другите продължават` };
+    }
+    if (t.skip) {
+      Object.assign(pl, { skipped: true, skipReason: t.skip });
+      pl.lines.push(t.skip);
+      continue;
+    }
+    const values = {};
+    for (const k of e.r.changed || []) values[k] = e.r.proposal[k];
+    if (!Object.keys(values).length) {
+      pl.nothing = true;
+      pl.lines.push("вече съвпада с еталона: нищо за прилагане");
+      continue;
+    }
+    Object.assign(pl, { t, values, applied: values, moment: analysisMoments(timeline, e.clip)[0] ?? null });
+    prepared.push(pl);
+  }
+  let steps = 0;
+  if (!prepared.length) return { steps, plans };
+  if (dir) {
+    for (const [i, pl] of prepared.entries()) {
+      if (pl.moment !== null) pl.before = await exportFrame(timeline.sequence, pl.moment, `match_before_${i}.png`, dir);
+    }
+  }
+  const fresh = prepared.filter((pl) => pl.t.isNew);
+  if (fresh.length) {
+    transaction(project, "Asistent: Lumetri", (c) => {
+      for (const pl of fresh) c.addAction(pl.t.chain.createAppendComponentAction(pl.t.comp));
+    });
+    steps++;
+    for (const pl of fresh) await attached(pl.t);
+  }
+  for (const pl of prepared) {
+    const miss = Object.keys(pl.values).filter((k) => !pl.t.ps[k]);
+    if (miss.length) pl.lines.push(`липсва параметър в Lumetri: ${miss.join(", ")}`);
+  }
+  transaction(project, "Asistent: изравни камерите", (c) => {
+    for (const pl of prepared) for (const make of setActions(pl.t, pl.values)) c.addAction(make());
+  });
+  steps++;
+  for (const pl of prepared) {
+    if (pl.t.owned) pl.lines.push("обновена е предишната поправка на Асистент");
+    pl.lines.push(Object.entries(pl.values).map(([k, v]) => `${NAMES[k]} ${v}${pl.t.current[k] !== DEFAULTS[k] ? ` (беше ${pl.t.current[k]})` : ""}`).join(" · "));
+    pl.final = { ...pl.values };
+    await remember(pl);
+  }
+  // the match on Premiere's own frames; worse components go back in one step
+  const acts = [];
+  for (const [i, pl] of prepared.entries()) {
+    pl.reverted = [];
+    if (!pl.before) {
+      pl.lines.push(pl.moment === null ? "проверено само по модела: клипът е покрит от друг слой навсякъде"
+        : "без проверка на кадър (кадърът не се изнесе)");
+      continue;
+    }
+    const after = await exportFrame(timeline.sequence, pl.moment, `match_after_${i}.png`, dir);
+    let chk = null;
+    for (let n = 0; n < 10 && after && !chk; n++) {
+      chk = await engine.shotMatchCheck(jobId, pl.before, after, pl.clip.name).catch(() => null);
+      if (!chk) await new Promise((r) => setTimeout(r, 300));
+    }
+    if (!chk) {
+      pl.lines.push("проверката не успя");
+      continue;
+    }
+    debug(`shot match check ${pl.clip.name}: ${JSON.stringify(chk)}`);
+    pl.check = chk;
+    const back = {};
+    for (const part of chk.revert || []) for (const k of SHOT_PARTS[part]) if (k in pl.final) back[k] = pl.t.current[k];
+    if (Object.keys(back).length) {
+      acts.push(...setActions(pl.t, back));
+      pl.final = { ...pl.final, ...back };
+      pl.reverted = (chk.revert || []).filter((part) => SHOT_PARTS[part].some((k) => k in back));
+      pl.lines.push(`върнато както беше (изравняването стана по-лошо): ${pl.reverted.map((p) => PART_BG[p]).join(", ")}`);
+    } else {
+      pl.lines.push("проверено на кадър: по-близо до еталона или същото");
+    }
+  }
+  if (acts.length) {
+    transaction(project, "Asistent: върни влошеното", (c) => {
+      for (const make of acts) c.addAction(make());
+    });
+    steps++;
+    for (const pl of prepared) if (pl.reverted && pl.reverted.length) await remember(pl);
+  }
+  return { steps, plans };
+}
+
+const NAMES = { exposure: "Exposure", temperature: "Temperature", tint: "Tint", contrast: "Contrast", saturation: "Saturation" };
+const PART_BG = { white: "бялото", exposure: "яркостта", saturation: "наситеността", contrast: "контрастът" };
 
 // remember the Lumetri as Asistent left it, so a later press may update it (and only it)
 async function remember(pl) {
@@ -396,4 +517,4 @@ function finalLine(chk) {
   return `${msg} Яркостта е ${Math.abs(stops).toFixed(1)} стопа ${stops > 0 ? "под" : "над"} целта.`;
 }
 
-module.exports = { readVideoSelection, apply, exportFrame, timelineFrames };
+module.exports = { readVideoSelection, apply, exportFrame, timelineFrames, lumetriState, applyShotMatch };
