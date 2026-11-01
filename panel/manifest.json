@@ -1,0 +1,84 @@
+{
+  "id": "com.contentstudio.asistent",
+  "name": "Asistent",
+  "version": "0.7.1",
+  "main": "index.html",
+  "manifestVersion": 5,
+  "host": {
+    "app": "premierepro",
+    "minVersion": "26.0.0"
+  },
+  "requiredPermissions": {
+    "network": {
+      "domains": "all"
+    },
+    "localFileSystem": "request"
+  },
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "asistent",
+      "label": {
+        "default": "Asistent"
+      },
+      "minimumSize": {
+        "width": 240,
+        "height": 220
+      },
+      "maximumSize": {
+        "width": 2000,
+        "height": 2000
+      },
+      "preferredDockedSize": {
+        "width": 300,
+        "height": 420
+      },
+      "preferredFloatingSize": {
+        "width": 320,
+        "height": 460
+      },
+      "icons": [
+        {
+          "width": 23,
+          "height": 23,
+          "path": "icons/icon.png",
+          "scale": [
+            1,
+            2
+          ],
+          "theme": [
+            "darkest",
+            "dark",
+            "medium",
+            "lightest",
+            "light"
+          ],
+          "species": [
+            "chrome"
+          ]
+        }
+      ]
+    }
+  ],
+  "icons": [
+    {
+      "width": 48,
+      "height": 48,
+      "path": "icons/plugin.png",
+      "scale": [
+        1,
+        2
+      ],
+      "theme": [
+        "darkest",
+        "dark",
+        "medium",
+        "lightest",
+        "light"
+      ],
+      "species": [
+        "pluginList"
+      ]
+    }
+  ]
+}
