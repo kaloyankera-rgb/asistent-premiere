@@ -5,6 +5,8 @@ another origin without a CORS preflight, which this server never approves, so a 
 drive the engine. The Host header is checked against DNS rebinding.
 
   GET  /status               engine version and busy state
+  GET  /subtitles/model      speech model status (backend installed, model present, size, device)
+  POST /subtitles/model/download   job: download the ~3 GB model (only from the confirmed panel button)
   GET  /dev/poll?wait=s      test bridge (only with devbridge.enabled): the next panel command
   POST /dev/command          {name, args} -> {id};  GET /dev/result?id=&wait=s;  POST /dev/result {id, ok, data}
   POST /sync                 {"paths": [...], "reference": null|int} -> {"job": id}
@@ -52,6 +54,7 @@ from .groups import sync_groups
 from .importer import Store, Watcher
 from .managed import ManagedStore
 from . import shotmatch as SHOT
+from . import asr
 from . import devbridge
 
 SHOT_REFS: dict = {}            # shot-match job id -> reference look (for the render check after applying)
@@ -208,6 +211,8 @@ class Handler(BaseHTTPRequestHandler):
             if wait > 0:                       # long poll: answer as soon as a file is ready for this project
                 _store().wait_queue(project, wait)
             return self._send(200, _import_status(project))
+        if self.path == "/subtitles/model":
+            return self._send(200, asr.model_status())
         if url.path in ("/dev/poll", "/dev/result"):
             if not devbridge.enabled():
                 return self._send(404, {"error": "Тестовият мост е изключен."})
@@ -233,6 +238,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, {"error": "forbidden"})
         try:
             body = self._body()
+            if self.path == "/subtitles/model/download":
+                if asr.model_present():
+                    return self._send(200, {"done": True, "status": asr.model_status()})
+
+                def work(job):
+                    def progress(f, msg):
+                        job.progress, job.message = f, msg
+                    return asr.download_model(progress, lambda: job.cancelled)
+                return self._send(200, {"job": JOBS.submit("subtitles_model", work).id})
             if self.path in ("/dev/command", "/dev/result"):
                 if not devbridge.enabled():
                     return self._send(404, {"error": "Тестовият мост е изключен."})

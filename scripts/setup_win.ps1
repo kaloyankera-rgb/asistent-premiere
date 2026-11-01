@@ -1,5 +1,7 @@
 # Asistent engine on Windows: venv in %LOCALAPPDATA%\Asistent + Startup shortcut (hidden window).
-# Run: powershell -ExecutionPolicy Bypass -File scripts\setup_win.ps1
+# Run: powershell -ExecutionPolicy Bypass -File scripts\setup_win.ps1 [-Subtitles]
+#   -Subtitles also installs the speech recognition packages (faster-whisper; CUDA wheels for an NVIDIA GPU).
+param([switch]$Subtitles)
 $ErrorActionPreference = "Stop"
 $Repo = Split-Path -Parent $PSScriptRoot
 $App = Join-Path $env:LOCALAPPDATA "Asistent"
@@ -16,6 +18,11 @@ $venvPy = Join-Path $App "venv\Scripts\python.exe"
 if (-not (Test-Path $venvPy)) { & $py -m venv (Join-Path $App "venv") }
 & $venvPy -m pip install -q --upgrade pip
 & $venvPy -m pip install -q -r (Join-Path $Repo "requirements.txt")
+if ($Subtitles) {
+  & $venvPy -m pip install -q -r (Join-Path $Repo "requirements-asr.txt")
+  # cuBLAS/cuDNN for large-v3 on the GPU; without them the engine falls back to the CPU (int8)
+  if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) { & $venvPy -m pip install -q nvidia-cublas-cu12 nvidia-cudnn-cu12 }
+}
 
 $pyw = Join-Path $App "venv\Scripts\pythonw.exe"
 $startup = [Environment]::GetFolderPath("Startup")
