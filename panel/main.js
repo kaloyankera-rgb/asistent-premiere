@@ -120,7 +120,9 @@ async function onSync() {
     const project = await premiere.activeProject();
     const timeline = await premiere.readTimeline(project);
     if (timeline.clips.length < 2) {
-      throw new premiere.UserError("Маркирай в таймлайна поне два клипа от различни файлове.");
+      const seen = timeline.clips.map((c) => c.name).join(", ") || "нищо";
+      throw new premiere.UserError(`Синхронът подравнява поне две камери: маркирай клипове от поне два различни ` +
+        `файла. Сега е маркирано: ${seen}. (За цвят или звук стига и един клип: бутоните в ЦВЯТ и ЗВУК.)`);
     }
     engine.log("info", `timeline: ${timeline.clips.length} files selected, fps ${timeline.fps}`);
     const t0 = Date.now();
