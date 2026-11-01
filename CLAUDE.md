@@ -63,6 +63,19 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 - Code style: English code and comments; all user-facing panel text and messages in Bulgarian
   (natural Bulgarian, no long dash). Comments explain why, as in the existing modules.
 
+## Bulgarian subtitles: read the guide first
+`docs/BULGARIAN_TRANSCRIPTION_GUIDE.md` is the permanent reference for everything that touches the subtitle pipeline
+(`subtitle_job.py`, `subtitles.py`, `lexicon.py`, `consensus.py`, `corrections.py`, `suspects.py`, `agreement.py`,
+`align*.py`, `numbers.py`). Its rules, and where they live in the code:
+- verbatim by default; edits go in a separate layer with a log (`verbatim` + `edits` in the result JSON);
+- never rewrite a word on a hunch: only a dictionary-checked repair of a mis-heard word (`lexicon.repair`), the editor's
+  own `чуто => казано` line (`corrections.py`), or a punctuation rule (`subtitles.tidy_words`); everything doubtful is
+  marked and listed with a reason (`suspects.py`, `agreement.py`, the "unheard" check in `align.py`);
+- grammatical gender: no global male/female setting (the user removed it: both speakers are in one edit); first-person
+  forms are only CHECKED (readings that disagree are flagged), never converted;
+- after any text change the affected words are re-aligned (corrections run before the aligner);
+- the table in guide §10 is `tests/test_guide_regressions.py`; never fix an example by hard-coding its replacement.
+
 ## Permanent user rules (do not break)
 - Independent of the user's own CEP extension Quick Search (`com.contentstudio.barzo`, ports 47231–47234):
   never import, call or modify it.

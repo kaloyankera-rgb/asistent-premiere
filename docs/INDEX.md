@@ -13,6 +13,7 @@ Read in this order when continuing the project (the first four are the whole han
 | 7 | [../README.md](../README.md) | User guide (Bulgarian): install and every button. |
 | 8 | [../COLOR_CORRECTION_PLAN.md](../COLOR_CORRECTION_PLAN.md) | Colour engine plan; spec package in [color-spec/](color-spec/00_START_HERE.md). |
 | 9 | [SUBTITLES_PLAN.md](SUBTITLES_PLAN.md) | Phase 7 (Bulgarian subtitles) plan and milestones M0-M5. |
+| 9a | [BULGARIAN_TRANSCRIPTION_GUIDE.md](BULGARIAN_TRANSCRIPTION_GUIDE.md) | **Read before touching the subtitle pipeline.** Linguistic and engineering rules for Bulgarian speech-to-text (gender forms, verb forms, numbers, punctuation, alignment, grouping) and the documented SRT errors used as regression tests. |
 | 10 | [../LICENSES.md](../LICENSES.md) | Licences of dependencies and the bundled face model. |
 | 11 | [dev-workflow/DEV_WORKFLOW.md](dev-workflow/DEV_WORKFLOW.md) | Which model/agent does what; snapshot of the four agent definitions in [dev-workflow/agents/](dev-workflow/agents/). |
 

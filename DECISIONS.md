@@ -148,6 +148,15 @@ dictionary knows the new word and not the old one (voting alone turned „гра
 readings or the dictionary doubt is reported by word and time. Cost: three times the recognition time (cached per
 context). The dictionary is GPL v2 data downloaded at setup, not stored in the repository.
 
+## Speed, context and the Bulgarian transcription guide (2026-11-02, 0.9.48)
+- **One reading per stretch of a file, 4 s of context, windows merged** (not 3 readings per piece with 0.7/2/4 s): 252 s of audio → 91 s. 2 s of context was too little (prices read as dates), 6 s pulled in the neighbouring takes („Превърна мен“). A second, narrow reading is taken only for a piece that still has an unknown word or a first-person „съм …л/ла“ form, and the reading with fewer doubts wins.
+- **Parallelism, not threads:** one reading with 10 threads was slower than with 4 on the M4 Max (efficiency cores); several readings at once are faster (5 × 2 threads: 3.8× real time against 1.8×). `asr._parallelism` sizes it by cores; a GPU takes one reading at a time.
+- **The aligner's confidence is not a reason to discard a time** (lowest-scored words: 57 % within 80 ms against Whisper's 7 %); a word is distrusted only when squeezed into too little time for its letters. Numbers are aligned through their spoken form (`numbers.py`).
+- **Words outside sound are marked, not deleted** (guide §7): no speech-like sound under the word (`align.unheard`), or voiced sound without a word (`align.uncovered_speech`). Deleting would be a guess as well.
+- **Guide vs the user's decision on gender:** the guide proposes per-speaker male/female/auto metadata; the user removed the global setting because both speakers are in one edit, and the guide itself says never one global conversion. So forms are never converted; a disagreement between two readings is flagged (`agreement.py`).
+- **Not built:** an acoustic-fit arbiter between readings (right 4 of 7 times), changing „взима“ to „взимаме“ without evidence (guide §3), automatic month-to-price rewriting (guide §5: mark it).
+- The guide is the permanent reference (`docs/BULGARIAN_TRANSCRIPTION_GUIDE.md`, linked from CLAUDE.md and docs/INDEX.md); its §10 table is `tests/test_guide_regressions.py`.
+
 ## Corrections, gender, alignment choice (2026-11-02, 0.9.46)
 - **Corrections re-time.** The editor's `чуто => казано` lines are applied to the heard words before the forced alignment, so the new words get times from the sound. Replacing text over the old timestamps (the first idea) leaves the phrase where the wrong words were. Names/terms (lines without `=>`) go to Whisper's prompt only. Rejected for now: fuzzy snapping to terms (a legitimate word could be turned into a term).
 - **large-v2 tested as a second opinion and rejected (2026-11-02).** Same four pieces, same settings: it fixed „неща“ but broke „Примерно на мен“ („Прилива на мен“), „то и за градината“ („той за градината“) and made the end phrase worse („ще чакам да бойдиш с вън“). The 2.9 GB test model was deleted. large-v3 stays.

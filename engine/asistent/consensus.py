@@ -21,6 +21,7 @@ import difflib
 import re
 from collections import Counter
 
+DOUBT_P = 0.9             # Whisper is unsure of a word below this (allows the wider spelling repairs)
 UNSURE_P = 0.45            # below subtitles.LOW_P (0.5): reported to the editor
 MAJORITY_P = 0.6           # a word changed by majority is not reported, but its probability is not high either
 MAX_SPAN = 4               # longest disagreeing stretch that is looked at
@@ -63,13 +64,13 @@ def _compare(base: list[dict], other: list[dict]) -> tuple[dict[int, dict], set[
 def merge(base: list[dict], others: list[list[dict]], known=None, respell=None) -> tuple[list[dict], dict]:
     """The main reading `base` with the other readings' votes applied. All word lists are times relative to the same
     point (only the order matters here). `known(word)` -> True / False / None (lexicon.known).
-    `respell(word)` -> the real word an unknown word is the by-ear spelling of (lexicon.respell), or None.
-    -> (words, {"changed": n, "unsure": n})"""
+    `respell(word, doubt)` -> the real word an unknown word is the by-ear spelling of (lexicon.repair), or None.
+    -> (words, {"changed": n, "unsure": n, "changes": [{"from", "to"}]})"""
     out = [dict(w) for w in base]
     if not base:
-        return out, {"changed": 0, "unsure": 0}
+        return out, {"changed": 0, "unsure": 0, "changes": []}
     known = known or (lambda w: None)
-    respell = respell or (lambda w: None)
+    respell = respell or (lambda w, doubt=True: None)
     runs = len(others) + 1
     votes: list[Counter] = [Counter({norm(w["word"]): 1}) for w in base]
     text: list[dict[str, str]] = [{norm(w["word"]): w["word"]} for w in base]
@@ -85,6 +86,7 @@ def merge(base: list[dict], others: list[list[dict]], known=None, respell=None) 
             elif i not in unmapped:
                 votes[i][norm(base[i]["word"])] += 1       # equal, or not looked at: it supports the main reading
     changed = unsure = 0
+    changes: list[dict] = []
     for i, w in enumerate(out):
         if w.get("fixed"):
             continue                                       # the editor's correction: not up for a vote
@@ -94,15 +96,17 @@ def merge(base: list[dict], others: list[list[dict]], known=None, respell=None) 
                 and known(text[i][top]) is True and known(base[i]["word"]) is False):
             w["word"] = _like(base[i]["word"], text[i][top])
             w["p"] = min(w.get("p", 1.0), MAJORITY_P)
+            changes.append({"from": base[i]["word"], "to": w["word"]})
             changed += 1
-        elif known(base[i]["word"]) is False and w.get("p", 1.0) < SURE_P and respell(base[i]["word"]):
-            w["word"] = respell(base[i]["word"])                 # „нища“ -> „неща“: the speaker reduces the vowel, the spelling does not
+        elif known(base[i]["word"]) is False and respell(base[i]["word"], w.get("p", 1.0) < DOUBT_P):
+            w["word"] = respell(base[i]["word"], w.get("p", 1.0) < DOUBT_P)    # „нища“ -> „неща“, „одяло“ -> „одеяло“
             w["p"] = min(w.get("p", 1.0), MAJORITY_P)
+            changes.append({"from": base[i]["word"], "to": w["word"]})
             changed += 1
         elif i in disputed or (len(votes[i]) > 1 and not (top == mine and n * 2 > runs)):
             w["p"] = min(w.get("p", 1.0), UNSURE_P)
             unsure += 1
-        elif known(base[i]["word"]) is False and w.get("p", 1.0) < SURE_P:
-            w["p"] = min(w.get("p", 1.0), UNSURE_P)             # a word the dictionary does not know and Whisper doubts
+        elif known(base[i]["word"]) is False and (w.get("p", 1.0) < SURE_P or len(norm(base[i]["word"])) >= 5):
+            w["p"] = min(w.get("p", 1.0), UNSURE_P)             # a word the dictionary does not know (and Whisper doubts it, or it is long enough not to be a short name)
             unsure += 1
-    return out, {"changed": changed, "unsure": unsure}
+    return out, {"changed": changed, "unsure": unsure, "changes": changes}

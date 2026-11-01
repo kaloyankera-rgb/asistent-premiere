@@ -95,6 +95,57 @@ def _clean_words(words):
     return out
 
 
+_SENTENCE_END = re.compile(r"[.!?…]+[\"»“)]*$")
+_CLAUSE_OPEN = {"ако", "щом", "когато", "докато"}
+_CLITICS = {"го", "я", "ги", "ме", "те", "ни", "ви", "му", "й", "им", "ще"}
+_BINDERS = {"не", "да", "ще", "си", "се", "ли", "и", "но", "а", "ни", "ви", "ме", "те", "го", "я", "ги"}
+
+
+def tidy_words(words):
+    """Words (Whisper's, sequence seconds) -> (words, {"joined": n, "commas": [word, ...]}). No word is added or removed.
+
+    1. Punctuation Whisper put in a token of its own (",79," after "5"; ","), and the decimal part of a number, are
+       attached to the word before: "5 ,79," becomes "5,79,".
+    2. A conditional clause ("Ако …", "Щом …", "Когато …", "Докато …") is closed by a comma before the main clause. When
+       Whisper wrote none, one is added before the first object pronoun or "ще" that comes after at least three words
+       and is followed by at most four, unless the word before it is a particle that binds to it ("не го", "да го").
+       There is often no pause to find it by (seen: "Ако е под 700 евро я взимаме": 0.04 s)."""
+    out = []
+    joined = 0
+    for w in sorted(words, key=lambda w: (w["start"], w["end"])):
+        text = str(w.get("word", "")).strip()
+        glue = out and (re.fullmatch(r"[,.;:!?…]+", text) or (re.match(r"^[,.]\d", text) and re.search(r"\d$", out[-1]["word"])))
+        if glue:
+            prev = out[-1]
+            prev["word"] += text
+            prev["end"] = max(prev["end"], w["end"])
+            prev["p"] = min(prev.get("p", 1.0), w.get("p", 1.0))
+            joined += 1
+        else:
+            out.append(dict(w, word=text))
+    commas = []
+    i = 0
+    while i < len(out):
+        j = i
+        while j < len(out) and not _SENTENCE_END.search(out[j]["word"]):
+            j += 1
+        sent = out[i:j + 1]
+        if len(sent) >= 5 and _norm_token(sent[0]["word"]) in _CLAUSE_OPEN and not any("," in x["word"] for x in sent):
+            for k in range(3, len(sent) - 1):
+                prev, cur = sent[k - 1], sent[k]
+                if (_norm_token(cur["word"]) in _CLITICS and len(sent) - k <= 4 and _norm_token(prev["word"]) not in _BINDERS
+                        and not re.search(r"[^\w]$", prev["word"], flags=re.UNICODE)):
+                    prev["word"] += ","
+                    commas.append(prev["word"])
+                    break
+        i = j + 1
+    return out, {"joined": joined, "commas": commas}
+
+
+def _norm_token(word):
+    return re.sub(r"[^\w]", "", str(word).lower(), flags=re.UNICODE)
+
+
 def _glued(w, nxt):
     # A number and the word next to it are read together: "Формула 1", "за 8 евро", "едно евро", "25 Nm".
     if PUNCT_END.search(w["word"]):
