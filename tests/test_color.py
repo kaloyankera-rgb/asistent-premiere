@@ -204,3 +204,13 @@ def test_upright_clip_keeps_its_proportions(tmp_path):
     f = C.read_frames(str(up), n=1, width=320)[0]
     assert f.shape[:2] == (320, 180)                                 # portrait, not squeezed into 16:9
     assert C.read_frames(str(land), n=1, width=320)[0].shape[:2] == (180, 320)
+
+
+def test_exported_frame_found_under_either_name(tmp_path):
+    # the panel asks Premiere for "x.png" (the name must carry the format); 26.0.2 may save it as "x.png.png"
+    asked = tmp_path / "before_0.png"
+    assert C._wait_file(str(asked), 0.3) is None
+    (tmp_path / "before_0.png.png").write_bytes(b"\x89PNG")
+    assert C._wait_file(str(asked), 0.3) == str(asked) + ".png"
+    asked.write_bytes(b"\x89PNG")
+    assert C._wait_file(str(asked), 0.3) == str(asked)

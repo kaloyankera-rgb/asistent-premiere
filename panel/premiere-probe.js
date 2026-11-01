@@ -98,11 +98,12 @@ async function run(project) {
   const h = Math.round((((r && r.height) || 1080) * s) / 2) * 2;
   const shoot = async (name) => {
     try {
-      const base = name.replace(/\.png$/i, "");              // Premiere adds ".png" itself
-      const ok = await ppro.Exporter.exportSequenceFrame(t.sequence, TickTime.createWithSeconds(mid), base, dir, w, h);
-      return ok === false ? null : `${dir}/${base}.png`;
+      // with ".png": Premiere takes the format from the name (the engine also finds x.png.png)
+      const ok = await ppro.Exporter.exportSequenceFrame(t.sequence, TickTime.createWithSeconds(mid), name, dir, w, h);
+      return ok === false ? null : `${dir}/${name}`;
     } catch (e) {
       report.exportError = e.message || String(e);
+      debug(`exportSequenceFrame failed: ${report.exportError}`);
       return null;
     }
   };

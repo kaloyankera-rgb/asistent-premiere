@@ -371,7 +371,7 @@ async function onProbe() {
     const units = res.units || {};
     if (Object.keys(units).length) blocks.push(el("div", "line", `Единици: ${JSON.stringify(units)}`));
     if (res.identity) blocks.push(el("div", "line", `Празен Lumetri променя кадъра с: ${JSON.stringify(res.identity)}`));
-    if (res.error) blocks.push(el("div", "warn", res.error));
+    if (res.error) blocks.push(el("div", "warn", res.error + (rep.exportError ? ` Premiere каза: ${rep.exportError}` : "")));
     blocks.push(el("div", "reason", `Входен LUT на клипа: ${rep.colorManagement.clipInputLUT || "няма"}; вграден: ` +
       `${rep.colorManagement.clipEmbeddedLUT || "няма"}. На клипа остана празен Lumetri: изтрий го или Cmd/Ctrl+Z.`));
     finish("Пробата е готова: резултатът е записан и в engine-а.", !res.error, blocks);

@@ -108,10 +108,10 @@ async function exportFrame(sequence, seconds, name, dir) {
   if (!has(ppro.Exporter, "exportSequenceFrame")) return null;
   const { w, h } = await frameSize(sequence);
   try {
-    // Premiere adds the extension itself (seen 26.0.2: "x.png" became "x.png.png"): give the name without it
-    const base = name.replace(/\.png$/i, "");
-    const ok = await ppro.Exporter.exportSequenceFrame(sequence, TickTime.createWithSeconds(seconds), base, dir, w, h);
-    return ok === false ? null : `${dir}/${base}.png`;
+    // the name must end in ".png": Premiere takes the format from it ("x" alone throws "File Format is not
+    // supported", 0.9.5-0.9.10). It may add the extension once more (x.png.png): the engine looks for both.
+    const ok = await ppro.Exporter.exportSequenceFrame(sequence, TickTime.createWithSeconds(seconds), name, dir, w, h);
+    return ok === false ? null : `${dir}/${name}`;
   } catch (e) {
     debug(`exportSequenceFrame failed: ${e && e.message ? e.message : e}`);
     return null;

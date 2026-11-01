@@ -1,12 +1,11 @@
-# Known bugs, limitations and warnings (0.9.10)
+# Known bugs, limitations and warnings (0.9.11)
 
 ## Open bugs
-(Fixed in 0.9.9: Volume level always in Premiere's scale, no guess from the current value; `/color/probe` documented. Fixed in 0.9.10: every small button, including „Проба на Lumetri“ and the two import buttons, also ran „Оправи звука“ (Fill effects, split copies); now only the audio buttons do, `tests/wiring.test.js`.)
+(Fixed in 0.9.9: Volume level always in Premiere's scale, no guess from the current value; `/color/probe` documented. Fixed in 0.9.10: every small button, including „Проба на Lumetri“ and the two import buttons, also ran „Оправи звука“ (Fill effects, split copies); now only the audio buttons do, `tests/wiring.test.js`. Fixed in 0.9.11: since 0.9.5 every frame export threw „File Format is not supported“ because the name was given without „.png“ (Premiere takes the format from the name); the name carries „.png“ again and the engine accepts x.png or x.png.png.)
 1. **Colour analysis reads the source file, not the timeline** (`engine/asistent/color.py`, `read_frames`).
    Re-running on a corrected clip suggests the same correction again (not idempotent, spec T13/T18). Applying
    twice does not stack only because a Lumetri with non-zero Exposure/Temperature/Tint is skipped.
-2. **Render check never confirmed.** Before 0.9.5 the exported files were looked for under the wrong name
-   (`x.png` vs `x.png.png`); after the fix no apply has been logged, so `/color/check` and the slider
+2. **Render check never confirmed.** 0.9.5-0.9.10 never exported a frame (see the fix above); so `/color/check` and the slider
    calibration (`lumetri.json`) are unproven. First apply will use the guess 60/80 slider units per log2.
 
 ## Not verified in Premiere (implemented)
@@ -20,7 +19,7 @@ probe, `scripts/setup_win.ps1` (never run), Windows overall.
 - Clones capture the clip as it was before the transaction; new effects have no parameters until applied.
 - Working/output colour space are not exposed (`getColorSettings` only gives graphics white luminance);
   only the clip's input/embedded LUT IDs and `getCompositeInLinearColor` are readable.
-- Clip Volume max +15 dB. `exportSequenceFrame` appends `.png`.
+- Clip Volume max +15 dB. `exportSequenceFrame` needs the name with `.png` (without it: „File Format is not supported“) and may save it as `x.png.png`.
 - Adobe's published types start at 26.2; several methods are missing on 26.0.2.
 - Lumetri Scopes are UI only (no scope data API): scope-like measurements must be computed from exported frames.
 - No local masks/HSL-by-region through the API known so far (skin tones can only be global unless the probe shows otherwise).
