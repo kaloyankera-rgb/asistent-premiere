@@ -207,20 +207,26 @@ async function apply(project, timeline, plans) {
   const dir = status && status.frames_dir;
   const prepared = [];
   for (const pl of plans) {
-    const t = await target(pl.clip);
+    // one clip that cannot be prepared is reported and skipped; the others still get their correction
+    let t;
+    const values = {};
+    try {
+      t = await target(pl.clip);
+      if (!t.skip && pl.wb) {
+        const s = await engine.colorSliders(pl.res.white.fix_temp, pl.res.white.fix_tint);
+        values.temperature = s.temperature;
+        values.tint = s.tint;
+      }
+    } catch (e) {
+      t = { skip: `не стана за този клип (${e && e.message ? e.message : e}); другите продължават` };
+    }
     if (t.skip) {
       pl.lines = [t.skip];
       pl.skipped = true;
       debug(`color apply ${pl.clip.name}: skipped, ${t.skip}`);
       continue;
     }
-    const values = {};
     if (pl.exposure) values.exposure = pl.exposure;
-    if (pl.wb) {
-      const s = await engine.colorSliders(pl.res.white.fix_temp, pl.res.white.fix_tint);
-      values.temperature = s.temperature;
-      values.tint = s.tint;
-    }
     if (!Object.keys(values).length) {
       pl.lines = ["нищо за прилагане"];
       continue;

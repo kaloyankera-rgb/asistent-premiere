@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.21 (2026-11-01)
+# Project status — Asistent 0.9.22 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.21 via
-UnifiedPluginInstallerAgent, engine 0.9.21 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 128 pytest + 20 node, all passing at 0.9.21.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.22 via
+UnifiedPluginInstallerAgent, engine 0.9.22 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 131 pytest + 20 node, all passing at 0.9.22.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -94,7 +94,14 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   12:58 value), and a fresh 480 px render is also uncorrected, so not a stale cache: Premiere renders the
   correction at the clip's middle (0.573 → 0.627 at 13:06) but not at the analysis moments. Suspected: the
   value written by „Приложи“ is time-dependent (keyframe). 0.9.21 logs the clip's Lumetri state
-  (`diag lumetri`: value, isTimeVarying, keyframes, value at the moments) and the middle frame (`diag frames`). Attempt 12:26 on fx31031 was skipped: the
+  (`diag lumetri`: value, isTimeVarying, keyframes, value at the moments) and the middle frame (`diag frames`).
+- 13:16 (0.9.21): Premiere reported NO Lumetri on C0739 and the middle rendered uncorrected (0.5732): every
+  re-run so far started from a clip whose correction had been undone, so the analysis was right each time and
+  the keyframe theory is wrong (Exposure is a constant, stopwatch off). Idempotence still to be shown with one
+  „Цвят“ press right after an apply. The diagnostics stay until then.
+- 0.9.22 (user's rule: one static best-effort value per clip, no keyframes; a clip too far gone gets what is
+  possible within the range and the work moves on): out-of-range clips say so („извън обхвата… не се гони“);
+  one failing clip no longer stops the analysis or the apply of the others. Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.

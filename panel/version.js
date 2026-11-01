@@ -1,2 +1,2 @@
 // written by scripts/package_ccx.sh
-module.exports = "0.9.21";
+module.exports = "0.9.22";
