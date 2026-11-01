@@ -73,7 +73,7 @@ def test_neutrals_and_skin_disagreeing_means_different_light_not_a_white_fix(cal
     ref = {**ref, "skin": {**ref["skin"], "cast": (ref["skin"]["cast"][0] + 0.4, ref["skin"]["cast"][1])}}
     r = S.fit(camera_b(a), ref, cal, overlap=True, current={"temperature": -3.0, "tint": 2.0})
     assert r["values"]["temperature"] == -3.0 and r["values"]["tint"] == 2.0
-    assert any("не са съгласни" in f for f in r["flags"])
+    assert any("показват различно" in f for f in r["flags"])
 
 
 def test_no_skin_and_no_common_moment_leaves_exposure_alone(cal):
@@ -138,3 +138,35 @@ def test_render_check_says_worse_when_the_match_moved_away(tmp_path):
     assert r["verdict"]["exposure"] == "worse" and "exposure" in r["revert"]
     better = S.check(after, before, ref)
     assert better["verdict"]["exposure"] == "better" and better["revert"] == []
+
+
+def test_orange_wood_is_not_skin():
+    # GStroy regression (2026-11-01): OSB boards (log2 B/R ≈ −2, chroma ≈ 0.76) passed as skin and drove every
+    # skin anchor; real skin (≈ −1.2, 0.56) must still count
+    h, w = 120, 160
+    img = np.full((h, w, 3), 0.5)                                         # a light grey wall (neutral)
+    img[:, :80] = np.array([0.55, 0.30, 0.13])                          # wood, half the frame
+    img[:40, 100:140] = tc.SKIN                                            # a face
+    img *= 1 + 0.05 * np.random.default_rng(0).standard_normal((h, w, 1))  # sensor noise, as in real footage
+    a = S.anchors(C.encode(np.clip(img, 0, 1)))
+    assert a["skin"] and a["skin"]["area"] == pytest.approx(40 * 40 / (h * w), abs=0.01)
+    assert a["skin"]["cast"][0] == pytest.approx(float(np.log2(tc.SKIN[2] / tc.SKIN[0])), abs=0.05)
+
+
+def test_exposure_from_neutral_surfaces_when_there_is_no_skin(cal):
+    a = []
+    for k in range(3):
+        f = tc.scene(seed=k, wall=True)
+        f[..., 0], f[..., 2] = f[..., 2].copy(), f[..., 0].copy()        # no skin colours, the grey wall stays
+        a.append(f)
+    r = S.fit(camera_b(a, cast=(0, 0, 0)), ref_of(a), cal, overlap=True)
+    assert r["basis"].get("exposure") == "белите/сивите повърхности" and "exposure" in r["changed"]
+    assert r["error_after"]["exposure"] < r["error_before"]["exposure"] / 3
+
+
+def test_different_framing_is_not_matched_on_contrast(cal):
+    a = [tc.scene(seed=k) for k in range(3)]
+    other = [np.clip(f[::-1] * 0 + np.linspace(0.02, 0.9, f.shape[0])[:, None, None], 0, 1) for f in a]  # other content
+    r = S.fit(other, ref_of(a), cal, overlap=True)
+    assert "contrast" not in r["changed"]
+    assert any("контрастът" in f for f in r["flags"])

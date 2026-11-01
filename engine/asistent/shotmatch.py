@@ -30,6 +30,12 @@ LIMITS = {"stops": 1.5, "temp": 0.5, "tint": 0.3, "contrast": 20.0, "saturation"
 # below these a change is not worth an edit (and keeps re-runs from fiddling)
 MINIMUM = {"exposure": 0.05, "temperature": 1.0, "tint": 1.0, "contrast": 3.0, "saturation": 3.0}
 AGREE = (0.15, 0.10)          # neutral surfaces and skin must agree on the white difference (log2 t, g)
+# Real human skin in linear Rec.709: log2(B/R) and (max−min)/max. Beige/orange wood (OSB boards in the GStroy
+# footage, 2026-11-01: −1.9…−2.0 and 0.74–0.78, 16–47 % of the frame) sits in the broad skin box and made every
+# skin anchor measure wood; only pixels inside this range count as skin here.
+SKIN_T = (-1.6, -0.6)
+SKIN_CHROMA = (0.30, 0.68)
+SIMILAR = 0.75                # tone histograms at least this alike: the frames show comparable content
 WORSE = {"exposure": 0.1, "white": 0.25, "saturation": 0.05, "contrast": 0.05}   # render check margins
 
 
@@ -70,12 +76,19 @@ def anchors(enc: np.ndarray) -> dict:
     t, g = cast
     fixed = C.encode(lin * np.array([2 ** (t / 2 + g / 3), 2 ** (-2 * g / 3), 2 ** (-t / 2 + g / 3)]))
     skin = C._skin(fixed) & ~clipped
+    safe = np.maximum(lin, 1e-6)
+    t_px = np.log2(safe[..., 2] / safe[..., 0])
+    chroma_px = (safe.max(axis=-1) - safe.min(axis=-1)) / safe.max(axis=-1)
+    skin &= (t_px >= SKIN_T[0]) & (t_px <= SKIN_T[1]) & (chroma_px >= SKIN_CHROMA[0]) & (chroma_px <= SKIN_CHROMA[1])
     y_enc = C._luma(enc)
     lit = y_enc > 0.04
-    out = {"neutral": m.get("cast_neutral") if m.get("neutral", 0) >= 0.005 else None,
+    has_neutral = m.get("neutral", 0) >= 0.005
+    out = {"neutral": m.get("cast_neutral") if has_neutral else None,
+           "neutral_y": m.get("neutral_y") if has_neutral else None,
            "clipped": float(np.mean(clipped)), "skin": None,
            "mid": float(np.median(y_enc[lit])) if lit.any() else None,
-           "spread": float(np.percentile(y_enc[lit], 95) - np.percentile(y_enc[lit], 5)) if lit.sum() > 100 else None}
+           "spread": float(np.percentile(y_enc[lit], 95) - np.percentile(y_enc[lit], 5)) if lit.sum() > 100 else None,
+           "hist": (np.histogram(y_enc, bins=16, range=(0, 1))[0] / y_enc.size).tolist()}
     if np.mean(skin) >= 0.01:
         px = lin[skin]
         mx, mn = px.max(axis=1), px.min(axis=1)
@@ -93,6 +106,8 @@ def pool(per_frame: list[dict]) -> dict:
     out = {"frames": n, "clipped": med([a["clipped"] for a in per_frame]),
            "mid": med([a["mid"] for a in per_frame if a["mid"] is not None]),
            "spread": med([a["spread"] for a in per_frame if a["spread"] is not None]),
+           "neutral_y": med([a["neutral_y"] for a in per_frame if a.get("neutral_y")]),
+           "hist": np.mean([a["hist"] for a in per_frame], axis=0).tolist() if n else None,
            "skin": None, "neutral": None}
     if n and len(skins) * 2 >= n:
         out["skin"] = {"y": med([s["y"] for s in skins]), "chroma": med([s["chroma"] for s in skins]),
@@ -110,19 +125,29 @@ def look(frames_lin: list[np.ndarray], values: dict, cal) -> dict:
 
 # ---------------------------------------------------------------- comparing and fitting
 
+def similarity(a: dict, ref: dict) -> float:
+    """How alike the tone distributions are (histogram intersection, 1 = same): different framing of one scene
+    (ceiling and close wood vs. people) scores low, and then whole-frame numbers say nothing about the camera."""
+    if not a.get("hist") or not ref.get("hist"):
+        return 0.0
+    return float(np.minimum(a["hist"], ref["hist"]).sum())
+
+
 def match_error(a: dict, ref: dict) -> dict:
     """How far a look is from the reference, per component (None: no common anchor to say)."""
     err = {"exposure": None, "white": None, "saturation": None, "contrast": None}
     if a["skin"] and ref["skin"]:
         err["exposure"] = abs(float(np.log2(a["skin"]["y"] / ref["skin"]["y"])))
         err["saturation"] = abs(float(np.log2(a["skin"]["chroma"] / ref["skin"]["chroma"])))
+    elif a.get("neutral_y") and ref.get("neutral_y"):
+        err["exposure"] = abs(float(np.log2(a["neutral_y"] / ref["neutral_y"])))
     elif a["mid"] and ref["mid"]:
         err["exposure"] = abs(C.GAMMA * float(np.log2(a["mid"] / ref["mid"])))
     pair = (a["neutral"], ref["neutral"]) if a["neutral"] and ref["neutral"] else \
         (a["skin"]["cast"], ref["skin"]["cast"]) if a["skin"] and ref["skin"] else None
     if pair:
         err["white"] = max(abs(pair[0][0] - pair[1][0]) / 0.1, abs(pair[0][1] - pair[1][1]) / 0.06)
-    if a["spread"] and ref["spread"]:
+    if a["spread"] and ref["spread"] and similarity(a, ref) >= SIMILAR:
         err["contrast"] = abs(float(np.log2(a["spread"] / ref["spread"])))
     return err
 
@@ -144,12 +169,12 @@ def fit(frames_lin: list[np.ndarray], ref: dict, cal, overlap: bool, current: di
         if ref["skin"] and cur["skin"] else None
     d = None
     if dn and ds and (abs(dn[0] - ds[0]) > AGREE[0] or abs(dn[1] - ds[1]) > AGREE[1]):
-        flags.append("бялото: неутралните повърхности и кожата не са съгласни (различна светлина?): не е пипано")
+        flags.append("бялото: неутралните повърхности и кожата показват различно (различна светлина?): не е пипано")
     elif dn or ds:
         d = ((dn[0] + ds[0]) / 2, (dn[1] + ds[1]) / 2) if dn and ds else (dn or ds)
         basis["white"] = "неутрални + кожа" if dn and ds else "неутрални" if dn else "кожа"
     else:
-        flags.append("бялото: няма неутрални повърхности и кожа и в двете камери: не е пипано")
+        flags.append("бялото: няма бели/сиви повърхности или кожа и в двете камери: не е пипано")
     if d and (abs(d[0]) > LIMITS["temp"] or abs(d[1]) > LIMITS["tint"]):
         flags.append(f"бялото: разликата е голяма ({d[0]:+.2f}/{d[1]:+.2f}), вероятно нарочна светлина: не е пипано")
         d = None
@@ -162,12 +187,15 @@ def fit(frames_lin: list[np.ndarray], ref: dict, cal, overlap: bool, current: di
     def need(c):
         if ref["skin"] and c["skin"]:
             return float(np.log2(ref["skin"]["y"] / c["skin"]["y"])), "кожата", float(C.encode(np.array(c["skin"]["y"])))
-        if overlap and ref["mid"] and c["mid"]:
+        if overlap and ref.get("neutral_y") and c.get("neutral_y"):        # same moment, same light
+            return float(np.log2(ref["neutral_y"] / c["neutral_y"])), "белите/сивите повърхности", \
+                float(C.encode(np.array(c["neutral_y"])))
+        if overlap and ref["mid"] and c["mid"] and similarity(c, ref) >= SIMILAR:
             return C.GAMMA * float(np.log2(ref["mid"] / c["mid"])), "общия момент", c["mid"]
         return None, None, None
     stops, why, at = need(cur)
     if stops is None:
-        flags.append("яркостта: няма кожа и общ момент с еталона: не е пипано")
+        flags.append("яркостта: няма кожа или бели/сиви повърхности в общи моменти с еталона: не е пипано")
     elif abs(stops) > LIMITS["stops"]:
         flags.append(f"яркостта: разликата е {stops:+.1f} стопа, вероятно нарочна или друга сцена: не е пипано")
     else:
@@ -194,11 +222,15 @@ def fit(frames_lin: list[np.ndarray], ref: dict, cal, overlap: bool, current: di
             cur = look(frames_lin, v, cal)
         if ok:
             basis["saturation"] = "кожата"
-    # contrast: the tone spread, only where both cameras show the same real moment (content would decide otherwise)
-    if overlap and ref["spread"] and cur["spread"]:
+    elif not (ref["skin"] and cur["skin"]):
+        flags.append("наситеността: няма надеждна кожа и в двете камери (за нея се мери само кожа): не е пипано")
+    # contrast: the tone spread, only on the same real moments AND comparable content (framing decides otherwise)
+    if not (overlap and similarity(cur, ref) >= SIMILAR):
+        flags.append("контрастът: кадрите показват различно съдържание (ракурс), не може да се сравни: не е пипано")
+    elif ref["spread"] and cur["spread"]:
         c = v["contrast"] + (ref["spread"] / cur["spread"] - 1) / CONTRAST_K
         if abs(c) > LIMITS["contrast"]:
-            flags.append(f"контрастът: разликата е голяма ({c:+.0f}): не е пипано")
+            flags.append(f"контрастът: разликата е голяма ({c:+.0f}): кадрите не са сравними (ракурс или светлина), не е пипано")
         else:
             v["contrast"] = round(c, 0)
             basis["contrast"] = "общия момент"
