@@ -241,8 +241,9 @@ class Handler(BaseHTTPRequestHandler):
                 log.info("color probe: %s units %s identity %s", res.get("table"), res.get("units"), res.get("identity"))
                 return self._send(200, res)
             if self.path == "/color/check":
-                before, after = str(body.get("before") or ""), str(body.get("after") or "")
-                if not (os.path.isfile(before) and os.path.isfile(after)):
+                before = COLOR._wait_file(str(body.get("before") or ""), 4.0)
+                after = COLOR._wait_file(str(body.get("after") or ""), 4.0)
+                if not (before and after):
                     raise ValueError("Няма изнесени кадри за проверка.")
                 res = COLOR.check_render(before, after)
                 b = COLOR.measure(COLOR.read_image(before))

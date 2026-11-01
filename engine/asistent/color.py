@@ -456,34 +456,44 @@ def frame_stats(enc: np.ndarray) -> dict:
             "clipped": float(np.mean(np.max(enc, axis=-1) >= 0.97)), "_use": use}
 
 
-def _wait_file(path: str, seconds: float = 6.0) -> bool:
+def _found(path: str) -> str | None:
+    """The exported frame, also when Premiere added its own extension once more (x.png -> x.png.png)."""
+    for cand in (path, path + ".png"):
+        if cand and os.path.isfile(cand) and os.path.getsize(cand) > 0:
+            return cand
+    return None
+
+
+def _wait_file(path: str, seconds: float = 6.0) -> str | None:
     import time
     end = time.time() + seconds
     while time.time() < end:
-        if path and os.path.isfile(path) and os.path.getsize(path) > 0:
-            return True
+        hit = _found(path)
+        if hit:
+            return hit
         time.sleep(0.2)
-    return bool(path) and os.path.isfile(path)
+    return _found(path)
 
 
 def probe_measure(refs: dict, frames: list[dict]) -> dict:
     """Responses of the Lumetri parameters measured on Premiere's own frames, and the capability table."""
     out = {"frames": [], "identity": None}
-    base_path = (refs or {}).get("baseline")
-    if not base_path or not _wait_file(base_path):
+    base_path = _wait_file((refs or {}).get("baseline") or "")
+    if not base_path:
         out["error"] = "Няма изнесен кадър от Premiere (exportSequenceFrame не върна файл)."
         return out
     base = read_image(base_path)
     bs = frame_stats(base)
-    src_path = (refs or {}).get("source")
-    if src_path and _wait_file(src_path):
+    src_path = _wait_file((refs or {}).get("source") or "")
+    if src_path:
         ss = frame_stats(read_image(src_path))
         out["identity"] = {"stops": round(float(np.log2(bs["lin_mean"] / max(ss["lin_mean"], 1e-9))), 3),
                            "temp": round(bs["temp"] - ss["temp"], 3), "tint": round(bs["tint"] - ss["tint"], 3)}
     for f in frames:
         rec = {k: v for k, v in f.items() if k != "path"}
-        if f.get("path") and _wait_file(f["path"]):
-            a = read_image(f["path"])
+        fp = _wait_file(f.get("path") or "") if f.get("path") else None
+        if fp:
+            a = read_image(fp)
             if a.shape == base.shape:
                 st = frame_stats(a)
                 # brightness and cast compared pixel by pixel on pixels usable in BOTH frames (brightening
