@@ -65,3 +65,11 @@ test("the re-check after the step back is sent as final (C0739 12:58 regression)
   assert.match(color, /const chk2 = [^\n]*checkWithRetry\([^\n]*, true\)\)/);
   assert.match(fs.readFileSync(path.join(panel, "engine.js"), "utf8"), /"\/color\/check", \{[^}]*final/);
 });
+
+test("a white refine that would write the same sliders is skipped (fx39026 16:24 regression)", () => {
+  const color = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
+  assert.match(color, /Math\.abs\(temp - pl\.values\.temperature\) >= 0\.5 \|\| Math\.abs\(tint - pl\.values\.tint\) >= 0\.5/);
+  assert.match(color, /pl\.lines\.push\(`резултат: \$\{finalLine\(chk\)\}`\)/);           // always one result line
+  const main = fs.readFileSync(path.join(panel, "main.js"), "utf8");
+  assert.doesNotMatch(main, /върни с Cmd\/Ctrl\+Z, натисни „Цвят“/);                   // ownership: no Undo needed
+});

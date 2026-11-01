@@ -375,7 +375,7 @@ async function onColorApply(level) {
       for (const l of pl.lines || []) box.appendChild(el("div", "line", l));
       if (pl.left && pl.left.length && !pl.skipped) {
         box.appendChild(el("div", "warn", `Не е приложено (средна сигурност): ${pl.left.join(" и ")}. ` +
-          "За да влезе и то: върни с Cmd/Ctrl+Z, натисни „Цвят“ и „Приложи и средните“."));
+          "За да влезе и то: натисни „Цвят“ и „Приложи и средните“ (добавя се към тази поправка)."));
       }
       return box;
     });
