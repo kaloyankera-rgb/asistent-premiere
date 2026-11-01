@@ -213,3 +213,15 @@ def test_caption_state_remembers_the_track_per_project_and_sequence(engine, tmp_
     assert call("POST", "/captions/record", {"project": "/p/A.prproj", "sequence": "Seq", "signature": {"index": "x"}})[0] == 400
     assert call("POST", "/captions/forget", {"project": "/p/A.prproj", "sequence": "Seq"})[0] == 200
     assert call("GET", f"/captions/state?{q}")[1] == {}
+
+
+def test_subtitle_settings_are_kept_per_project_and_validated(engine, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    q = "project=%2Fp%2FA.prproj"
+    assert call("GET", f"/subtitles/settings?{q}")[1] == {"gender": "auto", "text": ""}
+    code, res = call("POST", "/subtitles/settings", {"project": "/p/A.prproj", "gender": "male", "text": "раф => рафт\nлошо =>"})
+    assert code == 200 and res["gender"] == "male" and len(res["errors"]) == 1
+    assert call("GET", f"/subtitles/settings?{q}")[1] == {"gender": "male", "text": "раф => рафт\nлошо =>"}
+    assert call("GET", "/subtitles/settings?project=%2Fp%2FB.prproj")[1] == {"gender": "auto", "text": ""}
+    assert call("POST", "/subtitles/settings", {"project": "/p/A.prproj", "gender": "robot", "text": ""})[0] == 400
+    assert call("POST", "/subtitles/settings", {"project": "", "gender": "auto", "text": ""})[0] == 400

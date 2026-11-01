@@ -60,3 +60,6 @@ button.small { font-size: 11px; padding: 4px 7px; margin: 0 4px 4px 0; }
 
 /* the probe question opens under its button, not at the top: nothing above it moves */
 .confirm { margin: 4px 0 6px; }
+
+textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px; }
+select { font-size: 11px; margin-left: 6px; }

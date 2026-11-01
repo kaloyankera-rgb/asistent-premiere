@@ -108,6 +108,14 @@ function startSubtitles(payload) {
   return call("POST", "/subtitles", payload);
 }
 
+function subtitleSettings(project) {
+  return call("GET", `/subtitles/settings?project=${encodeURIComponent(project)}`);
+}
+
+function saveSubtitleSettings(project, gender, text) {
+  return call("POST", "/subtitles/settings", { project, gender, text });
+}
+
 function captionsState(project, sequence) {
   return call("GET", `/captions/state?project=${encodeURIComponent(project)}&sequence=${encodeURIComponent(sequence)}`);
 }
@@ -143,4 +151,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, startSubtitles, captionsState, recordCaptions, placeCaptions, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, startSubtitles, subtitleSettings, saveSubtitleSettings, captionsState, recordCaptions, placeCaptions, devPoll, devResult, job, cancel, log };

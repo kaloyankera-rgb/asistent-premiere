@@ -96,6 +96,13 @@ function createBridge({ premiere, premiereColor, doc, version, engineApi = engin
       const again = await premiere.readTimeline(p);
       return { requested: chosen.map(brief), selected: again.items.filter((x) => x.selected).map(brief) };
     },
+    // fill one of the subtitle boxes (speaker select, corrections textarea) the way a person would
+    async fill(a) {
+      if (!["speaker", "notes"].includes(a.id)) throw new Error("fill: само speaker или notes.");
+      const e = doc.getElementById(a.id);
+      e.value = String(a.value);
+      return { id: a.id, value: e.value };
+    },
     async click(a) {
       await idle(120);
       const want = String(a.text || "").trim().toLowerCase();

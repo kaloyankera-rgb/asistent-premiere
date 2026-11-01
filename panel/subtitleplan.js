@@ -78,6 +78,20 @@ function describeResult(r) {
   if (unsure.length) {
     lines.push({ cls: "warn", text: `Провери ${unsure.length === 1 ? "1 несигурна дума" : `${unsure.length} несигурни думи`} (прочетени различно или непознати за речника): ${unsure.slice(0, 10).join(", ")}${unsure.length > 10 ? ", …" : ""}.` });
   }
+  for (const e of r.correction_errors || []) lines.push({ cls: "warn", text: `Не разбирам: ${e}.` });
+  const fixes = r.corrections || [];
+  const done = fixes.filter((f) => f.applied);
+  if (done.length) lines.push({ cls: "line", text: `Корекции (${done.length}): ${done.map((f) => `„${f.heard}“ → „${f.said}“`).join(", ")}; новите думи са подравнени по звука.` });
+  for (const f of fixes.filter((x) => !x.applied)) {
+    lines.push({ cls: "warn", text: `Корекцията „${f.heard}“ → „${f.said}“ не намери тези думи в разпознатото (пишат се така, както се виждат в субтитрите).` });
+  }
+  const g = r.gender;
+  if (g && g.changed && g.changed.length) {
+    const who = g.used === "m" ? "мъжки" : "женски";
+    lines.push({ cls: "line", text: `${g.setting === "auto" ? "Авто" : "Говорещ"}: ${who} род: ${g.changed.map((c) => `„${c.from}“ → „${c.to}“ (${clock(c.at)})`).join(", ")}.` });
+  } else if (g && g.setting === "auto" && g.used) {
+    lines.push({ cls: "hint", text: `Авто: говорещият е ${g.used === "m" ? "мъж" : "жена"} (по ${(g.evidence.m || 0) + (g.evidence.f || 0)} четения на формите „съм …л/ла“); нищо не трябваше да се сменя.` });
+  }
   const rd = r.readings;
   if (rd && rd.changed) lines.push({ cls: "line", text: `${rd.changed} ${rd.changed === 1 ? "дума е сменена" : "думи са сменени"}, защото повечето четения и речникът са за друга дума.` });
   for (const d of r.duplicates || []) {

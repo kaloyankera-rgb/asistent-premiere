@@ -86,6 +86,8 @@ def merge(base: list[dict], others: list[list[dict]], known=None, respell=None) 
                 votes[i][norm(base[i]["word"])] += 1       # equal, or not looked at: it supports the main reading
     changed = unsure = 0
     for i, w in enumerate(out):
+        if w.get("fixed"):
+            continue                                       # the editor's correction: not up for a vote
         top, n = votes[i].most_common(1)[0]
         mine = norm(base[i]["word"])
         if (top != mine and n > votes[i][mine] and n * 2 > runs
