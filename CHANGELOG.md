@@ -7,6 +7,7 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 ## Unreleased
 
 ## 0.9.47 - subtitles: no speaker setting, captions clear sooner
+- Tested large-v2 as a second opinion on the four real pieces: fixes „неща" but breaks „Примерно на мен", „то и за градината" and the end phrase is worse; not used, test model deleted.
 - Removed the Мъж / Жена / Авто setting and `gender.py` (user: most clips have both speakers, so a gender rule would rewrite correctly spoken forms). Every form stays as heard; a form the readings disagree on is marked „?“.
 - A caption now clears 0.15 s after its last word (was 0.3 s); the rule against a blank screen under 0.2 s between captions is unchanged. Measured on the real clip: captions that switched late/early by 80-120 ms are listed in `PROJECT_STATUS.md`.
 - Tests: 280 pytest + 70 node.
