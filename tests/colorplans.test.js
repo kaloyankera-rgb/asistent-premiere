@@ -64,3 +64,22 @@ test("a further difference is added to what is there", () => {
 test("nothing suggested: nothing written", () => {
   assert.deepStrictEqual(mergeValues({ exposure: 1 }, null, null), { values: {}, applied: {} });
 });
+
+const { whiteWithinCheck, WHITE_OK } = require("../panel/colorplans.js");
+
+test("fx39024 16:12: a residual the render check calls neutral is kept on Asistent's own Lumetri", () => {
+  // after Temperature −4.9 / Tint 12.8 the re-analysis wanted fix_temp −0.094, fix_tint +0.02
+  assert.ok(whiteWithinCheck({ fix_temp: -0.094, fix_tint: 0.0195 }));
+});
+
+test("a real cast is still corrected", () => {
+  assert.ok(!whiteWithinCheck({ fix_temp: -0.25, fix_tint: 0.0 }));
+  assert.ok(!whiteWithinCheck({ fix_temp: 0.0, fix_tint: 0.09 }));
+});
+
+test("the limits are the render check's, used by the refine step too", () => {
+  assert.deepStrictEqual(WHITE_OK, { temp: 0.1, tint: 0.06 });
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "panel", "premiere-color.js"), "utf8");
+  assert.match(src, /chk\.residual\[0\]\) > WHITE_OK\.temp/);
+  assert.match(src, /keptWhite = !t\.skip && t\.owned && pl\.wb && whiteWithinCheck/);
+});
