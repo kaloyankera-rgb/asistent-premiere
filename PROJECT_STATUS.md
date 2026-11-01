@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.27 (2026-11-01)
+# Project status — Asistent 0.9.28 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.27 via
-UnifiedPluginInstallerAgent, engine 0.9.27 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 139 pytest + 35 node, all passing at 0.9.27.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.28 via
+UnifiedPluginInstallerAgent, engine 0.9.28 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 150 pytest + 41 node, all passing at 0.9.28.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -165,3 +165,19 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
 ## Phases 7–9 (Planned)
 7 Bulgarian subtitles (faster-whisper; reuse `tools/autoedit/asr.py` by copying), 8 rough-cut markers and
 export QA, 9 Windows (run setup, silent install there, packaging for colleagues).
+
+## Auto Shot Match (0.9.28, user's priority 2026-11-01; skin brightness and S-Log3 parked)
+„Изравни камерите“ (ЦВЯТ): selected clips grouped into cameras (media folder, or file-name prefix when all
+share one folder); for each clip 4 source moments, inside the timeline overlap with the other cameras when
+there is one (same real moment), evenly otherwise. Engine `shotmatch.py`: anchors per frame, never average
+RGB/luma: skin (brightness, hue, saturation), neutral surfaces (white), tone spread (contrast, only on common
+moments). Lumetri simulated with models fitted from the C0737 probe frames: Temperature/Tint channel gains,
+Exposure with the shoulder curve, Contrast slope 1 + 0.00229·c around 0.50 encoded, Saturation chroma ×
+(1 + 0.0093·(S−100)). Reference: the chosen camera or the most reliable (skin, neutrals, exposure, clipping);
+„Еталон: …“ buttons re-run against another camera. The fit gives ABSOLUTE values from the source (re-run =
+same values, `changed` empty); unfitted/flagged/tiny components keep the clip's current value. Flags instead
+of force: > 1.5 stops, white > 0.5/0.3, neutrals vs skin disagreeing, no anchor, contrast/saturation > 20.
+Apply: only changed components, new or Asistent-owned Lumetri only (manual grade → BLOCKED); each clip
+checked on a Premiere frame at a visible moment against the reference look, worse components put back in one
+step; fully covered clips: model only (said). Log/S-Log clips skipped. Audit: `kind: shotmatch`.
+NOT verified in Premiere yet (needs real multi-POV footage).
