@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.16 (2026-11-01)
+# Project status — Asistent 0.9.17 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.16 via
-UnifiedPluginInstallerAgent, engine 0.9.16 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 107 pytest + 14 node, all passing at 0.9.16.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.17 via
+UnifiedPluginInstallerAgent, engine 0.9.17 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 121 pytest + 14 node, all passing at 0.9.17.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -67,7 +67,15 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   the brightness is from the target. No further automatic step (Undo stays at 3 at most).
 - **Step-back verified (12:40, C0739, 0.9.16):** +0.5 stops → 0.65 units, skin 0.007 stop from target;
   4.42 % newly clipped → pull-back 0.15 units → re-check 3.08 % (limit 3 %, the engine would have taken
-  another 0.05), skin 0.10 stop dark (on target). The old fixed 0.5 would have left 0.15 units. Attempt 12:26 on fx31031 was skipped: the
+  another 0.05), skin 0.10 stop dark (on target). The old fixed 0.5 would have left 0.15 units.
+- 0.9.17: final clipping verdict (reporting only, the exposure path of c289c31 untouched): ACCEPTED ≤ 3.00 %,
+  ACCEPTED_WITH_WARNING up to +0.25 points (`CLIP_SOFT_TOLERANCE`, per call `clip_tolerance`) or when the
+  excess is only in areas already near white before (≥ 0.90: lamps, windows, sky), REVIEW_NEEDED above that
+  or when skin TONES (skin-coloured, < 0.90 before) clip on > 1 % of the skin area; a first check followed by
+  the step-back is STEP_BACK, not a verdict. Never triggers another correction. Replayed on the C0739 frames:
+  first 4.42 % → 0.15 back (unchanged) → recheck 3.08 % ACCEPTED_WITH_WARNING with the specified message.
+  Found while replaying: the skin box also catches warm near-white highlights (C0739: 189 scattered pixels at
+  0.94-0.97), so skin clipping counts only skin tones below 0.90. Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.
