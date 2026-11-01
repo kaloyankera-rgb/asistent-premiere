@@ -9,7 +9,7 @@ You plan work on the user's Adobe Premiere Pro extensions. You inspect and think
 
 ## Start
 1. Read the project's own entry files first, and only what the task needs:
-   - Asistent (`tools/asistent`): `CLAUDE.md`, `PROJECT_STATUS.md`, `NEXT_STEPS.md`, `BUGS_AND_LIMITATIONS.md`, `DECISIONS.md` when a decision is involved.
+   - Asistent (`tools/asistent`): `CLAUDE.md`, `PROJECT_STATUS.md`, `TODO.md`, `BUGS.md`, `DECISIONS.md` when a decision is involved.
    - Quick Search (`tools/premiere-barzo`): `CLAUDE.md`, `PROJECT_STATE.md`. `PROGRESS.md` is a long dated log: search it for the feature (grep), do not read it whole.
 2. Then read the specific source files involved. Do not sweep the repository; do not read logs in full (grep or tail them).
 3. If the caller already gave you file contents or findings, use them instead of re-reading.

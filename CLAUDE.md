@@ -5,7 +5,7 @@ Independent, zero-budget, local assistant for the user's daily short-form editin
 and exposure). Built 2026-11-01 from the user's spec (first message of the session) plus the colour
 engine spec in `docs/color-spec/` (see `COLOR_CORRECTION_PLAN.md`).
 
-Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AND_LIMITATIONS.md`.
+Read first when continuing: `PROJECT_STATUS.md` → `TODO.md` → `BUGS.md`.
 `DECISIONS.md` explains why things are the way they are. `PROGRESS.md` is the detailed chronological log
 (search it, do not read it whole). Model routing and agents: `../DEV_WORKFLOW.md` in the Content Studio vault,
 or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: `docs/INDEX.md`.
@@ -70,3 +70,25 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   Asistent's own only when its full fingerprint matches one in `managed.json`).
 - Sync works from the timeline selection and builds a new `SYNC – <sequence>`; the user's sequence is read only.
 - No AI voices, no paid tools, no cloud, nothing uploaded.
+
+## Version control and documentation (GitHub, private repo)
+- The repo is `tools/asistent` (own git, branch `main`). Remote `origin` is a PRIVATE GitHub repository.
+  History is never rewritten: no force-push, no `reset --hard`, no history rewriting, no deleting branches or tags.
+  Rename files with `git mv`. Never commit secrets, models, `dist/`, logs or client footage (`.gitignore` covers them).
+- Documents and what each is for: `CLAUDE.md` rules and architecture · `PROJECT_STATUS.md` what exists and what is
+  verified in Premiere · `TODO.md` remaining tasks in priority order · `BUGS.md` open bugs and limits ·
+  `CHANGELOG.md` one entry per released change · `PROGRESS.md` dated log (search, do not read whole) ·
+  `DECISIONS.md` why. Map: `docs/INDEX.md`.
+- **Definition of done for every task** (do all, in this order, without being asked): code → tests pass →
+  version bump (manifest + config) → `scripts/release_mac.sh` → user verifies in `TEST.prproj` where Premiere is
+  involved → update the docs: `CHANGELOG.md` (new entry), `PROJECT_STATUS.md` (replace outdated lines, mark verified
+  or unverified), `TODO.md` (tick or remove the finished task, add new ones), `BUGS.md` (new/fixed bugs),
+  `PROGRESS.md` (dated line), `DECISIONS.md` (only if a decision was made) → one descriptive commit
+  (`Asistent X.Y.Z: what and why`; docs-only commits start with `Docs:`) → tell the user what is committed.
+- Commit only completed and verified work, never half-finished code; do not commit failing tests.
+  The pre-commit hook (`scripts/githooks`, enabled by `git config core.hooksPath scripts/githooks`) refuses a code
+  commit that does not also stage `CHANGELOG.md` and `PROJECT_STATUS.md`.
+- **Pushing needs the user's explicit approval each time** (`git push origin main`, plain push only). Ask after the
+  commit: "committed X, push to GitHub?". Never push on your own, never create tags or releases without being asked.
+- Before ending a session or when the user says "update the project state": make sure the state docs above are
+  current and everything finished is committed, so a new session can continue from `PROJECT_STATUS.md` + `TODO.md`.

@@ -108,7 +108,7 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   not been applied (exposure was medium confidence, „Приложи сигурните“ = high only).
 - Gap found: „Приложи и средните“ afterwards was refused („вече има Lumetri с промени (temperature, tint)“):
   the never-touch-a-grade rule also blocks Asistent's OWN correction, so a missing exposure cannot be added.
-  Needs managed correction ownership (NEXT_STEPS B6).
+  Needs managed correction ownership (TODO.md B6).
 - Bug (user, fx39024 13:25): with a high white and a medium exposure only „Приложи сигурните“ was shown (buttons
   counted clips, 1 = 1), so the exposure could not be applied even on a clean clip. 0.9.23: `colorplans.js`
   counts corrections; „Приложи и средните“ appears whenever it adds one; „сигурните“ names what it left out
@@ -143,7 +143,7 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   second press showed no result line. 0.9.27: refine skipped when it would not change the sliders by ≥ 0.5,
   every check shows one result line, hint says „Цвят“ + „Приложи и средните“ (no Undo).
 - Observation (fx39027 16:19): skin exactly on target (0.0005) but 6.4 % of the skin area clipped → REVIEW_NEEDED:
-  the 0.62 skin target may be too bright for some faces (input for „exposure taste“, NEXT_STEPS B9). Attempt 12:26 on fx31031 was skipped: the
+  the 0.62 skin target may be too bright for some faces (input for „exposure taste“, TODO.md B9). Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.
@@ -160,7 +160,7 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
     unit, so the planner must use this curve, not 1 stop/unit (next step).
 - Not implemented from the colour plan: analysis on timeline renders, colour-management/double-transform
   check, statuses + audit log, contrast, saturation, skin tones, shot match, Auto Color, accept/revert,
-  managed correction ownership. See `COLOR_CORRECTION_PLAN.md` and `NEXT_STEPS.md`.
+  managed correction ownership. See `COLOR_CORRECTION_PLAN.md` and `TODO.md`.
 
 ## Test bridge (0.9.35, user asked 2026-11-01)
 So that Claude can run Premiere tests itself: the panel long-polls `GET /dev/poll`, runs `ping`, `state`, `selection`,

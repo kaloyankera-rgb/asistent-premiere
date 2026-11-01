@@ -1,0 +1,16 @@
+#!/bin/sh
+# Documentation safety net. Enable once per clone: git config core.hooksPath scripts/githooks
+# A commit that changes application code (panel/, engine/, scripts/*.sh|py, tests/) must also stage
+# CHANGELOG.md and PROJECT_STATUS.md. Docs-only commits pass. Bypass deliberately: git commit --no-verify
+staged=$(git diff --cached --name-only)
+code=$(printf '%s\n' "$staged" | grep -E '^(panel|engine|tests)/|^scripts/[^/]+\.(sh|py|ps1)$' || true)
+[ -z "$code" ] && exit 0
+missing=""
+printf '%s\n' "$staged" | grep -qx 'CHANGELOG.md' || missing="$missing CHANGELOG.md"
+printf '%s\n' "$staged" | grep -qx 'PROJECT_STATUS.md' || missing="$missing PROJECT_STATUS.md"
+if [ -n "$missing" ]; then
+  echo "pre-commit: code changed but not staged:$missing"
+  echo "Update them (see 'Version control and documentation' in CLAUDE.md), 'git add' them, commit again."
+  echo "Intentional exception (typo, test-only): git commit --no-verify"
+  exit 1
+fi

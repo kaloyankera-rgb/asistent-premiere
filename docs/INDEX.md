@@ -6,8 +6,8 @@ Read in this order when continuing the project (the first four are the whole han
 |---|---|---|
 | 1 | [../CLAUDE.md](../CLAUDE.md) | Architecture, development rules, permanent user rules. Loaded automatically by Claude Code. |
 | 2 | [../PROJECT_STATUS.md](../PROJECT_STATUS.md) | Version, every phase and feature, what is verified in Premiere and what is not. |
-| 3 | [../NEXT_STEPS.md](../NEXT_STEPS.md) | Remaining tasks in priority order. |
-| 4 | [../BUGS_AND_LIMITATIONS.md](../BUGS_AND_LIMITATIONS.md) | Open bugs, Premiere/UXP limits, things that crash. |
+| 3 | [../TODO.md](../TODO.md) | Remaining tasks in priority order. |
+| 4 | [../BUGS.md](../BUGS.md) | Open bugs, Premiere/UXP limits, things that crash. |
 | 5 | [../DECISIONS.md](../DECISIONS.md) | Why things are the way they are (user decisions, rejected approaches). |
 | 6 | [../PROGRESS.md](../PROGRESS.md) | Detailed dated log. Search it, do not read it whole. |
 | 7 | [../README.md](../README.md) | User guide (Bulgarian): install and every button. |

@@ -28,7 +28,7 @@ Never use Opus for simple edits, formatting, ordinary UI changes or repetitive w
 
 ## Keeping state between sessions
 Each project has a short entry point that a new session reads first:
-- Asistent: `CLAUDE.md` → `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AND_LIMITATIONS.md` (`DECISIONS.md` for why).
+- Asistent: `CLAUDE.md` → `PROJECT_STATUS.md` → `TODO.md` → `BUGS.md` (`DECISIONS.md` for why).
 - Quick Search: `CLAUDE.md` → `PROJECT_STATE.md` (`PROGRESS.md` is the detailed dated log, search only).
 
 After a milestone (a feature works, a bug is fixed, a release is built, or before `/clear`), update the
