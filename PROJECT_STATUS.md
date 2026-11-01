@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.22 (2026-11-01)
+# Project status — Asistent 0.9.23 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.22 via
-UnifiedPluginInstallerAgent, engine 0.9.22 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 131 pytest + 20 node, all passing at 0.9.22.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.23 via
+UnifiedPluginInstallerAgent, engine 0.9.23 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 131 pytest + 25 node, all passing at 0.9.23.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -108,7 +108,11 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   not been applied (exposure was medium confidence, „Приложи сигурните“ = high only).
 - Gap found: „Приложи и средните“ afterwards was refused („вече има Lumetri с промени (temperature, tint)“):
   the never-touch-a-grade rule also blocks Asistent's OWN correction, so a missing exposure cannot be added.
-  Needs managed correction ownership (NEXT_STEPS B6). Attempt 12:26 on fx31031 was skipped: the
+  Needs managed correction ownership (NEXT_STEPS B6).
+- Bug (user, fx39024 13:25): with a high white and a medium exposure only „Приложи сигурните“ was shown (buttons
+  counted clips, 1 = 1), so the exposure could not be applied even on a clean clip. 0.9.23: `colorplans.js`
+  counts corrections; „Приложи и средните“ appears whenever it adds one; „сигурните“ names what it left out
+  (with the Undo hint until B6 exists). Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.
