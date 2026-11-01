@@ -137,14 +137,20 @@ async function exportFrame(sequence, seconds, name, dir, onError, long = 480) {
 
 
 // What the viewer sees of the clip: frames exported from the sequence (any correction already on the clip
-// included), 720 px for the preview too. Fewer than two usable moments: the engine falls back to the file.
+// included). Fewer than two usable moments: the engine falls back to the file.
+// 480 px like the render checks: at 720 px Premiere 26.0.2 kept returning the clip as it was before a
+// correction (C0739 13:08: Exposure 0.5 on the clip, analysis frames byte-identical to the uncorrected ones),
+// while the 480 px check frames follow every change. `diag720` exports the first moment once more at 720 px
+// so the engine log shows whether the size is the cause (temporary diagnostic).
 async function timelineFrames(timeline, clip, dir, index) {
   const frames = [];
-  for (const [k, t] of analysisMoments(timeline, clip).entries()) {
-    const f = await exportFrame(timeline.sequence, t, `analyse_${index}_${k}.png`, dir, null, 720);
+  const moments = analysisMoments(timeline, clip);
+  for (const [k, t] of moments.entries()) {
+    const f = await exportFrame(timeline.sequence, t, `analyse_${index}_${k}.png`, dir);
     if (f) frames.push(f);
   }
-  return frames;
+  const diag720 = moments.length ? await exportFrame(timeline.sequence, moments[0], `diag720_${index}.png`, dir, null, 720) : null;
+  return { frames, diag720 };
 }
 
 // final: the re-check after the one step back. The engine then gives its verdict and never proposes another step

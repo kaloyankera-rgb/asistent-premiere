@@ -507,6 +507,7 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
                 # so a clip corrected once measures as fine and a re-run suggests nothing (spec T13/T18)
                 r = decide(timeline, None, source_gamma=gamma)
                 r["measured_on"] = "timeline"
+                _diag_720(it, timeline[0], path)
                 shown, shown_gamma = timeline, None
             else:
                 frames = read_frames(path, start=float(it.get("start") or 0), end=it.get("end"))
@@ -548,6 +549,18 @@ def timeline_frames(paths: list) -> list[np.ndarray]:
         if hit:
             out.append(read_image(hit))
     return [f for f in out if f.shape == out[0].shape] if out else []
+
+
+def _diag_720(item: dict, first: np.ndarray, path: str) -> None:
+    """Temporary (0.9.20): the same moment exported at 480 and at 720 px, mean brightness of each, to see
+    whether Premiere returns a stale picture at 720 px (C0739 13:08)."""
+    import logging
+    p = item.get("diag720")
+    hit = _wait_file(p, 3.0) if isinstance(p, str) and _in_frames_dir(p) else None
+    if hit:
+        big = read_image(hit)
+        logging.getLogger("asistent").info("diag720 %s: mean luma 480px %.4f, 720px %.4f", os.path.basename(path),
+                                           float(_luma(first).mean()), float(_luma(big).mean()))
 
 
 def review_needed(r: dict) -> None:
