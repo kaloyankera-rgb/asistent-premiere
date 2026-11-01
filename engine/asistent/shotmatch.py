@@ -32,15 +32,6 @@ LIMITS = {"stops": 1.5, "stops_overlap": 2.5, "temp": 0.5, "tint": 0.3, "contras
 # below these a change is not worth an edit (and keeps re-runs from fiddling)
 MINIMUM = {"exposure": 0.05, "temperature": 1.0, "tint": 1.0, "contrast": 3.0, "saturation": 3.0}
 AGREE = (0.15, 0.10)          # neutral surfaces and skin must agree on the white difference (log2 t, g)
-# Skin = pixels inside a detected face (central part of the box, outliers dropped). The colour is only a sanity
-# check of the face, very loose on purpose: the cameras are exactly what is being matched, and the GStroy FX3/FX30
-# faces measured log2 B/R −2.3…−2.96 and chroma 0.80–0.87 (strongly warm; a −2.7/0.85 limit threw real faces
-# out). Only a grey, blue or green "face" (a false detection on a wall) must fail. Linear Rec.709.
-FACE_T = (-4.0, -0.3)
-FACE_CHROMA = (0.20, 0.97)
-FACE_INNER = (0.20, 0.80, 0.25, 0.90)     # x0, x1, y0, y1 of the box that counts (eyes, hair, beard and ears out)
-FACE_MIN_PX = 30
-FACE_RELATIVE = 0.25                      # faces under this share of the biggest face's area are background people
 ANALYSIS_SIDE = 480           # long side of the frames the anchors are measured on (as color.read_frames)
 SIMILAR = 0.75                # tone histograms at least this alike: the frames show comparable content
 WORSE = {"exposure": 0.1, "white": 0.25, "saturation": 0.05, "contrast": 0.05}   # render check margins
@@ -74,54 +65,13 @@ def _curve(cal):
 
 # ---------------------------------------------------------------- anchors
 
-def face_skin(enc: np.ndarray, lin: np.ndarray, boxes) -> np.ndarray:
-    """Mask of the skin of the detected faces: the central part of each box, without clipped or dark pixels and
-    without the outliers of the face (eyes, brows, hair, beard); a face whose colour is no skin at all is a
-    false detection and counts for nothing."""
-    h, w = enc.shape[:2]
-    mask = np.zeros((h, w), bool)
-    boxes = [b for b in (boxes or []) if b[2] > 0 and b[3] > 0]
-    if not boxes:
-        return mask
-    biggest = max(b[2] * b[3] for b in boxes)
-    y_enc = C._luma(enc)
-    safe = np.maximum(lin, 1e-6)
-    t_px = np.log2(safe[..., 2] / safe[..., 0])
-    chroma_px = (safe.max(axis=-1) - safe.min(axis=-1)) / safe.max(axis=-1)
-    usable = (np.max(enc, axis=-1) < 0.97) & (y_enc > 0.04)
-    for b in boxes:
-        x, y, bw, bh = b[:4]
-        if bw * bh < FACE_RELATIVE * biggest:
-            continue
-        x0, x1 = max(int(x + FACE_INNER[0] * bw), 0), min(int(round(x + FACE_INNER[1] * bw)), w)
-        y0, y1 = max(int(y + FACE_INNER[2] * bh), 0), min(int(round(y + FACE_INNER[3] * bh)), h)
-        if x1 - x0 < 3 or y1 - y0 < 3:
-            continue
-        ok = np.zeros((h, w), bool)
-        ok[y0:y1, x0:x1] = True
-        ok &= usable
-        ys, xs = np.nonzero(ok)
-        if len(ys) < FACE_MIN_PX:
-            continue
-        t, yl = t_px[ys, xs], y_enc[ys, xs]
-        keep = (np.abs(t - np.median(t)) <= 0.45) & (yl >= np.percentile(yl, 10)) & (yl <= np.percentile(yl, 90))
-        if keep.sum() < FACE_MIN_PX:
-            continue
-        ys, xs = ys[keep], xs[keep]
-        if not (FACE_T[0] <= float(np.median(t_px[ys, xs])) <= FACE_T[1]
-                and FACE_CHROMA[0] <= float(np.median(chroma_px[ys, xs])) <= FACE_CHROMA[1]):
-            continue
-        mask[ys, xs] = True
-    return mask
-
-
 def anchors(enc: np.ndarray, faces=None) -> dict:
     """Content-independent anchors of one frame: skin (of the detected `faces`: brightness, hue, saturation),
     neutral surfaces, tones. No faces means no skin anchor, never a guess from colour."""
     lin = C.to_linear(enc, None)
-    m = C.measure(enc)
+    m = C.measure(enc, faces=[])                  # the anchors use their own face list: no second detection
     clipped = np.max(enc, axis=-1) >= 0.97
-    skin = face_skin(enc, lin, faces)
+    skin = F.skin_mask(enc, lin, faces)
     y_enc = C._luma(enc)
     lit = y_enc > 0.04
     has_neutral = m.get("neutral", 0) >= 0.005
@@ -131,7 +81,7 @@ def anchors(enc: np.ndarray, faces=None) -> dict:
            "mid": float(np.median(y_enc[lit])) if lit.any() else None,
            "spread": float(np.percentile(y_enc[lit], 95) - np.percentile(y_enc[lit], 5)) if lit.sum() > 100 else None,
            "hist": (np.histogram(y_enc, bins=16, range=(0, 1))[0] / y_enc.size).tolist()}
-    if skin.sum() >= FACE_MIN_PX:
+    if skin.sum() >= F.FACE_MIN_PX:
         px = lin[skin]
         mx, mn = px.max(axis=1), px.min(axis=1)
         out["skin"] = {"y": float(np.median(C._luma(px))), "cast": C._cast(px.sum(axis=0)),

@@ -8,6 +8,7 @@ const premiereColor = require("./premiere-color.js");
 const premiereProbe = require("./premiere-probe.js");
 const { plansFor, corrections, statusOf, STATUS_BG } = require("./colorplans.js");
 const { cameras, shotMoments } = require("./moments.js");
+const { createBridge } = require("./devbridge.js");
 
 const $ = (id) => document.getElementById(id);
 const state = { online: false, busy: false, jobId: null, settleUntil: 0 };
@@ -674,6 +675,8 @@ $("cancel").addEventListener("click", () => {
 });
 
 refreshHeader();
+// test bridge: does nothing unless the engine has its flag file (see devbridge.js)
+createBridge({ premiere, premiereColor, doc: document, version: PANEL_VERSION }).loop();
 setInterval(() => {
   if (!state.busy) refreshHeader();
 }, 4000);

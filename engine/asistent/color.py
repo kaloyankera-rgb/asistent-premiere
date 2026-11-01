@@ -20,6 +20,7 @@ import os
 
 import numpy as np
 
+from . import faces as F
 from .media import MediaError, _run, _tool, probe
 
 GAMMA = 2.4
@@ -145,8 +146,10 @@ def _cast(rgb_sum: np.ndarray) -> tuple[float, float]:
     return float(np.log2(b / r)), float(np.log2(g / np.sqrt(r * b)))
 
 
-def measure(enc: np.ndarray, gamma: str | None = None) -> dict:
-    """One frame: exposure need (stops), cast from neutrals and from grey world, coverage numbers."""
+def measure(enc: np.ndarray, gamma: str | None = None, faces=None) -> dict:
+    """One frame: exposure need (stops), cast from neutrals and from grey world, coverage numbers. Skin is the
+    skin of the detected faces (`faces`: boxes; None = look for them here), never a colour box: wood, plywood and
+    pale walls share skin's colour. No face, no skin: the exposure then comes from the mid-tones."""
     lin = to_linear(enc, gamma)
     view = encode(lin)                       # what it looks like in Rec.709
     y_lin = _luma(lin)
@@ -210,9 +213,9 @@ def measure(enc: np.ndarray, gamma: str | None = None) -> dict:
     # skin, looked for once the cast is out (a grey wall under warm light would pass for skin)
     t, g = cast
     view_fixed = encode(lin * np.array([2 ** (t / 2 + g / 3), 2 ** (-2 * g / 3), 2 ** (-t / 2 + g / 3)]))
-    skin = _skin(view_fixed) & ~clipped
+    skin = F.skin_mask(view, lin, F.detect(view) if faces is None else faces)
     out["skin"] = float(np.mean(skin))
-    if out["skin"] >= 0.01:
+    if skin.sum() >= F.FACE_MIN_PX:
         out["y_skin"] = float(np.median(_luma(view_fixed)[skin]))
         out["exp_skin"] = float(GAMMA * np.log2(SKIN_TARGET / max(out["y_skin"], 1e-4)))
     # what a given exposure would clip (for the highlight guard)
@@ -255,7 +258,10 @@ def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str
     if burn > NEW_CLIP:
         warnings.append(f"Светлите части може да изгорят (груба оценка {burn:.0%} от картината): "
                         "проверява се на кадър от Premiere след прилагането.")
-    exp_conf = "high" if basis == "кожата" and spread < 0.4 else "medium" if basis and spread < 0.6 else "low"
+    # a face of a few dozen pixels (a wide shot) is a thin sample: never "high"
+    face_px = float(np.median([m["skin"] for m in ms]))
+    exp_conf = "high" if basis == "кожата" and spread < 0.4 and face_px >= 0.002 else \
+        "medium" if basis and spread < 0.6 else "low"
     if basis:
         reasons.append(f"Експозиция по {basis}: {'+' if stops > 0 else ''}{stops:g} (измерено {raw:+.2f} стопа).")
         if abs(raw) > MAX_STOPS + STEP / 2:
@@ -357,13 +363,28 @@ def check_render(before_path: str, after_path: str, exposure_units: float = 0.0,
     b, a = read_image(before_path), read_image(after_path)
     if b.shape != a.shape:
         raise MediaError("Кадрите преди и след са с различен размер.")
+    if float(np.max(np.abs(a - b))) < 2 / 255 and (exposure_units or any((applied or {}).values())):
+        # GStroy 2026-11-01 (0.9.33, fx39026 second piece): the frame after the correction was byte-identical to the
+        # one before although Lumetri was changed, on every press. Nothing can be said about the correction from
+        # such a frame: no brightness verdict, no step-back, no learning, and the panel must not stack more on top.
+        return {"render_unchanged": True, "new_clipping": 0.0, "cast_after": None, "cast_before": None,
+                "exposure_after": None, "exposure_before": None, "skin_after": 0.0,
+                "gates": {"white": "unknown", "exposure": "unknown", "revert": []},
+                "clipping_regions": {"skin": 0.0, "light": 0.0, "detail": 0.0},
+                "clipping_status": "NOT_VERIFIED",
+                "clipping_message": "Not verified: the frame after the correction is identical to the one before.",
+                "clipping_message_bg": "Не е потвърдено: кадърът след корекцията е същият като преди (клипът може да е "
+                                       "под друг слой или Premiere не е обновил кадъра)."}
     ma, mb = measure(a), measure(b)
+    # one basis for both frames: a face in one and none in the other is not a comparison
+    both_skin = "exp_skin" in ma and "exp_skin" in mb
+    key = "exp_skin" if both_skin else "exp_mid"
     out = {"new_clipping": round(new_clipping(b, a), 4),
            "cast_after": ma.get("cast_neutral") or ma.get("cast_world"),
-           "exposure_after": ma.get("exp_skin", ma.get("exp_mid")),
+           "exposure_after": ma.get(key),
            "skin_after": round(ma.get("skin", 0.0), 4),
            "cast_before": mb.get("cast_neutral") or mb.get("cast_world"),
-           "exposure_before": mb.get("exp_skin", mb.get("exp_mid"))}
+           "exposure_before": mb.get(key)}
     out["gates"] = gates(out, applied or {})
     # final: the re-check after the one step back; it gets a verdict, never another step (C0739 12:58 was
     # labelled STEP_BACK at 3.08 % because the engine could not tell the two checks apart)
@@ -427,15 +448,15 @@ def clipping_regions(before: np.ndarray, after: np.ndarray) -> dict:
     (lamps, windows, sky, reflections: usually intended), or in other detail. `skin` is a share of the skin
     area, `light` and `detail` are shares of the whole picture (they add up to the new clipping).
 
-    Skin means skin TONES: only skin-coloured pixels below LIGHT_LEVEL before. Warm near-white highlights also
-    fall in the skin colour box (C0739: 189 scattered pixels across the whole frame, all 0.94-0.97 before),
-    and calling them burnt skin turned a good result into REVIEW_NEEDED."""
+    Skin means the skin of detected faces, below LIGHT_LEVEL before (warm near-white highlights and wood are
+    not skin: C0739 had 189 scattered pixels at 0.94-0.97 in the old colour box, which turned a good result
+    into REVIEW_NEEDED)."""
     mb, ma = np.max(before, axis=-1), np.max(after, axis=-1)
     was = mb >= 0.97
     new = (ma >= 0.97) & ~was
-    skin = _skin(before) & (mb < LIGHT_LEVEL)
+    skin = F.skin_mask(before, to_linear(before, None), F.detect(before)) & (mb < LIGHT_LEVEL)
     light = new & (mb >= LIGHT_LEVEL)
-    return {"skin": round(float(np.mean(new[skin])), 4) if np.mean(skin) >= 0.005 else 0.0,
+    return {"skin": round(float(np.mean(new[skin])), 4) if skin.sum() >= F.FACE_MIN_PX else 0.0,
             "light": round(float(np.mean(light)), 4), "detail": round(float(np.mean(new & ~light)), 4)}
 
 

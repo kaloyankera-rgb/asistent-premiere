@@ -5,6 +5,18 @@ import numpy as np
 import pytest
 
 from asistent import color as C
+from asistent import faces as F
+
+
+@pytest.fixture(autouse=True)
+def synthetic_face(monkeypatch):
+    """scene() puts the skin colour in one band (rows 2-3 of 6): that band is the 'face' the detector finds. The
+    real detector is tested on real footage (test_real_skin.py); skin is no longer found by colour."""
+    def detect(enc):
+        h, w = enc.shape[:2]
+        rows = np.linspace(0, h, 7).astype(int)
+        return [(0, int(rows[2]), w, int(rows[3] - rows[2]), 0.95)]
+    monkeypatch.setattr(F, "detect", detect)
 
 
 def skin_k():
@@ -377,7 +389,8 @@ def test_excess_in_lamps_and_windows_is_a_warning_not_a_review():
     assert v["clipping_status"] == "REVIEW_NEEDED"
 
 
-def test_clipping_regions_split_window_from_skin_and_detail():
+def test_clipping_regions_split_window_from_skin_and_detail(monkeypatch):
+    monkeypatch.setattr(F, "detect", lambda enc: [(100, 0, 60, 100, 0.95)])      # the face: the skin patch below
     h, w = 200, 300
     before = np.full((h, w, 3), 0.5)
     before[:, :60] = 0.93                                  # a window, near white already
@@ -403,7 +416,8 @@ def test_verdict_never_changes_the_validated_step_back(tmp_path):
                                                                                limit=C.NEW_CLIP)
 
 
-def test_warm_near_white_highlights_are_not_burnt_skin():
+def test_warm_near_white_highlights_are_not_burnt_skin(monkeypatch):
+    monkeypatch.setattr(F, "detect", lambda enc: [(100, 0, 60, 100, 0.95)])      # the face: the real skin patch
     # C0739 regression: warm pixels at 0.94-0.97 sit in the skin colour box; their clipping is a highlight,
     # and the 3.08 % result must stay ACCEPTED_WITH_WARNING
     h, w = 200, 300
@@ -592,3 +606,34 @@ def test_clipping_alone_never_reverts(tmp_path):
                        applied={"exposure": 1.5})
     assert r["new_clipping"] > C.NEW_CLIP
     assert r["gates"]["exposure"] == "better" and r["gates"]["revert"] == []
+
+
+def test_wood_in_the_frame_is_not_skin_for_exposure_and_burnt_skin(monkeypatch):
+    # GStroy regression (2026-11-01): OSB boards sit in skin's colour; the single-clip „Цвят“ used a colour box
+    # and would have exposed for the wood. Without a face there is no skin at all: the mid-tones decide.
+    h, w = 120, 160
+    img = np.full((h, w, 3), 0.18)
+    img[:, :90] = np.array([0.55, 0.30, 0.13]) * 0.5                       # wood, more than half of the frame
+    enc = C.encode(np.clip(img, 0, 1))
+    monkeypatch.setattr(F, "detect", lambda e: [])
+    m = C.measure(enc)
+    assert "exp_skin" not in m and "exp_mid" in m
+    assert C.clipping_regions(enc, np.clip(enc * 1.3, 0, 1))["skin"] == 0.0
+    r = C.decide([enc, enc])
+    assert r["exposure"]["basis"] == "средните тонове"
+    monkeypatch.setattr(F, "detect", lambda e: [(100, 20, 40, 50, 0.9)])    # a face the detector says is there
+    wall_face = C.measure(enc)                                              # ...on grey: a false detection
+    assert "exp_skin" not in wall_face
+
+
+def test_identical_frames_after_a_correction_are_not_a_verdict(tmp_path):
+    # GStroy 2026-11-01: the same PNG before and after Exposure +2.15 / +4.3 was reported as „2.3 стопа под целта“
+    # and the next press stacked another +2.15 on it
+    lin = scene() * 0.5
+    p = _png(C.encode(lin), tmp_path / "same.png")
+    r = C.check_render(p, p, 2.15, C.Calibration(str(tmp_path / "l.json")), applied={"exposure": 2.15})
+    assert r["render_unchanged"] and r["clipping_status"] == "NOT_VERIFIED"
+    assert r["exposure_after"] is None and r["cast_before"] is None
+    assert r["gates"]["revert"] == [] and "pullback_units" not in r
+    same_but_nothing_applied = C.check_render(p, p, 0.0, C.Calibration(str(tmp_path / "l2.json")), applied={})
+    assert not same_but_nothing_applied.get("render_unchanged")

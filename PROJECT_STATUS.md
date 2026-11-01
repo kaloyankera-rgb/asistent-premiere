@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.32 (2026-11-01)
+# Project status — Asistent 0.9.37 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.32 via
-UnifiedPluginInstallerAgent, engine 0.9.32 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 166 pytest + 41 node, all passing at 0.9.32.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.37 via
+UnifiedPluginInstallerAgent, engine 0.9.37 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 173 pytest + 50 node, all passing at 0.9.37.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -162,6 +162,21 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   check, statuses + audit log, contrast, saturation, skin tones, shot match, Auto Color, accept/revert,
   managed correction ownership. See `COLOR_CORRECTION_PLAN.md` and `NEXT_STEPS.md`.
 
+## Test bridge (0.9.35, user asked 2026-11-01)
+So that Claude can run Premiere tests itself: the panel long-polls `GET /dev/poll`, runs `ping`, `state`, `selection`,
+`timeline`, `select`, `click <label>`, `wait_idle`, `frame`, `lumetri`, `chain`, `set_lumetri` (one clip, existing Lumetri only), `api` and answers via `POST /dev/result`;
+`scripts/dev_cmd.py` is the developer side. Off unless `~/Library/Application Support/Asistent/devbridge.enabled`
+exists (`dev_cmd.py on|off`); the panel refuses everything but `ping` unless the open project is TEST.prproj; localhost and
+`X-Asistent` only; commands are logged. `select` (TrackItemSelection) is unverified on Premiere 26.0.2 (the classes exist).
+First measurement through it (2026-11-01 18:40, TEST.prproj, fx39026 middle piece 125.6-131.4 s, Lumetri Exposure 4.3):
+swept Exposure 0/1/2/3/4/5/2/4.3 with one exported frame after each: the export was byte-for-byte the same picture every
+time (mean luma 0.456, p95 0.944), equal to the model at ~1.0-1.55 units at four moments of the piece, while the
+neighbouring pieces (Exposure 2.1) matched the model (0.566/0.561 vs 0.571/0.569). The Lumetri readback was right every
+time and there is only one Lumetri and no other effect on the piece: the frame Premiere exports for that piece is stale
+(not the live render; suspected rendered preview files, not confirmed). Values restored to 4.3 afterwards. Consequence:
+the render check cannot judge such a piece; 0.9.34 already says so for identical before/after frames, but a stale frame
+that differs from „before“ (e.g. left from an older state) is not detectable by the engine.
+
 ## Phases 7–9 (Planned)
 7 Bulgarian subtitles (faster-whisper; reuse `tools/autoedit/asr.py` by copying), 8 rough-cut markers and
 export QA, 9 Windows (run setup, silent install there, packaging for colleagues).
@@ -218,8 +233,20 @@ face agree on that axis, else left as it was and said); replay of the pair: Tint
 2.65 → 1.0 (was unchanged at 2.5). 0.9.31 in Premiere (17:43, C9025 + fx39028, ref fx30): Tint 9.6 / 9.4 written, white check better on the first piece
 (3.41 → 2.98), the second piece's before and after PNGs were byte-identical, so its „същото“ meant nothing. 0.9.32: the
 render check refuses to judge when the two frames are identical (all components skipped, summary says why).
-Verified by the user in Premiere at 0.9.32 (2026-11-01, GStroy OSB pair and C9025 + fx39028): „изглеждат добре“; other clients'
-footage not yet seen (the user will say if it is not okay). Limits: frontal/three-quarter faces only (back of head, profile, strong
+Verified by the user in Premiere at 0.9.32 (2026-11-01, GStroy OSB pair and C9025 + fx39028): „изглеждат добре“.
+0.9.33: the single-clip „Цвят“ (`color.py`) uses the same faces: `measure()` takes skin from `faces.skin_mask`
+(detects on the frame itself; no face → mid-tones, never a colour box), `clipping_regions` counts burnt skin only on
+faces, `check_render` compares exposure on one basis for both frames, confidence is never „high“ on a face under ~0.2 %
+of the frame. Real clips (6 frames each, old colour box → faces): C9023 exposure 0.53 → +1.73 stops (colour box area
+35.5 % → 0.6 %), C9025 1.15 → +1.27, fx39024 2.48 → +3.57 (capped at +2), fx39028 1.58 → +1.56. NOT verified in Premiere
+at 0.9.33. First Premiere run of 0.9.33 (18:01, fx39026 two pieces + C9024): the second piece (5.49-19.0 s) rendered the same
+brightness (mean luma 0.445) before and after Exposure +2.15 and +4.3 (byte-identical export, also the second piece of
+fx39028 in the Shot Match run at 17:43), so the check said „2.3 стопа под целта“ and the next „Приложи и средните“
+stacked 2.15 → 4.3. Cause of the invisible change not found (hidden under another layer, or Premiere returns the old
+frame). 0.9.34: `check_render` returns NOT_VERIFIED (`render_unchanged`, no brightness verdict, no learning, no
+step-back) for identical frames, and the panel refuses to stack another Exposure on a clip whose last correction was
+unseen (in-memory, until the next press). The user also saw one POV a little darker after „Приложи и средните“:
+which clip is not known yet.
+Shot Match: other clients' footage not yet seen (the user will say if it is not okay). Limits: frontal/three-quarter faces only (back of head, profile, strong
 hat/mask: no face → fallback); the face anchor is the only same-object anchor, neutral surfaces compare unlike
-framings; Windows needs the OpenCV wheel (exists, not run); `color.py`'s own single-clip skin box („Цвят“ button)
-still uses the colour box and has the same wood weakness.
+framings; Windows needs the OpenCV wheel (exists, not run); faces are the only skin anchor in „Цвят“ too (no face: mid-tones, medium/low confidence).

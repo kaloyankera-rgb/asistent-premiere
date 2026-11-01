@@ -103,9 +103,18 @@ function cancel(id) {
   return call("POST", `/jobs/${id}/cancel`, {});
 }
 
+// test bridge (devbridge.js): 404 while the engine's flag file is missing
+function devPoll(wait) {
+  return call("GET", `/dev/poll?wait=${wait}`);
+}
+
+function devResult(id, ok, data) {
+  return call("POST", "/dev/result", { id, ok, data });
+}
+
 function log(level, message) {
   return call("POST", "/log", { level, message }).catch(() => {});
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, devPoll, devResult, job, cancel, log };

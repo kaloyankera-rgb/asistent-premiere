@@ -116,3 +116,33 @@ def test_import_endpoints(engine, tmp_path):
     assert call("POST", "/import/bind", {"project": "/p/A.prproj", "folder": str(tmp_path / "nope")})[0] == 400
     code, data = call("POST", "/import/unbind", {"project": "/p/A.prproj"})
     assert code == 200 and not data["enabled"]
+
+
+def test_dev_bridge_is_off_without_its_flag_and_round_trips_with_it(engine, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    assert call("POST", "/dev/command", {"name": "ping"})[0] == 404           # no flag file: nothing is accepted
+    assert call("GET", "/dev/poll?wait=0")[0] == 404
+    assert call("POST", "/dev/command", {"name": "ping"}, {"X-Asistent": "0"})[0] == 403   # same guard as the rest
+    (tmp_path / "devbridge.enabled").write_text("")
+    code, sent = call("POST", "/dev/command", {"name": "click", "args": {"text": "Цвят"}})
+    assert code == 200 and sent["id"]
+    code, cmd = call("GET", "/dev/poll?wait=1")                                # the panel picks it up
+    assert code == 200 and cmd["name"] == "click" and cmd["args"] == {"text": "Цвят"} and cmd["id"] == sent["id"]
+    assert call("GET", "/dev/poll?wait=0")[1] == {}                           # one command is handed out once
+    assert call("GET", f"/dev/result?id={sent['id']}&wait=0")[0] == 202       # not answered yet
+    assert call("POST", "/dev/result", {"id": sent["id"], "ok": True, "data": {"clicked": "Цвят"}})[0] == 200
+    code, res = call("GET", f"/dev/result?id={sent['id']}&wait=1")
+    assert code == 200 and res["ok"] and res["data"] == {"clicked": "Цвят"}
+    assert call("POST", "/dev/command", {"name": ""})[0] == 400                # a name is required
+
+
+def test_dev_bridge_poll_wakes_up_when_a_command_arrives(engine, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    (tmp_path / "devbridge.enabled").write_text("")
+    got = {}
+    t = threading.Thread(target=lambda: got.update(r=call("GET", "/dev/poll?wait=5")))
+    t.start()
+    time.sleep(0.3)
+    call("POST", "/dev/command", {"name": "ping"})
+    t.join(4)
+    assert got["r"][0] == 200 and got["r"][1]["name"] == "ping"

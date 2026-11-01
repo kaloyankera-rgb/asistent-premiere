@@ -5,6 +5,8 @@ another origin without a CORS preflight, which this server never approves, so a 
 drive the engine. The Host header is checked against DNS rebinding.
 
   GET  /status               engine version and busy state
+  GET  /dev/poll?wait=s      test bridge (only with devbridge.enabled): the next panel command
+  POST /dev/command          {name, args} -> {id};  GET /dev/result?id=&wait=s;  POST /dev/result {id, ok, data}
   POST /sync                 {"paths": [...], "reference": null|int} -> {"job": id}
   POST /sync_groups          {"paths": [...]} -> {"job": id}; groups among all clips (timeline selection)
   POST /audio                {"items": [{"path", "start", "end", "force"?}], "force"?, "target"?, "ceiling"?,
@@ -50,6 +52,7 @@ from .groups import sync_groups
 from .importer import Store, Watcher
 from .managed import ManagedStore
 from . import shotmatch as SHOT
+from . import devbridge
 
 SHOT_REFS: dict = {}            # shot-match job id -> reference look (for the render check after applying)
 from .sync import sync_clips
@@ -58,6 +61,7 @@ log = logging.getLogger("asistent")
 JOBS = JobManager()
 STORE: Store | None = None
 WATCHER: Watcher | None = None
+BRIDGE = devbridge.Bridge()
 
 
 def _store() -> Store:
@@ -204,6 +208,15 @@ class Handler(BaseHTTPRequestHandler):
             if wait > 0:                       # long poll: answer as soon as a file is ready for this project
                 _store().wait_queue(project, wait)
             return self._send(200, _import_status(project))
+        if url.path in ("/dev/poll", "/dev/result"):
+            if not devbridge.enabled():
+                return self._send(404, {"error": "Тестовият мост е изключен."})
+            q = parse_qs(url.query)
+            wait = float((q.get("wait") or ["0"])[0] or 0)
+            if url.path == "/dev/poll":
+                return self._send(200, BRIDGE.poll(wait) or {})
+            res = BRIDGE.wait_result((q.get("id") or [""])[0], wait)
+            return self._send(200, res) if res else self._send(202, {"pending": True})
         if self.path == "/status":
             frames = os.path.join(config.app_dir(), "frames")
             os.makedirs(frames, exist_ok=True)
@@ -220,6 +233,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, {"error": "forbidden"})
         try:
             body = self._body()
+            if self.path in ("/dev/command", "/dev/result"):
+                if not devbridge.enabled():
+                    return self._send(404, {"error": "Тестовият мост е изключен."})
+                if self.path == "/dev/command":
+                    cid = BRIDGE.submit(str(body.get("name") or ""), body.get("args") if isinstance(body.get("args"), dict) else {})
+                    log.info("dev bridge command %s %s %s", cid, body.get("name"), body.get("args") or {})
+                    return self._send(200, {"id": cid})
+                BRIDGE.result(str(body.get("id") or ""), bool(body.get("ok")), body.get("data"))
+                log.info("dev bridge result %s ok=%s", body.get("id"), body.get("ok"))
+                return self._send(200, {"ok": True})
             if self.path == "/sync":
                 return self._send(200, _start_sync(body))
             if self.path == "/sync_groups":

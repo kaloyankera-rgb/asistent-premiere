@@ -8,7 +8,7 @@ Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 
 ## B. Colour engine, per `COLOR_CORRECTION_PLAN.md` (current focus of the user)
 0. **Auto Shot Match: face-aware since 0.9.30, verified by the user at 0.9.32 on the GStroy pairs (more clients: on request)**
-   Open: the „Цвят“ single-clip exposure (`color.py`) still finds skin by colour box: give it the same faces.
+   „Цвят“ single-clip exposure uses the same faces since 0.9.33 (verify in Premiere: one „Приложи“ on a clip with a face and one with OSB only).
    (user's priority, 2026-11-01). Then the remaining independent buttons (item 7). Skin brightness (9) and
    S-Log3 / colour management (3) are parked by the user.
 1. **Probe and exposure curve: done** (0.9.13-0.9.14, see `PROJECT_STATUS.md`). Confirm with the user: one
