@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.15 (2026-11-01)
+# Project status — Asistent 0.9.16 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.15 via
-UnifiedPluginInstallerAgent, engine 0.9.15 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 104 pytest + 14 node, all passing at 0.9.15.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.16 via
+UnifiedPluginInstallerAgent, engine 0.9.16 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 107 pytest + 14 node, all passing at 0.9.16.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -60,7 +60,12 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
 - **Apply with the curve verified (12:29, fx31032, 0.9.15):** +1.5 stops → Exposure 1.7 units; skin 0.14 stop
   short (was 0.28 with 1:1 units), white residual 0.047 (neutral), Temperature −5.1 / Tint 2.4 from the probe
   values, nothing learnt (correct). 5.6 % newly clipped → stepped back a fixed 0.5 to 1.2 units: that final
-  state is NOT re-checked (skin likely ~0.5 stop under again, clipping after the step unknown). Attempt 12:26 on fx31031 was skipped: the
+  state is NOT re-checked (skin likely ~0.5 stop under again, clipping after the step unknown).
+- 0.9.16: the step-back is measured: `pullback_units` (engine, from the before/after frames and the probe
+  curve) takes Exposure back only as far as needed for ≤ 3 % new clipping (on the 12:29 frames: 0.35 units
+  instead of the fixed 0.5); the panel then exports one more frame and reports the real clipping and how far
+  the brightness is from the target. No further automatic step (Undo stays at 3 at most). NOT verified in
+  Premiere yet. Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.

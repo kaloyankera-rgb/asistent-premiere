@@ -257,10 +257,10 @@ class Handler(BaseHTTPRequestHandler):
                 after = COLOR._wait_file(str(body.get("after") or ""), 4.0)
                 if not (before and after):
                     raise ValueError("Няма изнесени кадри за проверка.")
-                res = COLOR.check_render(before, after)
+                applied, fix = body.get("applied") or {}, body.get("fix") or {}
+                res = COLOR.check_render(before, after, float(applied.get("exposure") or 0))
                 b = COLOR.measure(COLOR.read_image(before))
                 cb = b.get("cast_neutral") or b.get("cast_world")
-                applied, fix = body.get("applied") or {}, body.get("fix") or {}
                 if cb and res["cast_after"]:
                     cal = COLOR.Calibration()
                     # only an axis the probe never measured, and only from a render without an Exposure change

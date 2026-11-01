@@ -292,3 +292,35 @@ def test_probe_values_win_over_render_check_learning(tmp_path):
     assert cal.sliders(0.5, 0)["temperature"] == -25.0
     assert C.Calibration(str(tmp_path / "lumetri.json")).k("temp") == -50.0
     assert not cal.set_probe("tint", 50.0, 0.001)                       # nothing moved: not stored
+
+
+def test_pullback_brings_clipping_to_the_limit_and_not_much_further(tmp_path):
+    cal = C.Calibration(str(tmp_path / "lumetri.json"))                 # no curve: 1 stop per unit
+    rng = np.random.default_rng(3)
+    lin = rng.uniform(0.0, 1.0, size=(300, 400, 1)) ** 3 * 0.6 * np.ones(3)   # ~8 % clips at +1
+    shot = lambda u: C.encode(lin * 2 ** u)
+    before, units = shot(0), 1.0
+    over = C.new_clipping(before, shot(units))
+    assert over > 0.05                                                    # the case seen on fx31032 (5.6 %)
+    back = C.pullback_units(before, shot(units), units, cal)
+    assert 0 < back < units
+    landed = C.new_clipping(before, shot(units - back))
+    assert landed <= C.NEW_CLIP + 0.002                                   # under the limit …
+    assert landed >= C.NEW_CLIP - 0.012                                   # … without throwing light away
+
+
+def test_no_pullback_under_the_limit(tmp_path):
+    cal = C.Calibration(str(tmp_path / "lumetri.json"))
+    lin = np.linspace(0.01, 0.2, 120000).reshape(300, 400, 1) * np.ones(3)
+    assert C.pullback_units(C.encode(lin), C.encode(lin * 2), 1.0, cal) == 0.0
+
+
+def test_pullback_uses_the_curve_for_bright_pixels(tmp_path):
+    flat = C.Calibration(str(tmp_path / "a.json"))
+    curved = C.Calibration(str(tmp_path / "b.json"))
+    curved.set_exposure_curve([[0.1, 1.0], [0.5, 0.85], [0.7, 0.63], [0.86, 0.4]])
+    rng = np.random.default_rng(4)
+    lin = rng.uniform(0.0, 1.0, size=(300, 400, 1)) ** 3 * 0.6 * np.ones(3)   # ~8 % clips at +1
+    b, a = C.encode(lin), C.encode(lin * 2)
+    # highlights move slowly per unit, so taking them back under the limit costs more units
+    assert C.pullback_units(b, a, 1.0, curved) > C.pullback_units(b, a, 1.0, flat)
