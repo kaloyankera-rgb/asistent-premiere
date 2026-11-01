@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.29 (2026-11-01)
+# Project status — Asistent 0.9.32 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.29 via
-UnifiedPluginInstallerAgent, engine 0.9.29 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 153 pytest + 41 node, all passing at 0.9.29.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.32 via
+UnifiedPluginInstallerAgent, engine 0.9.32 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 166 pytest + 41 node, all passing at 0.9.32.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -190,4 +190,36 @@ brightness on common moments; saturation only from real skin; contrast only on c
 content (tone-histogram intersection ≥ 0.75); flags name the reason. Replay of the same pair: fx3 skin 2.3 %,
 white −6.9/+14.1 (fx3 green removed), exposure 1.86 (error 1.44 → 0.02 stop), saturation 90, contrast flagged.
 Reference choice: one button per camera, the current one ticked, with a one-line explanation.
-NOT verified in Premiere yet at 0.9.29.
+NOT verified in Premiere at 0.9.29: measured afterwards on the same pair (2026-11-01 17:00-17:30) the colour box still
+took the OSB boards for skin (16-31 % of the FX30 frames, 15 % of the corrected FX3 frame; face and wood have the same
+hue and saturation, log2 B/R −2.05 and chroma 0.76 on the FX3), so the proposal (Exposure 1.14, Saturation 85) and the
+render check ("exposure 0.96 stop off") rested on wood.
+
+0.9.30 — face-aware skin (`faces.py`, YuNet via OpenCV `FaceDetectorYN`, model bundled, MIT, 233 KB, ~10 ms a frame):
+skin exists only inside detected faces (central part of the box; clipped/dark pixels and outliers dropped; a "face"
+without any skin colour is a false detection; background faces under 25 % of the biggest are ignored). No face → no
+skin anchor (never a colour guess): exposure and white come from neutral surfaces on common moments (confidence
+„средна“), then from mid-tones only on comparable content („ниска“), saturation is not touched. The panel says the
+confidence next to every measurement. Same-moment pairs may differ up to 2.5 stops before a gap is called intent.
+Render check: every component is compared only on an anchor the reference, the before frame AND the after frame all have;
+the rest is reported as skipped with the reason and can neither count as an improvement nor revert anything; if nothing
+is reliable it says so instead of „по-близо до еталона“. Faces are looked for on a 960 px decode, reduced to the 480 px
+analysis frame; check frames (480 px exports) are enlarged 2× for the detector. Replay on C9023 + fx39024: exposure 1.9
+(model error 1.87 → 0.01 stop), white −6.7/12.4, saturation unchanged; the saved 0.9.29 frames with saturation 85 now
+read „по-далеч от еталона“ for saturation (0.07 → 0.25). Face (1.87) and neutral-surface (1.65) exposure gaps agree
+within 0.25 stop. Tests: `tests/test_real_skin.py` (old mask reproduced: 16.5 % wood vs 0.6 % face skin), `test_shotmatch.py`.
+First Premiere test of 0.9.30 (17:30-17:40): OSB pair fx39024: Exposure 2.04, Saturation 89, check on faces
+„по-близо до еталона“ (faces found, wood no longer counted). Second pair (C9025 + fx39028) looked greener after the
+match, for two reasons: (a) a press with fx3 as the REFERENCE (17:36:27) matched C9025 (fx30) to fx3's green cast
+(Tint −8.8, Temp +2.8, Contrast −13, Sat 97: audit); (b) the white step of the fx3 clips was skipped: neutrals and
+face disagreed on Temperature (the grey surfaces jump +0.3/−0.15 between frames) although both agree fx3 is greener on
+the Tint axis by 0.10-0.16. 0.9.31: white is decided per axis (Temperature and Tint each fitted only when neutrals and
+face agree on that axis, else left as it was and said); replay of the pair: Tint +9, Temperature untouched, white error
+2.65 → 1.0 (was unchanged at 2.5). 0.9.31 in Premiere (17:43, C9025 + fx39028, ref fx30): Tint 9.6 / 9.4 written, white check better on the first piece
+(3.41 → 2.98), the second piece's before and after PNGs were byte-identical, so its „същото“ meant nothing. 0.9.32: the
+render check refuses to judge when the two frames are identical (all components skipped, summary says why).
+Verified by the user in Premiere at 0.9.32 (2026-11-01, GStroy OSB pair and C9025 + fx39028): „изглеждат добре“; other clients'
+footage not yet seen (the user will say if it is not okay). Limits: frontal/three-quarter faces only (back of head, profile, strong
+hat/mask: no face → fallback); the face anchor is the only same-object anchor, neutral surfaces compare unlike
+framings; Windows needs the OpenCV wheel (exists, not run); `color.py`'s own single-clip skin box („Цвят“ button)
+still uses the colour box and has the same wood weakness.
