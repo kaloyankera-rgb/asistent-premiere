@@ -64,8 +64,10 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
 - 0.9.16: the step-back is measured: `pullback_units` (engine, from the before/after frames and the probe
   curve) takes Exposure back only as far as needed for ≤ 3 % new clipping (on the 12:29 frames: 0.35 units
   instead of the fixed 0.5); the panel then exports one more frame and reports the real clipping and how far
-  the brightness is from the target. No further automatic step (Undo stays at 3 at most). NOT verified in
-  Premiere yet. Attempt 12:26 on fx31031 was skipped: the
+  the brightness is from the target. No further automatic step (Undo stays at 3 at most).
+- **Step-back verified (12:40, C0739, 0.9.16):** +0.5 stops → 0.65 units, skin 0.007 stop from target;
+  4.42 % newly clipped → pull-back 0.15 units → re-check 3.08 % (limit 3 %, the engine would have taken
+  another 0.05), skin 0.10 stop dark (on target). The old fixed 0.5 would have left 0.15 units. Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.
