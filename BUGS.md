@@ -11,6 +11,8 @@
 ## Not verified in Premiere (implemented)
 Subtitles M3 (0.9.42): verified working in Premiere on 2026-11-01 (see `PROJECT_STATUS.md`); still unjudged: Bulgarian accuracy and caption timing against the picture, behaviour with an unsaved project (refused with a message, not tried).
 Fixed in 0.9.43: wrong words because the noisiest duplicate microphone was recognised (see `PROJECT_STATUS.md`); to be confirmed by the user in Premiere. Open: caption timing is only as exact as Whisper's word times (±0.1-0.3 s), direction of the error unknown.
+Fixed in 0.9.44 (engine-tested, not yet in Premiere): words wrong at the cuts (joined mix), word starts early (alignment, optional), 3-4 word captions across sentence ends.
+Open: the aligner's MMS_FA weights are CC-BY-NC 4.0 (see `LICENSES.md`); Whisper still misreads some words („неща“ as „нища“): needs the names field and the correction step (M4).
 Open observation: in the short preset captions can be 3-4 words when function words are glued (see `TODO.md` C2).
 One Undo per press (audio), „Раздели R/L“, „Изравни фразите“ keyframe positions (media time vs clip time;
 identical for untrimmed clips), auto-import speed after 0.7.1, colour values set + read back, render check,

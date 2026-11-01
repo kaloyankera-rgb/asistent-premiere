@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 import synth
-from asistent import asr, config, dialoguemix, subtitle_job
+from asistent import align, asr, config, dialoguemix, subtitle_job
 
 
 @pytest.fixture
@@ -87,7 +87,7 @@ def test_the_job_writes_an_srt_in_sequence_time_and_reports_flags(home, monkeypa
     assert abs(first["start"] - 3.5) < 0.05                                  # 0.5 s in the mix + origin 3.0
     with open(res["srt"], encoding="utf-8") as f:
         srt = f.read()
-    assert srt.startswith("﻿1\n00:00:03,5") and "Здравейте" in srt and "приятели" in srt
+    assert srt.startswith("﻿1\n00:00:03,") and "Здравейте" in srt and "приятели" in srt
     assert os.path.dirname(res["srt"]).endswith("Asistent_subtitles")
     with open(res["json"], encoding="utf-8") as f:
         data = json.load(f)
@@ -228,3 +228,99 @@ def test_the_job_reports_duplicates_and_keeps_the_items_for_reproduction(home, m
     assert res["duplicates"][0]["kept"] == "clean"
     with open(res["json"], encoding="utf-8") as f:
         assert [i["name"] for i in json.load(f)["items"]] == ["far", "clean"]
+
+
+# ---- per piece with context, and the optional alignment
+
+def two_pieces(home):
+    voice = synth.talker(30, 21)
+    f = synth.write_wav(home / "long.wav", [synth.mic([(voice, 1.0)], 0, 30, noise_db=-75, seed=1)])
+    return f, [{"path": f, "start": 5.0, "end": 9.0, "at": 0.0, "name": "one", "track": 0},
+               {"path": f, "start": 15.0, "end": 19.0, "at": 4.0, "name": "two", "track": 0}]
+
+
+def test_every_piece_is_recognised_on_its_own_with_context_around_it(home, monkeypatch):
+    f, its = two_pieces(home)
+    seen = []
+
+    def fake(audio, prompt, progress, cancelled):
+        seen.append(len(audio) / 16000)
+        return [{"word": "дума", "start": 2.5, "end": 3.0, "p": 0.9}]            # 2 s of context, so 2.5 s is inside a 4 s piece
+    monkeypatch.setattr(asr, "transcribe", fake)
+    res = subtitle_job.run(body(home, items=its), lambda f, m: None, lambda: False)
+    assert len(seen) == 2 and all(abs(x - 8.0) < 0.05 for x in seen)             # 4 s piece + 2 s before and after
+    assert res["counts"]["pieces"] == 2
+    starts = [round(c["start"], 1) for c in res["captions"]]
+    assert starts == [0.5, 4.5]                                                  # (2.5 - 2.0 lead) + the piece's sequence start
+
+
+def test_words_in_the_context_outside_the_piece_are_dropped(home, monkeypatch):
+    f, its = two_pieces(home)
+    words = [{"word": "преди", "start": 0.2, "end": 0.8, "p": 0.9}, {"word": "вътре", "start": 2.5, "end": 3.0, "p": 0.9},
+             {"word": "след", "start": 7.0, "end": 7.6, "p": 0.9}]
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: [dict(w) for w in words])
+    res = subtitle_job.run(body(home, items=its[:1]), lambda f, m: None, lambda: False)
+    with open(res["json"], encoding="utf-8") as fh:
+        assert [w["word"] for w in json.load(fh)["words"]] == ["вътре"]
+
+
+def test_a_word_cut_in_half_by_the_piece_edge_stays_when_most_of_it_is_inside():
+    w = {"start": 1.9, "end": 2.5}                               # lead 2.0: 0.5 of 0.6 s inside
+    assert subtitle_job._inside(w, 2.0, 6.0) and not subtitle_job._inside({"start": 1.0, "end": 2.2}, 2.0, 6.0)
+
+
+def test_the_aligner_moves_the_words_to_when_they_are_said(home, monkeypatch):
+    f, its = two_pieces(home)
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: [{"word": "дума", "start": 2.5, "end": 3.0, "p": 0.9}])
+    monkeypatch.setattr(align, "available", lambda: True)
+    monkeypatch.setattr(align, "align_words", lambda y, ws, sp=None: ([dict(w, start=w["start"] + 0.3, end=w["end"] + 0.1,
+                                                                            aligned=True) for w in ws], {"aligned": 1, "weak": 0}))
+    res = subtitle_job.run(body(home, items=its[:1]), lambda f, m: None, lambda: False)
+    assert res["timing"]["method"] == "aligned" and res["timing"]["aligned"] == 1
+    assert abs(res["captions"][0]["start"] - 0.8) < 0.05          # 2.5 + 0.3 - 2.0 lead
+
+
+def test_a_failed_alignment_keeps_whisper_times_and_says_so(home, monkeypatch):
+    f, its = two_pieces(home)
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: [{"word": "дума", "start": 2.5, "end": 3.0, "p": 0.9}])
+    monkeypatch.setattr(align, "available", lambda: True)
+    monkeypatch.setattr(align, "align_words", lambda y, ws, sp=None: (ws, {"error": "torch missing"}))
+    res = subtitle_job.run(body(home, items=its[:1]), lambda f, m: None, lambda: False)
+    assert res["timing"] == {"method": "whisper", "aligned": 0, "weak": 0, "error": "torch missing"}
+    assert abs(res["captions"][0]["start"] - 0.5) < 0.05
+
+
+def test_the_cache_keeps_recognition_and_alignment_apart(home, monkeypatch):
+    f, its = two_pieces(home)
+    n = {"asr": 0, "align": 0}
+
+    def fake_asr(*a, **k):
+        n["asr"] += 1
+        return [{"word": "дума", "start": 2.5, "end": 3.0, "p": 0.9}]
+
+    def fake_align(y, ws, sp=None):
+        n["align"] += 1
+        return [dict(w, aligned=True) for w in ws], {"aligned": 1, "weak": 0}
+    monkeypatch.setattr(asr, "transcribe", fake_asr)
+    b = body(home, items=its[:1])
+    subtitle_job.run(b, lambda f, m: None, lambda: False)                      # no aligner: recognition cached
+    monkeypatch.setattr(align, "available", lambda: True)
+    monkeypatch.setattr(align, "align_words", fake_align)
+    subtitle_job.run(b, lambda f, m: None, lambda: False)                      # aligner appears: no second recognition
+    subtitle_job.run(b, lambda f, m: None, lambda: False)                      # and the alignment is cached too
+    assert n == {"asr": 1, "align": 1}
+
+
+def test_align_wrapper_without_the_optional_install_is_a_quiet_fallback(home, monkeypatch):
+    monkeypatch.delenv("ASISTENT_ALIGN_PYTHON", raising=False)
+    ws = [{"word": "а", "start": 0.0, "end": 0.2, "p": 1.0}]
+    out, info = align.align_words(__import__("numpy").zeros(16000, "float32"), ws)
+    assert out == ws and "не е инсталирано" in info["error"] and align.status()["available"] is False
+
+
+def test_weak_and_letterless_words_keep_whisper_times_and_order_stays_monotonic():
+    ws = [{"word": "един", "start": 1.0, "end": 1.4}, {"word": "25", "start": 1.4, "end": 1.9}, {"word": "две", "start": 2.0, "end": 2.2}]
+    res = [{"start": 1.2, "end": 1.5, "align": 0.9}, {"start": None, "end": None, "align": 0.0}, {"start": 1.1, "end": 2.4, "align": 0.8}]
+    out, weak = align._fix(ws, res)
+    assert weak == 1 and out[1]["start"] == 1.4 and out[1]["aligned"] is False
+    assert [w["start"] for w in out] == sorted(w["start"] for w in out) and out[2]["start"] >= out[1]["start"]

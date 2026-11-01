@@ -1,7 +1,12 @@
-"""The `/subtitles` job (Phase 7 M3): dialogue mix -> Whisper words -> captions -> SRT + JSON on disk.
+"""The `/subtitles` job (Phase 7 M3): pieces of dialogue -> Whisper words (per piece, with context) -> optional
+alignment to the sound -> captions -> SRT + JSON on disk.
 
-Nothing is sent to Premiere here: the result lists what was made and the panel decides what to show. Whisper's words
-are cached by mix + prompt, so changing a preset or the frame rate re-breaks the lines without running Whisper again.
+Nothing is sent to Premiere here: the result lists what was made and the panel decides what to show. Words are cached
+per piece (audio + prompt), so changing a preset or the frame rate re-breaks the lines without running Whisper again.
+
+Why per piece and not one joined mix (measured 2026-11-01 on the Ludi Glavi test): Whisper read the four cut pieces
+joined into one signal as „и аз да видим“ and „Приведно на мен“; the same pieces transcribed one by one, each with 2 s
+of the real media around it, gave „я да видим“ and „Примерно на мен“.
 """
 from __future__ import annotations
 
@@ -13,12 +18,14 @@ import re
 import time
 from typing import Callable
 
-from . import asr, config, subtitles
-from .dialoguemix import ASR_SR, build_mix
+from . import align, asr, config, dialoguemix, subtitles
+from .dialoguemix import ASR_SR, build_mix, read_segment
 from .sync import Cancelled
 
 log = logging.getLogger("asistent")
-CACHE_VERSION = 1
+CACHE_VERSION = 2
+PAD = 2.0                  # seconds of real media around each piece, for Whisper's context
+MIN_OVERLAP = 0.4          # a word belongs to the piece when this much of it lies inside the piece
 PRESET_NAMES = ("auto", "short", "standard")
 
 
@@ -71,7 +78,10 @@ def validate(body: dict) -> dict:
         raise ValueError("Пакетите за разпознаване на реч (faster-whisper) не са инсталирани: пусни scripts/setup_mac.sh --subtitles.")
     if not asr.model_present():
         raise ValueError("Моделът за разпознаване на реч още не е свален: натисни „Свали модела“ в раздел СУБТИТРИ.")
-    return {"items": clean, "preset": preset, "fps": _num(25.0 if body.get("fps") is None else body.get("fps"), "кадри в секунда", 1.0),
+    spoken = body.get("spoken") or {}
+    if not isinstance(spoken, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in spoken.items()):
+        raise ValueError("Невалиден речник за произношение.")
+    return {"items": clean, "spoken": spoken, "preset": preset, "fps": _num(25.0 if body.get("fps") is None else body.get("fps"), "кадри в секунда", 1.0),
             "width": body.get("width"), "height": body.get("height"), "out_dir": out_dir,
             "name": str(body.get("name") or "секвенция"), "terms": terms, "skipped": skipped}
 
@@ -83,25 +93,63 @@ def _words_key(audio, prompt: str) -> str:
     return h.hexdigest()
 
 
-def _cached_words(key: str):
+def _cached(key: str):
     path = os.path.join(cache_dir(), key + ".json")
     if os.path.isfile(path):
         try:
             with open(path, encoding="utf-8") as f:
-                return json.load(f)["words"]
-        except (OSError, ValueError, KeyError):
+                return json.load(f)
+        except (OSError, ValueError):
             log.warning("subtitle cache entry %s unreadable, recognising again", key[:8])
     return None
 
 
-def _store_words(key: str, words: list) -> None:
+def _store(key: str, entry: dict) -> None:
     path = os.path.join(cache_dir(), key + ".json")
     try:
         with open(path + ".tmp", "w", encoding="utf-8") as f:
-            json.dump({"words": words}, f, ensure_ascii=False)
+            json.dump(entry, f, ensure_ascii=False)
         os.replace(path + ".tmp", path)
     except OSError as e:
         log.warning("subtitle cache write failed: %s", e)
+
+
+def _inside(w: dict, lo: float, hi: float) -> bool:
+    """Is the word (times relative to the padded piece) part of the piece [lo, hi]?"""
+    d = w["end"] - w["start"]
+    if d <= 1e-6:
+        return lo <= w["start"] < hi
+    return (min(w["end"], hi) - max(w["start"], lo)) / d >= MIN_OVERLAP
+
+
+def piece_words(seg: dict, prompt: str, spoken: dict, progress, cancelled) -> tuple[list[dict], dict]:
+    """Words of one piece in SEQUENCE seconds, plus {"cached", "aligned", "weak", "align_error"}."""
+    y, lead = read_segment(seg, PAD)
+    key = _words_key(y, prompt)
+    entry = _cached(key) or {}
+    cached = "words" in entry
+    if not cached:
+        entry = {"words": asr.transcribe(y, prompt or None, progress, cancelled)}
+        _store(key, entry)
+    info = {"cached": cached, "aligned": 0, "weak": 0}
+    words = entry["words"]
+    if align.available():
+        if "aligned" not in entry:
+            entry["aligned"], entry["align_info"] = align.align_words(y, words, spoken)
+            if "error" not in entry["align_info"]:
+                _store(key, entry)
+        words, info_a = entry["aligned"], entry["align_info"]
+        info.update({k: v for k, v in info_a.items() if k in ("aligned", "weak")})
+        if "error" in info_a:
+            info["align_error"] = info_a["error"]
+    dur = seg["end"] - seg["start"]
+    out = [dict(w, start=round(seg["at"] + w["start"] - lead, 3), end=round(seg["at"] + w["end"] - lead, 3))
+           for w in words if _inside(w, lead, lead + dur)]
+    return out, info
+
+
+def _same_word(a: dict, b: dict) -> bool:
+    return a["word"] == b["word"] and abs(a["start"] - b["start"]) < 0.15
 
 
 def _file_stem(name: str) -> str:
@@ -112,42 +160,59 @@ def _file_stem(name: str) -> str:
 def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[[], bool]) -> dict:
     p = validate(body)
     t0 = time.time()
-    mix = build_mix(p["items"], lambda f, m: progress(0.15 * f, m), cancelled)
-    audio, origin = mix["audio"], mix["origin"]
+    mix = build_mix(p["items"], lambda f, m: progress(0.1 * f, m), cancelled)
+    segments = mix["segments"]
     prompt = subtitles.initial_prompt(p["terms"])
-    key = _words_key(audio, prompt)
-    words = _cached_words(key)
-    cached = words is not None
+    total = sum(sg["end"] - sg["start"] for sg in segments) or 1.0
+    done = 0.0
+    words: list[dict] = []
+    cached = True
+    aligned = weak = 0
+    align_error = None
     t_asr = time.time()
-    if not cached:
-        words = asr.transcribe(audio, prompt or None, lambda f, m: progress(0.15 + 0.8 * f, m), cancelled)
+    for n, sg in enumerate(segments):
         if cancelled():
             raise Cancelled()
-        _store_words(key, words)
-    else:
-        progress(0.95, "Речта е разпозната от преди: подреждам редовете…")
+        share = (sg["end"] - sg["start"]) / total
+        base = 0.1 + 0.85 * done
+        ws, info = piece_words(sg, prompt, p["spoken"], lambda f, m, b=base, sh=share: progress(b + 0.85 * sh * f, m), cancelled)
+        words += ws
+        cached = cached and info["cached"]
+        aligned += info["aligned"]
+        weak += info["weak"]
+        align_error = align_error or info.get("align_error")
+        done += share
     asr_s = time.time() - t_asr
+    words.sort(key=lambda w: (w["start"], w["end"]))
+    unique: list[dict] = []
+    for w in words:                                        # pieces that touch can both claim a word at the seam
+        if not any(_same_word(w, u) for u in unique[-3:]):
+            unique.append(w)
+    words = unique
+    progress(0.96, "Подреждам редовете…")
 
-    sequence_words = [dict(w, start=w["start"] + origin, end=w["end"] + origin) for w in words]
     preset = subtitles.preset_for(p["width"], p["height"]) if p["preset"] == "auto" else p["preset"]
-    captions = subtitles.build_captions(sequence_words, preset, p["fps"])
+    captions = subtitles.build_captions(words, preset, p["fps"])
 
     folder = os.path.join(p["out_dir"], "Asistent_subtitles")
     os.makedirs(folder, exist_ok=True)
     stem = os.path.join(folder, _file_stem(p["name"]))
     subtitles.write_srt(captions, stem + ".srt")
     flagged = sum(len(c["flags"]) for c in captions)
+    timing = "aligned" if aligned else "whisper"
     result = {
         "srt": stem + ".srt", "json": stem + ".json", "preset": preset, "fps": subtitles.exact_fps(p["fps"]),
         "captions": [{"start": c["start"], "end": c["end"], "text": c["text"], "flags": c["flags"]} for c in captions],
-        "counts": {"captions": len(captions), "words": len(sequence_words), "flagged": flagged},
-        "notes": mix["notes"], "duplicates": mix["duplicates"], "skipped": p["skipped"], "origin": round(origin, 3),
-        "mix_seconds": round(len(audio) / ASR_SR, 1), "asr_seconds": round(asr_s, 1), "cached": cached,
+        "counts": {"captions": len(captions), "words": len(words), "flagged": flagged, "pieces": len(segments)},
+        "timing": {"method": timing, "aligned": aligned, "weak": weak, "error": align_error},
+        "notes": mix["notes"], "duplicates": mix["duplicates"], "skipped": p["skipped"],
+        "origin": round(mix["origin"], 3), "mix_seconds": round(len(mix["audio"]) / ASR_SR, 1), "asr_seconds": round(asr_s, 1), "cached": cached,
     }
     with open(stem + ".json", "w", encoding="utf-8") as f:
-        json.dump({**result, "words": sequence_words, "items": p["items"]}, f, ensure_ascii=False, indent=1)
-    log.info("subtitles: %d captions, %d words (%d flagged), mix %.1f s, asr %.1f s%s, total %.1f s, preset %s -> %s",
-             len(captions), len(sequence_words), flagged, result["mix_seconds"], asr_s, " (cached)" if cached else "",
+        json.dump({**result, "words": words, "items": p["items"], "segments": segments}, f, ensure_ascii=False, indent=1)
+    log.info("subtitles: %d captions, %d words (%d flagged) from %d pieces, timing %s (%d aligned, %d weak%s), "
+             "asr+align %.1f s%s, total %.1f s, preset %s -> %s", len(captions), len(words), flagged, len(segments), timing,
+             aligned, weak, f", {align_error}" if align_error else "", asr_s, " (cached)" if cached else "",
              time.time() - t0, preset, stem + ".srt")
     progress(1.0, "Готово")
     return result

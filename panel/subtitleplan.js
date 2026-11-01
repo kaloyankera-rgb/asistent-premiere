@@ -66,6 +66,13 @@ function describeResult(r) {
   }
   lines.push({ cls: "line", text: `${c.words} думи · вид ${PRESET_NAME[r.preset] || r.preset} · ${r.fps.toFixed(3).replace(/\.?0+$/, "")} fps` +
     ` · ${r.cached ? "разпознаването е от преди" : `разпознаване ${r.asr_seconds} s за ${r.mix_seconds} s звук`}` });
+  const t = r.timing || {};
+  if (t.method === "aligned") {
+    lines.push({ cls: "line", text: `Времена: подравнени по звука (${t.aligned} думи${t.weak ? `, ${t.weak} слаби остават от Whisper` : ""}).` });
+  } else {
+    const why = t.error && !/не е инсталирано/.test(t.error) ? `подравняването не успя (${t.error})` : "подравняването не е инсталирано";
+    lines.push({ cls: "warn", text: `Времена: от Whisper, може да са неточни с до 0,3 s (${why}).` });
+  }
   if (c.flagged) lines.push({ cls: "warn", text: `${c.flagged} несигурни думи (малка вероятност): проверете ги в субтитрите.` });
   for (const d of r.duplicates || []) {
     const rest = d.kept_rest_seconds ? `; ${d.kept_rest_seconds} s от ${d.dropped} са запазени, там другият не чува` : "";

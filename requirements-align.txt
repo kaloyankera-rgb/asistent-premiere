@@ -1,0 +1,6 @@
+# OPTIONAL word-timing alignment for subtitles (Phase 7), installed into its own environment `venv-align`, not the engine's.
+# scripts/setup_mac.sh --align. About 0.9 GB here + the MMS_FA weights (about 1.2 GB) in models/torch.
+# Licence note: the MMS_FA weights are CC-BY-NC 4.0 (non-commercial); see LICENSES.md before installing.
+torch==2.15.0
+torchaudio==2.11.1
+numpy==2.5.4
