@@ -7,6 +7,7 @@ const ppro = require("premierepro");
 const { TickTime, Constants } = ppro;
 const P = require("./premiere.js");
 const engine = require("./engine.js");
+const { covered, analysisMoments } = require("./moments.js");
 
 const { UserError, transaction, has, maybe, debug } = P;
 
@@ -96,11 +97,11 @@ function setActions(t, values) {
 
 // ---------------------------------------------------------------- render check (Premiere's own frames)
 
-async function frameSize(sequence) {
+async function frameSize(sequence, long = 480) {
   const r = await maybe(sequence, "getFrameSize");
   const w = (r && r.width) || 1920;
   const h = (r && r.height) || 1080;
-  const s = 480 / Math.max(w, h);
+  const s = long / Math.max(w, h);
   return { w: Math.round((w * s) / 2) * 2, h: Math.round((h * s) / 2) * 2 };
 }
 
@@ -110,9 +111,9 @@ async function frameSize(sequence) {
 // until the engine has seen the finished file. Every export gets its own name: a frame left by an earlier
 // run must never be measured as this one.
 let exportCount = 0;
-async function exportFrame(sequence, seconds, name, dir, onError) {
+async function exportFrame(sequence, seconds, name, dir, onError, long = 480) {
   if (!has(ppro.Exporter, "exportSequenceFrame")) return null;
-  const { w, h } = await frameSize(sequence);
+  const { w, h } = await frameSize(sequence, long);
   // the name must end in ".png": Premiere takes the format from it ("x" alone throws "File Format is not
   // supported", 0.9.5-0.9.10). It may add the extension once more (x.png.png): the engine looks for both.
   const unique = `${Date.now().toString(36)}_${++exportCount}_${name}`;
@@ -134,9 +135,16 @@ async function exportFrame(sequence, seconds, name, dir, onError) {
   return got.path;
 }
 
-// a picture with something on top of the clip (a title, a logo) cannot be measured
-function covered(timeline, clip, t) {
-  return timeline.items.some((x) => x.kind === "video" && x.track > clip.track && x.start <= t && x.end > t);
+
+// What the viewer sees of the clip: frames exported from the sequence (any correction already on the clip
+// included), 720 px for the preview too. Fewer than two usable moments: the engine falls back to the file.
+async function timelineFrames(timeline, clip, dir, index) {
+  const frames = [];
+  for (const [k, t] of analysisMoments(timeline, clip).entries()) {
+    const f = await exportFrame(timeline.sequence, t, `analyse_${index}_${k}.png`, dir, null, 720);
+    if (f) frames.push(f);
+  }
+  return frames;
 }
 
 async function checkWithRetry(before, after, applied, fix) {
@@ -285,4 +293,4 @@ function finalLine(chk) {
   return `${msg} Яркостта е ${Math.abs(stops).toFixed(1)} стопа ${stops > 0 ? "под" : "над"} целта.`;
 }
 
-module.exports = { readVideoSelection, apply, exportFrame };
+module.exports = { readVideoSelection, apply, exportFrame, timelineFrames };

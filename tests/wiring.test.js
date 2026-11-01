@@ -50,3 +50,12 @@ test("the probe asks under its own button, not at the top of the panel", () => {
   assert.doesNotMatch(ask, /finish\(/);
   assert.match(ask, /insertBefore\(box, row\.nextSibling\)/);
 });
+
+test("every panel module that is required is packed into the .ccx", () => {
+  const pack = fs.readFileSync(path.join(__dirname, "..", "scripts", "package_ccx.sh"), "utf8");
+  const zipped = new Set((pack.match(/zip -q -r -X "\$OUT" ([^)]*)\)/) || ["", ""])[1].split(/\s+/));
+  for (const f of fs.readdirSync(panel).filter((n) => n.endsWith(".js"))) {
+    const src = fs.readFileSync(path.join(panel, f), "utf8");
+    for (const m of src.matchAll(/require\("\.\/([^"]+)"\)/g)) assert.ok(zipped.has(m[1]), `${f} needs ${m[1]}, not packed`);
+  }
+});

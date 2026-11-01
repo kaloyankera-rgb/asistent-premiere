@@ -224,7 +224,9 @@ def _round_step(stops: float) -> float:
     return float(np.clip(s, -MAX_STOPS, MAX_STOPS))
 
 
-def decide(frames: list[np.ndarray], gamma: str | None = None) -> dict:
+def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str | None = None) -> dict:
+    """`gamma`: how to decode these frames (None = Rec.709). `source_gamma`: how the camera recorded the clip,
+    when the frames are timeline renders (already Rec.709 if Premiere converts the log, flat if it does not)."""
     ms = [measure(f, gamma) for f in frames]
     reasons, warnings = [], []
 
@@ -300,6 +302,12 @@ def decide(frames: list[np.ndarray], gamma: str | None = None) -> dict:
         wb_conf = "medium" if wb_conf == "high" else wb_conf
         warnings.append(f"Запис в {gamma}: предложението е за картината след превръщане в Rec.709; "
                         "не се прилага само (първо LUT или цветово управление).")
+    elif source_gamma and "log" in source_gamma.lower():
+        # a timeline render of log footage: whether Premiere already converts it to Rec.709 is not checked yet
+        # (colour-management step); a flat log picture read as Rec.709 would give a wrong correction
+        exp_conf = wb_conf = "low"
+        warnings.append(f"Запис в {source_gamma}, мерено на таймлайна: още не е проверено дали Premiere го "
+                        "превръща в Rec.709. Само предложение, не се прилага.")
 
     # channel gains (linear) that remove the cast, luminance kept
     r, g, b = 2 ** (-fix_t / 2 - fix_g / 3), 2 ** (2 * fix_g / 3), 2 ** (fix_t / 2 - fix_g / 3)
@@ -313,7 +321,8 @@ def decide(frames: list[np.ndarray], gamma: str | None = None) -> dict:
                   "neutral_area": round(neutral_frac, 4), "gains": [round(v / norm, 4) for v in (r, g, b)]},
         "skin_area": round(float(np.mean([m["skin"] for m in ms])), 4),
         "clipped": round(float(np.mean([m["clipped"] for m in ms])), 4),
-        "frames": len(ms), "gamma": gamma or "rec709", "reasons": reasons, "warnings": warnings,
+        "frames": len(ms), "gamma": gamma or "rec709", "source_gamma": source_gamma or gamma or "rec709",
+        "reasons": reasons, "warnings": warnings,
     }
 
 
@@ -490,14 +499,26 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
         path = it["path"]
         try:
             gamma = sony_xml(path).get("gamma")
-            frames = read_frames(path, start=float(it.get("start") or 0), end=it.get("end"))
-            r = decide(frames, gamma)
+            timeline = timeline_frames(it.get("frames") or [])
+            if len(timeline) >= 2:
+                # what the viewer sees: Premiere's own render (Rec.709) with any correction already on the clip,
+                # so a clip corrected once measures as fine and a re-run suggests nothing (spec T13/T18)
+                r = decide(timeline, None, source_gamma=gamma)
+                r["measured_on"] = "timeline"
+                shown, shown_gamma = timeline, None
+            else:
+                frames = read_frames(path, start=float(it.get("start") or 0), end=it.get("end"))
+                r = decide(frames, gamma)
+                review_needed(r)
+                shown, shown_gamma = None, gamma
             r.update(path=path, name=os.path.basename(path))
             # what to write into Lumetri for these stops at this brightness (Exposure has a highlight shoulder)
             r["exposure"]["units"] = cal.exposure_units(r["exposure"]["stops"], r["exposure"]["at_luma"])
-            if with_preview:                       # a sharper frame of its own for the eye (720 px long side)
-                big = read_frames(path, n=1, width=720, start=float(it.get("start") or 0), end=it.get("end"))
-                r["preview"] = preview(big, gamma, r)
+            if with_preview:
+                # timeline frames are already 720 px; the source gets a sharper frame of its own
+                big = shown[len(shown) // 2:len(shown) // 2 + 1] if shown else \
+                    read_frames(path, n=1, width=720, start=float(it.get("start") or 0), end=it.get("end"))
+                r["preview"] = preview(big, shown_gamma, r)
                 r["preview"]["portrait"] = big[0].shape[0] > big[0].shape[1]
         except MediaError as e:
             r = {"path": path, "name": os.path.basename(path), "error": str(e)}
@@ -507,6 +528,35 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         return {"items": list(pool.map(one, items))}
+
+
+def _in_frames_dir(path: str) -> bool:
+    from . import config
+    folder = os.path.realpath(os.path.join(config.app_dir(), "frames"))
+    return os.path.dirname(os.path.realpath(path)) == folder
+
+
+def timeline_frames(paths: list) -> list[np.ndarray]:
+    """Frames the panel exported from the sequence (only from the engine's own frames folder), same size."""
+    out = []
+    for p in paths:
+        if not isinstance(p, str) or not _in_frames_dir(p):
+            continue
+        hit = _wait_file(p, 3.0)
+        if hit:
+            out.append(read_image(hit))
+    return [f for f in out if f.shape == out[0].shape] if out else []
+
+
+def review_needed(r: dict) -> None:
+    """Measured on the source file, not on the timeline: an existing correction on the clip is not seen, so
+    the suggestion may repeat it. Shown, never applied (confidence low)."""
+    r["measured_on"] = "source"
+    r["status"] = "REVIEW_NEEDED"
+    r["exposure"]["confidence"] = "low"
+    r["white"]["confidence"] = "low"
+    r["warnings"].append("Мерено на файла, не на таймлайна (няма изнесени кадри или клипът е покрит от друг "
+                         "слой): поправка, която вече е на клипа, не се вижда. Само предложение.")
 
 
 class Calibration:

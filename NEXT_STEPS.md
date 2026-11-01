@@ -13,9 +13,9 @@ Done in 0.9.9 (Volume scale, `/color/probe` docstring).
    Soft tolerance + region-aware verdict done in 0.9.17. The first check keeps stepping back at anything over
    3.00 % (user, 2026-11-01); the tolerance applies only to the final result.
    Also measure darkening (Exposure −1) in the probe so the curve covers both directions.
-2. **Analyse timeline renders, not source files** (T13, T18): export the clip's frames from the active sequence
-   (several moments, skip moments covered by upper layers) and run `decide()` on them; fall back to source
-   frames only with status REVIEW_NEEDED. This makes re-runs idempotent.
+2. **Analyse timeline renders: built in 0.9.18** (T13, T18). Confirm in Premiere: „Цвят“ on a clip already
+   corrected by Asistent should say „Мерено на таймлайна“ and suggest nothing; a clip under a title/adjustment
+   layer should fall back with REVIEW_NEEDED.
 3. **Colour management / double transform (T12)**: for log clips compare the timeline render with the source
    decoded as Rec.709 and as S-Log3→709; if Premiere already converts, measure as Rec.709 and never add a
    transform; unknown → REVIEW_NEEDED. Read `getInputLUTID`/`getEmbeddedLUTID` into the record.
