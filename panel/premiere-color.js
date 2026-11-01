@@ -150,7 +150,40 @@ async function timelineFrames(timeline, clip, dir, index) {
     if (f) frames.push(f);
   }
   const diag720 = moments.length ? await exportFrame(timeline.sequence, moments[0], `diag720_${index}.png`, dir, null, 720) : null;
-  return { frames, diag720 };
+  // temporary (0.9.21): C0739 rendered the correction in the middle of the clip but not at these moments.
+  // Log the clip's Lumetri values as Premiere reports them and export the middle once more.
+  await logLumetriState(clip, moments);
+  const diagMid = await exportFrame(timeline.sequence, clip.start + (clip.end - clip.start) / 2, `diagmid_${index}.png`, dir);
+  return { frames, diag720, diagMid };
+}
+
+async function logLumetriState(clip, moments) {
+  try {
+    const chain = await maybe(clip.ti, "getComponentChain");
+    const n = chain ? await chain.getComponentCount() : 0;
+    const found = [];
+    for (let i = 0; i < n; i++) {
+      const comp = await chain.getComponentAtIndex(i);
+      if (!/lumetri/i.test((await maybe(comp, "getMatchName")) || "")) continue;
+      const ps = await params(comp);
+      for (const k of ["exposure", "temperature", "tint"]) {
+        const p = ps[k];
+        if (!p) continue;
+        const varying = await maybe(p, "isTimeVarying");
+        const keys = varying ? ((await maybe(p, "getKeyframeListAsTickTimes")) || []).map((t) => (t.seconds || 0).toFixed(3)) : [];
+        const at = [];
+        for (const t of moments.slice(0, 2)) {
+          const v = has(p, "getValueAtTime") ? await maybe(p, "getValueAtTime", TickTime.createWithSeconds(t - clip.start + (clip.inPt || 0))) : null;
+          at.push(v && v.value !== undefined ? (v.value.value ?? v.value) : v);
+        }
+        found.push(`#${i} ${k}=${await value(p)} varying=${varying} keys=[${keys.join(",")}] atMoments=${JSON.stringify(at)}`);
+      }
+    }
+    debug(`diag lumetri ${clip.name} (start ${clip.start.toFixed(3)}, end ${clip.end.toFixed(3)}, in ${(clip.inPt || 0).toFixed(3)}, ` +
+      `moments ${moments.map((t) => t.toFixed(3)).join(",")}): ${found.join(" | ") || "no Lumetri"}`);
+  } catch (e) {
+    debug(`diag lumetri failed: ${e && e.message ? e.message : e}`);
+  }
 }
 
 // final: the re-check after the one step back. The engine then gives its verdict and never proposes another step

@@ -322,7 +322,7 @@ async function onColor() {
     for (const [i, c] of sel.clips.entries()) {
       progress((0.4 * i) / sel.clips.length, `Кадри от таймлайна: ${i + 1} от ${sel.clips.length}…`);
       const tl = dir ? await premiereColor.timelineFrames(sel.timeline, c, dir, i) : { frames: [] };
-      items.push({ path: c.path, start: c.inPt, end: c.outPt, frames: tl.frames, diag720: tl.diag720 });
+      items.push({ path: c.path, start: c.inPt, end: c.outPt, frames: tl.frames, diag720: tl.diag720, diagMid: tl.diagMid });
     }
     const { job } = await engine.startColor(items);
     const result = await runJob(job);
