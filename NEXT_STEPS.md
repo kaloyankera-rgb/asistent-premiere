@@ -25,8 +25,9 @@ Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 5. **Accept / revert**: save exact prior values and keyframe state of every touched parameter, apply, export,
    re-measure, revert to the saved values when any gate worsens (new clipping, neutral residual, skin, cast,
    continuity). Report Undo steps.
-6. **Managed correction ownership**: our own Lumetri instance per clip, identified by the audit log (values we
-   wrote); update it with absolute values (idempotent); never touch a manual grade (T14).
+6. **Managed correction ownership: built in 0.9.24** (fingerprints in `managed.json`). Confirm in Premiere:
+   „Приложи сигурните“ (white only) → „Цвят“ → „Приложи и средните“ adds the exposure to the same Lumetri;
+   touching any Lumetri slider by hand → the next apply leaves the clip alone.
 7. **Split operations into independent buttons**: White Balance, Exposure (exists combined), then Contrast and
    Saturation (only if the probe shows them writable and measurable), Skin Tones (global only unless local
    tools exist → PARTIAL/BLOCKED), Shot Match (same scene: groups from sync or the selection; match measured

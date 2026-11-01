@@ -21,11 +21,13 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
   - `server.py` endpoints · `jobs.py` background jobs (progress, cancel) · `config.py` paths, version, logging
   - `media.py` ffprobe/ffmpeg · `cache.py` decoded-audio cache · `sync.py` audio sync · `groups.py` many-clip groups
   - `audio.py` channel analysis, loudness, phrase leveling · `importer.py` folder watching and queue
+  - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`)
   - `color.py` exposure/white-balance analysis, previews, render check, Lumetri calibration, probe measurement
   - `profiles.py`, `prepare.py`: Phase 5 draft, NOT wired, NOT tested
 - Engine data (outside the synced vault): `~/Library/Application Support/Asistent/` (Windows
   `%LOCALAPPDATA%\Asistent\`): `venv/`, `logs/engine.log`, `cache/audio/`, `frames/`, `import.json`,
-  `lumetri.json` (slider calibration, created on first verified render), `lumetri_capabilities.json` (probe).
+  `lumetri.json` (slider calibration, created on first verified render), `lumetri_capabilities.json` (probe),
+  `managed.json` (Lumetri corrections Asistent wrote: may be updated by Asistent, never a manual grade).
 - Dependencies: Python 3.12 venv with `numpy==2.5.4`, `scipy==1.18.1`, `watchdog==7.0.0` (`requirements.txt`),
   `pytest==9.2.0` (`requirements-dev.txt`); system FFmpeg/FFprobe (Homebrew on Mac); Node only for tests.
 
@@ -35,7 +37,7 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
   without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
   (97 tests; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere) and
-  `node --test tests/layout.test.js tests/channels.test.js tests/wiring.test.js tests/moments.test.js tests/colorplans.test.js` (25 tests);
+  `node --test tests/layout.test.js tests/channels.test.js tests/wiring.test.js tests/moments.test.js tests/colorplans.test.js` (29 tests);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Premiere tests only in the user's test project `TEST.prproj`, never in client projects; never close or
   restart Premiere without asking. Client footage stays local; never look at client frames as images.
@@ -56,6 +58,7 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
 - Main microphone peak ≤ −6 dBFS; no compression or limiting by default.
 - Nothing uncertain is applied automatically (sync, routing, colour); zero correction is a valid result.
 - Colour: preview first; only Exposure/Temperature/Tint so far; never contrast/saturation/LUT unless the
-  colour plan's modules are implemented and verified; never touch a manual Lumetri grade.
+  colour plan's modules are implemented and verified; never touch a manual Lumetri grade (a Lumetri counts as
+  Asistent's own only when its full fingerprint matches one in `managed.json`).
 - Sync works from the timeline selection and builds a new `SYNC – <sequence>`; the user's sequence is read only.
 - No AI voices, no paid tools, no cloud, nothing uploaded.

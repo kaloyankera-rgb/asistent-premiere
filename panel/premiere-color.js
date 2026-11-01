@@ -8,6 +8,7 @@ const { TickTime, Constants } = ppro;
 const P = require("./premiere.js");
 const engine = require("./engine.js");
 const { covered, analysisMoments } = require("./moments.js");
+const { mergeValues } = require("./colorplans.js");
 
 const { UserError, transaction, has, maybe, debug } = P;
 
@@ -53,7 +54,29 @@ async function readVideoSelection(project) {
   return { timeline: t, clips };
 }
 
-// Lumetri of the clip that we may set: an existing one still at 0 on our three sliders, or a new one.
+// Every parameter of a Lumetri as text: the fingerprint that tells Asistent's own correction from a grade
+// someone touched by hand (any change to any parameter changes it).
+async function snapshot(comp) {
+  const n = await comp.getParamCount();
+  const parts = [];
+  for (let i = 0; i < n; i++) {
+    const p = await comp.getParam(i);
+    const v = await maybe(p, "getStartValue");
+    const raw = v && v.value !== undefined ? (v.value.value ?? v.value) : v;
+    const val = typeof raw === "number" ? raw.toFixed(4) : JSON.stringify(raw ?? null);
+    parts.push(`${i}:${(p && p.displayName) || ""}=${val}${(await maybe(p, "isTimeVarying")) ? "~" : ""}`);
+  }
+  return parts.join("|");
+}
+
+// the clip as a source range: survives moving the clip on the timeline, not trimming it (then: manual)
+function clipKey(clip) {
+  return `${clip.path}|${(clip.inPt || 0).toFixed(3)}|${(clip.outPt || 0).toFixed(3)}`;
+}
+
+// Lumetri of the clip that we may set: an existing one still at 0 on our three sliders, Asistent's own one
+// exactly as it left it (managed correction, updated with the new differences), or a new one. A Lumetri
+// with any other changes is someone's grade and is never touched.
 async function target(clip) {
   const chain = await maybe(clip.ti, "getComponentChain");
   if (!chain) throw new Error(`Няма ефекти на ${clip.name}.`);
@@ -63,13 +86,26 @@ async function target(clip) {
     const match = (await maybe(comp, "getMatchName")) || "";
     if (!/lumetri/i.test(match)) continue;
     const ps = await params(comp);
-    const used = [];
-    for (const k of ["exposure", "temperature", "tint"]) if (ps[k] && Math.abs(await value(ps[k])) > 1e-6) used.push(k);
-    if (used.length) return { skip: `вече има Lumetri с промени (${used.join(", ")}): не е пипано` };
-    return { chain, comp, ps, isNew: false };
+    const current = {};
+    for (const k of ["exposure", "temperature", "tint"]) current[k] = ps[k] ? await value(ps[k]) : 0;
+    const used = Object.keys(current).filter((k) => Math.abs(current[k]) > 1e-6);
+    if (!used.length) return { chain, comp, ps, isNew: false, current };
+    const own = await engine.managedCheck(clipKey(clip), await snapshot(comp)).catch(() => null);
+    debug(`color target ${clip.name}: Lumetri with ${used.join(", ")}, Asistent's own: ${!!(own && own.owned)}`);
+    if (own && own.owned) return { chain, comp, ps, isNew: false, current, owned: true };
+    return { skip: `вече има Lumetri с промени (${used.join(", ")}), които не са от Асистент или са пипани на ръка: не е пипано` };
   }
   const comp = await ppro.VideoFilterFactory.createComponent(await lumetriMatch());
-  return { chain, comp, ps: null, isNew: true };
+  return { chain, comp, ps: null, isNew: true, current: {} };
+}
+
+// remember the Lumetri as Asistent left it, so a later press may update it (and only it)
+async function remember(pl) {
+  try {
+    await engine.managedRecord(clipKey(pl.clip), await snapshot(pl.t.comp), pl.final || pl.values);
+  } catch (e) {
+    debug(`color managed record failed on ${pl.clip.name}: ${e && e.message ? e.message : e}`);
+  }
 }
 
 // after the append: the Lumetri as a real component of the clip (now it has parameters)
@@ -209,14 +245,10 @@ async function apply(project, timeline, plans) {
   for (const pl of plans) {
     // one clip that cannot be prepared is reported and skipped; the others still get their correction
     let t;
-    const values = {};
+    let sliders = null;
     try {
       t = await target(pl.clip);
-      if (!t.skip && pl.wb) {
-        const s = await engine.colorSliders(pl.res.white.fix_temp, pl.res.white.fix_tint);
-        values.temperature = s.temperature;
-        values.tint = s.tint;
-      }
+      if (!t.skip && pl.wb) sliders = await engine.colorSliders(pl.res.white.fix_temp, pl.res.white.fix_tint);
     } catch (e) {
       t = { skip: `не стана за този клип (${e && e.message ? e.message : e}); другите продължават` };
     }
@@ -226,7 +258,8 @@ async function apply(project, timeline, plans) {
       debug(`color apply ${pl.clip.name}: skipped, ${t.skip}`);
       continue;
     }
-    if (pl.exposure) values.exposure = pl.exposure;
+    const { values, applied } = mergeValues(t.current, pl.exposure, sliders);
+    pl.applied = applied;
     if (!Object.keys(values).length) {
       pl.lines = ["нищо за прилагане"];
       continue;
@@ -264,9 +297,13 @@ async function apply(project, timeline, plans) {
   steps++;
   for (const pl of prepared) {
     const v = pl.values;
-    pl.lines.push([v.exposure ? `Exposure ${v.exposure > 0 ? "+" : ""}${v.exposure}` : null,
-      v.temperature !== undefined ? `Temperature ${v.temperature}` : null,
-      v.tint !== undefined ? `Tint ${v.tint}` : null].filter(Boolean).join(" · "));
+    const was = (k) => (pl.t.owned && pl.t.current[k] ? ` (беше ${pl.t.current[k]})` : "");
+    if (pl.t.owned) pl.lines.push("обновена е предишната поправка на Асистент");
+    pl.lines.push([v.exposure !== undefined ? `Exposure ${v.exposure > 0 ? "+" : ""}${v.exposure}${was("exposure")}` : null,
+      v.temperature !== undefined ? `Temperature ${v.temperature}${was("temperature")}` : null,
+      v.tint !== undefined ? `Tint ${v.tint}${was("tint")}` : null].filter(Boolean).join(" · "));
+    pl.final = { ...pl.values };
+    await remember(pl);                    // this state is Asistent's (also if the step back is undone later)
   }
 
   // check on Premiere's own render; correct once if the slider guess was off or highlights burnt
@@ -281,7 +318,7 @@ async function apply(project, timeline, plans) {
       continue;
     }
     const after = await exportFrame(timeline.sequence, pl.mid, `after_${i}.png`, dir);
-    const chk = after && (await checkWithRetry(pl.before, after, pl.values, pl.res.white));
+    const chk = after && (await checkWithRetry(pl.before, after, pl.applied, pl.res.white));
     if (!chk) {
       pl.lines.push("проверката не успя");
       continue;
@@ -296,8 +333,9 @@ async function apply(project, timeline, plans) {
       pl.recheck = true;
     }
     if (pl.wb && chk.residual && (Math.abs(chk.residual[0]) > 0.1 || Math.abs(chk.residual[1]) > 0.06) && chk.sliders_now) {
-      fixValues.temperature = chk.sliders_now.temperature;
-      fixValues.tint = chk.sliders_now.tint;
+      // on Asistent's own earlier Lumetri the refined white is added to what was there before this press
+      fixValues.temperature = Math.round(((pl.t.current.temperature || 0) + chk.sliders_now.temperature) * 10) / 10;
+      fixValues.tint = Math.round(((pl.t.current.tint || 0) + chk.sliders_now.tint) * 10) / 10;
       pl.lines.push(`бялото доуточнено: Temperature ${fixValues.temperature}, Tint ${fixValues.tint}`);
     } else if (pl.wb && chk.residual) {
       pl.lines.push("проверено на кадър: бялото е неутрално");
@@ -305,18 +343,22 @@ async function apply(project, timeline, plans) {
     if (!pl.recheck && chk.clipping_status && chk.clipping_status !== "ACCEPTED") pl.lines.push(finalLine(chk));
     if (Object.keys(fixValues).length) second.push(...setActions(pl.t, fixValues));
     pl.final = { ...pl.values, ...fixValues };
+    pl.refined = Object.keys(fixValues).length > 0;
+    pl.finalApplied = { ...pl.applied, ...(fixValues.exposure !== undefined
+      ? { exposure: Math.round((pl.applied.exposure - (pl.values.exposure - fixValues.exposure)) * 100) / 100 } : {}) };
   }
   if (second.length) {
     transaction(project, "Asistent: поправи цвета (уточнение)", (c) => {
       for (const make of second) c.addAction(make());
     });
     steps++;
+    for (const pl of prepared) if (pl.refined) await remember(pl);
   }
   // the step back is measured once more on a new frame: report where it really landed, change nothing more
   for (const [i, pl] of prepared.entries()) {
     if (!pl.recheck) continue;
     const after2 = await exportFrame(timeline.sequence, pl.mid, `after2_${i}.png`, dir);
-    const chk2 = after2 && (await checkWithRetry(pl.before, after2, pl.final, pl.res.white, true));
+    const chk2 = after2 && (await checkWithRetry(pl.before, after2, pl.finalApplied, pl.res.white, true));
     if (!chk2) {
       pl.lines.push("след свалянето: проверката не успя");
       continue;

@@ -84,3 +84,9 @@ skin to win a few hundredths of a percent.
 Every corrected parameter is one constant value across the whole clip, the best overall from the measured
 moments; no keyframes. A clip that burns too much or is otherwise beyond the range gets one capped pass (what
 is possible) and the work moves on: no repeated attempts, and one failing clip never stops the others.
+
+## Colour: Asistent may update only its own, untouched Lumetri (2026-11-01, user, 0.9.24)
+A Lumetri is Asistent's when the fingerprint of all its parameters matches one Asistent recorded after
+writing it (`managed.json`, per clip source range). Then a new press adds the new differences to it. Any
+manual change to any parameter makes it the user's grade, and it is never touched again. Unknown (older)
+Lumetris are treated as manual.

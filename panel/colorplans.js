@@ -26,4 +26,24 @@ function corrections(plans) {
   return plans.reduce((n, p) => n + (p.exposure ? 1 : 0) + (p.wb ? 1 : 0), 0);
 }
 
-module.exports = { plansFor, corrections };
+// What to write into Lumetri and what was added. The analysis measures the timeline with any earlier
+// Asistent correction included, so its suggestion is a difference: it is added to the current values of
+// Asistent's own Lumetri (0 on a new one). `applied` holds only the differences (for the render check).
+function mergeValues(current, exposureUnits, sliders) {
+  const cur = { exposure: 0, temperature: 0, tint: 0, ...(current || {}) };
+  const values = {};
+  const applied = {};
+  if (exposureUnits) {
+    applied.exposure = exposureUnits;
+    values.exposure = Math.round((cur.exposure + exposureUnits) * 100) / 100;
+  }
+  if (sliders) {
+    applied.temperature = sliders.temperature;
+    applied.tint = sliders.tint;
+    values.temperature = Math.round((cur.temperature + sliders.temperature) * 10) / 10;
+    values.tint = Math.round((cur.tint + sliders.tint) * 10) / 10;
+  }
+  return { values, applied };
+}
+
+module.exports = { plansFor, corrections, mergeValues };
