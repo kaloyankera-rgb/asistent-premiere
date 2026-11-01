@@ -6,7 +6,8 @@ and exposure). Built 2026-11-01 from the user's spec (first message of the sessi
 engine spec in `docs/color-spec/` (see `COLOR_CORRECTION_PLAN.md`).
 
 Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AND_LIMITATIONS.md`.
-`DECISIONS.md` explains why things are the way they are. `PROGRESS.md` is the detailed chronological log.
+`DECISIONS.md` explains why things are the way they are. `PROGRESS.md` is the detailed chronological log
+(search it, do not read it whole). Model routing and agents: `../DEV_WORKFLOW.md`.
 
 ## Architecture
 - **UXP panel** `panel/` (manifest v5, id `com.contentstudio.asistent`, host `premierepro` ≥ 26.0.0,
@@ -21,7 +22,8 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
   - `server.py` endpoints · `jobs.py` background jobs (progress, cancel) · `config.py` paths, version, logging
   - `media.py` ffprobe/ffmpeg · `cache.py` decoded-audio cache · `sync.py` audio sync · `groups.py` many-clip groups
   - `audio.py` channel analysis, loudness, phrase leveling · `importer.py` folder watching and queue
-  - `shotmatch.py` Auto Shot Match: anchors (skin, neutrals, tones), Lumetri simulation, absolute fit, check
+  - `shotmatch.py` Auto Shot Match: anchors (skin from faces, neutrals, tones), Lumetri simulation, absolute fit, check
+  - `faces.py` face detector (YuNet through OpenCV, model in `models/`); no OpenCV/model → no skin anchor
   - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`)
   - `color.py` exposure/white-balance analysis, previews, render check, Lumetri calibration, probe measurement
   - `profiles.py`, `prepare.py`: Phase 5 draft, NOT wired, NOT tested
@@ -30,7 +32,7 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
   `lumetri.json` (slider calibration, created on first verified render), `lumetri_capabilities.json` (probe),
   `managed.json` (Lumetri corrections Asistent wrote: may be updated by Asistent, never a manual grade),
   `color_audit.jsonl` (one record per clip and „Приложи“ press: measured, written, kept, reverted, status).
-- Dependencies: Python 3.12 venv with `numpy==2.5.4`, `scipy==1.18.1`, `watchdog==7.0.0` (`requirements.txt`),
+- Dependencies: Python 3.12 venv with `numpy==2.5.4`, `scipy==1.18.1`, `watchdog==7.0.0`, `opencv-python-headless==5.0.0.93` (`requirements.txt`),
   `pytest==9.2.0` (`requirements-dev.txt`); system FFmpeg/FFprobe (Homebrew on Mac); Node only for tests.
 
 ## Development rules
@@ -38,11 +40,11 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
   `scripts/release_mac.sh` (packs `.ccx`, removes + installs it with Adobe's UnifiedPluginInstallerAgent
   without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
-  (97 tests; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere) and
+  (166 tests; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere) and
   `node --test tests/layout.test.js tests/channels.test.js tests/wiring.test.js tests/moments.test.js tests/colorplans.test.js` (41 tests);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Premiere tests only in the user's test project `TEST.prproj`, never in client projects; never close or
-  restart Premiere without asking. Client footage stays local; never look at client frames as images.
+  restart Premiere without asking. Client footage stays local; never look at client frames as images (measure them with numbers, delete any overlay you wrote).
 - The Premiere 26.0.2 API differs from Adobe's published types (they start at 26.2): call methods through
   `maybe()`/`has()`, log what exists (`debug(...)` → engine log), never assume an index or unit.
 - Diagnose from logs: `~/Library/Application Support/Asistent/logs/engine.log` (panel writes every step and

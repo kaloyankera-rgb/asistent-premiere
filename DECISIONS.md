@@ -90,3 +90,11 @@ A Lumetri is Asistent's when the fingerprint of all its parameters matches one A
 writing it (`managed.json`, per clip source range). Then a new press adds the new differences to it. Any
 manual change to any parameter makes it the user's grade, and it is never touched again. Unknown (older)
 Lumetris are treated as manual.
+
+## Skin only from detected faces, confidence-based fallback (2026-11-01, user, 0.9.30)
+Colour cannot separate skin from OSB, plywood or pale walls (same hue and saturation on the FX3/FX30), and area or
+camera-difference thresholds are no fix (close-ups). Skin is therefore measured only inside faces found by YuNet
+(OpenCV `FaceDetectorYN`, MIT model bundled, CPU, ~10 ms a frame; chosen over Haar cascades, which OpenCV 5 no longer
+ships, and over MediaPipe, which is much heavier). No face → neutral surfaces on common moments, then mid-tones on
+comparable content; saturation only from faces. Every measurement carries a confidence, and the render check
+compares only on anchors all frames share and reports what it skipped.

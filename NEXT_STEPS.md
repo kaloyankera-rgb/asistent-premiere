@@ -7,7 +7,8 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 
 ## B. Colour engine, per `COLOR_CORRECTION_PLAN.md` (current focus of the user)
-0. **Auto Shot Match: built in 0.9.28 — verify with real multi-POV footage in Premiere before calling it done**
+0. **Auto Shot Match: face-aware since 0.9.30, verified by the user at 0.9.32 on the GStroy pairs (more clients: on request)**
+   Open: the „Цвят“ single-clip exposure (`color.py`) still finds skin by colour box: give it the same faces.
    (user's priority, 2026-11-01). Then the remaining independent buttons (item 7). Skin brightness (9) and
    S-Log3 / colour management (3) are parked by the user.
 1. **Probe and exposure curve: done** (0.9.13-0.9.14, see `PROJECT_STATUS.md`). Confirm with the user: one

@@ -542,7 +542,7 @@ function shotBlock(clip, r) {
     const ch = r.changed || [];
     box.appendChild(el("div", "line", ch.length ? ch.map((k) => `${SHOT_NAMES[k]} ${r.proposal[k]}`).join(" · ")
       : "без промяна: вече съвпада или разликите са отбелязани отдолу"));
-    const basis = Object.entries(r.basis || {}).map(([k, v]) => `${SHOT_PART_BG[k]} по ${v}`).join("; ");
+    const basis = Object.entries(r.basis || {}).map(([k, v]) => `${SHOT_PART_BG[k]} по ${v}${r.confidence && r.confidence[k] ? ` (${r.confidence[k]} сигурност)` : ""}`).join("; ");
     if (basis) box.appendChild(el("div", "reason", `Мерено: ${basis}${r.overlap ? " (общи моменти с еталона)" : ""}.`));
   }
   for (const f of r.flags || []) box.appendChild(el("div", "warn", f));

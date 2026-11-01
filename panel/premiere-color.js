@@ -204,8 +204,10 @@ async function applyShotMatch(project, timeline, jobId, entries) {
       pl.reverted = (chk.revert || []).filter((part) => SHOT_PARTS[part].some((k) => k in back));
       pl.lines.push(`върнато както беше (изравняването стана по-лошо): ${pl.reverted.map((p) => PART_BG[p]).join(", ")}`);
     } else {
-      pl.lines.push("проверено на кадър: по-близо до еталона или същото");
+      pl.lines.push(chk.summary || "проверено на кадър: по-близо до еталона или същото");
     }
+    // which measurements the check could rely on and which it skipped (engine 0.9.30+), never hidden
+    for (const l of chk.report || []) pl.lines.push(`проверка: ${l}`);
   }
   if (acts.length) {
     transaction(project, "Asistent: върни влошеното", (c) => {
