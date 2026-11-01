@@ -1,6 +1,8 @@
 // Smart White Balance + exposure in Premiere: Lumetri Exposure, Temperature and Tint only.
-// One transaction for all clips; if the render check shows the result is off (first use, while the
-// slider calibration is still being learnt, or burnt highlights), one more step corrects it.
+// A freshly created Lumetri has no parameters in Premiere 26.0 (VideoFilterComponent is an empty object
+// until it sits on a clip), so a new Lumetri costs one step (append, no visible change) before the
+// step that sets the values; an existing untouched Lumetri needs only the second. If the render check
+// shows the result is off (slider calibration still being learnt, or burnt highlights), one more step.
 const ppro = require("premierepro");
 const { TickTime, Constants } = ppro;
 const P = require("./premiere.js");
@@ -66,12 +68,26 @@ async function target(clip) {
     return { chain, comp, ps, isNew: false };
   }
   const comp = await ppro.VideoFilterFactory.createComponent(await lumetriMatch());
-  return { chain, comp, ps: await params(comp), isNew: true };
+  return { chain, comp, ps: null, isNew: true };
+}
+
+// after the append: the Lumetri as a real component of the clip (now it has parameters)
+async function attached(t) {
+  const count = await t.chain.getComponentCount();
+  for (let i = count - 1; i >= 0; i--) {
+    const comp = await t.chain.getComponentAtIndex(i);
+    if (/lumetri/i.test((await maybe(comp, "getMatchName")) || "")) {
+      t.comp = comp;
+      t.ps = await params(comp);
+      t.isNew = false;
+      return t;
+    }
+  }
+  throw new Error("Lumetri не се появи на клипа.");
 }
 
 function setActions(t, values) {
   const acts = [];
-  if (t.isNew) acts.push(() => t.chain.createAppendComponentAction(t.comp));
   for (const [k, v] of Object.entries(values)) {
     if (t.ps[k] && v !== undefined && v !== null) acts.push(() => t.ps[k].createSetValueAction(t.ps[k].createKeyframe(v), true));
   }
@@ -155,10 +171,23 @@ async function apply(project, timeline, plans) {
       if (!covered(timeline, pl.clip, pl.mid)) pl.before = await exportFrame(timeline.sequence, pl.mid, `before_${i}.png`, dir);
     }
   }
+  let steps = 0;
+  const fresh = prepared.filter((pl) => pl.t.isNew);
+  if (fresh.length) {
+    transaction(project, "Asistent: Lumetri", (c) => {
+      for (const pl of fresh) c.addAction(pl.t.chain.createAppendComponentAction(pl.t.comp));
+    });
+    steps++;
+    for (const pl of fresh) await attached(pl.t);
+  }
+  const missing = prepared.filter((pl) => Object.keys(pl.values).some((k) => !pl.t.ps[k]));
+  for (const pl of missing) {
+    pl.lines.push(`липсва параметър в Lumetri: ${Object.keys(pl.values).filter((k) => !pl.t.ps[k]).join(", ")}`);
+  }
   transaction(project, "Asistent: поправи цвета", (c) => {
     for (const pl of prepared) for (const make of setActions(pl.t, pl.values)) c.addAction(make());
   });
-  let steps = 1;
+  steps++;
   for (const pl of prepared) {
     const v = pl.values;
     pl.lines.push([v.exposure ? `Exposure ${v.exposure > 0 ? "+" : ""}${v.exposure}` : null,
@@ -196,13 +225,13 @@ async function apply(project, timeline, plans) {
     } else if (pl.wb && chk.residual) {
       pl.lines.push("проверено на кадър: бялото е неутрално");
     }
-    if (Object.keys(fixValues).length) second.push(...setActions({ ...pl.t, isNew: false }, fixValues));
+    if (Object.keys(fixValues).length) second.push(...setActions(pl.t, fixValues));
   }
   if (second.length) {
     transaction(project, "Asistent: поправи цвета (уточнение)", (c) => {
       for (const make of second) c.addAction(make());
     });
-    steps = 2;
+    steps++;
   }
   return { steps };
 }

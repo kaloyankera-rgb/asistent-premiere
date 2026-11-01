@@ -62,13 +62,37 @@ def encode(lin: np.ndarray) -> np.ndarray:
     return np.clip(lin, 0, 1) ** (1 / GAMMA)
 
 
+def _display_size(path: str, info) -> tuple[int, int]:
+    """Width and height as the picture is shown: phones and cameras held upright store a rotation."""
+    import json as _json
+    p = _run([_tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries",
+              "stream_side_data=rotation:stream_tags=rotate", "-of", "json", path])
+    rot = 0
+    try:
+        st = (_json.loads(p.stdout or b"{}").get("streams") or [{}])[0]
+        rot = int(float((st.get("tags") or {}).get("rotate") or 0))
+        for sd in st.get("side_data_list") or []:
+            if "rotation" in sd:
+                rot = int(float(sd["rotation"]))
+    except (ValueError, IndexError):
+        rot = 0
+    w, h = info.width or 16, info.height or 9
+    return (h, w) if abs(rot) % 180 == 90 else (w, h)
+
+
 def read_frames(path: str, n: int = 6, width: int = 480, start: float = 0.0, end: float | None = None) -> list[np.ndarray]:
-    """n frames spread over [start, end) of the media as encoded R'G'B' floats (full range)."""
+    """n frames spread over [start, end) of the media as encoded R'G'B' floats (full range).
+    `width` is the long side; the picture keeps its shown proportions (rotation included)."""
     info = probe(path)
     if not info.has_video:
         raise MediaError(f"{os.path.basename(path)} няма картина.")
     dur = (end if end else info.duration) - start
-    h = int(round(width * info.height / max(info.width, 1) / 2) * 2) if info.width else width
+    dw, dh = _display_size(path, info)
+    if dw >= dh:
+        w, h = width, int(round(width * dh / dw / 2) * 2)
+    else:
+        w, h = int(round(width * dw / dh / 2) * 2), width
+    width = w
     p = _run([_tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=color_range",
               "-of", "default=nk=1:nw=1", path])
     rng = "pc" if p.stdout.decode(errors="replace").strip() == "pc" else "tv"
@@ -314,13 +338,13 @@ def check_render(before_path: str, after_path: str) -> dict:
 
 # ---------------------------------------------------------------- preview and Lumetri calibration
 
-def _jpeg_b64(enc: np.ndarray, width: int = 240) -> str:
-    """A small JPEG of an encoded frame, base64 for the panel's <img>."""
+def _jpeg_b64(enc: np.ndarray) -> str:
+    """A JPEG of an encoded frame at its own size and proportions, base64 for the panel's <img>."""
     import base64
     h, w = enc.shape[:2]
     raw = (np.clip(enc, 0, 1) * 65535).astype("<u2").tobytes()
     p = _run_input([_tool("ffmpeg"), "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb48le", "-s", f"{w}x{h}", "-i", "-",
-                    "-vf", f"scale={width}:-2", "-frames:v", "1", "-q:v", "4", "-f", "mjpeg", "-"], raw)
+                    "-frames:v", "1", "-q:v", "3", "-f", "mjpeg", "-"], raw)
     return base64.b64encode(p).decode("ascii") if p else ""
 
 
@@ -333,7 +357,7 @@ def _run_input(cmd: list[str], data: bytes) -> bytes:
 
 
 def preview(frames: list[np.ndarray], gamma: str | None, res: dict) -> dict:
-    """Before/after of the middle frame as the engine would correct it (an approximation of Lumetri)."""
+    """Before/after of one frame as the engine would correct it (an approximation of Lumetri)."""
     f = frames[len(frames) // 2]
     lin = to_linear(f, gamma)
     gains = np.array(res["white"]["gains"]) if res["white"]["confidence"] != "low" else np.ones(3)
@@ -357,8 +381,10 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
             frames = read_frames(path, start=float(it.get("start") or 0), end=it.get("end"))
             r = decide(frames, gamma)
             r.update(path=path, name=os.path.basename(path))
-            if with_preview:
-                r["preview"] = preview(frames, gamma, r)
+            if with_preview:                       # a sharper frame of its own for the eye (720 px long side)
+                big = read_frames(path, n=1, width=720, start=float(it.get("start") or 0), end=it.get("end"))
+                r["preview"] = preview(big, gamma, r)
+                r["preview"]["portrait"] = big[0].shape[0] > big[0].shape[1]
         except MediaError as e:
             r = {"path": path, "name": os.path.basename(path), "error": str(e)}
         done[0] += 1

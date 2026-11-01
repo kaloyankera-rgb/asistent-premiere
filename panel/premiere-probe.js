@@ -88,19 +88,6 @@ async function run(project) {
     throw new UserError("Клипът вече има Lumetri: за пробата маркирай клип без Lumetri.");
   }
 
-  // Lumetri parameters (a fresh component, not on any clip yet)
-  const matches = (await maybe(ppro.VideoFilterFactory, "getMatchNames")) || [];
-  report.lumetriMatch = matches.find((n) => /lumetri/i.test(n)) || null;
-  if (!report.lumetriMatch) throw new UserError("Не намирам Lumetri в този Premiere.");
-  const comp = await ppro.VideoFilterFactory.createComponent(report.lumetriMatch);
-  const params = await paramInfo(comp);
-  report.lumetriParams = params.map(({ p, ...rest }) => rest);
-  report.exporter = has(ppro.Exporter, "exportSequenceFrame");
-  if (!report.exporter) {
-    await engine.colorProbe(report, null, []);
-    return report;
-  }
-
   // write one parameter at a time on the test clip, export the frame, put it back
   const status = await engine.status();
   const dir = status.frames_dir;
@@ -118,8 +105,32 @@ async function run(project) {
       return null;
     }
   };
-  const source = await shoot("probe_source.png");                       // timeline as it was
+  // Lumetri parameters
+  const matches = (await maybe(ppro.VideoFilterFactory, "getMatchNames")) || [];
+  report.lumetriMatch = matches.find((n) => /lumetri/i.test(n)) || null;
+  if (!report.lumetriMatch) throw new UserError("Не намирам Lumetri в този Premiere.");
+  const comp = await ppro.VideoFilterFactory.createComponent(report.lumetriMatch);
+  // a fresh effect has no parameters until it sits on a clip (26.0): note what it offers, then append
+  report.freshComponentMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(comp) || {}).join(",");
+  report.exporter = has(ppro.Exporter, "exportSequenceFrame");
+
+  const source = report.exporter ? await shoot("probe_source.png") : null;   // timeline as it was
   transaction(project, "Asistent: проба (Lumetri)", (c) => c.addAction(chain.createAppendComponentAction(comp)));
+  let placed = null;
+  for (let i = (await chain.getComponentCount()) - 1; i >= 0; i--) {
+    const c = await chain.getComponentAtIndex(i);
+    if (/lumetri/i.test((await maybe(c, "getMatchName")) || "")) {
+      placed = c;
+      break;
+    }
+  }
+  if (!placed) throw new Error("Lumetri не се появи на клипа.");
+  const params = await paramInfo(placed);
+  report.lumetriParams = params.map(({ p, ...rest }) => rest);
+  if (!report.exporter) {
+    report.result = await engine.colorProbe(report, null, []);
+    return report;
+  }
   const baseline = await shoot("probe_baseline.png");                   // with an untouched Lumetri
   const frames = [];
   for (const [key, re, delta] of TRIES) {
