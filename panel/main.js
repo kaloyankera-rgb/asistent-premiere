@@ -304,7 +304,9 @@ async function onColor() {
       bar.appendChild(b);
     }
     blocks.unshift(bar);
-    finish(all ? "Предложение: нищо не е приложено още." : "Няма какво да се поправя със сигурност.", true, blocks);
+    finish(all ? `Само предложение: в Lumetri още нищо не е сложено. Натисни „${sure ? `Приложи сигурните (${sure})` :
+      `Приложи и средните (${all})`}“ отдолу, за да се приложи.` : "Няма какво да се поправя със сигурност: нищо не е пипано.",
+    true, blocks);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `color: ${e && e.stack ? e.stack : e}`);
