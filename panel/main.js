@@ -6,6 +6,7 @@ const PANEL_VERSION = require("./version.js");
 const premiereImport = require("./premiere-import.js");
 const premiereColor = require("./premiere-color.js");
 const premiereProbe = require("./premiere-probe.js");
+const { plansFor, corrections } = require("./colorplans.js");
 
 const $ = (id) => document.getElementById(id);
 const state = { online: false, busy: false, jobId: null, settleUntil: 0 };
@@ -292,18 +293,7 @@ function colorBlock(clip, r) {
 }
 
 function colorPlans(level) {
-  const ok = (c) => c === "high" || (level === "all" && c === "medium");
-  const plans = [];
-  colorState.sel.clips.forEach((clip, i) => {
-    const r = colorState.results[i];
-    if (!r || r.error) return;
-    // Lumetri units for the wanted stops (engine: the probe's Exposure curve); older engines send stops only
-    const units = r.exposure.units ?? r.exposure.stops;
-    const exposure = r.exposure.stops && ok(r.exposure.confidence) ? units : null;
-    const wb = !r.white.balanced && ok(r.white.confidence);
-    if (exposure || wb) plans.push({ clip, res: r, exposure, wb });
-  });
-  return plans;
+  return plansFor(colorState.sel.clips, colorState.results, level);
 }
 
 async function onColor() {
@@ -328,15 +318,17 @@ async function onColor() {
     const result = await runJob(job);
     Object.assign(colorState, { project, sel, results: result.items });
     const blocks = sel.clips.map((c, i) => colorBlock(c, result.items[i]));
+    // buttons by what they apply: „и средните“ appears whenever it adds a correction „сигурните“ leaves out
     const sure = colorPlans("sure").length;
     const all = colorPlans("all").length;
+    const more = corrections(colorPlans("all")) > corrections(colorPlans("sure"));
     const bar = el("div", "row buttons");
     if (sure) {
       const b = el("button", "small", `Приложи сигурните (${sure})`);
       onTap(b, () => onColorApply("sure"));
       bar.appendChild(b);
     }
-    if (all > sure) {
+    if (more) {
       const b = el("button", "small", `Приложи и средните (${all})`);
       onTap(b, () => onColorApply("all"));
       bar.appendChild(b);
@@ -365,6 +357,10 @@ async function onColorApply(level) {
       const box = el("div", "group");
       box.appendChild(el("div", "name", pl.clip.name));
       for (const l of pl.lines || []) box.appendChild(el("div", "line", l));
+      if (pl.left && pl.left.length && !pl.skipped) {
+        box.appendChild(el("div", "warn", `Не е приложено (средна сигурност): ${pl.left.join(" и ")}. ` +
+          "За да влезе и то: върни с Cmd/Ctrl+Z, натисни „Цвят“ и „Приложи и средните“."));
+      }
       return box;
     });
     const undo = steps === 1 ? "Един Cmd/Ctrl+Z връща всичко." : steps > 1 ? `${steps} пъти Cmd/Ctrl+Z връщат всичко.` : "";
