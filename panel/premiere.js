@@ -121,10 +121,14 @@ async function readTimeline(project) {
     const video = has(ti, "createAddVideoTransitionAction");
     keys.add(`${video ? "video" : "audio"}|${ms(secs(await ti.getStartTime()))}|${ms(secs(await ti.getEndTime()))}`);
   }
+  // either way of knowing counts: the selection list, or the clip itself saying it is selected
   for (const it of items) {
-    it.selected = keys.has(`${it.kind}|${ms(it.start)}|${ms(it.end)}`);
-    if (!it.selected && !picked.length) it.selected = !!(await maybe(it.ti, "getIsSelected"));
+    it.selected = keys.has(`${it.kind}|${ms(it.start)}|${ms(it.end)}`) || !!(await maybe(it.ti, "getIsSelected"));
   }
+  const sel = items.filter((x) => x.selected);
+  debug(`selection: ${picked.length} in the list, ${sel.length} selected parts: ` +
+    sel.map((x) => `${x.kind[0].toUpperCase()}${x.track + 1} ${x.name}${x.path ? "" : " (без файл: офлайн/вложена/графика)"}` +
+      `${Math.abs(x.speed - 1) >= 0.01 ? " (скорост)" : ""}`).join(" | "));
   reportApi({ project, sequence, trackItem: items[0] && items[0].ti, tickTime: TickTime,
     editor: ppro.SequenceEditor.getEditor(sequence) });
 
