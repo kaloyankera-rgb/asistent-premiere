@@ -53,7 +53,8 @@ def validate(body: dict) -> dict:
         if end <= start:
             raise ValueError("Невалиден клип в заявката.")
         clean.append({"path": it["path"], "start": start, "end": end, "at": _num(it.get("at"), "позиция"),
-                      "name": str(it.get("name") or os.path.basename(it["path"]))})
+                      "name": str(it.get("name") or os.path.basename(it["path"])),
+                      "track": int(_num(it.get("track", 0), "писта"))})
     preset = body.get("preset", "auto")
     if preset not in PRESET_NAMES:
         raise ValueError("Невалиден вид субтитри.")
@@ -140,11 +141,11 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         "srt": stem + ".srt", "json": stem + ".json", "preset": preset, "fps": subtitles.exact_fps(p["fps"]),
         "captions": [{"start": c["start"], "end": c["end"], "text": c["text"], "flags": c["flags"]} for c in captions],
         "counts": {"captions": len(captions), "words": len(sequence_words), "flagged": flagged},
-        "notes": mix["notes"], "skipped": p["skipped"], "origin": round(origin, 3),
+        "notes": mix["notes"], "duplicates": mix["duplicates"], "skipped": p["skipped"], "origin": round(origin, 3),
         "mix_seconds": round(len(audio) / ASR_SR, 1), "asr_seconds": round(asr_s, 1), "cached": cached,
     }
     with open(stem + ".json", "w", encoding="utf-8") as f:
-        json.dump({**result, "words": sequence_words}, f, ensure_ascii=False, indent=1)
+        json.dump({**result, "words": sequence_words, "items": p["items"]}, f, ensure_ascii=False, indent=1)
     log.info("subtitles: %d captions, %d words (%d flagged), mix %.1f s, asr %.1f s%s, total %.1f s, preset %s -> %s",
              len(captions), len(sequence_words), flagged, result["mix_seconds"], asr_s, " (cached)" if cached else "",
              time.time() - t0, preset, stem + ".srt")
