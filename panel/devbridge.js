@@ -210,6 +210,58 @@ function createBridge({ premiere, premiereColor, doc, version, engineApi = engin
       const near = t.items.filter((x) => x.end > end + 1).map(brief);
       return { item: await describe(item), at_seconds: end + 5, before, after, tried, caption_items: placed, other_items_after_end: near };
     },
+    // P2b: try one SequenceEditor method with tokens as arguments: "$item" = the bin item `name`, "$t:N" = TickTime of N
+    // seconds, "$seq" = active sequence, numbers/booleans as they are. Reports caption tracks before/after.
+    async editor_try(a) {
+      const { p } = await project();
+      const ppro = require("premierepro");
+      const seq = await p.getActiveSequence();
+      const bin = await premiere.ensureBin(p, "Asistent тест");
+      const item = ((await bin.getItems()) || []).find((x) => x.name === a.name);
+      if (!item) throw new Error("Няма такъв елемент в „Asistent тест“: " + a.name);
+      const editor = ppro.SequenceEditor.getEditor(seq);
+      const args = (a.args || []).map((x) => (x === "$item" ? (ppro.ProjectItem.cast(item) || item) : x === "$seq" ? seq
+        : typeof x === "string" && x.startsWith("$t:") ? ppro.TickTime.createWithSeconds(Number(x.slice(3))) : x));
+      const before = { captions: await seq.getCaptionTrackCount(), video: await seq.getVideoTrackCount(), audio: await seq.getAudioTrackCount() };
+      let outcome;
+      try {
+        let act;
+        premiere.transaction(p, `Asistent тест: ${a.method}`, (c) => { act = editor[a.method](...args); if (act) c.addAction(act); });
+        outcome = { ok: true, returned: typeof act };
+      } catch (e) {
+        outcome = { ok: false, error: (e && e.message) || String(e) };
+      }
+      const after = { captions: await seq.getCaptionTrackCount(), video: await seq.getVideoTrackCount(), audio: await seq.getAudioTrackCount() };
+      return { method: a.method, outcome, before, after };
+    },
+    // caption tracks of the active sequence: items with their names and times, and the method names of one item
+    async captions_state() {
+      const { p } = await project();
+      const ppro = require("premierepro");
+      const seq = await p.getActiveSequence();
+      const n = await seq.getCaptionTrackCount();
+      const tracks = [];
+      let sample = null;
+      for (let i = 0; i < n; i++) {
+        const tr = await seq.getCaptionTrack(i);
+        const items = [];
+        for (const ti of (await premiere.maybe(tr, "getTrackItems", ppro.Constants.TrackItemType.CLIP, false)) || []) {
+          sample = sample || ti;
+          items.push({ name: await premiere.maybe(ti, "getName"), start: premiere.secs(await premiere.maybe(ti, "getStartTime")),
+            end: premiere.secs(await premiere.maybe(ti, "getEndTime")) });
+        }
+        tracks.push({ index: i, name: tr.name, items });
+      }
+      const methods = [];
+      for (let q = sample; q && q !== Object.prototype; q = Object.getPrototypeOf(q)) methods.push(...Object.getOwnPropertyNames(q));
+      let source = null;
+      if (sample) {
+        const pi = await premiere.maybe(sample, "getProjectItem");
+        const cp = pi && (ppro.ClipProjectItem.cast(pi) || pi);
+        source = pi ? { name: pi.name, path: await premiere.maybe(cp, "getMediaFilePath"), type: pi.type } : null;
+      }
+      return { count: n, tracks, source, methods: [...new Set(methods)].sort() };
+    },
     // P3: Premiere's own transcript of the selected clip (needs Speech to Text run on it once) as JSON text
     async transcript_export(a) {
       const { p } = await project();

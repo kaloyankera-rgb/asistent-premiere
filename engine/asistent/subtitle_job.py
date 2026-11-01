@@ -18,13 +18,14 @@ import re
 import time
 from typing import Callable
 
-from . import align, asr, config, dialoguemix, subtitles
+from . import align, asr, config, consensus, dialoguemix, lexicon, subtitles
 from .dialoguemix import ASR_SR, build_mix, read_segment
 from .sync import Cancelled
 
 log = logging.getLogger("asistent")
 CACHE_VERSION = 2
-PAD = 2.0                  # seconds of real media around each piece, for Whisper's context
+PAD = 2.0                  # seconds of real media around each piece, for Whisper's context (the main reading)
+EXTRA_PADS = (0.7, 4.0)    # two more readings with less and more surrounding sound: they vote on words (consensus.py)
 MIN_OVERLAP = 0.4          # a word belongs to the piece when this much of it lies inside the piece
 PRESET_NAMES = ("auto", "short", "standard")
 
@@ -122,9 +123,10 @@ def _inside(w: dict, lo: float, hi: float) -> bool:
     return (min(w["end"], hi) - max(w["start"], lo)) / d >= MIN_OVERLAP
 
 
-def piece_words(seg: dict, prompt: str, spoken: dict, progress, cancelled) -> tuple[list[dict], dict]:
-    """Words of one piece in SEQUENCE seconds, plus {"cached", "aligned", "weak", "align_error"}."""
-    y, lead = read_segment(seg, PAD)
+def _reading(seg: dict, pad: float, prompt: str, spoken: dict, align_it: bool, progress, cancelled) -> tuple[list[dict], float, dict]:
+    """One reading of the piece with `pad` seconds of real media around it -> (words in seconds from the start of the
+    padded audio, lead-in actually available, {"cached", "aligned", "weak", "align_error"?})."""
+    y, lead = read_segment(seg, pad)
     key = _words_key(y, prompt)
     entry = _cached(key) or {}
     cached = "words" in entry
@@ -133,7 +135,7 @@ def piece_words(seg: dict, prompt: str, spoken: dict, progress, cancelled) -> tu
         _store(key, entry)
     info = {"cached": cached, "aligned": 0, "weak": 0}
     words = entry["words"]
-    if align.available():
+    if align_it and align.available():
         if "aligned" not in entry:
             entry["aligned"], entry["align_info"] = align.align_words(y, words, spoken)
             if "error" not in entry["align_info"]:
@@ -142,10 +144,29 @@ def piece_words(seg: dict, prompt: str, spoken: dict, progress, cancelled) -> tu
         info.update({k: v for k, v in info_a.items() if k in ("aligned", "weak")})
         if "error" in info_a:
             info["align_error"] = info_a["error"]
+    return words, lead, info
+
+
+def piece_words(seg: dict, prompt: str, spoken: dict, progress, cancelled) -> tuple[list[dict], dict]:
+    """Words of one piece in SEQUENCE seconds, plus {"cached", "aligned", "weak", "align_error"?, "changed", "unsure"}.
+
+    The main reading (PAD seconds around the piece) is aligned to the sound and gives the words and their times; the
+    EXTRA_PADS readings only vote (consensus.py): a word they outvote is replaced, a word nobody agrees on is marked."""
     dur = seg["end"] - seg["start"]
-    out = [dict(w, start=round(seg["at"] + w["start"] - lead, 3), end=round(seg["at"] + w["end"] - lead, 3))
-           for w in words if _inside(w, lead, lead + dur)]
-    return out, info
+    n = 1 + len(EXTRA_PADS)
+
+    def step(k):
+        return lambda f, m: progress((k + f) / n, m)
+    words, lead, info = _reading(seg, PAD, prompt, spoken, True, step(0), cancelled)
+    mine = [dict(w, start=w["start"] - lead, end=w["end"] - lead) for w in words if _inside(w, lead, lead + dur)]
+    others = []
+    for k, pad in enumerate(EXTRA_PADS, 1):
+        ws, ld, inf = _reading(seg, pad, prompt, spoken, False, step(k), cancelled)
+        info["cached"] = info["cached"] and inf["cached"]
+        others.append([dict(w, start=w["start"] - ld, end=w["end"] - ld) for w in ws if _inside(w, ld, ld + dur)])
+    mine, votes = consensus.merge(mine, others, lexicon.known, lexicon.respell)
+    info.update(votes)
+    return [dict(w, start=round(seg["at"] + w["start"], 3), end=round(seg["at"] + w["end"], 3)) for w in mine], info
 
 
 def _same_word(a: dict, b: dict) -> bool:
@@ -167,7 +188,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     done = 0.0
     words: list[dict] = []
     cached = True
-    aligned = weak = 0
+    aligned = weak = changed = unsure = 0
     align_error = None
     t_asr = time.time()
     for n, sg in enumerate(segments):
@@ -180,6 +201,8 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         cached = cached and info["cached"]
         aligned += info["aligned"]
         weak += info["weak"]
+        changed += info["changed"]
+        unsure += info["unsure"]
         align_error = align_error or info.get("align_error")
         done += share
     asr_s = time.time() - t_asr
@@ -205,6 +228,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         "captions": [{"start": c["start"], "end": c["end"], "text": c["text"], "flags": c["flags"]} for c in captions],
         "counts": {"captions": len(captions), "words": len(words), "flagged": flagged, "pieces": len(segments)},
         "timing": {"method": timing, "aligned": aligned, "weak": weak, "error": align_error},
+        "readings": {"count": 1 + len(EXTRA_PADS), "changed": changed, "unsure": unsure, "dictionary": lexicon.available()},
         "notes": mix["notes"], "duplicates": mix["duplicates"], "skipped": p["skipped"],
         "origin": round(mix["origin"], 3), "mix_seconds": round(len(mix["audio"]) / ASR_SR, 1), "asr_seconds": round(asr_s, 1), "cached": cached,
     }

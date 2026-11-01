@@ -167,3 +167,49 @@ def test_subtitles_request_is_checked_before_a_job_starts(engine):
     assert code == 400 and "Маркирай" in res["error"]
     code, res = call("POST", "/subtitles", {"items": [{"path": "/nope.wav", "start": 0, "end": 1, "at": 0}]})
     assert code == 400 and "липсва" in res["error"]
+
+
+def test_host_channel_places_captions_through_the_host(engine, tmp_path, monkeypatch):
+    from asistent import hostbridge
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    srt = tmp_path / "a.srt"
+    srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nда\n", encoding="utf-8")
+    hostbridge._state.update(seen=0.0, version=None)
+    code, data = call("POST", "/captions/place", {"srt": str(srt), "sequence": "Seq"})
+    assert code == 400 and "не работи" in data["error"]                       # no host has polled: a clear reason
+    assert call("GET", "/host/status")[1]["connected"] is False
+
+    got = {}
+
+    def host():                                                               # what host/main.js does
+        code, cmd = call("GET", "/host/poll?wait=5", headers={"X-Asistent-Host": "0.9.45"})
+        got["cmd"] = cmd
+        call("POST", "/host/result", {"id": cmd["id"], "ok": True, "data": {"ok": True, "msg": "ok", "tracks_after": 1}})
+    t = threading.Thread(target=host)
+    t.start()
+    time.sleep(0.3)
+    assert call("GET", "/host/status")[1] == {"connected": True, "age": pytest.approx(0, abs=2), "version": "0.9.45"}
+    code, res = call("POST", "/captions/place", {"srt": str(srt), "sequence": "Seq", "project": "/p/TEST.prproj"})
+    t.join(5)
+    assert code == 200 and res["ok"] and res["tracks_after"] == 1
+    assert got["cmd"]["name"] == "captions" and got["cmd"]["args"] == {"srt": str(srt), "sequence": "Seq", "project": "/p/TEST.prproj", "bin": "Субтитри"}
+
+
+def test_host_place_is_checked_and_eval_needs_the_dev_flag(engine, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    assert call("POST", "/captions/place", {"srt": str(tmp_path / "nope.srt"), "sequence": "S"})[0] == 400
+    assert call("POST", "/captions/place", {"srt": "x", "sequence": ""})[0] == 400
+    assert call("POST", "/host/command", {"name": "eval", "args": {"code": "1"}})[0] == 404      # no flag file
+
+
+def test_caption_state_remembers_the_track_per_project_and_sequence(engine, tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    q = "project=%2Fp%2FA.prproj&sequence=Seq"
+    assert call("GET", f"/captions/state?{q}")[1] == {}
+    sig = {"index": 1, "count": 25, "first": 0.0, "last": 23.7, "srt": "/a.srt"}
+    assert call("POST", "/captions/record", {"project": "/p/A.prproj", "sequence": "Seq", "signature": sig})[0] == 200
+    assert call("GET", f"/captions/state?{q}")[1] == sig
+    assert call("GET", "/captions/state?project=%2Fp%2FB.prproj&sequence=Seq")[1] == {}       # another project: nothing
+    assert call("POST", "/captions/record", {"project": "/p/A.prproj", "sequence": "Seq", "signature": {"index": "x"}})[0] == 400
+    assert call("POST", "/captions/forget", {"project": "/p/A.prproj", "sequence": "Seq"})[0] == 200
+    assert call("GET", f"/captions/state?{q}")[1] == {}

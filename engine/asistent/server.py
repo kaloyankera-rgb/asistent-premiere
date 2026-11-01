@@ -10,6 +10,12 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /subtitles            {"items": [{path, start, end, at, name}], "out_dir", "name", "fps", "width", "height",
                               "preset"?: auto|short|standard, "terms"?: [...], "skipped"?: [...]} -> job: dialogue mix ->
                               Whisper -> captions -> SRT + JSON in <out_dir>/Asistent_subtitles (nothing goes to Premiere)
+  GET  /host/poll?wait=s     the Premiere host (CEP extension, ExtendScript): the next command; GET /host/status
+  POST /host/result          {id, ok, data} from the host
+  POST /captions/place       {"srt", "sequence", "project"?, "bin"?} -> puts the SRT on a caption track of the active
+                             sequence through the host; {"ok", "msg", ...} (503 with the reason when the host is away)
+  GET  /captions/state?project=&sequence=   the caption track Asistent placed there before ({} when none)
+  POST /captions/record      {project, sequence, signature: {index, count, first, last, srt}}; POST /captions/forget
   GET  /dev/poll?wait=s      test bridge (only with devbridge.enabled): the next panel command
   POST /dev/command          {name, args} -> {id};  GET /dev/result?id=&wait=s;  POST /dev/result {id, ok, data}
   POST /sync                 {"paths": [...], "reference": null|int} -> {"job": id}
@@ -60,6 +66,8 @@ from . import shotmatch as SHOT
 from . import asr
 from . import subtitle_job
 from . import devbridge
+from . import hostbridge
+from . import captionstate
 
 SHOT_REFS: dict = {}            # shot-match job id -> reference look (for the render check after applying)
 from .sync import sync_clips
@@ -228,6 +236,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, _import_status(project))
         if self.path == "/subtitles/model":
             return self._send(200, asr.model_status())
+        if url.path == "/captions/state":
+            q = parse_qs(url.query)
+            return self._send(200, captionstate.get((q.get("project") or [""])[0], (q.get("sequence") or [""])[0]) or {})
+        if url.path == "/host/status":
+            return self._send(200, hostbridge.status())
+        if url.path == "/host/poll":
+            q = parse_qs(url.query)
+            hostbridge.touch(self.headers.get("X-Asistent-Host"))
+            wait = float((q.get("wait") or ["0"])[0] or 0)
+            cmd = hostbridge.HOST.poll(wait)
+            hostbridge.touch()                     # the poll itself can last 20 s: it is alive when it returns
+            return self._send(200, cmd or {})
         if url.path in ("/dev/poll", "/dev/result"):
             if not devbridge.enabled():
                 return self._send(404, {"error": "Тестовият мост е изключен."})
@@ -264,6 +284,36 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"job": JOBS.submit("subtitles_model", work).id})
             if self.path == "/subtitles":
                 return self._send(200, _start_subtitles(body))
+            if self.path == "/host/result":
+                hostbridge.HOST.result(str(body.get("id") or ""), bool(body.get("ok")), body.get("data"))
+                hostbridge.touch()
+                return self._send(200, {"ok": True})
+            if self.path == "/captions/place":
+                srt, seq = body.get("srt"), body.get("sequence")
+                if not isinstance(srt, str) or not isinstance(seq, str) or not seq:
+                    raise ValueError("Липсва файл или секвенция.")
+                proj = body.get("project") if isinstance(body.get("project"), str) else None
+                res = hostbridge.place_captions(srt, seq, proj, str(body.get("bin") or "Субтитри"))
+                log.info("captions/place: %s", res)
+                return self._send(200, res)
+            if self.path in ("/captions/record", "/captions/forget"):
+                proj, seq = body.get("project"), body.get("sequence")
+                if not isinstance(proj, str) or not isinstance(seq, str) or not seq:
+                    raise ValueError("Липсва проект или секвенция.")
+                if self.path == "/captions/forget":
+                    captionstate.forget(proj, seq)
+                else:
+                    sig = body.get("signature")
+                    if not isinstance(sig, dict):
+                        raise ValueError("Липсва подпис.")
+                    captionstate.record(proj, seq, sig)
+                return self._send(200, {"ok": True})
+            if self.path == "/host/command":
+                if not devbridge.enabled():
+                    return self._send(404, {"error": "Тестовият мост е изключен."})
+                res = hostbridge.run(str(body.get("name") or ""), body.get("args") if isinstance(body.get("args"), dict) else {},
+                                     float(body.get("wait") or 60))
+                return self._send(200, res)
             if self.path in ("/dev/command", "/dev/result"):
                 if not devbridge.enabled():
                     return self._send(404, {"error": "Тестовият мост е изключен."})

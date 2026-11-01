@@ -8,3 +8,4 @@ tokenizers==0.23.3
 huggingface_hub==2.4.0
 onnxruntime==1.31.1
 av==19.0.2
+spylls==0.1.7             # MIT, pure Python Hunspell: the Bulgarian word check (lexicon.py)

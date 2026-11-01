@@ -10,7 +10,9 @@ const { plansFor, corrections, statusOf, STATUS_BG } = require("./colorplans.js"
 const { cameras, shotMoments } = require("./moments.js");
 const { createBridge } = require("./devbridge.js");
 const premiereSubtitles = require("./premiere-subtitles.js");
+const premiereCaptions = require("./premiere-captions.js");
 const { describeResult } = require("./subtitleplan.js");
+const { describePlacement } = require("./captionplan.js");
 
 const $ = (id) => document.getElementById(id);
 const state = { online: false, busy: false, jobId: null, settleUntil: 0 };
@@ -305,7 +307,16 @@ async function onSubtitles() {
     const { payload, plan } = await premiereSubtitles.readInput(project, []);
     engine.log("info", `subtitles: ${plan.use.length} клипа, ${plan.skipped.length} пропуснати`);
     const { job } = await engine.startSubtitles(payload);
-    const out = describeResult(await runJob(job));
+    const result = await runJob(job);
+    const out = describeResult(result);
+    if (out.ok) {
+      // one press: the file is made, then it goes onto a caption track of the same sequence (engine host, see DECISIONS.md)
+      progress(0.98, "Слагам субтитрите на таймлайна…");
+      const placed = describePlacement(await premiereCaptions.place(project, await project.getActiveSequence(), result), result.srt);
+      out.text = placed.ok ? `Готово: ${result.counts.captions} реда субтитри, на таймлайна.` : placed.text;
+      out.ok = placed.ok;
+      out.lines = [...placed.lines, ...out.lines.filter((l) => !/^Файл: /.test(l.text))];
+    }
     finish(out.text, out.ok, out.lines.map((l) => el("div", l.cls, l.text)));
   } catch (e) {
     finish(e.message || String(e), false);

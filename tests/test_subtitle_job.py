@@ -18,6 +18,12 @@ def home(tmp_path, monkeypatch):
     return tmp_path
 
 
+@pytest.fixture(autouse=True)
+def one_reading(monkeypatch):
+    """The job reads each piece three times in production (consensus); the older tests fake one reading."""
+    monkeypatch.setattr(subtitle_job, "EXTRA_PADS", ())
+
+
 def clip(tmp_path, name, seconds, seed):
     return synth.write_wav(tmp_path / name, [synth.talker(seconds, seed)])
 
@@ -324,3 +330,46 @@ def test_weak_and_letterless_words_keep_whisper_times_and_order_stays_monotonic(
     out, weak = align._fix(ws, res)
     assert weak == 1 and out[1]["start"] == 1.4 and out[1]["aligned"] is False
     assert [w["start"] for w in out] == sorted(w["start"] for w in out) and out[2]["start"] >= out[1]["start"]
+
+
+def middle(home):
+    """A 2 s piece in the middle of a 12 s file, so every context has real sound around it."""
+    a = clip(home, "long.wav", 12, 3)
+    return body(home, items=[{"path": a, "start": 5.0, "end": 7.0, "at": 0.0, "name": "M"}])
+
+
+def test_three_readings_outvote_a_word_and_mark_a_word_nobody_agrees_on(home, monkeypatch):
+    """Measured: „нища“ / „неща“ / „неща“ for one word; the main reading is the 2 s one (its audio is the longest-lead)."""
+    monkeypatch.setattr(subtitle_job, "EXTRA_PADS", (0.7, 4.0))
+    words = {"сума", "съм", "неща", "ти", "своя"}
+    monkeypatch.setattr(subtitle_job.lexicon, "known", lambda w: __import__("re").sub(r"\W", "", w.lower()) in words)
+    monkeypatch.setattr(subtitle_job.lexicon, "available", lambda: True)
+    seen = []
+
+    def fake(audio, prompt, progress, cancelled):
+        seen.append(len(audio))
+        k = len(seen)
+        lead = (2.0, 0.7, 4.0)[k - 1]                                # the audio starts this long before the piece
+        w = lambda t, a, p=0.9: {"word": t, "start": lead + a, "end": lead + a + 0.3, "p": p}
+        if k == 1:                                                   # main reading (PAD 2.0): wrong word, a word cut by the edit
+            return [w("сума", 0.2), w("нища", 0.6, 0.68), w("съм", 1.0), w("десом.", 1.4, 0.41)]
+        if k == 2:
+            return [w("сума", 0.2), w("неща", 0.6), w("съм", 1.0), w("ти", 1.4)]
+        return [w("сума", 0.2), w("неща", 0.6), w("съм", 1.0), w("своя.", 1.4)]
+    monkeypatch.setattr(asr, "transcribe", fake)
+    res = subtitle_job.run(middle(home), lambda f, m: None, lambda: False)
+    text = " ".join(c["text"].replace("\n", " ") for c in res["captions"])
+    assert "неща" in text and "нища" not in text
+    assert res["readings"] == {"count": 3, "changed": 1, "unsure": 1, "dictionary": True}
+    assert [f["word"] for c in res["captions"] for f in c["flags"]] == ["десом."]       # reported, not guessed
+    assert len(seen) == 3
+
+
+def test_extra_readings_are_cached_per_context(home, monkeypatch):
+    monkeypatch.setattr(subtitle_job, "EXTRA_PADS", (0.7, 4.0))
+    n = []
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: n.append(1) or [dict(w) for w in WORDS])
+    b = middle(home)
+    subtitle_job.run(b, lambda f, m: None, lambda: False)
+    subtitle_job.run(b, lambda f, m: None, lambda: False)
+    assert len(n) == 3                                              # three contexts once, nothing again

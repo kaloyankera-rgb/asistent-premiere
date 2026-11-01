@@ -18,6 +18,10 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `premiere-audio.js` Fill L/R, split copy, Volume level/keyframes · `channels.js` effect-chain routing
   - `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
   - `devbridge.js` test bridge executor · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
+- **Asistent host** `host/` (since 0.9.45): an invisible CEP extension (`CSXS/manifest.xml`, `main.js`, `host.jsx`) installed by
+  `scripts/install_host_mac.sh` (called by `release_mac.sh`). It long-polls `GET /host/poll` and runs ExtendScript inside Premiere,
+  now only `createCaptionTrack` for the subtitles (UXP cannot). A NEW extension needs one Premiere restart; `host.jsx` is read per
+  command, so edits to it need none. Separate from Quick Search. Development: `scripts/dev_cmd.py host ping|probe|captions|eval`.
 - **Python engine** `engine/asistent/` (stdlib HTTP server on `127.0.0.1:47390`, requests must carry
   header `X-Asistent: 1`; web origins and foreign Host headers are rejected). Started by `engine/run_engine.py`.
   - `server.py` endpoints · `jobs.py` background jobs (progress, cancel) · `config.py` paths, version, logging
@@ -25,7 +29,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `audio.py` channel analysis, loudness, phrase leveling · `importer.py` folder watching and queue
   - `shotmatch.py` Auto Shot Match: anchors (skin from faces, neutrals, tones), Lumetri simulation, absolute fit, check
   - `asr.py` speech recognition (faster-whisper large-v3 from `<app>/models/whisper`, local only, never downloads by itself; optional `requirements-asr.txt`)
-  - `subtitles.py` Phase 7 text core: captions from timed words (Bulgarian spelling `bgtext.py`, line breaking, presets short/standard, frame snap, SRT with BOM); not wired yet
+  - `subtitles.py` Phase 7 text core: captions from timed words (Bulgarian spelling `bgtext.py`, phrase grouping for 9:16, frame snap, no blink, SRT with BOM)
+  - `subtitle_job.py` + `dialoguemix.py` the `/subtitles` job: cleanest microphone per speech, per-piece recognition (3 readings), `align.py`/`align_worker.py` optional MMS_FA alignment in `venv-align`, `consensus.py` + `lexicon.py` word votes with the Bulgarian dictionary
+  - `hostbridge.py` + `captionstate.py` the channel to the Asistent host (below) and the memory of which caption track Asistent placed
   - `devbridge.py` test bridge: the panel runs commands from the engine (`scripts/dev_cmd.py`), only in TEST.prproj, off without the flag file `devbridge.enabled`
   - `faces.py` face detector (YuNet through OpenCV, model in `models/`); no OpenCV/model → no skin anchor
   - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`)
@@ -61,7 +67,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 - Independent of the user's own CEP extension Quick Search (`com.contentstudio.barzo`, ports 47231–47234):
   never import, call or modify it.
 - One button press = one Undo step wherever Premiere allows; when it cannot, the panel says how many.
-- Never remove track items through UXP (crashed Premiere 26.0.2, see `DECISIONS.md`).
+- Never remove track items through UXP (crashed Premiere 26.0.2, see `DECISIONS.md`); the host never removes anything either unless the user approves a specific deletion.
 - Never mute, reroute or rearrange tracks on the user's behalf.
 - Main microphone peak ≤ −6 dBFS; no compression or limiting by default.
 - Nothing uncertain is applied automatically (sync, routing, colour); zero correction is a valid result.
