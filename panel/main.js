@@ -38,6 +38,11 @@ function el(tag, cls, text) {
 
 function finish(text, ok, blocks) {
   show("result", true);
+  try {
+    document.body.scrollTop = 0;                 // the answer is at the top of the panel: bring it into view
+  } catch (e) {
+    /* older UXP */
+  }
   $("summary").textContent = text;
   $("summary").className = ok ? "ok" : "err";
   const box = $("details");
