@@ -9,7 +9,9 @@ Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 ## B. Colour engine, per `COLOR_CORRECTION_PLAN.md` (current focus of the user)
 1. **Probe and exposure curve: done** (0.9.13-0.9.14, see `PROJECT_STATUS.md`). Confirm with the user: one
    „Приложи“ at 0.9.14 on a clip with skin; the „color check“ line should show `exposure_after` near 0.
-   If it still falls short, raise once in the check step (now it only steps back on clipping).
+   Done 12:29 (skin 0.14 stop short at 1.7 units). Open: the clipping step-back is a fixed −0.5 units and
+   unverified; step back only as far as the clipping limit needs (estimate from the after frame) and re-check
+   once after the step.
    Also measure darkening (Exposure −1) in the probe so the curve covers both directions.
 2. **Analyse timeline renders, not source files** (T13, T18): export the clip's frames from the active sequence
    (several moments, skip moments covered by upper layers) and run `decide()` on them; fall back to source
