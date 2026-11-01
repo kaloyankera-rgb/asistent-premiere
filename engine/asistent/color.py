@@ -555,12 +555,13 @@ def _diag_720(item: dict, first: np.ndarray, path: str) -> None:
     """Temporary (0.9.20): the same moment exported at 480 and at 720 px, mean brightness of each, to see
     whether Premiere returns a stale picture at 720 px (C0739 13:08)."""
     import logging
-    p = item.get("diag720")
-    hit = _wait_file(p, 3.0) if isinstance(p, str) and _in_frames_dir(p) else None
-    if hit:
-        big = read_image(hit)
-        logging.getLogger("asistent").info("diag720 %s: mean luma 480px %.4f, 720px %.4f", os.path.basename(path),
-                                           float(_luma(first).mean()), float(_luma(big).mean()))
+    out = {"480px moment 0": round(float(_luma(first).mean()), 4)}
+    for key, label in (("diag720", "720px moment 0"), ("diagMid", "480px middle")):
+        p = item.get(key)
+        hit = _wait_file(p, 3.0) if isinstance(p, str) and _in_frames_dir(p) else None
+        if hit:
+            out[label] = round(float(_luma(read_image(hit)).mean()), 4)
+    logging.getLogger("asistent").info("diag frames %s: %s", os.path.basename(path), out)
 
 
 def review_needed(r: dict) -> None:
