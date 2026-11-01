@@ -43,8 +43,7 @@ Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 „Изравни фразите“, one Undo (audio), „Раздели R/L“, auto-import speed.
 
 ## C2. Phase 7 subtitles (user's current focus, 2026-11-01)
-Plan: `docs/SUBTITLES_PLAN.md` (M0 probes → M1 text core → M2 ASR + install → M3 mix + job → M4 review + import).
-Waiting for the user's 4 decisions at the end of that file and the OK for downloads and for writing to TEST.prproj.
+Plan: `docs/SUBTITLES_PLAN.md`. Done: M0 probes (0.9.39), M1 text core (0.9.40). Next: M2 ASR + install, which needs the user's explicit OK for the pip packages (~250 MB) and the ~3 GB model.
 
 ## D. Later phases
 5 Client profiles + Prepare Project (in the office; draft in `profiles.py`/`prepare.py`; Basecamp paste),
