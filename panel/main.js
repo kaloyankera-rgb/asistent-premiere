@@ -8,7 +8,28 @@ const premiereColor = require("./premiere-color.js");
 const premiereProbe = require("./premiere-probe.js");
 
 const $ = (id) => document.getElementById(id);
-const state = { online: false, busy: false, jobId: null };
+const state = { online: false, busy: false, jobId: null, settleUntil: 0 };
+
+// Every press goes through onTap: it is logged with the button's label (so the log says what was really
+// pressed) and ignored for a moment after the panel changed under the pointer. An answer appearing at the
+// top moves every button down, and a second click on the same spot landed on „Оправи звука“ (2026-11-01).
+const SETTLE_MS = 700;
+
+function settle() {
+  state.settleUntil = Date.now() + SETTLE_MS;
+}
+
+function onTap(button, fn) {
+  button.addEventListener("click", () => {
+    const label = (button.textContent || "").trim();
+    if (Date.now() < state.settleUntil) {
+      engine.log("info", `panel: click ignored (panel just changed): ${label}`);
+      return;
+    }
+    engine.log("info", `panel: click: ${label}`);
+    fn();
+  });
+}
 
 function show(id, visible) {
   $(id).hidden = !visible;
@@ -18,6 +39,7 @@ function setBusy(busy) {
   state.busy = busy;
   for (const b of document.querySelectorAll("button.action, button.small")) b.disabled = busy || !state.online;
   show("work", busy);
+  settle();
 }
 
 function progress(fraction, message) {
@@ -38,6 +60,7 @@ function el(tag, cls, text) {
 
 function finish(text, ok, blocks) {
   show("result", true);
+  settle();
   try {
     $("app").scrollTop = 0;                      // the answer is at the top of the panel: bring it into view
   } catch (e) {
@@ -297,12 +320,12 @@ async function onColor() {
     const bar = el("div", "row buttons");
     if (sure) {
       const b = el("button", "small", `Приложи сигурните (${sure})`);
-      b.addEventListener("click", () => onColorApply("sure"));
+      onTap(b, () => onColorApply("sure"));
       bar.appendChild(b);
     }
     if (all > sure) {
       const b = el("button", "small", `Приложи и средните (${all})`);
-      b.addEventListener("click", () => onColorApply("all"));
+      onTap(b, () => onColorApply("all"));
       bar.appendChild(b);
     }
     blocks.unshift(bar);
@@ -342,15 +365,32 @@ async function onColorApply(level) {
   }
 }
 
-// capability probe: asks first, because it puts a Lumetri on the selected clip
+// capability probe: asks first, because it puts a Lumetri on the selected clip. The question opens right
+// under the probe button, so nothing above it moves and a second click hits the probe button again
 function onProbeAsk() {
+  if ($("probeConfirm")) return;
+  const row = $("probe").parentNode;
+  const box = el("div", "confirm");
+  box.id = "probeConfirm";
+  box.appendChild(el("p", "hint", "Пробата слага Lumetri на маркирания клип, пише по един параметър, изнася кадри и " +
+    "връща стойностите. Само в тестов проект, с ЕДИН маркиран видео клип без Lumetri."));
+  const bar = el("div", "row buttons");
   const go = el("button", "small", "Да, пусни пробата");
-  go.addEventListener("click", onProbe);
-  finish("Пробата слага Lumetri на маркирания клип, пише по един параметър, изнася кадри и връща стойностите. " +
-    "Само в тестов проект, с ЕДИН маркиран видео клип без Lumetri.", false, [go]);
+  const no = el("button", "small", "Не");
+  const close = () => box.parentNode && box.parentNode.removeChild(box);
+  onTap(go, () => {
+    close();
+    onProbe();
+  });
+  onTap(no, close);
+  bar.appendChild(go);
+  bar.appendChild(no);
+  box.appendChild(bar);
+  row.parentNode.insertBefore(box, row.nextSibling);
+  settle();
 }
 
-const STATE_BG = { SUPPORTED: "работи", BLOCKED: "не е достъпно" };
+const STATE_BG = { SUPPORTED: "работи", BLOCKED: "не е достъпно", UNVERIFIED: "не е измерено достоверно" };
 
 async function onProbe() {
   if (state.busy) return;
@@ -383,8 +423,8 @@ async function onProbe() {
   }
 }
 
-$("color").addEventListener("click", onColor);
-$("probe").addEventListener("click", onProbeAsk);
+onTap($("color"), onColor);
+onTap($("probe"), onProbeAsk);
 
 // ---------------------------------------------------------------- auto import
 
@@ -447,18 +487,19 @@ async function importSwitch(folder) {
   }
 }
 
-$("importToggle").addEventListener("click", () => importSwitch(null));
-$("importFolder").addEventListener("click", async () => {
+onTap($("importToggle"), () => importSwitch(null));
+onTap($("importFolder"), async () => {
   const folder = await premiereImport.pickFolder().catch(() => null);
   if (folder) importSwitch(folder);
 });
 importLoop();
 
-$("sync").addEventListener("click", onSync);
-$("audio").addEventListener("click", () => onAudio(null));
+onTap($("sync"), onSync);
+onTap($("audio"), () => onAudio(null));
 // only the audio buttons carry data-force: "button.small" alone also caught the probe and the import
 // buttons, so they ran „Оправи звука“ too (and its result hid the probe's question)
-for (const b of document.querySelectorAll("button.small[data-force]")) b.addEventListener("click", () => onAudio(b.getAttribute("data-force")));
+for (const b of document.querySelectorAll("button.small[data-force]")) onTap(b, () => onAudio(b.getAttribute("data-force")));
+// Отказ must always work, also right after the panel changed
 $("cancel").addEventListener("click", () => {
   if (state.jobId) engine.cancel(state.jobId).catch(() => {});
 });

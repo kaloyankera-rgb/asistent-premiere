@@ -214,3 +214,42 @@ def test_exported_frame_found_under_either_name(tmp_path):
     assert C._wait_file(str(asked), 0.3) == str(asked) + ".png"
     asked.write_bytes(b"\x89PNG")
     assert C._wait_file(str(asked), 0.3) == str(asked)
+
+
+def test_probe_with_identical_frames_is_unverified_and_learns_nothing(tmp_path, monkeypatch):
+    # 26.0.2 queued every export and rendered them all after the values were restored: seven equal frames
+    import subprocess as sp
+    from asistent import config
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    raw = (np.clip(C.encode(scene()), 0, 1) * 65535).astype("<u2")
+    h, w = raw.shape[:2]
+    paths = []
+    for name in ("base", "e", "t", "g"):
+        p = tmp_path / f"{name}.png"
+        sp.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb48le", "-s", f"{w}x{h}", "-i", "-",
+                "-frames:v", "1", str(p)], input=raw.tobytes(), check=True)
+        paths.append(str(p))
+    frames = [{"param": "exposure", "from": 0, "to": 1, "path": paths[1]},
+              {"param": "temperature", "from": 0, "to": 50, "path": paths[2]},
+              {"param": "tint", "from": 0, "to": 50, "path": paths[3]}]
+    res = C.probe_measure({"baseline": paths[0]}, frames)
+    assert "error" in res and set(res["table"].values()) == {"UNVERIFIED"} and res["units"] == {}
+    assert not (tmp_path / "lumetri.json").exists()
+
+
+def test_frame_wait_returns_only_a_finished_file(tmp_path):
+    p = tmp_path / "x.png"
+    p.write_bytes(b"\x89PNG" * 10)
+    assert C._wait_file(str(p), 1.0) == str(p)                      # same size on two looks
+
+
+def test_old_frames_pruned(tmp_path):
+    import os
+    import time
+    old, new = tmp_path / "old.png.png", tmp_path / "new.png"
+    old.write_bytes(b"1")
+    new.write_bytes(b"1")
+    t = time.time() - 2 * 24 * 3600
+    os.utime(old, (t, t))
+    assert C.prune_frames(str(tmp_path)) == 1
+    assert new.exists() and not old.exists()

@@ -3,9 +3,9 @@
 // colour-management information the API gives, then writes ONE parameter at a time, exports a frame
 // from the timeline, and puts the value back. The engine measures the frames: units and directions.
 const ppro = require("premierepro");
-const { TickTime } = ppro;
 const P = require("./premiere.js");
 const engine = require("./engine.js");
+const { exportFrame } = require("./premiere-color.js");
 
 const { UserError, transaction, has, maybe, debug } = P;
 
@@ -92,21 +92,10 @@ async function run(project) {
   const status = await engine.status();
   const dir = status.frames_dir;
   const mid = clip.start + (clip.end - clip.start) / 2;
-  const r = await maybe(t.sequence, "getFrameSize");
-  const s = 480 / Math.max((r && r.width) || 1920, (r && r.height) || 1080);
-  const w = Math.round((((r && r.width) || 1920) * s) / 2) * 2;
-  const h = Math.round((((r && r.height) || 1080) * s) / 2) * 2;
-  const shoot = async (name) => {
-    try {
-      // with ".png": Premiere takes the format from the name (the engine also finds x.png.png)
-      const ok = await ppro.Exporter.exportSequenceFrame(t.sequence, TickTime.createWithSeconds(mid), name, dir, w, h);
-      return ok === false ? null : `${dir}/${name}`;
-    } catch (e) {
-      report.exportError = e.message || String(e);
-      debug(`exportSequenceFrame failed: ${report.exportError}`);
-      return null;
-    }
-  };
+  // each frame is waited for before the next value is written (exports are queued in 26.0.2)
+  const shoot = (name) => exportFrame(t.sequence, mid, name, dir, (msg) => {
+    report.exportError = msg;
+  });
   // Lumetri parameters
   const matches = (await maybe(ppro.VideoFilterFactory, "getMatchNames")) || [];
   report.lumetriMatch = matches.find((n) => /lumetri/i.test(n)) || null;

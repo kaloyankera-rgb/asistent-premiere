@@ -33,6 +33,20 @@ test("onAudio is bound only to the audio buttons", () => {
 test("the probe and import buttons have their own handlers", () => {
   for (const id of ["probe", "importToggle", "importFolder"]) {
     assert.match(html, new RegExp(`<button id="${id}"(?![^>]*data-force)`));
-    assert.match(main, new RegExp(`\\$\\("${id}"\\)\\.addEventListener\\("click"`));
+    assert.match(main, new RegExp(`onTap\\(\\$\\("${id}"\\)`));
   }
+});
+
+test("every press but Отказ goes through onTap (logged, ignored while the panel moves)", () => {
+  const direct = main.split("\n").filter((l) => /addEventListener\("click"/.test(l));
+  assert.deepStrictEqual(direct.map((l) => l.trim().slice(0, 40)), [
+    'button.addEventListener("click", () => {',
+    '$("cancel").addEventListener("click", ()',
+  ]);
+});
+
+test("the probe asks under its own button, not at the top of the panel", () => {
+  const ask = main.slice(main.indexOf("function onProbeAsk"), main.indexOf("const STATE_BG"));
+  assert.doesNotMatch(ask, /finish\(/);
+  assert.match(ask, /insertBefore\(box, row\.nextSibling\)/);
 });

@@ -67,6 +67,10 @@ function colorCheck(before, after, applied, fix) {
   return call("POST", "/color/check", { before, after, applied, fix });
 }
 
+function waitFrame(path, timeout = 20) {
+  return call("POST", "/frames/wait", { path, timeout });
+}
+
 function colorProbe(report, refs, frames) {
   return call("POST", "/color/probe", { report, refs, frames });
 }
@@ -84,4 +88,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, job, cancel, log };
