@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.13 (2026-11-01)
+# Project status — Asistent 0.9.14 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.13 via
-UnifiedPluginInstallerAgent, engine 0.9.13 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 101 pytest + 14 node, all passing at 0.9.13.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.14 via
+UnifiedPluginInstallerAgent, engine 0.9.14 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 104 pytest + 14 node, all passing at 0.9.14.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -48,7 +48,16 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
 (`AE.ADBE Lumetri`) and sets Exposure/Temperature/Tint; render check with `Exporter.exportSequenceFrame`.
 „Проба на Lumetri (тестов проект)“ capability probe.
 - Verified in Premiere: Lumetri appended on C0730 (0.9.4), 130 parameters enumerated, frames exported.
-- NOT verified: the „Приложи“ flow end to end with its render check (no „color check“ entry in the log yet).
+- **First real „Приложи“ (12:21, fx31032, 0.9.13):** +1.5 stops suggested, written as 1.5 units (pre-curve);
+  render check worked: skin still 0.28 stop short (the Exposure shoulder), 3.95 % newly clipped → stepped back
+  to 1.0 in a second step (3 Undo steps in all: append Lumetri, values, step-back); white residual 0.048
+  (neutral). The same check learnt Temperature −84 (biased by the simultaneous Exposure change): removed,
+  backup `lumetri.before-0.9.14.json`.
+- 0.9.14: Exposure suggestions carry Lumetri units from the probe's curve (`exposure_curve` in `lumetri.json`,
+  brightening only; darkening still 1:1, unmeasured); the panel writes units and shows stops = units.
+  Probe values (`probe` in `lumetri.json`: temp −50, tint −66.67) are authoritative; a render check learns
+  only an axis the probe never measured and never from a render that also changed Exposure.
+- NOT verified: an apply with the 0.9.14 units reaching the skin target.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.
 - **Probe VERIFIED at 0.9.13 (12:16, C0737, TEST.prproj):** 7 distinct frames written in order ~0.33 s apart;
