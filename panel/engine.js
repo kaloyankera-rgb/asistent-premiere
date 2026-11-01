@@ -67,6 +67,10 @@ function colorCheck(before, after, applied, fix) {
   return call("POST", "/color/check", { before, after, applied, fix });
 }
 
+function colorProbe(report, refs, frames) {
+  return call("POST", "/color/probe", { report, refs, frames });
+}
+
 function job(id) {
   return call("GET", `/jobs/${id}`);
 }
@@ -80,4 +84,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, job, cancel, log };

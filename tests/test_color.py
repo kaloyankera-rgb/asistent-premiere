@@ -160,3 +160,35 @@ def test_preview_and_items(tmp_path):
     r = C.decide(frames)
     pv = C.preview(frames, None, r)
     assert len(pv["before"]) > 100 and len(pv["after"]) > 100 and pv["before"] != pv["after"]
+
+
+def test_probe_measures_units_and_fills_the_table(tmp_path, monkeypatch):
+    import subprocess as sp
+    monkeypatch.setenv("HOME", str(tmp_path))                 # calibration file goes to a temp app dir
+    from asistent import config
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+
+    def png(enc, name):
+        raw = (np.clip(enc, 0, 1) * 65535).astype("<u2")
+        h, w = raw.shape[:2]
+        path = tmp_path / name
+        sp.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb48le", "-s", f"{w}x{h}", "-i", "-",
+                "-frames:v", "1", str(path)], input=raw.tobytes(), check=True)
+        return str(path)
+
+    lin = scene()
+    base = png(C.encode(lin), "base.png")
+    frames = [
+        {"param": "exposure", "from": 0, "to": 1, "path": png(C.encode(lin * 2), "e.png")},
+        {"param": "temperature", "from": 0, "to": 50, "path": png(C.encode(lin * np.array([1.2, 1, 0.83])), "t.png")},
+        {"param": "tint", "from": 0, "to": 50, "path": png(C.encode(lin * np.array([1, 0.85, 1])), "g.png")},
+        {"param": "contrast", "missing": True},
+        {"param": "saturation", "from": 100, "to": 150, "path": png(C.encode(lin), "s.png")},
+    ]
+    res = C.probe_measure({"baseline": base, "source": base}, frames)
+    t = res["table"]
+    assert t["exposure"] == "SUPPORTED" and t["white_balance"] == "SUPPORTED"
+    assert t["contrast"] == "BLOCKED" and t["saturation"] == "BLOCKED"
+    assert res["units"]["exposure_stops_per_unit"] == pytest.approx(1.0, abs=0.05)
+    assert res["units"]["temperature_units_per_log2"] < 0                # warmer picture = lower B/R
+    assert res["identity"] == {"stops": 0.0, "temp": 0.0, "tint": 0.0}

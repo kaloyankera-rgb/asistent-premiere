@@ -5,6 +5,7 @@ const premiereAudio = require("./premiere-audio.js");
 const PANEL_VERSION = require("./version.js");
 const premiereImport = require("./premiere-import.js");
 const premiereColor = require("./premiere-color.js");
+const premiereProbe = require("./premiere-probe.js");
 
 const $ = (id) => document.getElementById(id);
 const state = { online: false, busy: false, jobId: null };
@@ -332,7 +333,49 @@ async function onColorApply(level) {
   }
 }
 
+// capability probe: asks first, because it puts a Lumetri on the selected clip
+function onProbeAsk() {
+  const go = el("button", "small", "Да, пусни пробата");
+  go.addEventListener("click", onProbe);
+  finish("Пробата слага Lumetri на маркирания клип, пише по един параметър, изнася кадри и връща стойностите. " +
+    "Само в тестов проект, с ЕДИН маркиран видео клип без Lumetri.", false, [go]);
+}
+
+const STATE_BG = { SUPPORTED: "работи", BLOCKED: "не е достъпно" };
+
+async function onProbe() {
+  if (state.busy) return;
+  setBusy(true);
+  progress(0.3, "Проба: параметри, запис, кадри…");
+  try {
+    const project = await premiere.activeProject();
+    const rep = await premiereProbe.run(project);
+    const res = rep.result || {};
+    const blocks = [];
+    const tbl = el("div", "group");
+    tbl.appendChild(el("div", "name", `Premiere ${rep.host ? rep.host.version : "?"} · Lumetri: ${rep.lumetriMatch} · ` +
+      `${(rep.lumetriParams || []).length} параметъра · изнасяне на кадър: ${rep.exporter ? "да" : "не"}`));
+    for (const [k, v] of Object.entries(res.table || {})) {
+      tbl.appendChild(el("div", "line", `${k}: ${STATE_BG[v] ? `${v} (${STATE_BG[v]})` : v}`));
+    }
+    blocks.push(tbl);
+    const units = res.units || {};
+    if (Object.keys(units).length) blocks.push(el("div", "line", `Единици: ${JSON.stringify(units)}`));
+    if (res.identity) blocks.push(el("div", "line", `Празен Lumetri променя кадъра с: ${JSON.stringify(res.identity)}`));
+    if (res.error) blocks.push(el("div", "warn", res.error));
+    blocks.push(el("div", "reason", `Входен LUT на клипа: ${rep.colorManagement.clipInputLUT || "няма"}; вграден: ` +
+      `${rep.colorManagement.clipEmbeddedLUT || "няма"}. На клипа остана празен Lumetri: изтрий го или Cmd/Ctrl+Z.`));
+    finish("Пробата е готова: резултатът е записан и в engine-а.", !res.error, blocks);
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `probe: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    setBusy(false);
+  }
+}
+
 $("color").addEventListener("click", onColor);
+$("probe").addEventListener("click", onProbeAsk);
 
 // ---------------------------------------------------------------- auto import
 

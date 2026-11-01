@@ -230,6 +230,16 @@ class Handler(BaseHTTPRequestHandler):
                 out = cal.sliders(float(body.get("fix_temp") or 0), float(body.get("fix_tint") or 0))
                 out["learnt"] = cal.learnt("temp") and cal.learnt("tint")
                 return self._send(200, out)
+            if self.path == "/color/probe":
+                import json as _json
+                import time as _time
+                res = COLOR.probe_measure(body.get("refs") or {}, body.get("frames") or [])
+                record = {"report": body.get("report"), "result": res, "at": _time.time()}
+                path = os.path.join(config.app_dir(), "lumetri_capabilities.json")
+                with open(path, "w", encoding="utf-8") as fh:
+                    _json.dump(record, fh, ensure_ascii=False, indent=1, default=str)
+                log.info("color probe: %s units %s identity %s", res.get("table"), res.get("units"), res.get("identity"))
+                return self._send(200, res)
             if self.path == "/color/check":
                 before, after = str(body.get("before") or ""), str(body.get("after") or "")
                 if not (os.path.isfile(before) and os.path.isfile(after)):
