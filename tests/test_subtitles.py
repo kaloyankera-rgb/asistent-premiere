@@ -351,3 +351,28 @@ def test_a_blank_screen_is_either_a_real_pause_or_none_at_all():
         assert blank < 1e-9 or blank > S.MIN_CLEAR, (a["text"], b["text"], blank)
     assert caps[0]["end"] == caps[1]["start"]                                 # a 0.3 s pause leaves under 0.2 s of blank after the 0.15 s tail hold: bridged
     assert caps[-2]["end"] - caps[-2]["words"][-1]["end"] <= S.TAIL_HOLD + 0.05          # a real pause (1.7 s) still clears
+
+
+def _ws(*tokens, step=0.3):
+    return [{"word": w, "start": round(i * step, 2), "end": round(i * step + 0.25, 2), "p": 1.0} for i, w in enumerate(tokens)]
+
+
+def test_tidy_words_attaches_stray_punctuation_and_decimal_parts_without_losing_a_word():
+    out, info = S.tidy_words(_ws("Само", "5", ",79,", "ама", "че", "я", "взимаме", ".", "Така"))
+    assert [w["word"] for w in out] == ["Само", "5,79,", "ама", "че", "я", "взимаме.", "Така"] and info["joined"] == 2
+    assert out[1]["end"] == 0.85                                              # the glued token's time is kept
+    out, _ = S.tidy_words(_ws("Колко", "е", "?"))
+    assert [w["word"] for w in out] == ["Колко", "е?"]
+
+
+def test_a_conditional_clause_gets_its_comma_before_the_main_clause_when_whisper_wrote_none():
+    out, info = S.tidy_words(_ws("Ако", "е", "под", "700", "евро", "я", "взимаме."))
+    assert " ".join(w["word"] for w in out) == "Ако е под 700 евро, я взимаме." and info["commas"] == ["евро,"]
+    out, info = S.tidy_words(_ws("Ако", "не", "го", "видиш", "днес", "ще", "му", "кажа."))
+    assert " ".join(w["word"] for w in out) == "Ако не го видиш днес, ще му кажа."          # not after „не“
+    for sent in (["Ако", "струва", "под", "500", "евро,", "го", "взима."],               # already has one
+                 ["Ако", "утре", "не", "го", "видиш", "идвам."],                         # no clitic after enough words
+                 ["Тя", "е", "под", "700", "евро", "я", "взимаме."],                      # not a conditional clause
+                 ["Ако", "го", "видиш", "кажи", "ми."]):                                  # clitic too early
+        out, info = S.tidy_words(_ws(*sent))
+        assert [w["word"] for w in out] == sent and info["commas"] == [], sent

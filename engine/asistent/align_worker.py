@@ -47,7 +47,8 @@ def align(audio, words, spoken):
         k += len(parts[i])
         n = sum(len(s) for g in group for s in g)
         out[i] = {"start": round(group[0][0].start * ratio, 3), "end": round(group[-1][-1].end * ratio, 3),
-                  "align": round(sum(s.score * len(s) for g in group for s in g) / n, 2)}
+                  "align": round(sum(s.score * len(s) for g in group for s in g) / n, 2),
+                  "chars": sum(len(t) for t in parts[i])}
     return out
 
 

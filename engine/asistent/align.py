@@ -17,10 +17,11 @@ import tempfile
 
 import numpy as np
 
-from . import config
+from . import config, numbers
 
 log = logging.getLogger("asistent")
-REVISION = 2             # bump when the placement of aligned/weak words changes: cached alignments are redone (recognition is kept)
+REVISION = 4             # bump when the placement of aligned/weak words changes: cached alignments are redone (recognition is kept)
+MIN_SECONDS_PER_CHAR = 0.02   # a CTC frame is 20 ms
 WEAK = 0.3            # an alignment score below this is not trusted: the word keeps Whisper's time
 TIMEOUT = 600
 
@@ -45,16 +46,28 @@ def status() -> dict:
     return {"available": available(), "python": python_path(), "weights": torch_home()}
 
 
+def _squeezed(r: dict) -> bool:
+    """Did the aligner find no room for the word? A word needs at least a frame (20 ms) for most of its letters; a word
+    squeezed into less is not where it was said (the corrected „трябваше“: 8 letters in 0.10 s)."""
+    chars = r.get("chars")
+    return bool(chars) and (r["end"] - r["start"]) < MIN_SECONDS_PER_CHAR * chars
+
+
 def _fix(words: list[dict], res: list[dict]) -> tuple[list[dict], int]:
-    """Apply the aligner's answer: weak or letter-less words keep Whisper's time; the order stays monotonic."""
+    """Apply the aligner's answer. A word keeps the aligner's time unless it has no letters to align or was squeezed
+    into too little time while scoring low; those keep Whisper's time (then fitted between their aligned neighbours).
+    The aligner's confidence is NOT a reason to distrust a time: measured on the C9025 prices, words scored under 0.1
+    (every number) were within 80 ms of the sound 57 % of the time, Whisper's own times 7 %."""
     out, weak = [], 0
     for w, r in zip(words, res):
         v = dict(w)
-        if r["start"] is None or r["align"] < WEAK:
+        if r["start"] is None or (r["align"] < WEAK and _squeezed(r)):
             weak += 1
             v["aligned"] = False
         else:
-            v.update(start=r["start"], end=max(r["end"], r["start"]), aligned=True, align=r["align"])
+            v.update(start=r["start"], end=max(r["end"], r["start"]), aligned=True)
+        if r["start"] is not None:
+            v["align"] = r["align"]
         out.append(v)
     for i in range(1, len(out)):                            # never earlier than the word before it
         if out[i]["start"] < out[i - 1]["start"]:
@@ -88,7 +101,7 @@ def align_words(audio: np.ndarray, words: list[dict], spoken: dict | None = None
         with open(os.path.join(d, "words.json"), "w", encoding="utf-8") as f:
             json.dump([{"text": w["word"], "start": w["start"], "end": w["end"]} for w in words], f, ensure_ascii=False)
         with open(os.path.join(d, "spoken.json"), "w", encoding="utf-8") as f:
-            json.dump(spoken or {}, f, ensure_ascii=False)
+            json.dump({**numbers.spoken_map(words), **(spoken or {})}, f, ensure_ascii=False)     # the editor's entries win
         env = dict(os.environ, TORCH_HOME=torch_home(), PYTHONNOUSERSITE="1")
         try:
             p = subprocess.run([python_path(), "-I", worker, d], capture_output=True, timeout=TIMEOUT, env=env)
@@ -143,3 +156,72 @@ def trim_silence(y: np.ndarray, words: list[dict], sr: int = 16000) -> tuple[lis
                 w["end"] = round((k + 1) / 100, 3)
                 moved += 1
     return out, moved
+
+
+def speech_frames(y: np.ndarray, sr: int = 16000, share: float = 0.5) -> np.ndarray:
+    """Boolean per 10 ms frame: loud enough (above `share` of the way from the noise floor to the speech level) AND
+    speech-like (spectral centroid under 1800 Hz; noise, hiss and breath sit higher). Empty for too little audio."""
+    hop, n = sr // 100, len(y) // (sr // 100)
+    if n < 20:
+        return np.zeros(0, bool)
+    x = y[: n * hop].astype(np.float64)
+    db = 20 * np.log10(np.sqrt(np.mean(x.reshape(n, hop) ** 2, axis=1)) + 1e-6)
+    level, floor = float(np.percentile(db, 90)), float(np.percentile(db, 10))
+    if level - floor < 20:
+        return np.zeros(0, bool)
+    pad = np.concatenate([np.zeros(hop), x, np.zeros(2 * hop)])
+    frames = np.stack([pad[i * hop: i * hop + 3 * hop] for i in range(n)]) * np.hanning(3 * hop)
+    power = np.abs(np.fft.rfft(frames, axis=1)) ** 2
+    freqs = np.fft.rfftfreq(3 * hop, 1 / sr)
+    centroid = (power * freqs).sum(axis=1) / (power.sum(axis=1) + 1e-12)
+    return (db > floor + share * (level - floor)) & (centroid < 1800)
+
+
+MIN_SPEECH_FRAMES = 5       # 50 ms of speech-like sound under a word, or it is not clearly heard
+MIN_SPEECH_SHARE = 0.15     # and, under a long span, at least this share of it (a word is mostly speech; "Така." was 8 %)
+MAX_SECONDS_PER_CHAR = 0.12
+
+
+def unheard(y: np.ndarray, words: list[dict], sr: int = 16000) -> tuple[list[dict], list[int]]:
+    """-> (words, indexes of the words with no clear speech under them). Such a word keeps its text (deleting it would be
+    a guess too) but its length is limited to what its letters can take (the aligner cannot refuse a word: „Така.“ was
+    stretched over 1.3 s of breath); the caller marks it for review (guide §7: hallucination in a quiet interval)."""
+    mask = speech_frames(y, sr)
+    out = [dict(w) for w in words]
+    bad = []
+    if not len(mask):
+        return out, bad
+    for i, w in enumerate(out):
+        a, b = max(0, int(w["start"] * 100)), min(len(mask), int(round(w["end"] * 100)) + 1)
+        letters = sum(c.isalpha() for c in w["word"])
+        heard = int(mask[a:b].sum()) if b > a else 0
+        if letters >= 2 and b > a and (heard < MIN_SPEECH_FRAMES or (b - a >= 40 and heard < MIN_SPEECH_SHARE * (b - a))):
+            bad.append(i)
+            w["unheard"] = True
+            w["end"] = min(w["end"], w["start"] + max(0.2, MAX_SECONDS_PER_CHAR * letters))
+    return out, bad
+
+
+def uncovered_speech(y: np.ndarray, words: list[dict], min_seconds: float = 0.4, margin: float = 0.15, sr: int = 16000) -> list[tuple[float, float]]:
+    """Stretches of speech-like sound of at least `min_seconds` that no word covers (within `margin` of a word) ->
+    [(start, end)] in seconds of `y`. A word Whisper never wrote, or a breath or hum: the guide asks for the first and
+    last seconds of every piece to be checked (docs/BULGARIAN_TRANSCRIPTION_GUIDE.md §1, §7), so these are reported."""
+    mask = speech_frames(y, sr, share=0.35)                 # permissive: a false alarm costs a listen, a silent miss a mistake
+    if not len(mask):
+        return []
+    covered = np.zeros(len(mask), bool)
+    for w in words:
+        covered[max(0, int((w["start"] - margin) * 100)):max(0, int((w["end"] + margin) * 100) + 1)] = True
+    free = mask & ~covered
+    out, i = [], 0
+    while i < len(free):
+        if free[i]:
+            j = i
+            while j < len(free) and free[j]:
+                j += 1
+            if (j - i) / 100 >= min_seconds:
+                out.append((round(i / 100, 2), round(j / 100, 2)))
+            i = j
+        else:
+            i += 1
+    return out

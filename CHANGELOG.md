@@ -6,6 +6,18 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.48 - subtitles: 5 times faster, numbers aligned, the Bulgarian transcription guide built in
+- Speed (C9025, 8 pieces, 49.6 s of speech: **230 s → 45 s** from a cold cache): one Whisper reading per stretch of a source file with 4 s of context around the pieces and the windows of nearby pieces merged (91 s of audio read instead of 252 s); several windows read at the same time (`asr.workers()`: 5 readings × 2 threads on the M4 Max; one reading with 10 threads was SLOWER than with 4); alignment and checking run per window in parallel; the second opinion uses a cheaper decode.
+- Words: unknown words are repaired by the smallest edit that gives exactly one dictionary word (`lexicon.repair`: reduced vowel, dropped vowel as „одяло“ → „одеяло“, two vowel edits „одялоце“ → „одеялце“, one letter „Взиваме“ → „Взимаме“ when the recording says „взимаме“ elsewhere); diminutives the dictionary lacks are accepted by their stem; „евро“ is known. Every repair is listed in the result.
+- Second opinion: a piece that still has an unknown word (or a first-person „съм …л/ла“ form) is read again alone with 2 s of context; the reading with fewer doubts wins (C9025: „е одял, Острова“ became „одеяло струва“).
+- Numbers: every number is given to the aligner as spoken Bulgarian (`numbers.py`: 500 → петстотин), and the aligner's confidence no longer discards a time (the confidence is no sign of a wrong word); only a word squeezed into too little time is distrusted. The words after prices were 0.3-0.5 s late before; now median 0.00 s.
+- Review (guide §5, §7, §11): a month name in a conversation about prices, a word with no speech-like sound under it (the hallucinated „Така.“ was stretched over 1.3 s of breath), a gender-form disagreement between readings: each is marked „?“ with its reason in the panel; nothing is rewritten.
+- Text: „5 ,79“ → „5,79“ (`subtitles.tidy_words`), a comma closes an „Ако …“ clause when Whisper wrote none; words stay inside their clip („Ах,“ no longer starts 0.6 s before it).
+- Voiced sound without a word (the guide's first/last seconds check) is listed with its time: C9025 had two such places (0.26-0.91 s and 12.25-12.82 s); the panel says „чуй“.
+- Results keep an immutable `verbatim` layer and an `edits` log next to the final words.
+- `docs/BULGARIAN_TRANSCRIPTION_GUIDE.md` added as the permanent reference and linked from CLAUDE.md; its §10 table is `tests/test_guide_regressions.py`.
+- Tests: 329 pytest + 70 node.
+
 ## 0.9.47 - subtitles: no speaker setting, captions clear sooner
 - Tested large-v2 as a second opinion on the four real pieces: fixes „неща" but breaks „Примерно на мен", „то и за градината" and the end phrase is worse; not used, test model deleted.
 - Removed the Мъж / Жена / Авто setting and `gender.py` (user: most clips have both speakers, so a gender rule would rewrite correctly spoken forms). Every form stays as heard; a form the readings disagree on is marked „?“.

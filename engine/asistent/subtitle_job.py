@@ -1,12 +1,16 @@
-"""The `/subtitles` job (Phase 7 M3): pieces of dialogue -> Whisper words (per piece, with context) -> optional
-alignment to the sound -> captions -> SRT + JSON on disk.
+"""The `/subtitles` job (Phase 7 M3): pieces of dialogue -> Whisper words (one reading per stretch of a source file,
+with plenty of real context) -> alignment to the sound -> captions -> SRT + JSON on disk.
 
 Nothing is sent to Premiere here: the result lists what was made and the panel decides what to show. Words are cached
-per piece (audio + prompt), so changing a preset or the frame rate re-breaks the lines without running Whisper again.
+per reading (audio + prompt), so changing a preset or the frame rate re-breaks the lines without running Whisper again.
 
-Why per piece and not one joined mix (measured 2026-11-01 on the Ludi Glavi test): Whisper read the four cut pieces
-joined into one signal as „и аз да видим“ and „Приведно на мен“; the same pieces transcribed one by one, each with 2 s
-of the real media around it, gave „я да видим“ and „Примерно на мен“.
+Why not the joined mix of the cut pieces (measured 2026-11-01, Ludi Glavi): Whisper read the four cut pieces joined into
+one signal as „и аз да видим“ and „Приведно на мен“; read with the real media around them it gave „я да видим“.
+Why 4 s of context and merged windows (measured 2026-11-02, C9025, 8 pieces from 5 files, 49.6 s of speech): with 2 s of
+context two pieces read „2 септември“ for „20 евро“, and 3 readings per piece fed Whisper 252 s of audio (5.1 times the
+speech; 225 s on the Mac). One reading of each stretch of a file with 4 s around the pieces, the windows of pieces that
+lie close together merged, feeds it 91 s and every price and word of that list is right. 6 s was worse on the Ludi Glavi
+clip („Превърна мен“ for „Примерно на мен“: too much of the other takes), 2 s too little for the prices.
 """
 from __future__ import annotations
 
@@ -16,16 +20,19 @@ import logging
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
-from . import align, asr, config, consensus, corrections, dialoguemix, lexicon, subtitles
+from . import agreement, align, asr, config, consensus, corrections, dialoguemix, lexicon, subtitles, suspects
 from .dialoguemix import ASR_SR, build_mix, read_segment
 from .sync import Cancelled
 
 log = logging.getLogger("asistent")
 CACHE_VERSION = 2
-PAD = 2.0                  # seconds of real media around each piece, for Whisper's context (the main reading)
-EXTRA_PADS = (0.7, 4.0)    # two more readings with less and more surrounding sound: they vote on words (consensus.py)
+PAD = 4.0                  # seconds of real media around each piece, for Whisper's context
+MAX_WINDOW = 120.0         # a merged window is not grown past this many seconds
+SECOND_BEAM = 2            # a cheaper decode for the second opinion (beam 5 for the main reading)
+SECOND_PAD = 2.0           # the second opinion on a doubtful piece: that piece alone with this much context
 MIN_OVERLAP = 0.4          # a word belongs to the piece when this much of it lies inside the piece
 PRESET_NAMES = ("auto", "short", "standard")
 
@@ -128,27 +135,86 @@ def _inside(w: dict, lo: float, hi: float) -> bool:
 
 def _variants(word: str) -> set:
     """The spellings a correction line may use for a heard word: as written, and as the engine would show it."""
-    return {consensus.norm(word), consensus.norm(lexicon.respell(word) or word)}
+    return {consensus.norm(word), consensus.norm(lexicon.repair(word) or word)}
 
 
 def _text_key(words: list[dict]) -> str:
     return hashlib.sha1((f"{align.REVISION}\x1f" + "\x1f".join(w["word"] for w in words)).encode("utf-8")).hexdigest()
 
 
-def _reading(seg: dict, pad: float, prompt: str, spoken: dict, align_it: bool, pairs, progress, cancelled) -> tuple[list[dict], float, dict]:
-    """One reading of the piece with `pad` seconds of real media around it -> (words in seconds from the start of the
-    padded audio, lead-in actually available, {"cached", "aligned", "weak", "applied", "align_error"?}).
-    The editor's corrections replace the heard words BEFORE the alignment, so the new words get the times of the sound."""
-    y, lead = read_segment(seg, pad)
+def plan_windows(segments: list[dict], pad: float = PAD) -> list[dict]:
+    """Pieces -> the stretches of media to read: `pad` seconds around each piece, and the windows of pieces of the same
+    file that overlap merged into one, so a stretch of speech is never recognised twice.
+    -> [{"path", "a", "b" (media seconds), "pieces": [piece, ...]}]"""
+    wins: list[dict] = []
+    for sg in sorted(segments, key=lambda s: (s["path"], s["start"])):
+        a, b = max(0.0, sg["start"] - pad), sg["end"] + pad
+        w = wins[-1] if wins else None
+        if w and w["path"] == sg["path"] and a <= w["b"] and b - w["a"] <= MAX_WINDOW:
+            w["b"] = max(w["b"], b)
+            w["pieces"].append(sg)
+        else:
+            wins.append({"path": sg["path"], "a": a, "b": b, "pieces": [sg]})
+    return wins
+
+
+def read_window(win: dict, prompt: str, progress, cancelled) -> dict:
+    """One Whisper reading of a window (cached by its audio + prompt) -> {"y", "key", "entry", "cached"}."""
+    y, _ = read_segment({"path": win["path"], "start": win["a"], "end": win["b"]}, 0.0)
     key = _words_key(y, prompt)
     entry = _cached(key) or {}
     cached = "words" in entry
     if not cached:
         entry = {"words": asr.transcribe(y, prompt or None, progress, cancelled)}
         _store(key, entry)
-    info = {"cached": cached, "aligned": 0, "weak": 0}
-    words, info["applied"] = corrections.apply(entry["words"], pairs, _variants)
-    if align_it and align.available():
+    return {"y": y, "key": key, "entry": entry, "cached": cached}
+
+
+def vocabulary(readings: list[dict], extra=()) -> frozenset:
+    """Real words the recording says confidently (any window): the tie-break when a mis-heard word has several
+    neighbours in the dictionary („Взиваме“ -> „взимаме“, which the speaker says all through the recording)."""
+    out = set(consensus.norm(w) for w in extra)
+    for r in readings:
+        for w in r["entry"]["words"]:
+            if w.get("p", 0) >= 0.8 and lexicon.known(w["word"]) is True:
+                out.add(consensus.norm(w["word"]))
+    return frozenset(out)
+
+
+def _doubts(words: list[dict]) -> int:
+    """How doubtful a reading of a piece is: words the dictionary does not know and cannot repair (names and slang are
+    short or capitalised mid-sentence less often than mis-hearings are long), counted twice, and words Whisper is
+    unsure of."""
+    n = 0
+    for w in words:
+        core = consensus.norm(w["word"])
+        if len(core) >= 4 and lexicon.known(w["word"]) is False:
+            n += 2
+        elif w.get("p", 1.0) < 0.5 and not w.get("fixed"):
+            n += 1
+    return n
+
+
+def _clamp(words: list[dict], dur: float) -> list[dict]:
+    """Words of a piece (seconds from its start) -> never outside it: a clip that begins in the middle of a word has
+    only the rest of that word in the sequence, so the word cannot start before the clip (seen: „Ах,“ 0.6 s before it)."""
+    out = []
+    for w in words:
+        a = min(max(w["start"], 0.0), dur)
+        out.append(dict(w, start=a, end=min(max(w["end"], a), dur)))
+    return out
+
+
+def _unknown(words: list[dict]) -> int:
+    """Words the dictionary does not know and could not repair: the reason to ask for a second opinion."""
+    return sum(1 for w in words if len(consensus.norm(w["word"])) >= 4 and lexicon.known(w["word"]) is False)
+
+
+def _aligned(y, entry_words: list[dict], entry: dict, key: str, spoken: dict, pairs) -> tuple[list[dict], dict]:
+    """Corrections, then alignment (cached per corrected text), then out of silence -> (words, info)."""
+    info = {"aligned": 0, "weak": 0}
+    words, info["applied"] = corrections.apply(entry_words, pairs, _variants)
+    if align.available():
         h = _text_key(words)
         if entry.get("aligned_for") != h:
             entry["aligned"], entry["align_info"] = align.align_words(y, words, spoken)
@@ -159,31 +225,81 @@ def _reading(seg: dict, pad: float, prompt: str, spoken: dict, align_it: bool, p
         info.update({k: v for k, v in info_a.items() if k in ("aligned", "weak")})
         if "error" in info_a:
             info["align_error"] = info_a["error"]
-    if align_it:                                            # the main reading only: a word is not spoken in silence
-        words, info["trimmed"] = align.trim_silence(y, words)
-    return words, lead, info
+    words, info["trimmed"] = align.trim_silence(y, words)           # a word is not spoken in silence
+    words, info["unheard"] = align.unheard(y, words)                # and a word with no speech under it is only marked
+    info["gaps"] = align.uncovered_speech(y, words)                 # speech-like sound that has no word
+    return words, info
 
 
-def piece_words(seg: dict, prompt: str, spoken: dict, progress, cancelled, pairs=()) -> tuple[list[dict], dict]:
-    """Words of one piece in SEQUENCE seconds, plus {"cached", "aligned", "weak", "align_error"?, "changed", "unsure", "applied"}.
+def _second_opinion(sg: dict, prompt: str, spoken: dict, pairs, progress, cancelled) -> list[dict]:
+    """The piece alone with SECOND_PAD seconds of context -> its words, in seconds from the start of the piece."""
+    seg = {"path": sg["path"], "start": sg["start"], "end": sg["end"]}
+    y, lead = read_segment(seg, SECOND_PAD)
+    key = _words_key(y, prompt)
+    entry = _cached(key) or {}
+    if "words" not in entry:
+        entry = {"words": asr.transcribe(y, prompt or None, progress, cancelled, beam=SECOND_BEAM)}
+        _store(key, entry)
+    words, _ = _aligned(y, entry["words"], entry, key, spoken, pairs)
+    dur = sg["end"] - sg["start"]
+    return _clamp([dict(w, start=w["start"] - lead, end=w["end"] - lead) for w in words if _inside(w, lead, lead + dur)], dur)
 
-    The main reading (PAD seconds around the piece) is aligned to the sound and gives the words and their times; the
-    EXTRA_PADS readings only vote (consensus.py): a word they outvote is replaced, a word nobody agrees on is marked."""
-    dur = seg["end"] - seg["start"]
-    n = 1 + len(EXTRA_PADS)
 
-    def step(k):
-        return lambda f, m: progress((k + f) / n, m)
-    words, lead, info = _reading(seg, PAD, prompt, spoken, True, pairs, step(0), cancelled)
-    mine = [dict(w, start=w["start"] - lead, end=w["end"] - lead) for w in words if _inside(w, lead, lead + dur)]
-    others = []
-    for k, pad in enumerate(EXTRA_PADS, 1):
-        ws, ld, inf = _reading(seg, pad, prompt, spoken, False, pairs, step(k), cancelled)
-        info["cached"] = info["cached"] and inf["cached"]
-        others.append([dict(w, start=w["start"] - ld, end=w["end"] - ld) for w in ws if _inside(w, ld, ld + dur)])
-    mine, votes = consensus.merge(mine, others, lexicon.known, lexicon.respell)
-    info.update(votes)
-    return [dict(w, start=round(seg["at"] + w["start"], 3), end=round(seg["at"] + w["end"], 3)) for w in mine], info
+def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(), prompt="", progress=None, cancelled=None) -> tuple[list[dict], dict]:
+    """Words of every piece in a window, in SEQUENCE seconds, plus {"cached", "aligned", "weak", "align_error"?, "changed",
+    "unsure", "changes", "applied", "trimmed", "second": [(sequence second, "A"|"B")]}.
+
+    The editor's corrections replace the heard words BEFORE the alignment, so the new words get the times of the sound;
+    the words are aligned, taken out of silence, and each piece keeps the words that lie inside it; consensus.merge then
+    checks them against the dictionary (spelling by ear) and marks what stays doubtful. A piece that still holds
+    unknown words gets a second opinion (that piece alone, narrow context); the reading with fewer doubts is kept."""
+    progress = progress or (lambda f, m: None)
+    cancelled = cancelled or (lambda: False)
+    y, key, entry = read["y"], read["key"], read["entry"]
+    words, info = _aligned(y, entry["words"], entry, key, spoken, pairs)
+    info["cached"] = read["cached"]
+    repair = lambda w, doubt=True: lexicon.repair(w, doubt, vocab)
+    out: list[dict] = []
+    changed = unsure = 0
+    changes: list[dict] = []
+    second: list = []
+    disputes: list = []
+    verbatim: list = []
+    for sg in win["pieces"]:
+        lo = sg["start"] - win["a"]
+        hi = lo + (sg["end"] - sg["start"])
+        for a, b in info["gaps"]:                                  # voiced sound without a word, inside this piece
+            a, b = max(a, lo), min(b, hi)
+            if b - a >= 0.4:
+                disputes.append({"at": round(sg["at"] + a - lo, 2), "end": round(sg["at"] + b - lo, 2), "word": "",
+                                 "reason": "има говор без дума (може да липсва дума или да е дишане)"})
+        verbatim += [{"word": w["word"], "start": round(sg["at"] + w["start"] - lo, 3), "end": round(sg["at"] + w["end"] - lo, 3), "p": w.get("p")}
+                     for w in entry["words"] if _inside(w, lo, hi)]                    # what Whisper wrote, untouched
+        mine = _clamp([dict(w, start=w["start"] - lo, end=w["end"] - lo) for w in words if _inside(w, lo, hi)], hi - lo)
+        checked, votes = consensus.merge(mine, [], lexicon.known, repair)
+        if _unknown(checked) or agreement.forms(checked):
+            alt = _second_opinion(sg, prompt, spoken, pairs, progress, cancelled)
+            alt_checked, alt_votes = consensus.merge(alt, [], lexicon.known, repair)
+            better = _doubts(alt_checked) < _doubts(checked)
+            second.append((round(sg["at"], 1), "B" if better else "A"))
+            other = checked if better else alt_checked
+            if better:
+                checked, votes = alt_checked, alt_votes
+            for i in agreement.disputed(checked, other):          # the two readings hear different genders: say so, change nothing
+                checked[i]["p"] = min(checked[i].get("p", 1.0), consensus.UNSURE_P)
+                votes["unsure"] += 1
+                disputes.append({"at": round(sg["at"] + checked[i]["start"], 2), "word": checked[i]["word"], "reason": "форма за мъж или жена: прочитанията се различават"})
+        for w in checked:
+            if w.get("unheard"):
+                w["p"] = min(w.get("p", 1.0), consensus.UNSURE_P)
+                votes["unsure"] += 1
+                disputes.append({"at": round(sg["at"] + w["start"], 2), "word": w["word"], "reason": "не се чува ясно в звука (тих шум)"})
+        changed += votes["changed"]
+        unsure += votes["unsure"]
+        changes += votes["changes"]
+        out += [dict(w, start=round(sg["at"] + w["start"], 3), end=round(sg["at"] + w["end"], 3)) for w in checked]
+    info.update(changed=changed, unsure=unsure, changes=changes, second=second, disputes=disputes, verbatim=verbatim)
+    return out, info
 
 
 def _same_word(a: dict, b: dict) -> bool:
@@ -202,36 +318,74 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     segments = mix["segments"]
     parsed = corrections.parse(p["text"])
     prompt = subtitles.initial_prompt(p["terms"] + parsed["terms"])
-    total = sum(sg["end"] - sg["start"] for sg in segments) or 1.0
-    done = 0.0
+    wins = plan_windows(segments)
+    total = sum(w["b"] - w["a"] for w in wins) or 1.0
     words: list[dict] = []
     cached = True
     aligned = weak = changed = unsure = 0
+    changes: list[dict] = []
+    second: list = []
+    disputes: list = []
+    verbatim: list = []
     applied = [0] * len(parsed["pairs"])
     align_error = None
     t_asr = time.time()
-    for n, sg in enumerate(segments):
-        if cancelled():
-            raise Cancelled()
-        share = (sg["end"] - sg["start"]) / total
-        base = 0.1 + 0.85 * done
-        ws, info = piece_words(sg, prompt, p["spoken"], lambda f, m, b=base, sh=share: progress(b + 0.85 * sh * f, m), cancelled, parsed["pairs"])
+    shares = [(w["b"] - w["a"]) / total for w in wins]
+    frac = [0.0] * len(wins)
+
+    def read_one(i: int) -> dict:
+        def on_progress(f, m):
+            frac[i] = f
+            progress(0.1 + 0.75 * sum(a * b for a, b in zip(frac, shares)), m)
+        return read_window(wins[i], prompt, on_progress, cancelled)
+    # pass 1: Whisper reads every window once, several at the same time (one reading cannot use many cores, see asr.py)
+    order = sorted(range(len(wins)), key=lambda i: -(wins[i]["b"] - wins[i]["a"]))        # the longest first: no long tail
+    reads: list = [None] * len(wins)
+    with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(wins)))) as pool:
+        futures = {i: pool.submit(read_one, i) for i in order}
+        try:
+            for i, f in futures.items():
+                reads[i] = f.result()
+        except BaseException:
+            for f in futures.values():
+                f.cancel()
+            raise
+    cached = all(r["cached"] for r in reads)
+    vocab = vocabulary(reads, [t for _, b in parsed["pairs"] for t in b.split()])
+    def finish_one(i: int):
+        return window_words(wins[i], reads[i], p["spoken"], parsed["pairs"], vocab, prompt, lambda f, m: None, cancelled)
+    progress(0.86, "Подравнявам думите по звука…")
+    with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(wins)))) as pool:   # pass 2: corrections, alignment, spelling
+        futures = [pool.submit(finish_one, i) for i in range(len(wins))]
+        try:
+            results = [f.result() for f in futures]
+        except BaseException:
+            for f in futures:
+                f.cancel()
+            raise
+    for ws, info in results:
+        second += info["second"]
+        disputes += info["disputes"]
+        verbatim += info["verbatim"]
         words += ws
-        cached = cached and info["cached"]
         aligned += info["aligned"]
         weak += info["weak"]
         changed += info["changed"]
         unsure += info["unsure"]
+        changes += info["changes"]
         applied = [a + b for a, b in zip(applied, info["applied"])]
         align_error = align_error or info.get("align_error")
-        done += share
     asr_s = time.time() - t_asr
     words.sort(key=lambda w: (w["start"], w["end"]))
     unique: list[dict] = []
     for w in words:                                        # pieces that touch can both claim a word at the seam
         if not any(_same_word(w, u) for u in unique[-3:]):
             unique.append(w)
-    words = unique
+    words, tidy = subtitles.tidy_words(unique)
+    found = suspects.find(words)                           # reported and marked "?", never rewritten (guide §5)
+    for f in found:
+        words[f["i"]]["p"] = min(words[f["i"]].get("p", 1.0), consensus.UNSURE_P)
+    review = sorted(disputes + [{"at": round(f["at"], 2), "word": f["word"], "reason": f["reason"]} for f in found], key=lambda r: r["at"])
     progress(0.96, "Подреждам редовете…")
 
     preset = subtitles.preset_for(p["width"], p["height"]) if p["preset"] == "auto" else p["preset"]
@@ -250,14 +404,20 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         "timing": {"method": timing, "aligned": aligned, "weak": weak, "error": align_error},
         "corrections": [{"heard": a, "said": b, "applied": n} for (a, b), n in zip(parsed["pairs"], applied)],
         "correction_errors": parsed["errors"],
-        "readings": {"count": 1 + len(EXTRA_PADS), "changed": changed, "unsure": unsure, "dictionary": lexicon.available()},
+        "review": review,
+        "readings": {"windows": len(wins), "seconds": round(sum(w["b"] - w["a"] for w in wins), 1), "changed": changed, "changes": changes, "second_opinions": second, "commas": tidy["commas"], "joined": tidy["joined"], "unsure": unsure, "dictionary": lexicon.available()},
         "notes": mix["notes"], "duplicates": mix["duplicates"], "skipped": p["skipped"],
         "origin": round(mix["origin"], 3), "mix_seconds": round(len(mix["audio"]) / ASR_SR, 1), "asr_seconds": round(asr_s, 1), "cached": cached,
     }
     with open(stem + ".json", "w", encoding="utf-8") as f:
-        json.dump({**result, "words": words, "items": p["items"], "segments": segments}, f, ensure_ascii=False, indent=1)
-    log.info("subtitles: %d captions, %d words (%d flagged) from %d pieces, timing %s (%d aligned, %d weak%s), "
-             "asr+align %.1f s%s, total %.1f s, preset %s -> %s", len(captions), len(words), flagged, len(segments), timing,
+        # the verbatim layer (what Whisper wrote) is never edited; every change to it is listed in `edits`
+        edits = {"corrections": result["corrections"], "spelling": changes, "commas": tidy["commas"], "joined_tokens": tidy["joined"],
+                 "second_opinions": second, "review": review}
+        json.dump({**result, "words": words, "verbatim": sorted(verbatim, key=lambda w: w["start"]), "edits": edits,
+                   "items": p["items"], "segments": segments}, f, ensure_ascii=False, indent=1)
+    log.info("subtitles: %d captions, %d words (%d flagged) from %d pieces in %d windows (%.0f s of audio read), timing %s "
+             "(%d aligned, %d weak%s), asr+align %.1f s%s, total %.1f s, preset %s -> %s", len(captions), len(words), flagged,
+             len(segments), len(wins), sum(w["b"] - w["a"] for w in wins), timing,
              aligned, weak, f", {align_error}" if align_error else "", asr_s, " (cached)" if cached else "",
              time.time() - t0, preset, stem + ".srt")
     progress(1.0, "Готово")

@@ -34,8 +34,8 @@ MODEL_BYTES = 3_100_000_000                                      # about 3.1 GB,
 IDLE_SECONDS = 600
 LANGUAGE = "bg"
 
-_lock = threading.Lock()
-_state: dict = {"model": None, "device": None, "last": 0.0, "timer": None}
+_lock = threading.Lock()                   # loading and freeing the model
+_state: dict = {"model": None, "device": None, "workers": 1, "last": 0.0, "timer": None}
 
 
 class ASRError(MediaError):
@@ -95,27 +95,51 @@ def _device() -> tuple[str, str]:
     return "cpu", "int8"
 
 
+def _parallelism(device: str) -> tuple[int, int]:
+    """(readings at the same time, CPU threads for each). One reading cannot use many cores (measured on the M4 Max:
+    10 threads were SLOWER than 4), but several readings together can: 4 workers x 2 threads read 68 s of audio in 18 s,
+    one reading with 4 threads in 38 s. A GPU takes one reading at a time."""
+    if device != "cpu":
+        return 1, 0
+    cores = os.cpu_count() or 4
+    if cores >= 12:
+        return 5, 2                                        # M4 Max: 10 performance cores, 5 x 2 threads
+    if cores >= 10:
+        return 4, 2
+    if cores >= 6:
+        return 2, 3
+    return 1, max(2, cores // 2)
+
+
+def workers() -> int:
+    """How many windows can be read at the same time (the job reads that many in parallel)."""
+    return _parallelism(_device()[0])[0]
+
+
 def _load():
     if not backend_installed():
         raise ASRError("Липсват пакетите за разпознаване на реч (faster-whisper). Инсталират се от панела или със "
                        "setup_mac.sh --subtitles.")
     if not model_present():
         raise ASRError("Моделът за разпознаване (large-v3, около 3 GB) още не е свален. Свали го от панела.")
-    if _state["model"] is not None:
-        return _state["model"]
-    from faster_whisper import WhisperModel
-    device, compute = _device()
-    t0 = time.time()
-    try:
-        model = WhisperModel(model_dir(), device=device, compute_type=compute)
-    except Exception:
-        if device == "cpu":
-            raise
-        device, compute = "cpu", "int8"             # no usable CUDA libraries: the processor
-        model = WhisperModel(model_dir(), device=device, compute_type=compute)
-    log.info("whisper large-v3 loaded on %s/%s in %.1fs", device, compute, time.time() - t0)
-    _state.update(model=model, device=device)
-    return model
+    with _lock:
+        if _state["model"] is not None:
+            return _state["model"]
+        from faster_whisper import WhisperModel
+        device, compute = _device()
+        n, threads = _parallelism(device)
+        t0 = time.time()
+        try:
+            model = WhisperModel(model_dir(), device=device, compute_type=compute, num_workers=n, cpu_threads=threads)
+        except Exception:
+            if device == "cpu":
+                raise
+            device, compute = "cpu", "int8"         # no usable CUDA libraries: the processor
+            n, threads = _parallelism(device)
+            model = WhisperModel(model_dir(), device=device, compute_type=compute, num_workers=n, cpu_threads=threads)
+        log.info("whisper large-v3 loaded on %s/%s (%d readings x %d threads) in %.1fs", device, compute, n, threads, time.time() - t0)
+        _state.update(model=model, device=device, workers=n)
+        return model
 
 
 def _schedule_free() -> None:
@@ -132,30 +156,29 @@ def _schedule_free() -> None:
 
 
 def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[[float, str], None] | None = None,
-               cancelled: Callable[[], bool] | None = None, language: str = LANGUAGE) -> list[dict]:
-    """Words with times (seconds from the start of `audio`) and Whisper's probability. One transcription at a time
-    (a second caller waits): the model is big and the CPU is shared with the editor."""
+               cancelled: Callable[[], bool] | None = None, language: str = LANGUAGE, beam: int = 5) -> list[dict]:
+    """Words with times (seconds from the start of `audio`) and Whisper's probability. Callers may run in parallel up to
+    `workers()`; more wait their turn inside the model."""
     progress = progress or (lambda f, m: None)
     cancelled = cancelled or (lambda: False)
     duration = max(len(audio) / 16000.0, 0.001)
-    with _lock:
-        progress(0.0, "Зареждам модела…")
-        model = _load()
+    progress(0.0, "Зареждам модела…")
+    model = _load()
+    if cancelled():
+        raise Cancelled()
+    segments, _ = model.transcribe(audio, language=language, word_timestamps=True, vad_filter=False, beam_size=beam,
+                                   initial_prompt=prompt or None)
+    words: list[dict] = []
+    for seg in segments:                                   # a generator: the work happens here, segment by segment
         if cancelled():
             raise Cancelled()
-        segments, _ = model.transcribe(audio, language=language, word_timestamps=True, vad_filter=False, beam_size=5,
-                                       initial_prompt=prompt or None)
-        words: list[dict] = []
-        for seg in segments:                                   # a generator: the work happens here, segment by segment
-            if cancelled():
-                raise Cancelled()
-            for w in seg.words or []:
-                if w.word.strip():
-                    words.append({"word": w.word.strip(), "start": round(float(w.start), 3), "end": round(float(w.end), 3),
-                                  "p": round(float(w.probability), 2)})
-            progress(min(seg.end / duration, 1.0), "Разпознавам речта…")
-        _state["last"] = time.time()
-        _schedule_free()
+        for w in seg.words or []:
+            if w.word.strip():
+                words.append({"word": w.word.strip(), "start": round(float(w.start), 3), "end": round(float(w.end), 3),
+                              "p": round(float(w.probability), 2)})
+        progress(min(seg.end / duration, 1.0), "Разпознавам речта…")
+    _state["last"] = time.time()
+    _schedule_free()
     return words
 
 

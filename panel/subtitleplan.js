@@ -74,9 +74,17 @@ function describeResult(r) {
     lines.push({ cls: "warn", text: `Времена: от Whisper, може да са неточни с до 0,3 s (${why}).` });
   }
   const unsure = [];
-  for (const cap of r.captions || []) for (const f of cap.flags || []) unsure.push(`${clock(f.at)} „${String(f.word).replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")}“`);
+  const why = (at) => {
+    const hit = (r.review || []).find((x) => Math.abs(x.at - at) <= 0.06);
+    return hit ? ` — ${hit.reason}` : "";
+  };
+  for (const cap of r.captions || []) for (const f of cap.flags || []) unsure.push(`${clock(f.at)} „${String(f.word).replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")}“${why(f.at)}`);
   if (unsure.length) {
-    lines.push({ cls: "warn", text: `Провери ${unsure.length === 1 ? "1 несигурна дума" : `${unsure.length} несигурни думи`} (прочетени различно или непознати за речника): ${unsure.slice(0, 10).join(", ")}${unsure.length > 10 ? ", …" : ""}.` });
+    lines.push({ cls: "warn", text: `Провери ${unsure.length === 1 ? "1 несигурна дума" : `${unsure.length} несигурни думи`} (чуй ги в оригинала; нищо не е налучкано): ${unsure.slice(0, 10).join("; ")}${unsure.length > 10 ? "; …" : ""}.` });
+  }
+  const silent = (r.review || []).filter((x) => !x.word);
+  if (silent.length) {
+    lines.push({ cls: "warn", text: `Чуй ${silent.length === 1 ? "1 място" : `${silent.length} места`} с говор без дума (може да липсва дума, или е дишане): ${silent.slice(0, 8).map((x) => `${clock(x.at)}–${clock(x.end)}`).join("; ")}.` });
   }
   for (const e of r.correction_errors || []) lines.push({ cls: "warn", text: `Не разбирам: ${e}.` });
   const fixes = r.corrections || [];
@@ -85,8 +93,16 @@ function describeResult(r) {
   for (const f of fixes.filter((x) => !x.applied)) {
     lines.push({ cls: "warn", text: `Корекцията „${f.heard}“ → „${f.said}“ не намери тези думи в разпознатото (пишат се така, както се виждат в субтитрите).` });
   }
-  const rd = r.readings;
-  if (rd && rd.changed) lines.push({ cls: "line", text: `${rd.changed} ${rd.changed === 1 ? "дума е сменена" : "думи са сменени"}, защото повечето четения и речникът са за друга дума.` });
+  const rd = r.readings || {};
+  const strip = (w) => String(w).replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+  const fixed = (rd.changes || []).map((c) => `„${strip(c.from)}“ → „${strip(c.to)}“`);
+  if (fixed.length) lines.push({ cls: "line", text: `Поправени по речника (думи, записани както се чуват): ${[...new Set(fixed)].join(", ")}.` });
+  if ((rd.commas || []).length) lines.push({ cls: "line", text: `Добавена запетая след края на условното изречение: ${rd.commas.map((x) => `„${strip(x)}“`).join(", ")}.` });
+  const second = rd.second_opinions || [];
+  if (second.length) {
+    const better = second.filter((x) => x[1] === "B").length;
+    lines.push({ cls: "hint", text: `Втори прочит на ${second.length} ${second.length === 1 ? "парче" : "парчета"} с непознати думи${better ? `; за ${better} е взет по-добрият` : ""}.` });
+  }
   for (const d of r.duplicates || []) {
     const rest = d.kept_rest_seconds ? `; ${d.kept_rest_seconds} s от ${d.dropped} са запазени, там другият не чува` : "";
     lines.push({ cls: "line", text: `${d.dropped} и ${d.kept} чуват едно и също: взет е ${d.kept} (по-чист звук, ${d.kept_snr_db} dB срещу ${d.dropped_snr_db} dB${rest}).` });
