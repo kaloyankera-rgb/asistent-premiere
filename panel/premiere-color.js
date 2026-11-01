@@ -108,8 +108,10 @@ async function exportFrame(sequence, seconds, name, dir) {
   if (!has(ppro.Exporter, "exportSequenceFrame")) return null;
   const { w, h } = await frameSize(sequence);
   try {
-    const ok = await ppro.Exporter.exportSequenceFrame(sequence, TickTime.createWithSeconds(seconds), name, dir, w, h);
-    return ok === false ? null : `${dir}/${name}`;
+    // Premiere adds the extension itself (seen 26.0.2: "x.png" became "x.png.png"): give the name without it
+    const base = name.replace(/\.png$/i, "");
+    const ok = await ppro.Exporter.exportSequenceFrame(sequence, TickTime.createWithSeconds(seconds), base, dir, w, h);
+    return ok === false ? null : `${dir}/${base}.png`;
   } catch (e) {
     debug(`exportSequenceFrame failed: ${e && e.message ? e.message : e}`);
     return null;
