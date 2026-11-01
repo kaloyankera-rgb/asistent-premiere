@@ -7,6 +7,9 @@ drive the engine. The Host header is checked against DNS rebinding.
   GET  /status               engine version and busy state
   GET  /subtitles/model      speech model status (backend installed, model present, size, device)
   POST /subtitles/model/download   job: download the ~3 GB model (only from the confirmed panel button)
+  POST /subtitles            {"items": [{path, start, end, at, name}], "out_dir", "name", "fps", "width", "height",
+                              "preset"?: auto|short|standard, "terms"?: [...], "skipped"?: [...]} -> job: dialogue mix ->
+                              Whisper -> captions -> SRT + JSON in <out_dir>/Asistent_subtitles (nothing goes to Premiere)
   GET  /dev/poll?wait=s      test bridge (only with devbridge.enabled): the next panel command
   POST /dev/command          {name, args} -> {id};  GET /dev/result?id=&wait=s;  POST /dev/result {id, ok, data}
   POST /sync                 {"paths": [...], "reference": null|int} -> {"job": id}
@@ -55,6 +58,7 @@ from .importer import Store, Watcher
 from .managed import ManagedStore
 from . import shotmatch as SHOT
 from . import asr
+from . import subtitle_job
 from . import devbridge
 
 SHOT_REFS: dict = {}            # shot-match job id -> reference look (for the render check after applying)
@@ -155,6 +159,17 @@ def _start_audio(body: dict) -> dict:
     return {"job": JOBS.submit("audio", work).id}
 
 
+def _start_subtitles(body: dict) -> dict:
+    subtitle_job.validate(body)          # fail now, with the message, not inside the job
+
+    def work(job):
+        def progress(f, msg):
+            job.progress, job.message = f, msg
+        return subtitle_job.run(body, progress, lambda: job.cancelled)
+
+    return {"job": JOBS.submit("subtitles", work).id}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = f"Asistent/{config.VERSION}"
 
@@ -247,6 +262,8 @@ class Handler(BaseHTTPRequestHandler):
                         job.progress, job.message = f, msg
                     return asr.download_model(progress, lambda: job.cancelled)
                 return self._send(200, {"job": JOBS.submit("subtitles_model", work).id})
+            if self.path == "/subtitles":
+                return self._send(200, _start_subtitles(body))
             if self.path in ("/dev/command", "/dev/result"):
                 if not devbridge.enabled():
                     return self._send(404, {"error": "Тестовият мост е изключен."})

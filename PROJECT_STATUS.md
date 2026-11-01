@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.41 (2026-11-01)
+# Project status — Asistent 0.9.42 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.41 via
-UnifiedPluginInstallerAgent, engine 0.9.41 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 211 pytest + 50 node, all passing at 0.9.41.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.42 via
+UnifiedPluginInstallerAgent, engine 0.9.42 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 228 pytest + 60 node, all passing at 0.9.42.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -186,7 +186,24 @@ venv, +~250 MB), model `Systran/faster-whisper-large-v3` 3.09 GB in `~/Library/A
 `GET /subtitles/model`, job `POST /subtitles/model/download`, `--subtitles` / `-Subtitles` in the setup scripts.
 Measured on this Mac (M4 Max, CPU int8): model load 1.8 s; 29 s of audio in 10.2 s and 54 s in 19.4 s (2.8x real time,
 better than the plan's 20-60 s per minute); Bulgarian recognised (GStroy clips, sparse speech), 2 of 52 words below p 0.5.
-The panel has no button for the install/download yet (M3/M4); Windows CUDA is untested. Next: M3 dialogue mix + job.
+Windows CUDA is untested.
+**M3 built at 0.9.42** (dialogue mix + job + panel section; user verification in Premiere pending): `dialoguemix.py`
+(selected audio items → one 16 kHz mono signal at sequence time; a one-sided lavalier uses its sound side, two mics are
+summed, otherwise averaged; the buffer starts at the earliest item), `subtitle_job.py` + `POST /subtitles` (validates
+at once, runs Whisper through `asr.py`, caches the words by mix + prompt in `cache/subtitles/` so a preset or fps change
+does not run Whisper again, builds captions with `subtitles.build_captions`, writes `<project folder>/Asistent_subtitles/
+<sequence> <date-time>.srt` + `.json`, nothing is sent to Premiere), pure `panel/subtitleplan.js` (selected audio items;
+skips speed ≠ 1, reversed, offline/nested; an item covered ≥ 50 % by a lower-track item is a duplicate and named),
+`panel/premiere-subtitles.js` (reads the selection, frame size and fps, project folder), panel section „СУБТИТРИ“ with
+„Субтитри (български)“ and, only when the model is missing, a button naming the size („Свали модела (около 3,1 GB)“)
+that is the only thing starting the download. Result in the panel: counts, uncertain words, skipped clips, first 8
+captions, file path. Verified by tests: mix at the right sequence times with a silent gap, overlap sum clipped, request
+validation, cache hit, auto preset by sequence shape, cancel writes nothing (16 + 1 pytest, 9 node + 1 wiring).
+Verified end to end through the live engine on a real clip (fx39011, 11 s, Bulgarian): 4 captions / 8 words in 10.1 s
+(2.8x real time), times start at the item's sequence position, second run (other preset) 0.2 s from the cache.
+**NOT verified in Premiere:** the panel section itself, `getVideoFrameRect`/`getVideoFrameSize` (the API names are
+guesses; if neither works the preset falls back to „кратки“ and the log says so), selection → payload. „Имена и термини“
+(Whisper prompt) has no field yet. Next: M4 review + import into the bin („Внеси в проекта“, one Undo).
 
 ## Phases 7–9 (Planned)
 7 Bulgarian subtitles (faster-whisper; reuse `tools/autoedit/asr.py` by copying), 8 rough-cut markers and

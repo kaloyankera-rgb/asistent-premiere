@@ -9,6 +9,8 @@ const premiereProbe = require("./premiere-probe.js");
 const { plansFor, corrections, statusOf, STATUS_BG } = require("./colorplans.js");
 const { cameras, shotMoments } = require("./moments.js");
 const { createBridge } = require("./devbridge.js");
+const premiereSubtitles = require("./premiere-subtitles.js");
+const { describeResult } = require("./subtitleplan.js");
 
 const $ = (id) => document.getElementById(id);
 const state = { online: false, busy: false, jobId: null, settleUntil: 0 };
@@ -91,6 +93,12 @@ async function refreshHeader() {
     $("project").textContent = "Няма отворен проект";
   }
   if (!state.busy) for (const b of document.querySelectorAll("button.action, button.small")) b.disabled = !state.online;
+  if (state.online && !state.modelShown) {                 // once per start: does the subtitle section need the install?
+    state.modelShown = true;
+    engine.subtitlesModel().then(renderSubtitleModel).catch(() => {
+      state.modelShown = false;
+    });
+  }
 }
 
 function wait(ms) {
@@ -255,6 +263,81 @@ async function onAudio(force) {
   } finally {
     state.jobId = null;
     setBusy(false);
+  }
+}
+
+// ---------------------------------------------------------------- subtitles
+
+const gb = (b) => (b / 1e9).toFixed(1).replace(".", ",");
+
+// What the section says about the speech model, and whether to offer the download (never started on its own).
+function renderSubtitleModel(st) {
+  let text = "";
+  if (!st.backend) {
+    text = "Липсват пакетите за разпознаване на реч: пусни scripts/setup_mac.sh --subtitles (виж README).";
+  } else if (!st.model) {
+    text = `Моделът за българска реч (около ${gb(st.expected_bytes)} GB) още не е свален. Ще се запише в ${st.dir}.` +
+      (st.bytes ? ` Вече са свалени ${gb(st.bytes)} GB: свалянето продължава от там.` : "");
+  }
+  $("subtitleModel").textContent = text;
+  show("subtitleModel", !!text);
+  show("subtitleAsk", st.backend && !st.model);
+}
+
+async function onSubtitles() {
+  if (state.busy) return;
+  if (!state.online) {
+    finish("Няма връзка с engine-а. Виж README.", false);
+    return;
+  }
+  show("result", false);
+  setBusy(true);
+  progress(0, "Проверявам модела за реч…");
+  try {
+    const st = await engine.subtitlesModel();
+    renderSubtitleModel(st);
+    if (!st.backend || !st.model) {
+      throw new premiere.UserError(!st.backend ? "Липсват пакетите за разпознаване на реч (виж СУБТИТРИ)."
+        : "Моделът за реч още не е свален: натисни „Свали модела“ в раздел СУБТИТРИ.");
+    }
+    const project = await premiere.activeProject();
+    progress(0.02, "Чета маркираните клипове…");
+    const { payload, plan } = await premiereSubtitles.readInput(project, []);
+    engine.log("info", `subtitles: ${plan.use.length} клипа, ${plan.skipped.length} пропуснати`);
+    const { job } = await engine.startSubtitles(payload);
+    const out = describeResult(await runJob(job));
+    finish(out.text, out.ok, out.lines.map((l) => el("div", l.cls, l.text)));
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `subtitles: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    state.jobId = null;
+    setBusy(false);
+  }
+}
+
+// The user pressed a button that names the size: this is the confirmation (SUBTITLES_PLAN.md, downloads).
+async function onSubtitleDownload() {
+  if (state.busy) return;
+  if (!state.online) {
+    finish("Няма връзка с engine-а. Виж README.", false);
+    return;
+  }
+  show("result", false);
+  setBusy(true);
+  progress(0, "Свалям модела…");
+  try {
+    const r = await engine.downloadSubtitleModel();
+    if (!r.done) await runJob(r.job);
+    renderSubtitleModel(await engine.subtitlesModel());
+    finish("Моделът е свален. Натисни „Субтитри (български)“.", true);
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `subtitle model: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    state.jobId = null;
+    setBusy(false);
+    engine.subtitlesModel().then(renderSubtitleModel).catch(() => {});
   }
 }
 
@@ -666,6 +749,8 @@ importLoop();
 
 onTap($("sync"), onSync);
 onTap($("audio"), () => onAudio(null));
+onTap($("subtitles"), onSubtitles);
+onTap($("subtitleDownload"), onSubtitleDownload);
 // only the audio buttons carry data-force: "button.small" alone also caught the probe and the import
 // buttons, so they ran „Оправи звука“ too (and its result hid the probe's question)
 for (const b of document.querySelectorAll("button.small[data-force]")) onTap(b, () => onAudio(b.getAttribute("data-force")));

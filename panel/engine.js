@@ -95,6 +95,19 @@ function colorProbe(report, refs, frames) {
   return call("POST", "/color/probe", { report, refs, frames });
 }
 
+function subtitlesModel() {
+  return call("GET", "/subtitles/model");
+}
+
+// only from the panel button the user pressed knowing the size: {done: true} or {job}
+function downloadSubtitleModel() {
+  return call("POST", "/subtitles/model/download", {});
+}
+
+function startSubtitles(payload) {
+  return call("POST", "/subtitles", payload);
+}
+
 function job(id) {
   return call("GET", `/jobs/${id}`);
 }
@@ -117,4 +130,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, startSubtitles, devPoll, devResult, job, cancel, log };

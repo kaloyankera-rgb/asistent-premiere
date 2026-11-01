@@ -148,3 +148,7 @@
 - Всяка промяна: версия в `panel/manifest.json` и `engine/asistent/config.py` → тестове (`pytest tests`, `node --test tests/*.test.js`) → `scripts/release_mac.sh` (инсталира в Premiere без прозорец и рестартира engine-а).
 - Диагностика: `~/Library/Application Support/Asistent/logs/engine.log` (панелът пише там всяка стъпка и списъка с методите на API-то); UXP логове: `~/Library/Logs/Adobe/Adobe Premiere Pro 2026/UXPLogs_*`; crash dump-ове: `~/Library/Caches/Adobe/Premiere Pro/26.0/SentryIO-db/completed/`.
 - Правила от потребителя: един Undo на натискане; без изтриване на клипове през UXP (краш в 26.0.2); без заглушаване/разместване на писти; главен микрофон пик ≤ −6 dB; нищо не се прилага при несигурност; тестовете в Premiere само в тестов проект (TEST.prproj), не в клиентски.
+
+## 2026-11-01 21:30: Фаза 7 M3, версия 0.9.42 (диалогов микс, /subtitles, раздел „СУБТИТРИ“)
+- Engine: `dialoguemix.py`, `subtitle_job.py`, `POST /subtitles`. Тестове: 228 pytest + 60 node. Истински клип през жив engine (fx39011, 11 s): 4 реда / 8 думи за 10.1 s, второто пускане от кеша.
+- Панел: `subtitleplan.js`, `premiere-subtitles.js`, секция в `index.html`/`main.js`. Инсталиран с `release_mac.sh`. **Не е натискан в Premiere.** Следва: проба в TEST.prproj, после M4 (виж `TODO.md`).
