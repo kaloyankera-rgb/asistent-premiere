@@ -12,6 +12,9 @@ drive the engine. The Host header is checked against DNS rebinding.
   GET  /jobs/<id>            state, progress, message, result
   POST /jobs/<id>/cancel
   POST /log                  {"level": "info"|"error", "message": "..."} panel messages into the engine log
+  POST /color               {"items": [{"path", "start", "end"}]} -> job: exposure + white balance + preview
+  POST /color/sliders        {"fix_temp", "fix_tint"} -> Lumetri Temperature/Tint (learnt calibration)
+  POST /color/check          {"before", "after", "applied": {...}, "fix": {...}} -> verify a Premiere render
   GET  /import/status?project=P[&wait=s]   folder, queue, last imports; wait: return as soon as a file is ready
   POST /import/bind          {"project", "folder"?}  switch on (default folder: ~/Downloads)
   POST /import/unbind        {"project"}
@@ -32,6 +35,7 @@ from urllib.request import Request, urlopen
 from . import config
 from .jobs import JobManager
 from .audio import analyze_items
+from . import color as COLOR
 from .groups import sync_groups
 from .importer import Store, Watcher
 from .sync import sync_clips
@@ -187,8 +191,10 @@ class Handler(BaseHTTPRequestHandler):
                 _store().wait_queue(project, wait)
             return self._send(200, _import_status(project))
         if self.path == "/status":
+            frames = os.path.join(config.app_dir(), "frames")
+            os.makedirs(frames, exist_ok=True)
             return self._send(200, {"ok": True, "app": "asistent", "version": config.VERSION,
-                                    "busy": JOBS.active(), "platform": sys.platform})
+                                    "busy": JOBS.active(), "platform": sys.platform, "frames_dir": frames})
         m = re.fullmatch(r"/jobs/([0-9a-f]{12})", self.path)
         if m:
             job = JOBS.get(m.group(1))
@@ -206,6 +212,41 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _start_groups(body))
             if self.path == "/audio":
                 return self._send(200, _start_audio(body))
+            if self.path == "/color":
+                items = body.get("items") or []
+                if not items or not all(isinstance(i, dict) and isinstance(i.get("path"), str) for i in items):
+                    raise ValueError("Маркирай поне един видео клип в таймлайна.")
+
+                def work(job):
+                    def progress(f, msg):
+                        job.progress, job.message = f, msg
+                    res = COLOR.analyze_items(items, True, progress, lambda: job.cancelled)
+                    log.info("color: %s", [(r["name"], r.get("exposure", {}).get("stops"),
+                                            r.get("white", {}).get("confidence")) for r in res["items"]])
+                    return res
+                return self._send(200, {"job": JOBS.submit("color", work).id})
+            if self.path == "/color/sliders":
+                cal = COLOR.Calibration()
+                out = cal.sliders(float(body.get("fix_temp") or 0), float(body.get("fix_tint") or 0))
+                out["learnt"] = cal.learnt("temp") and cal.learnt("tint")
+                return self._send(200, out)
+            if self.path == "/color/check":
+                before, after = str(body.get("before") or ""), str(body.get("after") or "")
+                if not (os.path.isfile(before) and os.path.isfile(after)):
+                    raise ValueError("Няма изнесени кадри за проверка.")
+                res = COLOR.check_render(before, after)
+                b = COLOR.measure(COLOR.read_image(before))
+                cb = b.get("cast_neutral") or b.get("cast_world")
+                applied, fix = body.get("applied") or {}, body.get("fix") or {}
+                if cb and res["cast_after"]:
+                    cal = COLOR.Calibration()
+                    res["learnt"] = {
+                        "temp": cal.learn("temp", float(applied.get("temperature") or 0), res["cast_after"][0] - cb[0]),
+                        "tint": cal.learn("tint", float(applied.get("tint") or 0), res["cast_after"][1] - cb[1])}
+                    res["residual"] = [round(res["cast_after"][0] + 0.0, 3), round(res["cast_after"][1] + 0.0, 3)]
+                    res["sliders_now"] = cal.sliders(float(fix.get("fix_temp") or 0), float(fix.get("fix_tint") or 0))
+                log.info("color check: %s", {k: v for k, v in res.items() if k != "sliders_now"})
+                return self._send(200, res)
             if self.path == "/import/bind":
                 project = body.get("project")
                 if not isinstance(project, str) or not project:

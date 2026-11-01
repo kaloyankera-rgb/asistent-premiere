@@ -43,3 +43,6 @@ section { margin-top: 12px; }
 .block { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--uxp-host-border-color, #3a3a3a); }
 .buttons { flex-wrap: wrap; margin-top: 6px; }
 button.small { font-size: 11px; padding: 4px 7px; margin: 0 4px 4px 0; }
+.thumbs { display: flex; flex-direction: row; margin: 4px 0; }
+.thumbs img { width: 46%; margin-right: 4%; border-radius: 2px; }
+.cap { font-size: 10px; color: var(--uxp-host-text-color-secondary, #999); }

@@ -4,6 +4,7 @@ const layout = require("./layout.js");
 const premiereAudio = require("./premiere-audio.js");
 const PANEL_VERSION = require("./version.js");
 const premiereImport = require("./premiere-import.js");
+const premiereColor = require("./premiere-color.js");
 
 const $ = (id) => document.getElementById(id);
 const state = { online: false, busy: false, jobId: null };
@@ -222,6 +223,116 @@ async function onAudio(force) {
     setBusy(false);
   }
 }
+
+// ---------------------------------------------------------------- colour
+
+const CONF = { high: "висока", medium: "средна", low: "ниска" };
+const colorState = { project: null, sel: null, results: null };
+
+function colorBlock(clip, r) {
+  const box = el("div", "group");
+  box.appendChild(el("div", "name", clip.name));
+  if (r.error) {
+    box.appendChild(el("div", "warn", r.error));
+    return box;
+  }
+  if (r.preview && r.preview.before) {
+    const row = el("div", "thumbs");
+    for (const k of ["before", "after"]) {
+      const img = document.createElement("img");
+      img.src = `data:image/jpeg;base64,${r.preview[k]}`;
+      row.appendChild(img);
+    }
+    box.appendChild(row);
+    box.appendChild(el("div", "cap", "преди · след (приблизително)"));
+  }
+  const e = r.exposure;
+  box.appendChild(el("div", "line", e.stops
+    ? `Експозиция ${e.stops > 0 ? "+" : ""}${e.stops} (${CONF[e.confidence]} сигурност)` : "Експозиция: без промяна"));
+  const w = r.white;
+  box.appendChild(el("div", "line", w.balanced ? `Бяло: наред (${CONF[w.confidence]})`
+    : `Бяло: корекция (${CONF[w.confidence]} сигурност)`));
+  for (const x of r.reasons || []) box.appendChild(el("div", "reason", x));
+  for (const x of r.warnings || []) box.appendChild(el("div", "warn", x));
+  return box;
+}
+
+function colorPlans(level) {
+  const ok = (c) => c === "high" || (level === "all" && c === "medium");
+  const plans = [];
+  colorState.sel.clips.forEach((clip, i) => {
+    const r = colorState.results[i];
+    if (!r || r.error) return;
+    const exposure = r.exposure.stops && ok(r.exposure.confidence) ? r.exposure.stops : null;
+    const wb = !r.white.balanced && ok(r.white.confidence);
+    if (exposure || wb) plans.push({ clip, res: r, exposure, wb });
+  });
+  return plans;
+}
+
+async function onColor() {
+  if (state.busy) return;
+  if (!state.online) return finish("Няма връзка с engine-а. Виж README.", false);
+  show("result", false);
+  setBusy(true);
+  progress(0, "Гледам маркираните клипове…");
+  try {
+    const project = await premiere.activeProject();
+    const sel = await premiereColor.readVideoSelection(project);
+    if (!sel.clips.length) throw new premiere.UserError("Маркирай в таймлайна поне един видео клип.");
+    const { job } = await engine.startColor(sel.clips.map((c) => ({ path: c.path, start: c.inPt, end: c.outPt })));
+    const result = await runJob(job);
+    Object.assign(colorState, { project, sel, results: result.items });
+    const blocks = sel.clips.map((c, i) => colorBlock(c, result.items[i]));
+    const sure = colorPlans("sure").length;
+    const all = colorPlans("all").length;
+    const bar = el("div", "row buttons");
+    if (sure) {
+      const b = el("button", "small", `Приложи сигурните (${sure})`);
+      b.addEventListener("click", () => onColorApply("sure"));
+      bar.appendChild(b);
+    }
+    if (all > sure) {
+      const b = el("button", "small", `Приложи и средните (${all})`);
+      b.addEventListener("click", () => onColorApply("all"));
+      bar.appendChild(b);
+    }
+    blocks.unshift(bar);
+    finish(all ? "Предложение: нищо не е приложено още." : "Няма какво да се поправя със сигурност.", true, blocks);
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `color: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    state.jobId = null;
+    setBusy(false);
+  }
+}
+
+async function onColorApply(level) {
+  if (state.busy || !colorState.sel) return;
+  setBusy(true);
+  progress(0.5, "Прилагам в Lumetri и проверявам на кадър…");
+  try {
+    const plans = colorPlans(level);
+    const { steps } = await premiereColor.apply(colorState.project, colorState.sel.timeline, plans);
+    const blocks = plans.map((pl) => {
+      const box = el("div", "group");
+      box.appendChild(el("div", "name", pl.clip.name));
+      for (const l of pl.lines || []) box.appendChild(el("div", "line", l));
+      return box;
+    });
+    const undo = steps === 1 ? "Един Cmd/Ctrl+Z връща всичко." : steps > 1 ? `${steps} пъти Cmd/Ctrl+Z връщат всичко.` : "";
+    finish(`Приложено на ${plans.length} ${plans.length === 1 ? "клип" : "клипа"}. ${undo}`, true, blocks);
+    colorState.sel = null;
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `color apply: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    setBusy(false);
+  }
+}
+
+$("color").addEventListener("click", onColor);
 
 // ---------------------------------------------------------------- auto import
 

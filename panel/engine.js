@@ -55,6 +55,18 @@ function importResult(id, ok, note) {
   return call("POST", "/import/result", { id, ok, note: note || "" });
 }
 
+function startColor(items) {
+  return call("POST", "/color", { items });
+}
+
+function colorSliders(fixTemp, fixTint) {
+  return call("POST", "/color/sliders", { fix_temp: fixTemp, fix_tint: fixTint });
+}
+
+function colorCheck(before, after, applied, fix) {
+  return call("POST", "/color/check", { before, after, applied, fix });
+}
+
 function job(id) {
   return call("GET", `/jobs/${id}`);
 }
@@ -68,4 +80,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  job, cancel, log };
+  startColor, colorSliders, colorCheck, job, cancel, log };
