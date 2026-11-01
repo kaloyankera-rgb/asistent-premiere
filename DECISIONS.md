@@ -98,3 +98,10 @@ camera-difference thresholds are no fix (close-ups). Skin is therefore measured 
 ships, and over MediaPipe, which is much heavier). No face → neutral surfaces on common moments, then mid-tones on
 comparable content; saturation only from faces. Every measurement carries a confidence, and the render check
 compares only on anchors all frames share and reports what it skipped.
+
+## Subtitles go in as an SRT the user drags (2026-11-01, M0 probes, 0.9.39)
+Premiere 26.0.2 imports an .srt as a project item (`importFiles`), but neither `createOverwriteItemAction` nor
+`createInsertProjectItemAction` places it (no error, nothing appears, no caption track), and there is no API to create a
+caption track. So Asistent imports the SRT into a bin and the user drags it over the sequence once; our line breaks
+survive. Premiere's own transcript (`Transcript`) is not used for now: its export rejects a clip without a transcript and
+its own captions would re-break the lines.

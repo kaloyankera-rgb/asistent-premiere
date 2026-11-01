@@ -42,6 +42,10 @@ Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 ## C. Still to verify from earlier phases
 „Изравни фразите“, one Undo (audio), „Раздели R/L“, auto-import speed.
 
+## C2. Phase 7 subtitles (user's current focus, 2026-11-01)
+Plan: `docs/SUBTITLES_PLAN.md` (M0 probes → M1 text core → M2 ASR + install → M3 mix + job → M4 review + import).
+Waiting for the user's 4 decisions at the end of that file and the OK for downloads and for writing to TEST.prproj.
+
 ## D. Later phases
 5 Client profiles + Prepare Project (in the office; draft in `profiles.py`/`prepare.py`; Basecamp paste),
 7 Bulgarian subtitles, 8 rough-cut markers + export QA, 9 Windows (run `setup_win.ps1`, silent install with
