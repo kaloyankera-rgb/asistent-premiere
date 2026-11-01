@@ -359,7 +359,11 @@ async function onColorApply(level) {
       return box;
     });
     const undo = steps === 1 ? "Един Cmd/Ctrl+Z връща всичко." : steps > 1 ? `${steps} пъти Cmd/Ctrl+Z връщат всичко.` : "";
-    finish(`Приложено на ${plans.length} ${plans.length === 1 ? "клип" : "клипа"}. ${undo}`, true, blocks);
+    // a clip that already has a graded Lumetri is left alone: never report it as applied
+    const done = plans.filter((pl) => !pl.skipped).length;
+    const skipped = plans.length - done;
+    finish(done ? `Приложено на ${done} ${done === 1 ? "клип" : "клипа"}${skipped ? `, ${skipped} пропуснати` : ""}. ${undo}`
+      : "Нищо не е приложено: виж причината отдолу.", done > 0, blocks);
     colorState.sel = null;
   } catch (e) {
     finish(e.message || String(e), false);
