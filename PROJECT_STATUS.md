@@ -48,9 +48,20 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
 (`AE.ADBE Lumetri`) and sets Exposure/Temperature/Tint; render check with `Exporter.exportSequenceFrame`.
 „Проба на Lumetri (тестов проект)“ capability probe.
 - Verified in Premiere: Lumetri appended on C0730 (0.9.4), 130 parameters enumerated, frames exported.
-- NOT verified: values actually set and read back, render check (frame names fixed only in 0.9.5, no
-  „color check“ entry in the log yet), Temperature/Tint calibration (`lumetri.json` does not exist yet),
-  probe runs 12:03-12:10 (0.9.10/0.9.11, clips C0731, C0729, C0733, C0736, fx31033): Exposure (index 19), Temperature (14), Tint (15), Contrast (20), Saturation (16) are written, read back and restored. The measured table is NOT valid: `exportSequenceFrame` only queues the export, all frames were rendered after the values were restored (byte-identical) and same-named files from earlier runs were measured; the tables differed per clip. The calibration learnt from them was moved to `lumetri.before-0.9.12.json`. Fixed in 0.9.13 (unique names, wait for each finished frame); probe to rerun.
+- NOT verified: the „Приложи“ flow end to end with its render check (no „color check“ entry in the log yet).
+  Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
+  is kept aside in `lumetri.before-0.9.12.json`.
+- **Probe VERIFIED at 0.9.13 (12:16, C0737, TEST.prproj):** 7 distinct frames written in order ~0.33 s apart;
+  source and empty-Lumetri frames byte-identical (an untouched Lumetri changes nothing). Table: white balance,
+  exposure, contrast, saturation SUPPORTED; skin tones PARTIAL (global only); colour management PARTIAL (clip
+  input/embedded LUT readable, here none). Indices: Temperature 14, Tint 15, Saturation 16, Exposure 19,
+  Contrast 20. Checked pixel by pixel on unclipped pixels:
+  - Temperature +50 = pure channel gains R +0.41, G −0.09, B −0.59 stops (spread ±0.02) → −50 units per log2 B/R.
+  - Tint +50 = R +0.49, G −0.26, B +0.49 stops → −66.7 units per log2 G/√(RB). Same values on C0729 → clip-independent.
+    `lumetri.json` now holds only these (temp −50, tint −66.7).
+  - Exposure +1 is NOT a plain gain: +1.00 stop in shadows (encoded luma < 0.2), +0.92 at 0.3–0.4, +0.79 at
+    0.5–0.6, +0.68 at 0.6–0.7, +0.57 at 0.7–0.8 (soft highlight shoulder). Skin (target 0.62) gets ~0.7 stop per
+    unit, so the planner must use this curve, not 1 stop/unit (next step).
 - Not implemented from the colour plan: analysis on timeline renders, colour-management/double-transform
   check, statuses + audit log, contrast, saturation, skin tones, shot match, Auto Color, accept/revert,
   managed correction ownership. See `COLOR_CORRECTION_PLAN.md` and `NEXT_STEPS.md`.
