@@ -1,0 +1,60 @@
+# Asistent — Premiere Pro workflow assistant
+
+Independent, zero-budget, local assistant for the user's daily short-form editing in Adobe Premiere Pro
+(sync two POV cameras, lavalier audio, dialogue levels, auto import of downloads, colour: white balance
+and exposure). Built 2026-11-01 from the user's spec (first message of the session) plus the colour
+engine spec in `docs/color-spec/` (see `COLOR_CORRECTION_PLAN.md`).
+
+Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AND_LIMITATIONS.md`.
+`DECISIONS.md` explains why things are the way they are. `PROGRESS.md` is the detailed chronological log.
+
+## Architecture
+- **UXP panel** `panel/` (manifest v5, id `com.contentstudio.asistent`, host `premierepro` ≥ 26.0.0,
+  plain HTML/JS, no build). The only UI. Talks to Premiere through `require("premierepro")`.
+  - `main.js` UI and flows · `engine.js` HTTP client · `premiere.js` timeline reading, SYNC sequence,
+    shared helpers (`transaction`, `has`, `maybe`, `ensureBin`, `readTimeline`, `readItems`)
+  - `premiere-audio.js` Fill L/R, split copy, Volume level/keyframes · `channels.js` effect-chain routing
+  - `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
+  - `premiere-probe.js` Lumetri capability probe · `layout.js` SYNC layout · `version.js` written by packaging
+- **Python engine** `engine/asistent/` (stdlib HTTP server on `127.0.0.1:47390`, requests must carry
+  header `X-Asistent: 1`; web origins and foreign Host headers are rejected). Started by `engine/run_engine.py`.
+  - `server.py` endpoints · `jobs.py` background jobs (progress, cancel) · `config.py` paths, version, logging
+  - `media.py` ffprobe/ffmpeg · `cache.py` decoded-audio cache · `sync.py` audio sync · `groups.py` many-clip groups
+  - `audio.py` channel analysis, loudness, phrase leveling · `importer.py` folder watching and queue
+  - `color.py` exposure/white-balance analysis, previews, render check, Lumetri calibration, probe measurement
+  - `profiles.py`, `prepare.py`: Phase 5 draft, NOT wired, NOT tested
+- Engine data (outside the synced vault): `~/Library/Application Support/Asistent/` (Windows
+  `%LOCALAPPDATA%\Asistent\`): `venv/`, `logs/engine.log`, `cache/audio/`, `frames/`, `import.json`,
+  `lumetri.json` (slider calibration, created on first verified render), `lumetri_capabilities.json` (probe).
+- Dependencies: Python 3.12 venv with `numpy==2.5.4`, `scipy==1.18.1`, `watchdog==7.0.0` (`requirements.txt`),
+  `pytest==9.2.0` (`requirements-dev.txt`); system FFmpeg/FFprobe (Homebrew on Mac); Node only for tests.
+
+## Development rules
+- Every change: bump the version in BOTH `panel/manifest.json` and `engine/asistent/config.py` → run tests →
+  `scripts/release_mac.sh` (packs `.ccx`, removes + installs it with Adobe's UnifiedPluginInstallerAgent
+  without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
+- Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
+  (97 tests; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere) and
+  `node --test tests/layout.test.js tests/channels.test.js` (9 tests).
+- Premiere tests only in the user's test project `TEST.prproj`, never in client projects; never close or
+  restart Premiere without asking. Client footage stays local; never look at client frames as images.
+- The Premiere 26.0.2 API differs from Adobe's published types (they start at 26.2): call methods through
+  `maybe()`/`has()`, log what exists (`debug(...)` → engine log), never assume an index or unit.
+- Diagnose from logs: `~/Library/Application Support/Asistent/logs/engine.log` (panel writes every step and
+  the API method lists), `~/Library/Logs/Adobe/Adobe Premiere Pro 2026/UXPLogs_*`, crash dumps in
+  `~/Library/Caches/Adobe/Premiere Pro/26.0/SentryIO-db/completed/` (symbolicate with `atos`).
+- Code style: English code and comments; all user-facing panel text and messages in Bulgarian
+  (natural Bulgarian, no long dash). Comments explain why, as in the existing modules.
+
+## Permanent user rules (do not break)
+- Independent of the user's own CEP extension Quick Search (`com.contentstudio.barzo`, ports 47231–47234):
+  never import, call or modify it.
+- One button press = one Undo step wherever Premiere allows; when it cannot, the panel says how many.
+- Never remove track items through UXP (crashed Premiere 26.0.2, see `DECISIONS.md`).
+- Never mute, reroute or rearrange tracks on the user's behalf.
+- Main microphone peak ≤ −6 dBFS; no compression or limiting by default.
+- Nothing uncertain is applied automatically (sync, routing, colour); zero correction is a valid result.
+- Colour: preview first; only Exposure/Temperature/Tint so far; never contrast/saturation/LUT unless the
+  colour plan's modules are implemented and verified; never touch a manual Lumetri grade.
+- Sync works from the timeline selection and builds a new `SYNC – <sequence>`; the user's sequence is read only.
+- No AI voices, no paid tools, no cloud, nothing uploaded.

@@ -1,0 +1,19 @@
+Test ID,Operation,Input condition,Expected behavior,Fail if
+T01,Auto Color,Already color balanced Rec709,No changes,Any parameter modified
+T02,White Balance,Verified green cast on neutral patch,Correct cast without overshoot,Magenta bias or exposure changed
+T03,White Balance,Mixed warm and cool lighting,Conservative adjustment or review,Aggressive global neutralization
+T04,White Balance,No reliable neutral surface,No-op or review,Unjustified strong tint shift
+T05,Exposure,Correct low-key lighting,Preserve moody scene,Background raised unnecessarily
+T06,Exposure,Subject underexposed and recoverable,Conservative lift and recheck,Clipped highlights introduced
+T07,Exposure,Already clipped source,Do not promise detail recovery,False recovery claim
+T08,Contrast,Good tonal separation,No-op,Unnecessary contrast added
+T09,Saturation,Natural saturation,No-op,Color boosted without reason
+T10,Skin Tones,Multiple natural complexions,Preserve complexion differences,Uniform skin appearance forced
+T11,Shot Match,Two cameras same lighting,Match perceptually and validate,Blind identical values used
+T12,Auto Color,Source S-Log3 already transformed,Avoid duplicate transform,Double LUT applied
+T13,All,Repeated invocation,Idempotent behavior,Cumulative exposure/tint drift
+T14,All,Existing manual Lumetri correction,Preserve user's corrections,Manual grade overwritten
+T15,All,Failed Premiere parameter write,Rollback and report,Partial write left behind
+T16,All,Unsupported Premiere API control,Report BLOCKED and preserve footage,Imaginary API called
+T17,All,Long clip with lighting change,Sample multiple moments,Single-frame extrapolation
+T18,All,Premiere rendered comparison,Compare same timeline frame and output transform,Raw vs rendered comparison used
