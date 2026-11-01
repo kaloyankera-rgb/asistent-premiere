@@ -456,7 +456,9 @@ importLoop();
 
 $("sync").addEventListener("click", onSync);
 $("audio").addEventListener("click", () => onAudio(null));
-for (const b of document.querySelectorAll("button.small")) b.addEventListener("click", () => onAudio(b.getAttribute("data-force")));
+// only the audio buttons carry data-force: "button.small" alone also caught the probe and the import
+// buttons, so they ran „Оправи звука“ too (and its result hid the probe's question)
+for (const b of document.querySelectorAll("button.small[data-force]")) b.addEventListener("click", () => onAudio(b.getAttribute("data-force")));
 $("cancel").addEventListener("click", () => {
   if (state.jobId) engine.cancel(state.jobId).catch(() => {});
 });

@@ -1,7 +1,7 @@
-# Known bugs, limitations and warnings (0.9.9)
+# Known bugs, limitations and warnings (0.9.10)
 
 ## Open bugs
-(Fixed in 0.9.9: Volume level always in Premiere's scale, no guess from the current value; `/color/probe` documented.)
+(Fixed in 0.9.9: Volume level always in Premiere's scale, no guess from the current value; `/color/probe` documented. Fixed in 0.9.10: every small button, including „Проба на Lumetri“ and the two import buttons, also ran „Оправи звука“ (Fill effects, split copies); now only the audio buttons do, `tests/wiring.test.js`.)
 1. **Colour analysis reads the source file, not the timeline** (`engine/asistent/color.py`, `read_frames`).
    Re-running on a corrected clip suggests the same correction again (not idempotent, spec T13/T18). Applying
    twice does not stack only because a Lumetri with non-zero Exposure/Temperature/Tint is skipped.

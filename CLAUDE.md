@@ -35,7 +35,7 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
   without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
   (97 tests; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere) and
-  `node --test tests/layout.test.js tests/channels.test.js` (9 tests).
+  `node --test tests/layout.test.js tests/channels.test.js tests/wiring.test.js` (12 tests).
 - Premiere tests only in the user's test project `TEST.prproj`, never in client projects; never close or
   restart Premiere without asking. Client footage stays local; never look at client frames as images.
 - The Premiere 26.0.2 API differs from Adobe's published types (they start at 26.2): call methods through
