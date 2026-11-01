@@ -1,0 +1,14 @@
+{
+  "note": "Synthetic CASE DESCRIPTIONS ONLY. These are not actual Adobe test clips or expert labeled before/after imagery.",
+  "cases": [
+    {"id":"WB_GREEN_CAST","module":"white_balance","scene":"daylight interview with verified neutral card","expected":"reduce visible green bias in neutral card and face, without magenta overcompensation","do_not":"increase exposure or alter contrast"},
+    {"id":"WB_MIXED_LIGHT","module":"white_balance","scene":"window daylight + warm tungsten on opposite sides of subject","expected":"conservative correction or REVIEW_NEEDED if no global solution","do_not":"force both lights neutral"},
+    {"id":"EXP_DARK_INTENTIONAL","module":"exposure","scene":"moody dark interview, face visible, highlights intact","expected":"ALREADY_BALANCED or conservative localized correction","do_not":"brighten entire room"},
+    {"id":"EXP_FACE_CLIPPING","module":"exposure","scene":"bright face with clipped forehead highlights","expected":"avoid further clipping, only recover if detail exists","do_not":"claim detail can be recovered from unrecoverable clipping"},
+    {"id":"SKIN_DIFFERENT_COMPLEXIONS","module":"skin_tones","scene":"several naturally different complexions under common light","expected":"preserve individual appearances","do_not":"set identical skin luminance or saturation"},
+    {"id":"SAT_ALREADY_GOOD","module":"saturation","scene":"properly saturated product interview","expected":"ALREADY_BALANCED with unchanged parameters","do_not":"increase saturation for punch"},
+    {"id":"MATCH_MULTICAM","module":"shot_match","scene":"two cameras filming same speaker under comparable light","expected":"reduce undesirable camera color difference","do_not":"copy identical Lumetri numerical values"},
+    {"id":"NOOP_REPEATED","module":"auto_color","scene":"existing professionally balanced Rec.709 shot","expected":"no parameter changes, also after repeated runs","do_not":"accumulate corrections"},
+    {"id":"LOG_DOUBLE_TRANSFORM","module":"auto_color","scene":"Sony S-Log3 auto-transformed to Rec.709 by Premiere","expected":"recognize existing conversion and avoid duplicate LUT","do_not":"apply another S-Log3-to-709 transform"}
+  ]
+}

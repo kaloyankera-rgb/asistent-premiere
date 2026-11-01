@@ -1,0 +1,19 @@
+{
+  "reference_id": "user_scene_001",
+  "original_video": "media/original_clip.mov",
+  "corrected_video": "media/expert_corrected_clip.mov",
+  "frames": [
+    {"timecode": "00:00:02:00", "original": "frames/001_before.png", "expert_reference": "frames/001_after.png"}
+  ],
+  "camera": "Sony FX30 (example; confirm actual footage)",
+  "input_color_space": "VERIFY_ME",
+  "input_transfer_function": "VERIFY_ME",
+  "premiere_sequence_working_space": "VERIFY_ME",
+  "premiere_output_color_space": "Rec.709 (example; verify actual)",
+  "existing_input_transform": "VERIFY_ME",
+  "target_operation": "white_balance",
+  "expert_notes": "Explain why reference is better and which changes should NOT happen",
+  "actual_lumetri_parameters": {},
+  "reference_author_permission": "VERIFY_ME",
+  "expected_result": "CORRECTED or ALREADY_BALANCED or REVIEW_NEEDED"
+}
