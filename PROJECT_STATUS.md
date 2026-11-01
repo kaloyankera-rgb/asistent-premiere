@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.9 (2026-11-01)
+# Project status — Asistent 0.9.10 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.9 via
-UnifiedPluginInstallerAgent, engine 0.9.9 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 97 pytest + 9 node, all passing at 0.9.9.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.10 via
+UnifiedPluginInstallerAgent, engine 0.9.10 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 97 pytest + 12 node, all passing at 0.9.10.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
