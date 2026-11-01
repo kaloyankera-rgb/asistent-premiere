@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.37 (2026-11-01)
+# Project status — Asistent 0.9.39 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.37 via
-UnifiedPluginInstallerAgent, engine 0.9.37 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 173 pytest + 50 node, all passing at 0.9.37.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.39 via
+UnifiedPluginInstallerAgent, engine 0.9.39 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 173 pytest + 50 node, all passing at 0.9.39.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -176,6 +176,11 @@ time and there is only one Lumetri and no other effect on the piece: the frame P
 (not the live render; suspected rendered preview files, not confirmed). Values restored to 4.3 afterwards. Consequence:
 the render check cannot judge such a piece; 0.9.34 already says so for identical before/after frames, but a stale frame
 that differs from „before“ (e.g. left from an older state) is not detectable by the engine.
+
+## Phase 7 subtitles (in progress)
+Plan `docs/SUBTITLES_PLAN.md` (user accepted the recommendations). M0 probes done at 0.9.39 (bridge commands
+`srt_import`, `caption_place`, `transcript_export`): SRT import works, automatic caption placement does not, Premiere
+transcript export needs a transcribed clip. Next: user checks Cyrillic of the two test SRTs, then M1 text core.
 
 ## Phases 7–9 (Planned)
 7 Bulgarian subtitles (faster-whisper; reuse `tools/autoedit/asr.py` by copying), 8 rough-cut markers and

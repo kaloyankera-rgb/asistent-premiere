@@ -31,7 +31,7 @@ test("every other command is refused outside TEST.prproj and presses nothing", a
   const btn = el("Цвят: бяло и експозиция");
   const b = createBridge({ premiere: { activeProject: async () => ({ name: "Client.prproj", path: "/c/Client.prproj" }) },
     premiereColor: {}, doc: fakeDoc([btn]), version: "x", sleep });
-  for (const name of ["click", "selection", "state", "frame", "lumetri", "select", "timeline", "api", "wait_idle", "set_lumetri", "chain"]) {
+  for (const name of ["click", "selection", "state", "frame", "lumetri", "select", "timeline", "api", "wait_idle", "set_lumetri", "chain", "srt_import", "caption_place", "transcript_export"]) {
     const r = await b.run({ id: "1", name, args: { text: "Цвят" } });
     assert.strictEqual(r.ok, false, name);
     assert.match(r.data.error, /Само в TEST\.prproj/);

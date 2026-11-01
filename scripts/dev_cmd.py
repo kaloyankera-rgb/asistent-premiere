@@ -10,6 +10,9 @@
   dev_cmd.py lumetri '{"names": ["fx39026"]}'        what Lumetri holds on those clips
   dev_cmd.py set_lumetri '{"names": ["fx39026"], "from": 126, "to": 127, "values": {"exposure": 3}}'   ONE clip, one Undo step
   dev_cmd.py chain '{"names": ["fx39026"]}'          every effect on those clips in chain order
+  dev_cmd.py srt_import '{"paths": ["/abs/a.srt"]}'     P1: import into bin „Asistent тест“
+  dev_cmd.py caption_place '{"name": "a.srt"}'       P2: place it after the sequence end
+  dev_cmd.py transcript_export                       P3: Premiere's transcript of the selected clip
   dev_cmd.py api '{"target": "sequence"}'            method names of project | sequence | ppro | selection
 
 Any other name is sent as a command as it is. The panel refuses everything but `ping` outside TEST.prproj.

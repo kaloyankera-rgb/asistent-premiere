@@ -50,6 +50,14 @@ function createBridge({ premiere, premiereColor, doc, version, engineApi = engin
     return list;
   }
 
+  // a project item as Premiere sees it: kind, content type, media path (for the probes)
+  async function describe(it) {
+    const ppro = require("premierepro");
+    const clip = ppro.ClipProjectItem.cast(it);
+    return { name: it.name, type: it.type, clip: !!clip, content_type: clip ? await premiere.maybe(clip, "getContentType") : null,
+      media: clip ? await premiere.maybe(clip, "getMediaFilePath") : null };
+  }
+
   const brief = (x) => ({ name: x.name, kind: x.kind, track: x.track + 1, start: +x.start.toFixed(3), end: +x.end.toFixed(3),
     in: +(x.inPt || 0).toFixed(3), out: x.outPt === undefined ? null : +x.outPt.toFixed(3), selected: !!x.selected,
     file: x.path ? x.path.split(/[\\/]/).slice(-2).join("/") : null, speed: x.speed });
@@ -146,16 +154,104 @@ function createBridge({ premiere, premiereColor, doc, version, engineApi = engin
       const after = await premiereColor.devWrite(p, chosen[0], values);
       return { clip: brief(chosen[0]), before, after };
     },
+    // ---- Phase 7 probes (docs/SUBTITLES_PLAN.md, M0); they write only into TEST.prproj, the user undoes/deletes
+
+    // P1: import .srt files (paths on this Mac) into the bin „Asistent тест“ and report what Premiere made of them
+    async srt_import(a) {
+      const { p } = await project();
+      const ppro = require("premierepro");
+      const bin = await premiere.ensureBin(p, "Asistent тест");
+      const target = ppro.ProjectItem.cast(bin) || bin;
+      const accepted = await p.importFiles(a.paths || [], true, target, false);
+      const items = [];
+      for (const it of (await bin.getItems()) || []) items.push(await describe(it));
+      return { accepted, items };
+    },
+    // P2: place the imported caption item after the end of the sequence (never over the user's clips), one
+    // transaction per way tried; report caption track counts and what appeared. Nothing is removed: the user undoes.
+    async caption_place(a) {
+      const { p } = await project();
+      const ppro = require("premierepro");
+      const seq = await p.getActiveSequence();
+      const bin = await premiere.ensureBin(p, "Asistent тест");
+      const all = (await bin.getItems()) || [];
+      const item = all.find((x) => x.name === a.name) || all[0];
+      if (!item) throw new Error("Няма нищо в „Asistent тест“: първо srt_import.");
+      const end = premiere.secs(await seq.getEndTime()) || 0;
+      const at = ppro.TickTime.createWithSeconds(end + 5);
+      const v = await seq.getVideoTrackCount(), au = await seq.getAudioTrackCount();
+      const before = { captions: await seq.getCaptionTrackCount(), video: v, audio: au };
+      const editor = ppro.SequenceEditor.getEditor(seq);
+      const proj = ppro.ProjectItem.cast(item) || item;
+      const ways = [
+        ["overwrite", () => editor.createOverwriteItemAction(proj, at, v - 1, au - 1)],
+        ["insert", () => editor.createInsertProjectItemAction(proj, at, v - 1, au - 1, true)],
+      ];
+      const tried = [];
+      for (const [name, make] of a.way ? ways.filter((w) => w[0] === a.way) : ways) {
+        try {
+          premiere.transaction(p, `Asistent тест: субтитри (${name})`, (c) => c.addAction(make()));
+          tried.push({ way: name, ok: true });
+          break;
+        } catch (e) {
+          tried.push({ way: name, ok: false, error: (e && e.message) || String(e) });
+        }
+      }
+      const after = { captions: await seq.getCaptionTrackCount(), video: await seq.getVideoTrackCount(), audio: await seq.getAudioTrackCount() };
+      const placed = [];
+      for (let i = 0; i < after.captions; i++) {
+        const tr = await seq.getCaptionTrack(i);
+        for (const ti of (await premiere.maybe(tr, "getTrackItems", ppro.Constants.TrackItemType.CLIP, false)) || []) {
+          placed.push({ track: i, name: await premiere.maybe(ti, "getName"), start: premiere.secs(await premiere.maybe(ti, "getStartTime")),
+            end: premiere.secs(await premiere.maybe(ti, "getEndTime")) });
+        }
+      }
+      const t = await premiere.readTimeline(p);
+      const near = t.items.filter((x) => x.end > end + 1).map(brief);
+      return { item: await describe(item), at_seconds: end + 5, before, after, tried, caption_items: placed, other_items_after_end: near };
+    },
+    // P3: Premiere's own transcript of the selected clip (needs Speech to Text run on it once) as JSON text
+    async transcript_export(a) {
+      const { p } = await project();
+      const ppro = require("premierepro");
+      const t = await premiere.readTimeline(p);
+      const x = t.items.find((i) => i.selected && i.kind === "video" && i.clip) || t.items.find((i) => i.selected && i.clip);
+      if (!x) throw new Error("Маркирай един клип с транскрипт.");
+      const tries = [];
+      for (const [label, arg] of [["clip", x.clip], ["projectItem", x.projectItem]]) {
+        try {
+          const out = await ppro.Transcript.exportToJSON(arg);
+          const text = typeof out === "string" ? out : JSON.stringify(out);
+          tries.push({ with: label, ok: true, length: (text || "").length, json: (text || "").slice(0, Number(a.max) || 20000) });
+          break;
+        } catch (e) {
+          tries.push({ with: label, ok: false, error: (e && e.message) || String(e) });
+        }
+      }
+      return { clip: brief(x), tries };
+    },
     // method names of an object, to find what this Premiere offers
     async api(a) {
       const { p } = await project();
       const seq = await p.getActiveSequence();
       const objects = { project: p, sequence: seq, ppro: require("premierepro"), selection: await premiere.maybe(seq, "getSelection") };
-      const o = objects[a.target];
+      let o = objects[a.target];
       if (!o) throw new Error(`Знам: ${Object.keys(objects).join(", ")}`);
+      for (const part of String(a.path || "").split(".").filter(Boolean)) o = o && o[part];     // e.g. "Transcript"
+      if (!o) throw new Error(`Няма ${a.target}.${a.path}`);
       const names = new Set();
-      for (let q = o; q && q !== Object.prototype; q = Object.getPrototypeOf(q)) {
-        for (const n of Object.getOwnPropertyNames(q)) if (n !== "constructor") names.add(n);
+      const walk = (q) => {
+        for (; q && q !== Object.prototype && q !== Function.prototype; q = Object.getPrototypeOf(q)) {
+          for (const n of Object.getOwnPropertyNames(q)) if (n !== "constructor" && !["length", "name", "arguments", "caller"].includes(n)) names.add(n);
+        }
+      };
+      walk(o);
+      if (typeof o === "function" && o.prototype) {                                              // a class: statics + instance methods
+        const inst = new Set([...names]);
+        names.clear();
+        for (const n of inst) names.add(`static ${n}`);
+        walk(o.prototype);
+        for (const n of Object.getOwnPropertyNames(o.prototype)) if (n !== "constructor") names.add(n);
       }
       return { names: [...names].sort() };
     },
