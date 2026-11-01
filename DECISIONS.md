@@ -72,3 +72,10 @@
 ## Rejected / postponed
 - Phase 5 postponed by the user (to be done in the office).
 - Remotion/HyperFrames, ElevenLabs/TTS, paid plugins, cloud transcription: out by the user's rules.
+
+## Highlight clipping: step back over 3 %, tolerate the final result up to 3.25 % (2026-11-01, 0.9.17)
+The first render check steps Exposure back once whenever new clipping is over 3.00 % (measured with
+`pullback_units`, validated on C0739: 4.42 % → 3.08 %). The user chose to keep this even when the first
+result is inside the soft tolerance. The 0.25-point tolerance (`CLIP_SOFT_TOLERANCE`) only classifies the
+final result (ACCEPTED_WITH_WARNING) and never triggers another correction: one more step would darken the
+skin to win a few hundredths of a percent.
