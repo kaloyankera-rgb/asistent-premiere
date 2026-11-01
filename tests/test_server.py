@@ -160,3 +160,10 @@ def test_subtitle_model_endpoints(engine, tmp_path, monkeypatch):
         (d / f).write_bytes(b"x")
     code, res = call("POST", "/subtitles/model/download", {})
     assert code == 200 and res["done"] is True and res["status"]["model"] is True     # nothing to download: no job, no fetch
+
+
+def test_subtitles_request_is_checked_before_a_job_starts(engine):
+    code, res = call("POST", "/subtitles", {"items": []})
+    assert code == 400 and "Маркирай" in res["error"]
+    code, res = call("POST", "/subtitles", {"items": [{"path": "/nope.wav", "start": 0, "end": 1, "at": 0}]})
+    assert code == 400 and "липсва" in res["error"]

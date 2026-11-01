@@ -82,3 +82,15 @@ test("Shot Match writes only the components the engine changed, into new or Asis
   assert.match(apply, /engine\.shotMatchCheck\(jobId, pl\.before, after/);   // checked on Premiere's frame
   assert.match(html, /<button id="shotmatch" class="small">Изравни камерите<\/button>/);
 });
+
+test("the subtitle section has its own buttons: no data-force, pressed through onTap, model download never automatic", () => {
+  for (const id of ["subtitles", "subtitleDownload"]) {
+    assert.match(html, new RegExp(`<button id="${id}"(?![^>]*data-force)`));
+    assert.match(main, new RegExp(`onTap\\(\\$\\("${id}"\\)`));
+  }
+  // the 3 GB download is started only by onSubtitleDownload (the button names the size), never by onSubtitles
+  assert.strictEqual((main.match(/engine\.downloadSubtitleModel\(\)/g) || []).length, 1);
+  const download = main.slice(main.indexOf("async function onSubtitleDownload"), main.indexOf("// ---------------------------------------------------------------- colour"));
+  assert.match(download, /engine\.downloadSubtitleModel\(\)/);
+  assert.match(html, /Свали модела \(около 3,1 GB\)/);
+});

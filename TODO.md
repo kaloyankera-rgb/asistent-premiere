@@ -43,7 +43,8 @@ Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 „Изравни фразите“, one Undo (audio), „Раздели R/L“, auto-import speed.
 
 ## C2. Phase 7 subtitles (user's current focus, 2026-11-01)
-Plan: `docs/SUBTITLES_PLAN.md`. Done: M0 probes (0.9.39), M1 text core (0.9.40), M2 ASR + model (0.9.41; Mac 2.8x real time). Next: M3 dialogue mix + `/subtitles` job + panel section.
+Plan: `docs/SUBTITLES_PLAN.md`. Done: M0 probes (0.9.39), M1 text core (0.9.40), M2 ASR + model (0.9.41; Mac 2.8x real time), M3 dialogue mix + `/subtitles` job + panel section (0.9.42, engine verified end to end on a real clip).
+**Next (in order):** (1) user presses „Субтитри (български)“ in `TEST.prproj` on a selected dialogue clip; check `engine.log` line `subtitles: …` for the frame size the panel read (fix `frameSize` in `panel/premiere-subtitles.js` if it says „size unknown“); (2) M4 review + import: result list with flags, „Внеси в проекта“ = `importFiles` into bin „Субтитри" (one Undo) + drag hint; (3) „Имена и термини“ field saved per project in `subtitles.json` → Whisper prompt (engine already takes `terms`); (4) Windows CUDA run; (5) M5/M6 per `docs/SUBTITLES_PLAN.md`.
 
 ## D. Later phases
 5 Client profiles + Prepare Project (in the office; draft in `profiles.py`/`prepare.py`; Basecamp paste),

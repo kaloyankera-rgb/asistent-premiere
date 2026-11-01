@@ -105,3 +105,11 @@ Premiere 26.0.2 imports an .srt as a project item (`importFiles`), but neither `
 caption track. So Asistent imports the SRT into a bin and the user drags it over the sequence once; our line breaks
 survive. Premiere's own transcript (`Transcript`) is not used for now: its export rejects a clip without a transcript and
 its own captions would re-break the lines.
+
+## Subtitles M3 (2026-11-01, 0.9.42)
+- **Duplicate audio rule:** among the selected audio items, one that is covered by 50 % or more of its length by an item on a lower track is skipped and named „дублира A<n>“; the lowest track wins. It is a guess about POV cameras recording the same speech (the plan's rule); two lavaliers of different people on separate tracks that talk at the same time would be wrongly dropped, so the panel lists every skipped clip and the user can select only the tracks they want.
+- **Channels for recognition:** the same classification as „Оправи звука“ (one-sided clip → its sound side, two microphones summed, otherwise averaged); never a polarity-inverted sum.
+- **Mix origin** is the earliest item, not sequence 0, so silence before the first speech costs no recognition time; word times are shifted back by that origin.
+- **Preset `auto`** follows the sequence shape (landscape → standard, else short); if the frame size cannot be read it falls back to short and logs it.
+- **Whisper words are cached** by mix + prompt + model; presets and fps are applied after the cache, so changing them does not run Whisper again.
+- **Download never automatic:** only the button that names the size starts it (checked by a wiring test); a missing model or backend is an instruction in Bulgarian, not a download.

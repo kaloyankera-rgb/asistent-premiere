@@ -5,6 +5,14 @@ All notable changes to Asistent. Newest first. Reconstructed from the git histor
 Versions are the panel/engine version (`panel/manifest.json` and `engine/asistent/config.py` always match). "Verified" means confirmed by the user in Premiere; details per feature are in `PROJECT_STATUS.md`.
 
 ## Unreleased
+
+## 0.9.42 - Phase 7 M3: dialogue mix, /subtitles job, СУБТИТРИ section
+- Engine: `dialoguemix.py` (selected audio items as one 16 kHz mono signal at sequence time), `subtitle_job.py` and `POST /subtitles` (Whisper words cached by mix + prompt; captions per preset; SRT + JSON written to `<project folder>/Asistent_subtitles/`).
+- Panel: section „СУБТИТРИ“ with „Субтитри (български)“; pure `subtitleplan.js` (duplicate audio on a higher track is skipped and named); the model download starts only from its own button that names the size.
+- Verified end to end on a real Bulgarian clip through the live engine (2.8x real time); panel not yet verified in Premiere.
+- Tests: 228 pytest + 60 node.
+
+## Docs and workflow (earlier today)
 - Docs: `NEXT_STEPS.md` is now `TODO.md`, `BUGS_AND_LIMITATIONS.md` is now `BUGS.md` (history preserved by `git mv`); added `CHANGELOG.md`, `docs/INDEX.md`, repo-local snapshot of the dev workflow and agents, extended `.gitignore`, a pre-commit documentation check.
 
 ## 0.9.41 - Phase 7 M2: speech recognition

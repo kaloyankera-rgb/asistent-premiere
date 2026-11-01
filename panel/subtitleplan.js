@@ -1,0 +1,100 @@
+// Pure logic of the „СУБТИТРИ“ section (no Premiere here, so node can test it): which selected audio items form the
+// dialogue, why the others are left out, how the sequence frame size is read, and how the engine's answer is
+// shown. Overlap rule (SUBTITLES_PLAN.md): audio items of different cameras that carry the same speech sit on
+// different tracks at the same time; the lowest track wins and the others are named as duplicates.
+
+const DUPLICATE_SHARE = 0.5;      // an item covered this much by a lower-track item is a duplicate of it
+
+const label = (it) => `A${it.track + 1}`;
+
+/**
+ * items: panel items from premiere.readTimeline() ({kind, track, start, end, inPt, path, name, speed, reversed,
+ * selected}, seconds). Returns { use: [{path, start, end, at, name, track}], skipped: [text], selected: n }.
+ * `start`/`end` are the media in/out seconds, `at` the sequence second where the item starts.
+ */
+function planDialogue(items) {
+  const picked = items.filter((x) => x.kind === "audio" && x.selected);
+  const skipped = [];
+  const usable = [];
+  for (const x of picked) {
+    const name = x.name || "клип";
+    if (!x.path) skipped.push(`${name} (офлайн медия или вложена секвенция)`);
+    else if (Math.abs((x.speed || 1) - 1) >= 0.01) skipped.push(`${name} (променена скорост)`);
+    else if (x.reversed) skipped.push(`${name} (обърнат)`);
+    else if (!(x.end > x.start)) skipped.push(`${name} (без дължина)`);
+    else usable.push(x);
+  }
+  usable.sort((a, b) => a.track - b.track || a.start - b.start);
+  const kept = [];
+  for (const x of usable) {
+    const dur = x.end - x.start;
+    let twin = null;
+    for (const k of kept) {
+      if (k.track === x.track) continue;               // same track never overlaps itself
+      const overlap = Math.min(k.end, x.end) - Math.max(k.start, x.start);
+      if (overlap >= DUPLICATE_SHARE * dur) {
+        twin = k;
+        break;
+      }
+    }
+    if (twin) skipped.push(`${x.name || "клип"} (пропуснат, дублира ${label(twin)})`);
+    else kept.push(x);
+  }
+  kept.sort((a, b) => a.start - b.start || a.track - b.track);
+  const use = kept.map((x) => ({ path: x.path, start: x.inPt || 0, end: (x.inPt || 0) + (x.end - x.start), at: x.start,
+    name: x.name || "клип", track: x.track }));
+  return { use, skipped, selected: picked.length };
+}
+
+/** Whatever Premiere's sequence settings return for the frame size -> { width, height } or null. */
+function sizeFrom(v) {
+  if (!v || typeof v !== "object") return null;
+  let w;
+  let h;
+  if (Number.isFinite(v.width) && Number.isFinite(v.height)) {
+    w = v.width;
+    h = v.height;
+  } else if ([v.left, v.right, v.top, v.bottom].every(Number.isFinite)) {
+    w = v.right - v.left;
+    h = v.bottom - v.top;
+  } else if (Array.isArray(v) && v.length >= 2) {
+    [w, h] = v;
+  }
+  return Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0 ? { width: Math.round(w), height: Math.round(h) } : null;
+}
+
+/** Folder of a project file path (either slash). */
+function dirOf(p) {
+  const m = /^(.*)[\\/][^\\/]*$/.exec(p || "");
+  return m && m[1] ? m[1] : null;
+}
+
+function clock(t) {
+  const m = Math.floor(t / 60);
+  const s = t - m * 60;
+  return `${m}:${s < 10 ? "0" : ""}${s.toFixed(1)}`;
+}
+
+const PRESET_NAME = { short: "кратки (9:16)", standard: "стандартни (16:9)" };
+
+/** The engine's /subtitles result -> { text, ok, lines: [{cls, text}] } for the result box. */
+function describeResult(r) {
+  const c = r.counts || {};
+  const lines = [];
+  if (!c.captions) {
+    return { ok: false, text: "Не разпознах реч в маркираните клипове.", lines: [{ cls: "warn", text: "Провери дали са избрани клиповете с говор." }] };
+  }
+  lines.push({ cls: "line", text: `${c.words} думи · вид ${PRESET_NAME[r.preset] || r.preset} · ${r.fps.toFixed(3).replace(/\.?0+$/, "")} fps` +
+    ` · ${r.cached ? "разпознаването е от преди" : `разпознаване ${r.asr_seconds} s за ${r.mix_seconds} s звук`}` });
+  if (c.flagged) lines.push({ cls: "warn", text: `${c.flagged} несигурни думи (малка вероятност): проверете ги в субтитрите.` });
+  for (const s of r.skipped || []) lines.push({ cls: "warn", text: `Пропуснат: ${s}.` });
+  for (const cap of (r.captions || []).slice(0, 8)) {
+    const unsure = (cap.flags || []).length ? "  ?" : "";
+    lines.push({ cls: "line", text: `${clock(cap.start)}  ${String(cap.text).replace(/\n/g, " / ")}${unsure}` });
+  }
+  if (r.captions.length > 8) lines.push({ cls: "hint", text: `… още ${r.captions.length - 8} реда в файла.` });
+  lines.push({ cls: "hint", text: `Файл: ${r.srt}` });
+  return { ok: true, text: `Готово: ${c.captions} реда субтитри.`, lines };
+}
+
+module.exports = { planDialogue, sizeFrom, dirOf, describeResult, DUPLICATE_SHARE };

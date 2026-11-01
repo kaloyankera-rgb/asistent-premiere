@@ -9,6 +9,7 @@
    calibration (`lumetri.json`) are unproven. First apply will use the guess 60/80 slider units per log2.
 
 ## Not verified in Premiere (implemented)
+Subtitles M3 (0.9.42): the „СУБТИТРИ“ section, selection → payload, the sequence frame size (`getVideoFrameRect` / `getVideoFrameSize` are guesses; fallback is the „кратки“ preset), where the engine writes next to an unsaved project (refused with a message).
 One Undo per press (audio), „Раздели R/L“, „Изравни фразите“ keyframe positions (media time vs clip time;
 identical for untrimmed clips), auto-import speed after 0.7.1, colour values set + read back, render check,
 probe, `scripts/setup_win.ps1` (never run), Windows overall.
