@@ -1,0 +1,304 @@
+const engine = require("./engine.js");
+const premiere = require("./premiere.js");
+const layout = require("./layout.js");
+const premiereAudio = require("./premiere-audio.js");
+const PANEL_VERSION = require("./version.js");
+const premiereImport = require("./premiere-import.js");
+
+const $ = (id) => document.getElementById(id);
+const state = { online: false, busy: false, jobId: null };
+
+function show(id, visible) {
+  $(id).hidden = !visible;
+}
+
+function setBusy(busy) {
+  state.busy = busy;
+  for (const b of document.querySelectorAll("button.action, button.small")) b.disabled = busy || !state.online;
+  show("work", busy);
+}
+
+function progress(fraction, message) {
+  $("fill").style.width = `${Math.round(fraction * 100)}%`;
+  $("message").textContent = message || "";
+}
+
+function signed(seconds) {
+  return `${seconds >= 0 ? "+" : "−"}${Math.abs(seconds).toFixed(3)} s`;
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function finish(text, ok, blocks) {
+  show("result", true);
+  $("summary").textContent = text;
+  $("summary").className = ok ? "ok" : "err";
+  const box = $("details");
+  box.innerHTML = "";
+  for (const b of blocks || []) box.appendChild(b);
+}
+
+async function refreshHeader() {
+  const st = await engine.status();
+  state.online = !!(st && st.ok);
+  $("dot").className = `dot ${state.online ? "on" : "off"}`;
+  $("engine").textContent = state.online ? `Свързан · панел ${PANEL_VERSION} · engine ${st.version}`
+    : `Няма връзка с engine-а (панел ${PANEL_VERSION})`;
+  $("detail").textContent = state.online ? "" : `${st.error}. Провери дали engine-ът е пуснат (README).`;
+  show("detail", !state.online);
+  try {
+    const project = await premiere.activeProject();
+    $("project").textContent = project.name;
+  } catch (e) {
+    $("project").textContent = "Няма отворен проект";
+  }
+  if (!state.busy) for (const b of document.querySelectorAll("button.action, button.small")) b.disabled = !state.online;
+}
+
+function wait(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function runJob(id) {
+  state.jobId = id;
+  for (;;) {
+    const j = await engine.job(id);
+    progress(0.05 + 0.85 * j.progress, j.message);
+    if (j.state === "done") return j.result;
+    if (j.state === "cancelled") throw new premiere.UserError("Отказано.");
+    if (j.state === "error") throw new premiere.UserError(j.error || "Грешка в engine-а.");
+    await wait(300);
+  }
+}
+
+function describe(result, timeline) {
+  const name = (i) => result.clips[i].name;
+  const blocks = [];
+  result.groups.forEach((g, n) => {
+    const box = el("div", "group");
+    box.appendChild(el("div", "name", `Група ${n + 1}: ${g.members.map((m) => name(m.clip)).join(", ")}`));
+    for (const m of g.members) {
+      if (m.clip !== g.anchor) box.appendChild(el("div", "line", `${name(m.clip)}  ${signed(m.offset)} спрямо ${name(g.anchor)}`));
+    }
+    blocks.push(box);
+  });
+  const notes = [];
+  if (result.unsynced.length) {
+    notes.push(`Без общ звук с друг клип (сложени накрая): ${result.unsynced.map(name).join(", ")}`);
+  }
+  for (const c of result.conflicts) notes.push(`Не е синхронизирано: ${c.reason}.`);
+  for (const s of result.suggestions) {
+    notes.push(`Възможно, но несигурно (не е приложено): ${name(s.a)} и ${name(s.b)} ${signed(s.offset)}. Провери ръчно.`);
+  }
+  for (const s of timeline.skipped) notes.push(`Пропуснат: ${s}.`);
+  for (const n of notes) blocks.push(el("div", "warn", n));
+  return blocks;
+}
+
+async function onSync() {
+  if (state.busy) return;
+  if (!state.online) {
+    finish("Няма връзка с engine-а. Виж README.", false);
+    return;
+  }
+  show("result", false);
+  setBusy(true);
+  progress(0, "Чета маркираните клипове в таймлайна…");
+  try {
+    const project = await premiere.activeProject();
+    const timeline = await premiere.readTimeline(project);
+    if (timeline.clips.length < 2) {
+      throw new premiere.UserError("Маркирай в таймлайна поне два клипа от различни файлове.");
+    }
+    engine.log("info", `timeline: ${timeline.clips.length} files selected, fps ${timeline.fps}`);
+    const t0 = Date.now();
+    const { job } = await engine.startGroups(timeline.clips.map((c) => c.path));
+    const result = await runJob(job);
+    const blocks = describe(result, timeline);
+    if (!result.groups.length) {
+      finish("Не намерих клипове със сигурно общ звук. Не е създадена секвенция.", false, blocks);
+      return;
+    }
+    progress(0.95, "Правя SYNC секвенцията…");
+    const order = Object.fromEntries(timeline.clips.map((c) => [c.path, c.start]));
+    const lay = layout.syncLayout(result, order);
+    const done = await premiere.buildSyncSequence(project, timeline, lay);
+    const secsTaken = ((Date.now() - t0) / 1000).toFixed(0);
+    if (done.bad.length) {
+      finish(`${done.name} е създадена, но проверката не мина за: ${done.bad.join(", ")}. Провери ги ръчно.`, false, blocks);
+      return;
+    }
+    const synced = result.groups.reduce((n, g) => n + g.members.length, 0);
+    finish(`Готово за ${secsTaken} s: ${done.name}, ${synced} клипа в ${result.groups.length} групи. ` +
+      `Проверено (разлика до ${done.worstMs.toFixed(1)} ms от кадрите). Твоята секвенция не е пипана.`, true, blocks);
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `sync: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    state.jobId = null;
+    setBusy(false);
+  }
+}
+
+const ROUTE_FORCE = { LL: "use_left", RR: "use_right" };
+
+async function onAudio(force) {
+  // "phrases": everything "Оправи звука" does, plus Volume keyframes that even out the phrases
+  const phrases = force === "phrases";
+  if (phrases) force = null;
+  if (state.busy) return;
+  if (!state.online) {
+    finish("Няма връзка с engine-а. Виж README.", false);
+    return;
+  }
+  show("result", false);
+  setBusy(true);
+  progress(0, "Чета маркираните аудио клипове…");
+  try {
+    const project = await premiere.activeProject();
+    const sel = await premiereAudio.readAudioSelection(project);
+    if (!sel.items.length) throw new premiere.UserError("Маркирай в таймлайна поне един клип със звук.");
+    // "split_rl" is the same split, only the other way round on the tracks
+    const order = force === "split_rl" ? "RL" : "LR";
+    const engineForce = force === "split_rl" ? "split" : force;
+    const payload = sel.items.map((it) => ({ path: it.path, start: it.inPt, end: it.outPt,
+      force: it.route ? ROUTE_FORCE[it.route] : (engineForce || null) }));
+    engine.log("info", `audio: ${sel.items.length} clips, force ${force || "auto"}${phrases ? ", phrases" : ""}`);
+    const { job } = await engine.startAudio(payload, phrases);
+    const result = await runJob(job);
+
+    progress(0.95, "Прилагам…");
+    // prepare every clip first (reads only), then apply everything as one Undo step
+    const plans = [];
+    const usedTracks = [];
+    for (let i = 0; i < sel.items.length; i++) {
+      const it = sel.items[i];
+      const res = result.items[i];
+      const plan = { it, res, actions: [], checks: [], lines: [], problems: [] };
+      if (res.error) plan.problems.push(res.error);
+      else {
+        try {
+          Object.assign(plan, await premiereAudio.prepare(sel.timeline, it, res, usedTracks, order));
+        } catch (e) {
+          plan.problems.push(e.message || String(e));
+          if (!(e instanceof premiere.UserError)) engine.log("error", `audio ${it.name}: ${e && e.stack ? e.stack : e}`);
+        }
+      }
+      plans.push(plan);
+    }
+    const ready = plans.filter((p) => !p.problems.length);
+    const { undoSteps } = await premiereAudio.applyAll(project, sel.timeline, ready);
+
+    const blocks = [];
+    let changed = 0;
+    let failed = 0;
+    for (const p of plans) {
+      const box = el("div", "group");
+      box.appendChild(el("div", "name", p.it.name));
+      for (const r of (p.res && p.res.reasons) || []) if (r) box.appendChild(el("div", "reason", r));
+      if (p.it.route) box.appendChild(el("div", "reason", "Вече има Fill ефект: само силата е сменена."));
+      for (const l of p.lines || []) box.appendChild(el("div", "line", l));
+      if (p.res && p.res.action === "ask") box.appendChild(el("div", "warn", "Не е пипано: избери с бутоните по-горе."));
+      for (const pr of p.problems || []) box.appendChild(el("div", "warn", pr));
+      if ((p.problems || []).length) failed++;
+      else if (p.res && p.res.action !== "ask" && (p.actions || []).length) changed++;
+      blocks.push(box);
+    }
+    for (const s of sel.skipped) blocks.push(el("div", "warn", `Пропуснат: ${s}.`));
+    const clips = (n) => `${n} ${n === 1 ? "клип" : "клипа"}`;
+    const undo = undoSteps === 1 ? "Един Cmd/Ctrl+Z връща всичко." : undoSteps > 1 ? `${undoSteps} пъти Cmd/Ctrl+Z връщат всичко.` : "";
+    finish(failed ? `Готово с проблеми: ${clips(changed)} оправени, ${failed} не. ${undo}`
+      : `Готово: ${changed} от ${clips(sel.items.length)}. ${undo}`, !failed, blocks);
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `audio: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    state.jobId = null;
+    setBusy(false);
+  }
+}
+
+// ---------------------------------------------------------------- auto import
+
+const CAT = { MUSIC: "музика", SFX: "SFX", BROLL: "B-roll", IMAGES: "снимки", GRAPHICS: "графики", OTHER: "други" };
+const imp = { running: false, enabled: false, project: null };
+const short = (p) => (p || "").replace(/^.*[\\/](.*[\\/].*)$/, "…/$1");
+
+function renderImport(st, project) {
+  imp.enabled = !!st.enabled;
+  $("importToggle").textContent = st.enabled ? "Спри следенето" : "Следи Downloads";
+  $("importStatus").textContent = st.enabled
+    ? `Следя ${short(st.folder)} → ${project.name}` + (st.pending.length ? ` · чакат ${st.pending.length}` : "")
+    : st.folder ? `Изключено (беше ${short(st.folder)})` : "Изключено. Новите файлове в папката ще влизат сами в проекта.";
+  const box = $("importRecent");
+  box.innerHTML = "";
+  for (const r of (st.recent || []).slice(0, 5)) {
+    const ok = r.state === "imported";
+    box.appendChild(el("div", ok ? "line" : "warn", `${ok ? "✓" : "✗"} ${r.name} → ${CAT[r.category] || r.category}` +
+      (r.note ? ` (${r.note})` : "")));
+  }
+}
+
+// One request at a time waits at the engine and returns the moment a file is ready, so a finished
+// download is in Premiere within about a second instead of on the next poll.
+async function importLoop() {
+  for (;;) {
+    let pause = 300;
+    try {
+      if (state.busy || !state.online) {
+        pause = 1000;
+      } else {
+        const project = await premiere.activeProject();
+        let st = await engine.importStatus(project.path, imp.enabled ? 10 : 0);
+        if (st.enabled && st.pending.length && !state.busy) {
+          await premiereImport.importPending(project, st.pending);
+          st = await engine.importStatus(project.path);
+        }
+        renderImport(st, project);
+        if (!st.enabled) pause = 3000;
+      }
+    } catch (e) {
+      pause = 3000;
+      if (!(e instanceof premiere.UserError)) engine.log("error", `import: ${e && e.stack ? e.stack : e}`);
+    }
+    await wait(pause);
+  }
+}
+
+async function importSwitch(folder) {
+  try {
+    const project = await premiere.activeProject();
+    const st = imp.enabled && !folder ? await engine.importUnbind(project.path)
+      : await engine.importBind(project.path, folder);
+    if (st.previous_project) {
+      finish(`Папката беше свързана с друг проект (${short(st.previous_project)}): сега е с ${project.name}.`, true);
+    }
+    renderImport(st, project);
+  } catch (e) {
+    finish(e.message || String(e), false);
+  }
+}
+
+$("importToggle").addEventListener("click", () => importSwitch(null));
+$("importFolder").addEventListener("click", async () => {
+  const folder = await premiereImport.pickFolder().catch(() => null);
+  if (folder) importSwitch(folder);
+});
+importLoop();
+
+$("sync").addEventListener("click", onSync);
+$("audio").addEventListener("click", () => onAudio(null));
+for (const b of document.querySelectorAll("button.small")) b.addEventListener("click", () => onAudio(b.getAttribute("data-force")));
+$("cancel").addEventListener("click", () => {
+  if (state.jobId) engine.cancel(state.jobId).catch(() => {});
+});
+
+refreshHeader();
+setInterval(() => {
+  if (!state.busy) refreshHeader();
+}, 4000);

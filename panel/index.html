@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="row">
+      <span id="dot" class="dot off"></span>
+      <span id="engine">Свързване…</span>
+    </div>
+    <div id="detail" class="muted small" hidden></div>
+    <div id="project" class="muted">Няма отворен проект</div>
+  </header>
+
+  <main>
+    <button id="sync" class="action">Синхронизирай камерите</button>
+    <p class="hint">Маркирай клиповете в таймлайна (може всички) и натисни. Прави се нова секвенция SYNC, твоята не се пипа.</p>
+  </main>
+
+  <div class="block">
+    <button id="audio" class="action">Оправи звука</button>
+    <div class="row buttons">
+      <button class="small" data-force="split">Раздели L/R</button>
+      <button class="small" data-force="split_rl">Раздели R/L</button>
+      <button class="small" data-force="use_left">Само L</button>
+      <button class="small" data-force="use_right">Само R</button>
+      <button class="small" data-force="none">Само сила</button>
+      <button class="small" data-force="phrases">Изравни фразите</button>
+    </div>
+    <p class="hint">Маркирай аудио клиповете в таймлайна. Силата отива към −17 LUFS, пикът не минава −6 dB. „Изравни фразите“ изравнява и тихите/силните изречения в клипа.</p>
+  </div>
+
+  <div class="block">
+    <div class="row"><span class="name">Авто внасяне</span></div>
+    <div id="importStatus" class="muted">Изключено</div>
+    <div class="row buttons">
+      <button id="importToggle" class="small">Следи Downloads</button>
+      <button id="importFolder" class="small">Друга папка…</button>
+    </div>
+    <div id="importRecent"></div>
+  </div>
+
+  <section id="work" hidden>
+    <div id="message"></div>
+    <div class="bar"><div id="fill"></div></div>
+    <button id="cancel" class="secondary">Отказ</button>
+  </section>
+
+  <section id="result" hidden>
+    <div id="summary"></div>
+    <div id="details"></div>
+  </section>
+
+  <script src="main.js"></script>
+</body>
+</html>

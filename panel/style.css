@@ -1,0 +1,45 @@
+body {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--uxp-host-text-color, #ddd);
+  background-color: var(--uxp-host-background-color, #232323);
+}
+header { display: flex; flex-direction: column; padding-bottom: 8px; border-bottom: 1px solid var(--uxp-host-border-color, #3a3a3a); margin-bottom: 10px; }
+.row { display: flex; flex-direction: row; align-items: center; }
+.dot { width: 8px; height: 8px; border-radius: 4px; margin-right: 6px; }
+.dot.on { background-color: #3fb950; }
+.dot.off { background-color: #d9534f; }
+.muted { color: var(--uxp-host-text-color-secondary, #999); margin-top: 4px; }
+.hint { color: var(--uxp-host-text-color-secondary, #999); margin: 6px 0 0 0; }
+.warn { color: #e3b341; margin: 8px 0 6px 0; }
+button {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--uxp-host-border-color, #4a4a4a);
+  color: var(--uxp-host-text-color, #ddd);
+  background-color: #3a3a3a;
+}
+button.action { width: 100%; padding: 9px 10px; background-color: #2d5fa8; border-color: #2d5fa8; color: #fff; }
+button:disabled { opacity: 0.5; }
+section { margin-top: 12px; }
+.bar { height: 4px; background-color: #3a3a3a; border-radius: 2px; margin: 6px 0 8px 0; }
+#fill { height: 4px; width: 0%; background-color: #2d5fa8; border-radius: 2px; }
+#summary { font-weight: bold; margin-bottom: 6px; }
+.clip { padding: 6px 0; border-top: 1px solid var(--uxp-host-border-color, #3a3a3a); }
+.clip .name { font-weight: bold; }
+.badge { padding: 1px 5px; border-radius: 3px; margin-left: 4px; font-size: 10px; }
+.high { background-color: #23502f; color: #9be9a8; }
+.medium { background-color: #574a1a; color: #f2cc60; }
+.low { background-color: #5a2323; color: #ffaba8; }
+.reference { background-color: #2b3a52; color: #a5c8ff; }
+.reason { color: var(--uxp-host-text-color-secondary, #aaa); margin-top: 2px; }
+.ok { color: #9be9a8; }
+.err { color: #ffaba8; }
+.small { font-size: 10px; }
+.group { padding: 6px 0; border-top: 1px solid var(--uxp-host-border-color, #3a3a3a); }
+.line { margin-top: 2px; }
+.block { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--uxp-host-border-color, #3a3a3a); }
+.buttons { flex-wrap: wrap; margin-top: 6px; }
+button.small { font-size: 11px; padding: 4px 7px; margin: 0 4px 4px 0; }
