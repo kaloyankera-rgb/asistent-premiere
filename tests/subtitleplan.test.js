@@ -59,15 +59,16 @@ test("dirOf takes the folder of a project path on both systems", () => {
 });
 
 test("describeResult: counts, uncertain words, skipped clips, first captions, file", () => {
-  const caps = Array.from({ length: 10 }, (_, i) => ({ start: 65 + i, end: 66 + i, text: i === 0 ? "Здравейте\nприятели" : "ред", flags: i === 1 ? [{}] : [] }));
+  const caps = Array.from({ length: 10 }, (_, i) => ({ start: 65 + i, end: 66 + i, text: i === 0 ? "Здравейте\nприятели" : "ред", flags: i === 1 ? [{ word: "нища,", p: 0.45, at: 66.4 }] : [] }));
   const r = describeResult({ counts: { captions: 10, words: 20, flagged: 1 }, preset: "short", fps: 29.97002997, cached: false,
-    asr_seconds: 10.2, mix_seconds: 29, skipped: ["B (дублира A1)"],
+    asr_seconds: 10.2, mix_seconds: 29, skipped: ["B (дублира A1)"], readings: { count: 3, changed: 1, unsure: 1 },
     duplicates: [{ dropped: "C9013.MP4", kept: "fx39013.MP4", kept_snr_db: 45, dropped_snr_db: 20, kept_rest_seconds: 4 }], captions: caps, srt: "/p/Asistent_subtitles/x.srt" });
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r.text, "Готово: 10 реда субтитри.");
   const all = r.lines.map((l) => l.text).join("\n");
   assert.match(all, /20 думи · вид кратки \(9:16\) · 29\.97 fps · разпознаване 10\.2 s за 29 s звук/);
-  assert.match(all, /1 несигурни думи/);
+  assert.match(all, /Провери 1 несигурна дума .*: 1:06\.4 „нища“/);                  // the word and its time, not just a count
+  assert.match(all, /1 дума е сменена/);
   assert.match(all, /Времена: от Whisper, може да са неточни с до 0,3 s \(подравняването не е инсталирано\)/);
   assert.match(all, /Пропуснат: B \(дублира A1\)/);
   assert.match(all, /C9013\.MP4 и fx39013\.MP4 чуват едно и също: взет е fx39013\.MP4 \(по-чист звук, 45 dB срещу 20 dB; 4 s от C9013\.MP4 са запазени/);

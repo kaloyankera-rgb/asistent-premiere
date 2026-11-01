@@ -73,7 +73,13 @@ function describeResult(r) {
     const why = t.error && !/не е инсталирано/.test(t.error) ? `подравняването не успя (${t.error})` : "подравняването не е инсталирано";
     lines.push({ cls: "warn", text: `Времена: от Whisper, може да са неточни с до 0,3 s (${why}).` });
   }
-  if (c.flagged) lines.push({ cls: "warn", text: `${c.flagged} несигурни думи (малка вероятност): проверете ги в субтитрите.` });
+  const unsure = [];
+  for (const cap of r.captions || []) for (const f of cap.flags || []) unsure.push(`${clock(f.at)} „${String(f.word).replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")}“`);
+  if (unsure.length) {
+    lines.push({ cls: "warn", text: `Провери ${unsure.length === 1 ? "1 несигурна дума" : `${unsure.length} несигурни думи`} (прочетени различно или непознати за речника): ${unsure.slice(0, 10).join(", ")}${unsure.length > 10 ? ", …" : ""}.` });
+  }
+  const rd = r.readings;
+  if (rd && rd.changed) lines.push({ cls: "line", text: `${rd.changed} ${rd.changed === 1 ? "дума е сменена" : "думи са сменени"}, защото повечето четения и речникът са за друга дума.` });
   for (const d of r.duplicates || []) {
     const rest = d.kept_rest_seconds ? `; ${d.kept_rest_seconds} s от ${d.dropped} са запазени, там другият не чува` : "";
     lines.push({ cls: "line", text: `${d.dropped} и ${d.kept} чуват едно и също: взет е ${d.kept} (по-чист звук, ${d.kept_snr_db} dB срещу ${d.dropped_snr_db} dB${rest}).` });

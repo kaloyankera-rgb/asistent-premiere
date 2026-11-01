@@ -108,6 +108,19 @@ function startSubtitles(payload) {
   return call("POST", "/subtitles", payload);
 }
 
+function captionsState(project, sequence) {
+  return call("GET", `/captions/state?project=${encodeURIComponent(project)}&sequence=${encodeURIComponent(sequence)}`);
+}
+
+function recordCaptions(project, sequence, signature) {
+  return call("POST", "/captions/record", { project, sequence, signature });
+}
+
+// the engine's host (CEP extension, ExtendScript) puts the SRT on a caption track; can take a few seconds
+function placeCaptions(payload) {
+  return call("POST", "/captions/place", payload);
+}
+
 function job(id) {
   return call("GET", `/jobs/${id}`);
 }
@@ -130,4 +143,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, startSubtitles, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, startSubtitles, captionsState, recordCaptions, placeCaptions, devPoll, devResult, job, cancel, log };

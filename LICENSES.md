@@ -14,6 +14,9 @@
 | PyAV | BSD-3-Clause (bundles LGPL FFmpeg libraries) | optional: dependency of faster-whisper |
 | torch, torchaudio | BSD-3-Clause / BSD-2-Clause | optional (`requirements-align.txt`, own environment `venv-align`): runs the aligner |
 | MMS_FA weights (Meta, *Scaling Speech Technology to 1,000+ Languages*) | **CC-BY-NC 4.0 (non-commercial)** | optional: `align_worker.py` places each word where it is pronounced; the licence text is in torchaudio's `MMS_FA` documentation. Using it for paid client work is a decision for the user; without it Asistent keeps Whisper's word times |
+| spylls | MIT | optional (`requirements-asr.txt`): pure-Python Hunspell reader for the Bulgarian word check (`lexicon.py`) |
+| Bulgarian dictionary `bg_BG` (LibreOffice `dictionaries`, Radostin Radnev et al.) | GPL v2 | optional: downloaded by `setup_mac.sh --subtitles` into `<app folder>/models/lexicon` (not in this repository, not redistributed); used only to tell a real word from a mis-heard one |
+| Asistent host (`host/`, CEP extension) | own code | runs ExtendScript inside Premiere to put the SRT on a caption track; needs CEP `PlayerDebugMode=1` (already set for Quick Search) |
 | pytest | MIT | development only |
 | FFmpeg / FFprobe | LGPL-2.1+ / GPL (depends on build) | separate program called as a subprocess; not linked or redistributed |
 | Adobe Premiere Pro UXP API | Adobe developer terms | the panel calls the `premierepro` module inside Premiere |

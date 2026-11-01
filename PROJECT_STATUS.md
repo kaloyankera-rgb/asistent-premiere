@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.44 (2026-11-01)
+# Project status — Asistent 0.9.45 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.44 via
-UnifiedPluginInstallerAgent, engine 0.9.44 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 249 pytest + 60 node, all passing at 0.9.44.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.45 via
+UnifiedPluginInstallerAgent, engine 0.9.45 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 269 pytest + 68 node, all passing at 0.9.45.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -223,6 +223,15 @@ press the button again on the same selection.** Timing („a little off in many 
 times are only about ±0.1–0.3 s accurate. A quick onset test on the clips was inconclusive (noise events), so no snap
 was added blindly. Open: ask whether captions are early or late (a fixed offset would fix a systematic shift);
 otherwise forced alignment (MMS_FA, torch, ~1–2 GB, needs the user's OK) per `docs/SUBTITLES_PLAN.md` M6.
+**0.9.45: one press = SRT + on the timeline (user's request 2026-11-01 night). Placement VERIFIED in Premiere (TEST.prproj 23:47: host loaded after one restart, 25 captions on caption track C2, read back by the panel: count and first/last time match). User: timing a lot better, some words corrected, spelling mistakes remain. Added after that: respelling by ear (`lexicon.respell`, „нища“ -> „неща“).**
+Root causes found on the Ludi Glavi clips (measured, not guessed):
+- *Missing first word:* Whisper's word starts are early (median 0.12 s); „Имаш“ (-0.34…0.18 s) had 35 % inside the piece and the 40 % rule dropped it. The speaker cut is inside „Имаш“ (energy jumps from -64 dB to -14 dB at 0.00 s). With the aligner the word sits at 0.02-0.28 s and is kept. Not a VAD problem (VAD is off) and not a chunk-boundary problem.
+- *Loud gaps with no words (piece 3, 2.2 s):* checked, not speech: unvoiced, centroid 3.7 kHz vs 0.6 kHz for speech (noise). Whisper is right.
+- *Wrong/unstable words:* „нища/неща“ flips with the context length (0.5 s „неща“, 2 s „нища“, 4 s „неща“, 8 s „нища“); the last word of the last piece is cut by the edit and changes with every reading („десом“, „ти своя“, „ти съм“). Whisper's probability (0.68) cannot tell. Fix: three readings + dictionary, uncertain words are listed, never guessed. **Still wrong in the output (flagged „?“):** „нища“ (probably „неща“), „десом“ (cut word), „свършила/свършил“, „Я“, „то и за градината“. M4 (text correction in the panel) is what fixes these for good.
+- *Timing:* aligner installed (`~/Library/Application Support/Asistent/venv-align`, weights in `models/torch`), 59/65 words aligned, 8 s for 4 pieces; „Добре,“ onset 1.10-1.14 s in the audio, aligned 1.13 s, Whisper 0.88 s.
+- *Placement:* UXP has no caption API (see `DECISIONS.md`); the CEP host `host/` (ExtendScript `createCaptionTrack`) does it. Installed in `~/Library/Application Support/Adobe/CEP/extensions/com.contentstudio.asistent.host`. `PlayerDebugMode=1` was already set (Quick Search needs it).
+Open for the host (to settle in the first Premiere run, `dev_cmd.py host probe`): the exact caption-format constant, whether `createCaptionTrack` takes seconds, whether a caption track can be deleted safely from ExtendScript (Asistent itself never removes/mutes).
+
 **0.9.44: words, timing and grouping (user: still wrong words, timing a little off, wants natural 2-3 word phrases).**
 The original 4a1a method was found in `tools/autoedit` (`asr.py`, `autoedit.py`; proof of use: the Clash transcript with an
 alignment score on every word): Whisper large-v3 (same model and settings as Asistent) + **MMS_FA forced alignment**

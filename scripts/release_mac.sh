@@ -16,5 +16,6 @@ VER=$(python3 -c "import json;print(json.load(open('$REPO/panel/manifest.json'))
 if ! "$UPIA" --list all 2>/dev/null | grep -q "Asistent.*$VER"; then
   echo "Adobe не отчита Asistent $VER като инсталиран."; exit 1
 fi
+"$REPO/scripts/install_host_mac.sh"
 "$REPO/scripts/setup_mac.sh" >/dev/null
 echo "Asistent $VER е инсталиран в Premiere, engine-ът е рестартиран."

@@ -14,6 +14,10 @@
   dev_cmd.py caption_place '{"name": "a.srt"}'       P2: place it after the sequence end
   dev_cmd.py transcript_export                       P3: Premiere's transcript of the selected clip
   dev_cmd.py api '{"target": "sequence"}'            method names of project | sequence | ppro | selection
+  dev_cmd.py host ping | probe                       the CEP host (ExtendScript) inside Premiere: status / caption API names
+  dev_cmd.py host captions '{"srt": "/abs/a.srt", "sequence": "name"}'   put an SRT on a caption track (what the panel does)
+  dev_cmd.py host eval '{"code": "app.project.name"}'   ExtendScript expression, TEST.prproj only
+  dev_cmd.py host_status                             is the host polling the engine?
 
 Any other name is sent as a command as it is. The panel refuses everything but `ping` outside TEST.prproj.
 """
@@ -49,6 +53,14 @@ def main(argv):
             os.remove(FLAG)
         print("bridge", name)
         return 0
+    if name == "host_status":
+        code, res = call("GET", "/host/status")
+        print(json.dumps(res, ensure_ascii=False))
+        return 0 if code == 200 else 1
+    if name == "host":
+        code, res = call("POST", "/host/command", {"name": rest[0], "args": json.loads(rest[1]) if len(rest) > 1 else {}, "wait": 90}, 120)
+        print(json.dumps(res, ensure_ascii=False, indent=1))
+        return 0 if code == 200 and res.get("ok") else 1
     args = {}
     if name == "click":
         args = {"text": rest[0]}

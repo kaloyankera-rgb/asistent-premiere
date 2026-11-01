@@ -94,3 +94,14 @@ test("the subtitle section has its own buttons: no data-force, pressed through o
   assert.match(download, /engine\.downloadSubtitleModel\(\)/);
   assert.match(html, /Свали модела \(около 3,1 GB\)/);
 });
+
+test("the subtitle press ends with placing the captions, and the panel never removes or mutes anything", () => {
+  const fs = require("node:fs");
+  const read = (f) => fs.readFileSync(`${__dirname}/../panel/${f}`, "utf8");
+  const main = read("main.js");
+  assert.match(main, /premiereCaptions\.place\(/);
+  for (const f of ["premiere-captions.js", "captionplan.js", "premiere-subtitles.js", "main.js"]) {
+    const src = read(f);
+    assert.doesNotMatch(src, /createRemoveItemsAction|createRemoveItemAction|setMute|createSetDisabledAction/, `${f} must not remove or mute (permanent rule)`);
+  }
+});

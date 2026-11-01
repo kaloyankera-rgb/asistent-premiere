@@ -16,6 +16,7 @@ PAUSE_SPLIT = 0.35
 # the next caption starts, so nothing flashes off for a moment and back.
 TAIL_HOLD = 0.3
 CONTINUOUS_GAP = 0.35      # a gap to the next caption up to this is bridged (no blink), a longer one is a pause
+MIN_CLEAR = 0.2            # two captions never leave a blank screen shorter than this (it reads as a blink): the first stays
 LEAD = 0.03                # a caption appears this long before its first word (about one frame: it reads as in sync)
 # Whisper word probability below this is reported to the review list; the SRT text itself is never marked.
 LOW_P = 0.5
@@ -321,6 +322,8 @@ def build_captions(words, preset="short", fps=25.0):
             end = frame(flat[-1]["end"] + TAIL_HOLD)
         end = min(max(end, first[i] + min_f), first[i] + max_f)
         if i + 1 < len(groups):
+            if first[i + 1] - end < MIN_CLEAR * fps:             # a blank of a few frames between two captions is a blink
+                end = min(first[i + 1], first[i] + max_f)
             end = min(end, first[i + 1])
         end = max(end, first[i] + 1)
         captions.append({

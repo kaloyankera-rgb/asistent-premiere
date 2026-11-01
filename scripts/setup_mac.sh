@@ -18,7 +18,14 @@ command -v ffmpeg >/dev/null 2>&1 || [ -x /opt/homebrew/bin/ffmpeg ] || { echo "
 "$APP/venv/bin/pip" install -q --upgrade pip
 "$APP/venv/bin/pip" install -q -r "$REPO/requirements.txt"
 # speech recognition for subtitles (about 250 MB; the ~3 GB model is a separate download from the panel)
-if [ "${1:-}" = "--subtitles" ]; then "$APP/venv/bin/pip" install -q -r "$REPO/requirements-asr.txt"; fi
+if [ "${1:-}" = "--subtitles" ]; then
+  "$APP/venv/bin/pip" install -q -r "$REPO/requirements-asr.txt"
+  # Bulgarian word list (LibreOffice dictionaries/bg_BG, GPL v2; see LICENSES.md): not part of the repository
+  mkdir -p "$APP/models/lexicon"
+  for f in bg_BG.dic bg_BG.aff COPYING; do
+    [ -s "$APP/models/lexicon/$f" ] || curl -sSfL -o "$APP/models/lexicon/$f" "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/bg_BG/$f"
+  done
+fi
 
 # optional: word-timing alignment (torch, own environment, ~2 GB with the weights; CC-BY-NC weights, see LICENSES.md)
 if [ "${1:-}" = "--align" ]; then
