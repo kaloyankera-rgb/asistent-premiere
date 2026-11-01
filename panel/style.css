@@ -23,7 +23,7 @@ button {
 }
 button.action { width: 100%; padding: 9px 10px; background-color: #2d5fa8; border-color: #2d5fa8; color: #fff; }
 button:disabled { opacity: 0.5; }
-section { margin-top: 12px; }
+section { margin-top: 4px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--uxp-host-border-color, #3a3a3a); }
 .bar { height: 4px; background-color: #3a3a3a; border-radius: 2px; margin: 6px 0 8px 0; }
 #fill { height: 4px; width: 0%; background-color: #2d5fa8; border-radius: 2px; }
 #summary { font-weight: bold; margin-bottom: 6px; }
