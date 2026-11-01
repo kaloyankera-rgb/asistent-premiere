@@ -2,7 +2,7 @@
 
 Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.18 via
 UnifiedPluginInstallerAgent, engine 0.9.18 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 113 pytest + 19 node, all passing at 0.9.18.
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 127 pytest + 19 node, all passing at 0.9.18.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
