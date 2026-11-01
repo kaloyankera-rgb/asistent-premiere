@@ -9,7 +9,8 @@
    calibration (`lumetri.json`) are unproven. First apply will use the guess 60/80 slider units per log2.
 
 ## Not verified in Premiere (implemented)
-Subtitles M3 (0.9.42): the „СУБТИТРИ“ section, selection → payload, the sequence frame size (`getVideoFrameRect` / `getVideoFrameSize` are guesses; fallback is the „кратки“ preset), where the engine writes next to an unsaved project (refused with a message).
+Subtitles M3 (0.9.42): verified working in Premiere on 2026-11-01 (see `PROJECT_STATUS.md`); still unjudged: Bulgarian accuracy and caption timing against the picture, behaviour with an unsaved project (refused with a message, not tried).
+Open observation: in the short preset captions can be 3-4 words when function words are glued (see `TODO.md` C2).
 One Undo per press (audio), „Раздели R/L“, „Изравни фразите“ keyframe positions (media time vs clip time;
 identical for untrimmed clips), auto-import speed after 0.7.1, colour values set + read back, render check,
 probe, `scripts/setup_win.ps1` (never run), Windows overall.

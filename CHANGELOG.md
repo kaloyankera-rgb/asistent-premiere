@@ -9,7 +9,7 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 ## 0.9.42 - Phase 7 M3: dialogue mix, /subtitles job, СУБТИТРИ section
 - Engine: `dialoguemix.py` (selected audio items as one 16 kHz mono signal at sequence time), `subtitle_job.py` and `POST /subtitles` (Whisper words cached by mix + prompt; captions per preset; SRT + JSON written to `<project folder>/Asistent_subtitles/`).
 - Panel: section „СУБТИТРИ“ with „Субтитри (български)“; pure `subtitleplan.js` (duplicate audio on a higher track is skipped and named); the model download starts only from its own button that names the size.
-- Verified end to end on a real Bulgarian clip through the live engine (2.8x real time); panel not yet verified in Premiere.
+- Verified end to end on a real Bulgarian clip through the live engine (2.8x real time) and by the user in Premiere (34 captions from 4 selected items, 4 duplicates skipped, frame size read, SRT written next to the project).
 - Tests: 228 pytest + 60 node.
 
 ## Docs and workflow (earlier today)
