@@ -1,0 +1,414 @@
+"""Smart White Balance and exposure: measure a clip from several frames and suggest a conservative fix.
+
+Everything is measured in linear Rec.709 light. Rec.709 footage is decoded with the BT.1886 2.4 gamma,
+S-Log3 / S-Gamut3.Cine footage (Sony, read from the sidecar XML) with Sony's own curve and gamut matrix.
+
+Exposure: from skin when faces are in the picture (encoded skin luma ~0.62 is the target), otherwise from
+the mid-tones with lower confidence; never so much that more than a sliver of the picture clips.
+Suggested in 0.5-stop steps.
+
+White balance: from near-neutral bright surfaces (walls, white clothes, paper), checked against the
+whole picture (grey world on unsaturated mid-tones). A cast is two numbers in log2 units:
+  temp = log2(B/R)      > 0 cool/blue,  < 0 warm/orange
+  tint = log2(G/√(RB))  > 0 green,      < 0 magenta/purple
+High confidence only when both methods agree and the frames agree. No neutrals + warm light (a
+restaurant) is treated as intentional: low confidence, nothing applied. Never contrast, saturation or LUTs.
+"""
+from __future__ import annotations
+
+import os
+
+import numpy as np
+
+from .media import MediaError, _run, _tool, probe
+
+GAMMA = 2.4
+SKIN_TARGET = 0.62            # encoded luma of well exposed skin in Rec.709
+MID_TARGET = 0.42             # encoded median of an average scene
+STEP = 0.5
+MAX_STOPS = 2.0               # the user's range: +0.5 … +2 (and the same down)
+NEW_CLIP = 0.03               # brightening may burn out at most this much more of the picture
+BALANCED = (0.08, 0.05)       # |temp|, |tint| below this: leave it
+MAX_FIX = (0.8, 0.4)          # never correct more than this in one go
+SEARCH = (0.9, 0.5)           # |temp|, |tint| a camera cast can have: only there a surface may count as grey
+
+# S-Gamut3.Cine -> Rec.709 (linear), Sony technical summary
+SG3C_TO_709 = np.array([[1.6269474, -0.5401385, -0.0868089],
+                        [-0.1785155, 1.4179409, -0.2394254],
+                        [-0.0444361, -0.1959199, 1.2403560]])
+
+
+# ---------------------------------------------------------------- decoding
+
+def slog3_to_linear(x: np.ndarray) -> np.ndarray:
+    x = np.asarray(x, dtype=np.float64)
+    cut = 171.2102946929 / 1023.0
+    hi = (10 ** ((x * 1023.0 - 420.0) / 261.5)) * (0.18 + 0.01) - 0.01
+    lo = (x * 1023.0 - 95.0) * 0.01125000 / (171.2102946929 - 95.0)
+    return np.where(x >= cut, hi, lo)
+
+
+def to_linear(rgb: np.ndarray, gamma: str | None) -> np.ndarray:
+    """Encoded R'G'B' (0..1) -> linear Rec.709."""
+    if gamma and "log3" in gamma.lower():
+        # Sony's curve is defined on the 10-bit code values of the legal-range signal (black 95, grey 420):
+        # put the full-range R'G'B' back onto that scale before decoding
+        lin = slog3_to_linear((np.asarray(rgb) * (940 - 64) + 64) / 1023.0)
+        return np.clip(lin @ SG3C_TO_709.T, 0, None)
+    return np.clip(rgb, 0, 1) ** GAMMA
+
+
+def encode(lin: np.ndarray) -> np.ndarray:
+    return np.clip(lin, 0, 1) ** (1 / GAMMA)
+
+
+def read_frames(path: str, n: int = 6, width: int = 480, start: float = 0.0, end: float | None = None) -> list[np.ndarray]:
+    """n frames spread over [start, end) of the media as encoded R'G'B' floats (full range)."""
+    info = probe(path)
+    if not info.has_video:
+        raise MediaError(f"{os.path.basename(path)} няма картина.")
+    dur = (end if end else info.duration) - start
+    h = int(round(width * info.height / max(info.width, 1) / 2) * 2) if info.width else width
+    p = _run([_tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=color_range",
+              "-of", "default=nk=1:nw=1", path])
+    rng = "pc" if p.stdout.decode(errors="replace").strip() == "pc" else "tv"
+    frames = []
+    for i in range(n):
+        t = start + dur * (0.05 + 0.9 * (i + 0.5) / n)
+        p = _run([_tool("ffmpeg"), "-v", "error", "-nostdin", "-ss", f"{t:.3f}", "-i", path, "-frames:v", "1",
+                  "-vf", f"scale={width}:{h}:flags=area:in_color_matrix=bt709:in_range={rng}:out_range=pc,format=rgb48le",
+                  "-f", "rawvideo", "-"])
+        data = np.frombuffer(p.stdout, dtype="<u2")
+        if p.returncode == 0 and data.size == width * h * 3:
+            frames.append(data.reshape(h, width, 3).astype(np.float64) / 65535.0)
+    if not frames:
+        raise MediaError(f"Не мога да прочета кадри от {os.path.basename(path)}.")
+    return frames
+
+
+def read_image(path: str) -> np.ndarray:
+    """A still (e.g. a frame exported by Premiere) as encoded R'G'B' floats."""
+    p = _run([_tool("ffmpeg"), "-v", "error", "-nostdin", "-i", path, "-frames:v", "1", "-vf", "format=rgb48le",
+              "-f", "rawvideo", "-"])
+    q = _run([_tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+              "-of", "csv=p=0", path])
+    w, h = (int(v) for v in q.stdout.decode().strip().split(",")[:2])
+    return np.frombuffer(p.stdout, dtype="<u2").reshape(h, w, 3).astype(np.float64) / 65535.0
+
+
+# ---------------------------------------------------------------- measuring one frame
+
+def _luma(rgb):
+    return rgb[..., 0] * 0.2126 + rgb[..., 1] * 0.7152 + rgb[..., 2] * 0.0722
+
+
+def _skin(enc: np.ndarray) -> np.ndarray:
+    """Skin-like pixels (BT.709 YCbCr box, wide enough for a mild cast)."""
+    y = _luma(enc)
+    cb = (enc[..., 2] - y) / 1.8556
+    cr = (enc[..., 0] - y) / 1.5748
+    return (y > 0.25) & (y < 0.92) & (cr > 0.02) & (cr < 0.17) & (cb > -0.16) & (cb < -0.01)
+
+
+def _cast(rgb_sum: np.ndarray) -> tuple[float, float]:
+    r, g, b = np.maximum(rgb_sum, 1e-9)
+    return float(np.log2(b / r)), float(np.log2(g / np.sqrt(r * b)))
+
+
+def measure(enc: np.ndarray, gamma: str | None = None) -> dict:
+    """One frame: exposure need (stops), cast from neutrals and from grey world, coverage numbers."""
+    lin = to_linear(enc, gamma)
+    view = encode(lin)                       # what it looks like in Rec.709
+    y_lin = _luma(lin)
+    y_enc = _luma(view)
+    clipped = np.max(view, axis=-1) >= 0.97
+    out = {"clipped": float(np.mean(clipped))}
+
+    lit = y_enc > 0.04
+    if lit.any():
+        out["exp_mid"] = float(GAMMA * np.log2(MID_TARGET / max(np.median(y_enc[lit]), 1e-4)))
+
+    ok = ~clipped & (y_lin > np.percentile(y_lin, 40)) & (y_lin < np.percentile(y_lin, 99.5))
+
+    def chroma_after(cast):
+        """How coloured each pixel is once a cast is taken out (a grey wall under warm light is grey again)."""
+        t, g = cast
+        gains = np.array([2 ** (t / 2 + g / 3), 2 ** (-2 * g / 3), 2 ** (-t / 2 + g / 3)])
+        x = lin * gains
+        mx, mn = np.max(x, axis=-1), np.min(x, axis=-1)
+        return (mx - mn) / np.maximum(mx, 1e-9)
+
+    # grey world on the less coloured mid-tones (skin and coloured objects would pull it)
+    mid = ~clipped & (y_enc > 0.15) & (y_enc < 0.85)
+    cast = _cast(lin[mid].sum(axis=0)) if mid.sum() > 50 else (0.0, 0.0)    # rough: every mid-tone
+    for _ in range(3):
+        sel = mid & (chroma_after(cast) < 0.35)
+        if sel.sum() <= 50:
+            break
+        cast = _cast(lin[sel].sum(axis=0))
+    if mid.sum() > 50:
+        out["cast_world"] = cast
+    # near-neutral bright surfaces: the biggest group of bright pixels sharing one tint, looked for only
+    # where a camera cast can be (a green plant or warm wood is far outside and never counts as grey)
+    neutral = np.zeros_like(ok)
+    px = lin[ok]
+    if len(px) > 50:
+        safe = np.maximum(px, 1e-6)
+        pt = np.log2(safe[:, 2] / safe[:, 0])
+        pg = np.log2(safe[:, 1] / np.sqrt(safe[:, 0] * safe[:, 2]))
+        inside = (np.abs(pt) <= SEARCH[0]) & (np.abs(pg) <= SEARCH[1])
+        if inside.sum() > 50:
+            hist, et, eg = np.histogram2d(pt[inside], pg[inside], bins=(37, 21),
+                                          range=((-SEARCH[0], SEARCH[0]), (-SEARCH[1], SEARCH[1])),
+                                          weights=_luma(px[inside]))
+            pad = np.pad(hist, 1)
+            smooth = sum(pad[i:i + hist.shape[0], j:j + hist.shape[1]] for i in range(3) for j in range(3))
+            it, ig = np.unravel_index(int(np.argmax(smooth)), smooth.shape)
+            ct, cg = (et[it] + et[it + 1]) / 2, (eg[ig] + eg[ig + 1]) / 2
+            near = inside & (np.abs(pt - ct) < 0.12) & (np.abs(pg - cg) < 0.08)
+            if near.sum() > 50:
+                idx = np.flatnonzero(ok)[near]
+                neutral.flat[idx] = True
+                cast_n = _cast(px[near].sum(axis=0))
+                out["cast_neutral"] = cast_n
+                cast = cast_n
+    out["neutral"] = float(np.mean(neutral))
+
+    # skin, looked for once the cast is out (a grey wall under warm light would pass for skin)
+    t, g = cast
+    view_fixed = encode(lin * np.array([2 ** (t / 2 + g / 3), 2 ** (-2 * g / 3), 2 ** (-t / 2 + g / 3)]))
+    skin = _skin(view_fixed) & ~clipped
+    out["skin"] = float(np.mean(skin))
+    if out["skin"] >= 0.01:
+        out["exp_skin"] = float(GAMMA * np.log2(SKIN_TARGET / max(np.median(_luma(view_fixed)[skin]), 1e-4)))
+    # what a given exposure would clip (for the highlight guard)
+    out["_view_max"] = np.max(view, axis=-1)
+    out["_lin_max"] = np.max(lin, axis=-1)
+    return out
+
+
+# ---------------------------------------------------------------- the decision
+
+def _round_step(stops: float) -> float:
+    s = round(stops / STEP) * STEP
+    return float(np.clip(s, -MAX_STOPS, MAX_STOPS))
+
+
+def decide(frames: list[np.ndarray], gamma: str | None = None) -> dict:
+    ms = [measure(f, gamma) for f in frames]
+    reasons, warnings = [], []
+
+    # ---- exposure
+    skin_vals = [m["exp_skin"] for m in ms if "exp_skin" in m]
+    mid_vals = [m["exp_mid"] for m in ms if "exp_mid" in m]
+    if len(skin_vals) >= max(2, len(ms) // 2):
+        raw, basis, spread = float(np.median(skin_vals)), "кожата", float(np.std(skin_vals))
+    elif mid_vals:
+        raw, basis, spread = float(np.median(mid_vals)), "средните тонове", float(np.std(mid_vals))
+    else:
+        raw, basis, spread = 0.0, None, 9.0
+    stops = _round_step(raw) if abs(raw) >= 0.35 else 0.0
+    # highlights: a plain gain is a pessimistic model (Lumetri rolls the highlights off), so this only
+    # warns; the panel checks the real Lumetri result on an exported frame and steps back if needed
+    def burnt(s):
+        return float(np.mean([np.mean((m["_lin_max"] * 2 ** s) ** (1 / GAMMA) >= 0.97) - m["clipped"] for m in ms]))
+    burn = burnt(stops) if stops > 0 else 0.0
+    if burn > NEW_CLIP:
+        warnings.append(f"Светлите части може да изгорят (груба оценка {burn:.0%} от картината): "
+                        "проверява се на кадър от Premiere след прилагането.")
+    exp_conf = "high" if basis == "кожата" and spread < 0.4 else "medium" if basis and spread < 0.6 else "low"
+    if basis:
+        reasons.append(f"Експозиция по {basis}: {'+' if stops > 0 else ''}{stops:g} (измерено {raw:+.2f} стопа).")
+
+    # ---- white balance
+    neu = [m["cast_neutral"] for m in ms if "cast_neutral" in m]
+    wor = [m["cast_world"] for m in ms if "cast_world" in m]
+    neutral_frac = float(np.mean([m["neutral"] for m in ms]))
+    temp = tint = 0.0
+    wb_conf = "low"
+    if neu:
+        n_t, n_g = np.median([c[0] for c in neu]), np.median([c[1] for c in neu])
+        n_sd = max(np.std([c[0] for c in neu]), np.std([c[1] for c in neu]))
+        temp, tint = float(n_t), float(n_g)
+        agree = bool(wor) and abs(np.median([c[0] for c in wor]) - n_t) < 0.25 and \
+            abs(np.median([c[1] for c in wor]) - n_g) < 0.15
+        if neutral_frac >= 0.02 and agree and n_sd < 0.1:
+            wb_conf = "high"
+        elif neutral_frac >= 0.005 and n_sd < 0.2:
+            wb_conf = "medium"
+        if not agree:
+            reasons.append("Неутралните повърхности и цялата картина не са съгласни (цветни обекти или смесена светлина).")
+    elif wor:
+        temp = float(np.median([c[0] for c in wor]))
+        tint = float(np.median([c[1] for c in wor]))
+        reasons.append("Няма неутрални повърхности за мерене: само ориентир.")
+    if neutral_frac < 0.01 and temp < -0.25:
+        wb_conf = "low"
+        reasons.append("Топла светлина без неутрални повърхности: вероятно е нарочна (ресторант, лампи), не се пипа.")
+    balanced = abs(temp) < BALANCED[0] and abs(tint) < BALANCED[1]
+    fix_t = 0.0 if balanced else float(np.clip(-temp, -MAX_FIX[0], MAX_FIX[0]))
+    fix_g = 0.0 if balanced else float(np.clip(-tint, -MAX_FIX[1], MAX_FIX[1]))
+    if balanced and wb_conf != "low":
+        reasons.append("Бялото е наред: без корекция.")
+    if not balanced:
+        if tint > 0.08:
+            reasons.append(f"Зелен оттенък ({tint:+.2f}).")
+        elif tint < -0.08:
+            reasons.append(f"Лилав/магента оттенък ({tint:+.2f}).")
+        if temp < -0.08:
+            reasons.append(f"Твърде топло ({temp:+.2f}).")
+        elif temp > 0.08:
+            reasons.append(f"Твърде студено ({temp:+.2f}).")
+
+    # log footage: Lumetri on the flat signal does not act like on Rec.709 and the render check would
+    # measure a flat picture; until the colour management / LUT of these projects is known: suggest only
+    if gamma and "log" in gamma.lower():
+        exp_conf = "medium" if exp_conf == "high" else exp_conf
+        wb_conf = "medium" if wb_conf == "high" else wb_conf
+        warnings.append(f"Запис в {gamma}: предложението е за картината след превръщане в Rec.709; "
+                        "не се прилага само (първо LUT или цветово управление).")
+
+    # channel gains (linear) that remove the cast, luminance kept
+    r, g, b = 2 ** (-fix_t / 2 - fix_g / 3), 2 ** (2 * fix_g / 3), 2 ** (fix_t / 2 - fix_g / 3)
+    norm = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return {
+        "exposure": {"stops": stops, "measured": round(raw, 2), "basis": basis, "confidence": exp_conf,
+                     "burn_estimate": round(burn, 3)},
+        "white": {"cast_temp": round(temp, 3), "cast_tint": round(tint, 3), "fix_temp": round(fix_t, 3),
+                  "fix_tint": round(fix_g, 3), "balanced": balanced, "confidence": wb_conf,
+                  "neutral_area": round(neutral_frac, 4), "gains": [round(v / norm, 4) for v in (r, g, b)]},
+        "skin_area": round(float(np.mean([m["skin"] for m in ms])), 4),
+        "clipped": round(float(np.mean([m["clipped"] for m in ms])), 4),
+        "frames": len(ms), "gamma": gamma or "rec709", "reasons": reasons, "warnings": warnings,
+    }
+
+
+def analyze_clip(path: str, start: float = 0.0, end: float | None = None, gamma: str | None = None) -> dict:
+    if gamma is None:
+        from .prepare import sony_xml
+        gamma = sony_xml(path).get("gamma")
+    res = decide(read_frames(path, start=start, end=end), gamma)
+    res.update(path=path, name=os.path.basename(path))
+    return res
+
+
+def new_clipping(before: np.ndarray, after: np.ndarray) -> float:
+    """Share of the picture that burns out in `after` but did not in `before` (same size, encoded)."""
+    b = np.max(before, axis=-1) >= 0.97
+    a = np.max(after, axis=-1) >= 0.97
+    return float(np.mean(a & ~b))
+
+
+def check_render(before_path: str, after_path: str) -> dict:
+    """Two frames exported by Premiere (without / with the correction): how neutral and how bright the
+    result is, and how much burnt out. Used to verify and, if needed, step the correction back."""
+    b, a = read_image(before_path), read_image(after_path)
+    if b.shape != a.shape:
+        raise MediaError("Кадрите преди и след са с различен размер.")
+    ma = measure(a)
+    return {"new_clipping": round(new_clipping(b, a), 4),
+            "cast_after": ma.get("cast_neutral") or ma.get("cast_world"),
+            "exposure_after": ma.get("exp_skin", ma.get("exp_mid")),
+            "skin_after": round(ma.get("skin", 0.0), 4)}
+
+
+# ---------------------------------------------------------------- preview and Lumetri calibration
+
+def _jpeg_b64(enc: np.ndarray, width: int = 240) -> str:
+    """A small JPEG of an encoded frame, base64 for the panel's <img>."""
+    import base64
+    h, w = enc.shape[:2]
+    raw = (np.clip(enc, 0, 1) * 65535).astype("<u2").tobytes()
+    p = _run_input([_tool("ffmpeg"), "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb48le", "-s", f"{w}x{h}", "-i", "-",
+                    "-vf", f"scale={width}:-2", "-frames:v", "1", "-q:v", "4", "-f", "mjpeg", "-"], raw)
+    return base64.b64encode(p).decode("ascii") if p else ""
+
+
+def _run_input(cmd: list[str], data: bytes) -> bytes:
+    import subprocess
+    import sys as _sys
+    flags = subprocess.CREATE_NO_WINDOW if _sys.platform == "win32" else 0
+    p = subprocess.run(cmd, input=data, capture_output=True, creationflags=flags)
+    return p.stdout if p.returncode == 0 else b""
+
+
+def preview(frames: list[np.ndarray], gamma: str | None, res: dict) -> dict:
+    """Before/after of the middle frame as the engine would correct it (an approximation of Lumetri)."""
+    f = frames[len(frames) // 2]
+    lin = to_linear(f, gamma)
+    gains = np.array(res["white"]["gains"]) if res["white"]["confidence"] != "low" else np.ones(3)
+    stops = res["exposure"]["stops"]
+    return {"before": _jpeg_b64(encode(lin)), "after": _jpeg_b64(encode(lin * gains * 2 ** stops))}
+
+
+def analyze_items(items: list[dict], with_preview: bool = True, progress=None, cancel=None) -> dict:
+    from concurrent.futures import ThreadPoolExecutor
+    from .prepare import sony_xml
+    from .sync import Cancelled
+    progress = progress or (lambda f, m: None)
+    done = [0]
+
+    def one(it):
+        if cancel and cancel():
+            raise Cancelled()
+        path = it["path"]
+        try:
+            gamma = sony_xml(path).get("gamma")
+            frames = read_frames(path, start=float(it.get("start") or 0), end=it.get("end"))
+            r = decide(frames, gamma)
+            r.update(path=path, name=os.path.basename(path))
+            if with_preview:
+                r["preview"] = preview(frames, gamma, r)
+        except MediaError as e:
+            r = {"path": path, "name": os.path.basename(path), "error": str(e)}
+        done[0] += 1
+        progress(done[0] / len(items), f"Гледам {done[0]} от {len(items)}")
+        return r
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        return {"items": list(pool.map(one, items))}
+
+
+class Calibration:
+    """How many Lumetri slider units move the measured cast by one log2 unit (learnt from real renders).
+
+    Starts from a guess; every verified render refines it, so later clips are right in one step.
+    """
+
+    GUESS = {"temp": 60.0, "tint": 80.0}
+
+    def __init__(self, path: str | None = None):
+        from . import config
+        self.path = path or os.path.join(config.app_dir(), "lumetri.json")
+        self.data = {"temp": [], "tint": []}
+        try:
+            import json
+            with open(self.path, encoding="utf-8") as f:
+                self.data.update(json.load(f))
+        except (OSError, ValueError):
+            pass
+
+    def k(self, axis: str) -> float:
+        xs = self.data.get(axis) or []
+        return float(np.median(xs[-9:])) if xs else self.GUESS[axis]
+
+    def learnt(self, axis: str) -> bool:
+        return bool(self.data.get(axis))
+
+    def sliders(self, fix_temp: float, fix_tint: float) -> dict:
+        return {"temperature": round(self.k("temp") * fix_temp, 1), "tint": round(self.k("tint") * fix_tint, 1)}
+
+    def learn(self, axis: str, slider: float, moved: float) -> bool:
+        """slider units applied, cast change measured (log2): keep it when it is a clear, sane measurement."""
+        import json
+        if abs(slider) < 5 or abs(moved) < 0.05:
+            return False
+        k = slider / moved
+        if not (5 <= abs(k) <= 2000):
+            return False
+        self.data.setdefault(axis, []).append(float(k))
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(self.data, f)
+        os.replace(tmp, self.path)
+        return True
