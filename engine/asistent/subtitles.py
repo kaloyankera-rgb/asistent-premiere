@@ -12,8 +12,11 @@ from . import bgtext
 PUNCT_END = re.compile(r"[.,?!…]$")
 # A pause between two words longer than this ends the caption (seconds).
 PAUSE_SPLIT = 0.35
-# The caption stays on screen a little after the last word is said (seconds), as in autoedit.
-TAIL_HOLD = 0.2
+# A caption stays on screen this long after its last word in a pause (seconds); inside continuous speech it stays until
+# the next caption starts, so nothing flashes off for a moment and back.
+TAIL_HOLD = 0.3
+CONTINUOUS_GAP = 0.35      # a gap to the next caption up to this is bridged (no blink), a longer one is a pause
+LEAD = 0.03                # a caption appears this long before its first word (about one frame: it reads as in sync)
 # Whisper word probability below this is reported to the review list; the SRT text itself is never marked.
 LOW_P = 0.5
 
@@ -31,8 +34,10 @@ UNITS = {"евро", "€", "лева", "лв", "nm", "процента", "%", "
 # soft_chars is the real limit (a longer pair is still allowed, a third word never is).
 # standard: for 16:9, up to 2 lines of 42 characters.
 PRESETS = {
-    "short": {"max_words": 2, "max_chars": 11, "soft_chars": 16, "lines": 1, "line_chars": 16,
-              "min_s": 0.5, "max_s": 2.5},
+    # phrases of 2-3 words chosen by `_group_phrases` (pauses, punctuation, grammar); never more than 3 words unless a
+    # number phrase ("за 8 евро", "Формула 1") needs more, never more than 22 characters.
+    "short": {"max_words": 3, "max_chars": 16, "soft_chars": 18, "lines": 1, "line_chars": 22,
+              "min_s": 0.5, "max_s": 2.5, "phrases": True},
     "standard": {"max_words": None, "max_chars": 42, "soft_chars": 42, "lines": 2, "line_chars": 42,
                  "min_s": 1.0, "max_s": 6.0},
 }
@@ -172,6 +177,108 @@ def _group(words, cfg):
     return groups
 
 
+# --- natural phrases (short preset) --------------------------------------------------------------------------
+# Bulgarian short pronouns and particles lean on the verb next to them: a caption does not start with them
+# (except after a sentence end) and a caption never ends on a preposition, conjunction or particle.
+ENCLITIC = {"се", "си", "ми", "ти", "му", "ѝ", "ни", "ви", "им", "ме", "го", "ги", "ли", "бе"}
+# never the last word of a caption: prepositions, conjunctions, particles, the verb „съм“ and the short pronouns
+NON_FINAL = FUNCTION_WORDS | ENCLITIC | {"в", "с", "и", "а", "да", "не", "ще", "би", "е", "са", "съм", "сме", "сте", "бях", "беше",
+                                        "щях", "ни", "ний", "нито", "ами", "защо", "дали", "щото", "преди", "върху", "из", "във",
+                                        "ту", "един", "една", "едно", "някой", "някоя", "някои", "всеки", "всяка", "всички", "този", "тази", "тези",
+                                        "мой", "моя", "моята", "твой", "твоя", "негов", "неговия", "нейния", "наш", "нашия", "ваш", "вашия",
+                                        "такъв", "такава", "такива", "още", "само", "много"}
+PHRASE_COST = {"base": 1.0, "one_word": 1.4, "three_words": 0.3, "four_words": 3.0, "four_words_function": 1.0,
+               "over_soft": 0.3, "over_hard": 20.0, "ends_function": 40.0, "starts_enclitic": 1.2, "too_short": 1.5,
+               "too_long": 4.0, "inner_sentence_end": 4.0, "inner_comma": 0.6, "inner_pause": 3.0}
+
+
+def _word_core(w):
+    return re.sub(r"[.,?!…:;]+$", "", w["word"].lower())
+
+
+def _can_end(u):
+    return PUNCT_END.search(u[-1]["word"]) is not None or _word_core(u[-1]) not in NON_FINAL
+
+
+def _break_cost(prev, nxt):
+    """How good a place to cut between two words: 0 = best (sentence end or a real pause), higher = inside a phrase."""
+    t = prev["word"]
+    gap = nxt["start"] - prev["end"]
+    cost = 0.0 if re.search(r"[.?!…]$", t) else 0.3 if t.endswith(",") else 1.4
+    if gap >= PAUSE_SPLIT:
+        cost = min(cost, 0.0)
+    elif gap >= 0.2:
+        cost = min(cost, 0.5)
+    elif gap >= 0.12:
+        cost = min(cost, 0.9)
+    elif cost > 0:
+        cost += 0.4                                            # no pause at all: one breath, one phrase
+    if _word_core(nxt) in ENCLITIC and not re.search(r"[.?!…]$", t) and gap < PAUSE_SPLIT:
+        cost += PHRASE_COST["starts_enclitic"]
+    return cost
+
+
+def _phrase_cost(units, cfg, forced_edges):
+    """Cost of showing these units as one caption (lower is better)."""
+    c = PHRASE_COST
+    flat = [w for u in units for w in u]
+    n = len(flat)
+    chars = _text_len(flat)
+    glued = any(len(u) > 1 for u in units)
+    little = sum(1 for w in flat if _word_core(w) in NON_FINAL)    # function words add no weight to a phrase
+    if n > cfg["max_words"] + 1 or (n == cfg["max_words"] + 1 and not glued and little < 2) \
+            or (chars > cfg["line_chars"] and len(units) > 1):
+        return None                                            # not allowed
+    cost = c["base"]
+    cost += c["one_word"] * (0.3 if forced_edges else 1.0) if n == 1 else 0.0
+    cost += c["three_words"] if n == 3 else (c["four_words_function"] if little >= 2 or glued else c["four_words"]) if n == 4 else 0.0
+    for a, b in zip(flat, flat[1:]):                           # a caption is one phrase: no sentence end, pause or comma inside
+        if re.search(r"[.?!…]$", a["word"]):
+            cost += c["inner_sentence_end"]
+        elif b["start"] - a["end"] >= PAUSE_SPLIT:
+            cost += c["inner_pause"]
+        elif a["word"].endswith(","):
+            cost += c["inner_comma"]
+    cost += max(0, chars - cfg["soft_chars"]) * c["over_soft"] + (c["over_hard"] if chars > cfg["line_chars"] else 0)
+    speech = flat[-1]["end"] - flat[0]["start"]
+    cost += c["too_short"] if speech < 0.35 and n > 1 else c["too_short"] + 1.0 if speech < 0.3 and n == 1 else 0.0
+    cost += c["too_long"] if speech > cfg["max_s"] else 0.0
+    if not _can_end(units[-1]):
+        cost += c["ends_function"]
+    return cost
+
+
+def _group_phrases(words, cfg):
+    """Dynamic programming over the units (number phrases stay whole): the cheapest way to cut the speech into
+    captions. Cuts prefer sentence ends and real pauses, never end on a function word, rarely start on a clitic, and
+    keep 2-3 words together. Returns the groups as lists of units, like `_group`."""
+    units = _units(words)
+    n = len(units)
+    best = [(0.0, -1)] + [(float("inf"), -1)] * n
+    for j in range(1, n + 1):
+        for i in range(max(0, j - 5), j):                      # at most 5 units in a caption (a glued unit counts as one)
+            if best[i][0] == float("inf"):
+                continue
+            seg = units[i:j]
+            before = i == 0 or re.search(r"[.?!…]$", units[i - 1][-1]["word"]) or units[i][0]["start"] - units[i - 1][-1]["end"] >= PAUSE_SPLIT
+            after = j == n or re.search(r"[.?!…]$", units[j - 1][-1]["word"]) or units[j][0]["start"] - units[j - 1][-1]["end"] >= PAUSE_SPLIT
+            c = _phrase_cost(seg, cfg, bool(before and after))
+            if c is None:
+                continue
+            if i > 0:
+                c += _break_cost(units[i - 1][-1], units[i][0])
+            if best[i][0] + c < best[j][0]:
+                best[j] = (best[i][0] + c, i)
+    if best[n][0] == float("inf"):                             # cannot happen with 5-unit captions, but never fail
+        return _group(words, cfg)
+    groups, j = [], n
+    while j > 0:
+        i = best[j][1]
+        groups.append(units[i:j])
+        j = i
+    return groups[::-1]
+
+
 def build_captions(words, preset="short", fps=25.0):
     """Words (sequence seconds, `p` optional) -> captions {"start", "end", "text", "words", "flags"}.
 
@@ -187,12 +294,18 @@ def build_captions(words, preset="short", fps=25.0):
     # Spelling applies to the shown text only; the times stay as spoken.
     fixed = bgtext.fix_prepositions([w["word"] for w in words])
     words = [dict(w, word=t) for w, t in zip(words, fixed)]
-    groups = _group(words, cfg)
+    groups = _group_phrases(words, cfg) if cfg.get("phrases") else _group(words, cfg)
 
     frame = lambda t: int(math.floor(t * fps + 0.5))
     min_f = max(1, int(math.ceil(cfg["min_s"] * fps - 1e-9)))
     max_f = max(min_f, int(math.floor(cfg["max_s"] * fps + 1e-9)))
-    first = [frame(g[0][0]["start"]) for g in groups]
+    # A caption appears about one frame before its first word, but never before the previous caption's speech ended.
+    first = []
+    for i, g in enumerate(groups):
+        t = g[0][0]["start"] - LEAD
+        if i:
+            t = max(t, groups[i - 1][-1][-1]["end"] if groups[i - 1][-1][-1]["end"] < g[0][0]["start"] else t)
+        first.append(frame(t))
     # Starts strictly increase: two captions can never start on the same frame.
     for i in range(1, len(first)):
         first[i] = max(first[i], first[i - 1] + 1)
@@ -200,7 +313,12 @@ def build_captions(words, preset="short", fps=25.0):
     captions = []
     for i, g in enumerate(groups):
         flat = [w for u in g for w in u]
-        end = frame(flat[-1]["end"] + TAIL_HOLD)
+        # in continuous speech the caption stays until the next one starts (no blink); in a pause it clears soon after
+        nxt_start = groups[i + 1][0][0]["start"] if i + 1 < len(groups) else None
+        if nxt_start is not None and nxt_start - flat[-1]["end"] <= CONTINUOUS_GAP:
+            end = first[i + 1]
+        else:
+            end = frame(flat[-1]["end"] + TAIL_HOLD)
         end = min(max(end, first[i] + min_f), first[i] + max_f)
         if i + 1 < len(groups):
             end = min(end, first[i + 1])

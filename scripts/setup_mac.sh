@@ -20,6 +20,15 @@ command -v ffmpeg >/dev/null 2>&1 || [ -x /opt/homebrew/bin/ffmpeg ] || { echo "
 # speech recognition for subtitles (about 250 MB; the ~3 GB model is a separate download from the panel)
 if [ "${1:-}" = "--subtitles" ]; then "$APP/venv/bin/pip" install -q -r "$REPO/requirements-asr.txt"; fi
 
+# optional: word-timing alignment (torch, own environment, ~2 GB with the weights; CC-BY-NC weights, see LICENSES.md)
+if [ "${1:-}" = "--align" ]; then
+  [ -x "$APP/venv-align/bin/python" ] || "$PY" -m venv "$APP/venv-align"
+  "$APP/venv-align/bin/pip" install -q --upgrade pip
+  "$APP/venv-align/bin/pip" install -q -r "$REPO/requirements-align.txt"
+  mkdir -p "$APP/models/torch"
+  TORCH_HOME="$APP/models/torch" "$APP/venv-align/bin/python" -c "from torchaudio.pipelines import MMS_FA as b; b.get_model(); print('MMS_FA weights ready')"
+fi
+
 cat > "$PLIST" <<PL
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

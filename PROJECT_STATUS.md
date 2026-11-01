@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.43 (2026-11-01)
+# Project status — Asistent 0.9.44 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.43 via
-UnifiedPluginInstallerAgent, engine 0.9.43 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 234 pytest + 59 node, all passing at 0.9.43.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.44 via
+UnifiedPluginInstallerAgent, engine 0.9.44 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 249 pytest + 60 node, all passing at 0.9.44.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -223,7 +223,29 @@ press the button again on the same selection.** Timing („a little off in many 
 times are only about ±0.1–0.3 s accurate. A quick onset test on the clips was inconclusive (noise events), so no snap
 was added blindly. Open: ask whether captions are early or late (a fixed offset would fix a systematic shift);
 otherwise forced alignment (MMS_FA, torch, ~1–2 GB, needs the user's OK) per `docs/SUBTITLES_PLAN.md` M6.
-Next: M4 review + import into the bin („Внеси в проекта“, one Undo).
+**0.9.44: words, timing and grouping (user: still wrong words, timing a little off, wants natural 2-3 word phrases).**
+The original 4a1a method was found in `tools/autoedit` (`asr.py`, `autoedit.py`; proof of use: the Clash transcript with an
+alignment score on every word): Whisper large-v3 (same model and settings as Asistent) + **MMS_FA forced alignment**
+(torchaudio) + a prompt of names and a „spoken“ dictionary + a text correction pass, on one clean voice recording.
+Findings on the Ludi Glavi test (GStroy clips):
+- *Words:* the user's examples („я да видим“, „примерно на мен“) were wrong because the four cut pieces were joined into
+  one signal; transcribed one by one with 2 s of real media around each, Whisper gives them correctly. Now per piece
+  (`subtitle_job.piece_words`, `dialoguemix.read_segment`, words kept when ≥ 40 % inside the piece, seams de-duplicated).
+- *Timing:* Whisper's word starts are early by a median 0.12 s (mean 0.2, up to 1 s; e.g. „я“ 1.40 s vs 1.93 s aligned).
+  MMS_FA alignment fixes it (scores mostly 0.8-1.0). Built as an OPTIONAL step in its own environment (`align.py`,
+  `align_worker.py`, `requirements-align.txt`, `setup_mac.sh --align`); without it Whisper times are kept and the result
+  says so. **Not installed in the app folder yet** (about 0.9 GB venv + 1.2 GB weights) because the weights are
+  **CC-BY-NC 4.0 (non-commercial)**: the user must decide (see `LICENSES.md`).
+- *Grouping:* `subtitles._group_phrases` (short preset): dynamic programming over the words; prefers cuts at sentence ends,
+  commas and real pauses, never ends a caption on a preposition/conjunction/particle/„един“, rarely starts on a clitic,
+  2-3 words (4 only with function words or a number phrase), ≤ 22 characters, no sentence end or pause inside a caption.
+  Timing: a caption appears one frame before its first word; in continuous speech it stays until the next one starts
+  (no blink), in a pause it clears 0.3 s after the last word. The standard (16:9) preset keeps the old grouping.
+- Real result at 0.9.44 on the same selection (alignment on): „Имаш идея?“ / „Добре,“ / „я да видим“ / „какво ще трябва.“ /
+  „Примерно на мен“ / „ми трябва“ / „ето това.“; remaining Whisper errors: „нища“ (неща), „десом“.
+**Not verified in Premiere at 0.9.44** (words and grouping engine-tested on the real clips; alignment only in a test
+environment). Next: user presses the button again; decision on the aligner licence/install; M4 review + text correction
++ names field (Whisper prompt) + import into the bin („Внеси в проекта“, one Undo).
 
 ## Phases 7–9 (Planned)
 7 Bulgarian subtitles (faster-whisper; reuse `tools/autoedit/asr.py` by copying), 8 rough-cut markers and

@@ -106,6 +106,12 @@ caption track. So Asistent imports the SRT into a bin and the user drags it over
 survive. Premiere's own transcript (`Transcript`) is not used for now: its export rejects a clip without a transcript and
 its own captions would re-break the lines.
 
+## Subtitles 0.9.44 (2026-11-01)
+- **Original 4a1a method:** Whisper large-v3 + MMS_FA forced alignment + names prompt + `spoken` dictionary + a correction pass (`tools/autoedit`). Same model as Asistent; the alignment and the correction pass are what Asistent lacked.
+- **Per piece, not one mix:** measured to give correct words where the joined mix did not.
+- **Aligner is optional and isolated** (own venv, subprocess, falls back to Whisper times) because torch is about 0.9 GB and the MMS_FA weights are CC-BY-NC 4.0: installing them for client work is the user's decision.
+- **Grouping by cost, not by a word count:** 2-3 words is the target, the cuts follow pauses, punctuation and function words; the old „max 2 words“ rule of the 4a1a burned-in captions (`caption_max_words` 2) is no longer the short preset's limit (user, 2026-11-01).
+
 ## Subtitles M3 (2026-11-01, 0.9.42)
 - **Duplicate audio rule (replaced in 0.9.43):** the first version dropped an item covered ≥ 50 % by a lower-track item („lowest track wins“, the plan's rule). Measured on 8 GStroy clips it picked the noisy camera mic and produced wrong words. Now the engine decides: items that overlap ≥ 50 % of the shorter one AND whose loudness envelopes correlate (≥ 0.5, lag ±0.25 s) are the same speech; the cleanest copy wins (speech level over noise floor, quiet copies penalised; within 3 dB the lowest track wins) and the part of a weaker item the winner does not cover is kept. Two different people talking at once do not correlate, so both stay.
 - **Whisper settings stay default (2026-11-01):** a descriptive `initial_prompt`, VAD, `condition_on_previous_text=False` and beam 10 were each tried on the real clips and gave no reliable gain (worse text, dropped speech, one hallucination, +20 % time). Better input audio was the real lever. A prompt of the user's own names and terms is still planned (M4).

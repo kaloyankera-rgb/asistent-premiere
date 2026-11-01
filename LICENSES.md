@@ -12,6 +12,8 @@
 | huggingface_hub, tokenizers | Apache-2.0 | optional: model download and text tokens |
 | onnxruntime | MIT | optional: voice activity detection used by faster-whisper |
 | PyAV | BSD-3-Clause (bundles LGPL FFmpeg libraries) | optional: dependency of faster-whisper |
+| torch, torchaudio | BSD-3-Clause / BSD-2-Clause | optional (`requirements-align.txt`, own environment `venv-align`): runs the aligner |
+| MMS_FA weights (Meta, *Scaling Speech Technology to 1,000+ Languages*) | **CC-BY-NC 4.0 (non-commercial)** | optional: `align_worker.py` places each word where it is pronounced; the licence text is in torchaudio's `MMS_FA` documentation. Using it for paid client work is a decision for the user; without it Asistent keeps Whisper's word times |
 | pytest | MIT | development only |
 | FFmpeg / FFprobe | LGPL-2.1+ / GPL (depends on build) | separate program called as a subprocess; not linked or redistributed |
 | Adobe Premiere Pro UXP API | Adobe developer terms | the panel calls the `premierepro` module inside Premiere |

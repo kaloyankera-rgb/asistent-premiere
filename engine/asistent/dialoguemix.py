@@ -118,7 +118,8 @@ def _winner(parts: list[dict], group: list[int]) -> int:
 
 def build_mix(items: list[dict], progress: Callable[[float, str], None] | None = None,
               cancelled: Callable[[], bool] | None = None) -> dict:
-    """-> {"audio": float32 @16 kHz, "origin": sequence second of sample 0, "notes": [...], "duplicates": [...]}.
+    """-> {"audio": float32 @16 kHz, "origin": sequence second of sample 0, "notes": [...], "duplicates": [...],
+    "segments": [{path, name, track, start, end, at}]} (the pieces that are used, in sequence order).
 
     The buffer starts at the earliest item that is used, not at sequence 0, so a long silent lead-in costs no
     recognition time.
@@ -139,17 +140,25 @@ def build_mix(items: list[dict], progress: Callable[[float, str], None] | None =
         c = audio.classify(x)
         y = signal.resample_poly(mono_for_asr(x, c), 1, _DECIM).astype(np.float32)
         env = _envelope(y)
-        parts.append({"name": name, "at": float(it["at"]), "y": y, "env": env, "dur": len(y) / ASR_SR,
+        parts.append({"name": name, "path": it["path"], "start": float(it["start"]), "at": float(it["at"]), "y": y, "env": env,
+                      "dur": len(y) / ASR_SR,
                       "track": int(it.get("track", 0)), "q": quality(env), "kind": c["kind"], "action": c["action"]})
     if not parts:
         raise ValueError("В маркираните клипове няма звук за разпознаване.")
 
     duplicates: list[dict] = []
     keep: list[tuple[float, np.ndarray]] = []            # (sequence start, samples) of everything that is used
+    segments: list[dict] = []                            # the same pieces as media ranges, for per-piece recognition
+
+    def segment(p, a, b):                                # samples a..b of part p (speed 1, so media time = item time)
+        segments.append({"path": p["path"], "name": p["name"], "track": p["track"],
+                         "start": p["start"] + a / ASR_SR, "end": p["start"] + b / ASR_SR, "at": p["at"] + a / ASR_SR})
+
     for group in _groups(parts):
         win = _winner(parts, group)
         w = parts[win]
         keep.append((w["at"], w["y"]))
+        segment(w, 0, len(w["y"]))
         for i in group:
             if i == win:
                 continue
@@ -161,6 +170,7 @@ def build_mix(items: list[dict], progress: Callable[[float, str], None] | None =
             for a, b in ((0, lo), (hi, len(p["y"]))):
                 if b - a > ASR_SR * 0.3:
                     keep.append((p["at"] + a / ASR_SR, p["y"][a:b]))
+                    segment(p, a, b)
                     rest += b - a
             duplicates.append({"dropped": p["name"], "kept": w["name"], "dropped_snr_db": p["q"]["snr_db"],
                                "kept_snr_db": w["q"]["snr_db"], "dropped_level_db": p["q"]["level_db"],
@@ -176,4 +186,16 @@ def build_mix(items: list[dict], progress: Callable[[float, str], None] | None =
         o = int(round((at - origin) * ASR_SR))
         buf[o:o + len(y)] += y
     np.clip(buf, -1.0, 1.0, out=buf)
-    return {"audio": buf, "origin": origin, "notes": notes, "duplicates": duplicates}
+    segments.sort(key=lambda sg: sg["at"])
+    return {"audio": buf, "origin": origin, "notes": notes, "duplicates": duplicates, "segments": segments}
+
+
+def read_segment(seg: dict, pad: float) -> tuple[np.ndarray, float]:
+    """One piece as 16 kHz mono with up to `pad` seconds of the real media on each side. Whisper reads speech better
+    with its surroundings than in a clip cut in the middle of a sentence (measured: „и аз да видим“ and „Приведно на
+    мен“ from the joined cuts, „я да видим“ and „Примерно на мен“ from the same pieces with 2 s around them).
+    Returns (samples, seconds of lead-in actually available before the piece)."""
+    a = max(0.0, seg["start"] - pad)
+    x = audio.read_range(seg["path"], a, seg["end"] + pad)
+    y = signal.resample_poly(mono_for_asr(x, audio.classify(x)), 1, _DECIM).astype(np.float32)
+    return y, seg["start"] - a

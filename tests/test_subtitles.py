@@ -97,11 +97,11 @@ def test_short_preset_limits():
     text = ("Мерцедес купе симулатор кормило педали седалка монитори кокпит скорост завой спирачка гума "
             "Формула 1 състезателни рамка Heusinkveld педал")
     caps = S.build_captions(words(text, dur=0.4), "short", 25)
-    assert len(caps) > 8
+    assert len(caps) >= 8
     for c in caps:
         assert "\n" not in c["text"]
-        assert len(c["text"].split()) <= 2, c["text"]
-        assert len(c["text"]) <= 16, c["text"]
+        assert len(c["text"].split()) <= 3, c["text"]            # phrases of 2-3 words (4 only with function words or a number)
+        assert len(c["text"]) <= 22, c["text"]
 
 
 # --- standard preset ------------------------------------------------------------------------------------
@@ -153,7 +153,7 @@ def test_frame_snap_durations_and_no_overlap(fps, preset):
 def test_captions_stay_close_to_the_speech():
     ws = words("Здравей свят", t=3.0)
     c = S.build_captions(ws, "short", 25)[0]
-    assert abs(c["start"] - 3.0) <= 1 / 25
+    assert abs(c["start"] - 3.0) <= 2 / 25                       # appears about a frame before the first word
     assert c["end"] >= ws[-1]["end"]
 
 
@@ -263,3 +263,77 @@ def test_srt_time_format():
     assert S._srt_time(0) == "00:00:00,000"
     assert S._srt_time(3723.0456) == "01:02:03,046"
     assert S._srt_time(-1) == "00:00:00,000"
+
+
+# --- natural phrases (0.9.44) ---------------------------------------------------------------------------
+
+def spoken(text, t=0.0):
+    """A recognised sentence with realistic timing: ~0.3 s per word, a comma pause 0.15 s, a sentence end 0.5 s."""
+    out = []
+    for tok in text.split():
+        d = 0.18 + 0.05 * len(tok.strip(".,?!"))
+        out.append({"word": tok, "start": t, "end": t + d, "p": 0.9})
+        t += d + (0.5 if tok[-1] in ".?!" else 0.15 if tok.endswith(",") else 0.03)
+    return out
+
+
+SAMPLE = "Имаш идея? Добре, я да видим какво ще трябва. Примерно на мен ми трябва ето това. Я почакай, мога и един раф да направя."
+
+
+def test_captions_follow_the_phrases_of_the_sentence():
+    caps = S.build_captions(spoken(SAMPLE), "short", 25)
+    texts = [c["text"] for c in caps]
+    assert "Имаш идея?" in texts and any(t.startswith("я да видим") for t in texts)         # a question stays one caption
+    for t in texts:
+        assert 1 <= len(t.split()) <= 4, t
+    two_three = [t for t in texts if 2 <= len(t.split()) <= 3]
+    assert len(two_three) >= 0.6 * len(texts), texts
+
+
+def test_a_caption_never_runs_across_a_sentence_end():
+    for c in S.build_captions(spoken(SAMPLE + " " + SAMPLE), "short", 25):
+        inner = c["text"][:-1]
+        assert not re.search(r"[.?!…]", inner), c["text"]
+
+
+def test_connected_words_stay_together_in_bulgarian_phrases():
+    text = "Мога и един раф да направя. На мен ми трябва ето това. Той ще дойде във Варна със сестра си."
+    caps = S.build_captions(spoken(text), "short", 25)
+    joined = " | ".join(c["text"] for c in caps)
+    for phrase in ("един раф", "ми трябва", "във Варна", "със сестра"):
+        assert any(phrase in c["text"] for c in caps), (phrase, joined)
+    for c in caps:
+        if not re.search(r"[.?!…,]$", c["text"]):                 # a sentence may end on „си.“; a cut inside one may not
+            assert c["text"].split()[-1].lower() not in S.NON_FINAL, c["text"]
+
+
+def test_a_comma_is_a_good_place_to_cut():
+    caps = S.build_captions(spoken("Почваш едно, почваш второ, почваш трето и накрая сума ти неща."), "short", 25)
+    texts = [c["text"] for c in caps]
+    assert texts[:3] == ["Почваш едно,", "почваш второ,", "почваш трето"], texts
+
+
+def test_continuous_speech_never_blinks_and_a_pause_clears_the_screen():
+    ws = spoken("Първо казвам това , после казвам онова") + spoken("След дълга пауза идва нещо ново", t=8.0)
+    caps = S.build_captions(ws, "short", 25)
+    for a, b in zip(caps, caps[1:]):
+        speech_gap = next(w["start"] for w in ws if w["start"] >= b["start"] - 0.05) - max(w["end"] for w in a["words"])
+        if speech_gap <= S.CONTINUOUS_GAP:
+            assert abs(a["end"] - b["start"]) < 1e-9, (a["text"], b["text"])               # no gap, no blink
+        else:
+            assert b["start"] - a["end"] > 0.1, (a["text"], b["text"])                       # the screen clears in a real pause
+    assert caps[-1]["end"] - caps[-1]["words"][-1]["end"] <= S.TAIL_HOLD + 0.05
+
+
+def test_a_word_is_not_shown_before_the_previous_one_was_said():
+    ws = spoken(SAMPLE)
+    caps = S.build_captions(ws, "short", 25)
+    for a, b in zip(caps, caps[1:]):
+        assert b["start"] >= max(w["end"] for w in a["words"]) - 1 / 25 or abs(a["end"] - b["start"]) < 1e-9
+
+
+def test_very_short_one_word_captions_are_avoided_when_a_neighbour_can_take_the_word():
+    ws = [{"word": "Ей,", "start": 14.43, "end": 14.55, "p": 1}, {"word": "тъй", "start": 14.9, "end": 15.1, "p": 1},
+          {"word": "като", "start": 15.12, "end": 15.3, "p": 1}, {"word": "стане,", "start": 15.32, "end": 15.7, "p": 1}]
+    caps = S.build_captions(ws, "short", 25)
+    assert all(c["end"] - c["start"] >= 0.3 for c in caps), [(c["text"], c["end"] - c["start"]) for c in caps]

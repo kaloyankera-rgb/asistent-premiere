@@ -68,6 +68,7 @@ test("describeResult: counts, uncertain words, skipped clips, first captions, fi
   const all = r.lines.map((l) => l.text).join("\n");
   assert.match(all, /20 думи · вид кратки \(9:16\) · 29\.97 fps · разпознаване 10\.2 s за 29 s звук/);
   assert.match(all, /1 несигурни думи/);
+  assert.match(all, /Времена: от Whisper, може да са неточни с до 0,3 s \(подравняването не е инсталирано\)/);
   assert.match(all, /Пропуснат: B \(дублира A1\)/);
   assert.match(all, /C9013\.MP4 и fx39013\.MP4 чуват едно и също: взет е fx39013\.MP4 \(по-чист звук, 45 dB срещу 20 dB; 4 s от C9013\.MP4 са запазени/);
   assert.match(all, /1:05\.0  Здравейте \/ приятели/);
@@ -79,4 +80,12 @@ test("describeResult: counts, uncertain words, skipped clips, first captions, fi
 test("describeResult: no speech is a warning, not a success", () => {
   const r = describeResult({ counts: { captions: 0, words: 0, flagged: 0 }, preset: "short", fps: 25, captions: [], skipped: [] });
   assert.strictEqual(r.ok, false);
+});
+
+test("describeResult: says whether the times were aligned to the sound, or why not", () => {
+  const base = { counts: { captions: 1, words: 3, flagged: 0 }, preset: "short", fps: 25, asr_seconds: 1, mix_seconds: 2, skipped: [],
+    captions: [{ start: 0, end: 1, text: "а", flags: [] }], srt: "/x.srt" };
+  const text = (r) => describeResult(r).lines.map((l) => l.text).join("\n");
+  assert.match(text({ ...base, timing: { method: "aligned", aligned: 59, weak: 6, error: null } }), /подравнени по звука \(59 думи, 6 слаби остават от Whisper\)/);
+  assert.match(text({ ...base, timing: { method: "whisper", aligned: 0, weak: 0, error: "torch missing" } }), /подравняването не успя \(torch missing\)/);
 });
