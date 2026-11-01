@@ -112,7 +112,11 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
 - Bug (user, fx39024 13:25): with a high white and a medium exposure only „Приложи сигурните“ was shown (buttons
   counted clips, 1 = 1), so the exposure could not be applied even on a clean clip. 0.9.23: `colorplans.js`
   counts corrections; „Приложи и средните“ appears whenever it adds one; „сигурните“ names what it left out
-  (with the Undo hint until B6 exists). Attempt 12:26 on fx31031 was skipped: the
+  (with the Undo hint until B6 exists).
+- **Verified 13:34 (fx39024, 0.9.23):** both buttons shown; on the clean clip „Приложи и средните“ applied
+  Exposure (+2 stops, capped: the clip measured +2.43) with Temperature/Tint; 1.74 % new clipping (ACCEPTED),
+  white residual 0.05/−0.05 (neutral), skin still 0.68 stop under target (out-of-range clip: one capped pass,
+  as the user wants). The first try at 13:34:17 was refused by Asistent's own earlier Lumetri (B6 gap again). Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.
