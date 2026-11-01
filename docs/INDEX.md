@@ -1,0 +1,28 @@
+# Documentation map
+
+Read in this order when continuing the project (the first four are the whole handoff):
+
+| # | File | What it holds |
+|---|---|---|
+| 1 | [../CLAUDE.md](../CLAUDE.md) | Architecture, development rules, permanent user rules. Loaded automatically by Claude Code. |
+| 2 | [../PROJECT_STATUS.md](../PROJECT_STATUS.md) | Version, every phase and feature, what is verified in Premiere and what is not. |
+| 3 | [../NEXT_STEPS.md](../NEXT_STEPS.md) | Remaining tasks in priority order. |
+| 4 | [../BUGS_AND_LIMITATIONS.md](../BUGS_AND_LIMITATIONS.md) | Open bugs, Premiere/UXP limits, things that crash. |
+| 5 | [../DECISIONS.md](../DECISIONS.md) | Why things are the way they are (user decisions, rejected approaches). |
+| 6 | [../PROGRESS.md](../PROGRESS.md) | Detailed dated log. Search it, do not read it whole. |
+| 7 | [../README.md](../README.md) | User guide (Bulgarian): install and every button. |
+| 8 | [../COLOR_CORRECTION_PLAN.md](../COLOR_CORRECTION_PLAN.md) | Colour engine plan; spec package in [color-spec/](color-spec/00_START_HERE.md). |
+| 9 | [SUBTITLES_PLAN.md](SUBTITLES_PLAN.md) | Phase 7 (Bulgarian subtitles) plan and milestones M0-M5. |
+| 10 | [../LICENSES.md](../LICENSES.md) | Licences of dependencies and the bundled face model. |
+| 11 | [dev-workflow/DEV_WORKFLOW.md](dev-workflow/DEV_WORKFLOW.md) | Which model/agent does what; snapshot of the four agent definitions in [dev-workflow/agents/](dev-workflow/agents/). |
+
+## Setting up on a new machine (or after cloning from GitHub)
+1. Clone the repo. It is self-contained; the surrounding Content Studio vault is not needed to read or test the code.
+2. Mac: `scripts/setup_mac.sh` (Python 3.12 venv + LaunchAgent, outside the repo in `~/Library/Application Support/Asistent/`); Windows: `scripts/setup_win.ps1`.
+3. Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider` and `node --test tests/*.test.js` (see `CLAUDE.md`).
+4. Not in Git by design: `dist/` (rebuild with `scripts/package_ccx.sh`), the 3 GB Whisper model (downloaded from the panel after the user confirms), the Python venv, logs, client footage, and `.claude/agents/` (symlinks into the Content Studio vault).
+5. Subagents: inside the vault they come from `<vault>/.claude/agents/`. In a standalone clone, copy the files from `dev-workflow/agents/` to `.claude/agents/` if you want them.
+6. Model routing, state files and handoff habits: `dev-workflow/DEV_WORKFLOW.md`. The canonical copy lives in the vault (`tools/DEV_WORKFLOW.md`); this one is a snapshot of 2026-11-01.
+
+## Last verified
+2026-11-01, v0.9.41: 211 pytest + 50 node tests pass. Premiere-side verification status per feature is in `PROJECT_STATUS.md`.

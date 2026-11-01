@@ -15,7 +15,7 @@
 ### Mac
 1. Нужни са Python 3.12 и FFmpeg (`brew install python@3.12 ffmpeg`).
 2. Engine: `tools/asistent/scripts/setup_mac.sh`. Създава Python средата и LaunchAgent, който пуска engine-а при всеки вход. Може да се пуска пак при обновяване.
-3. Панел: двоен клик на `tools/asistent/dist/Asistent-0.1.0.ccx`. Creative Cloud показва предупреждение за плъгин извън Marketplace, натисни Install. После в Premiere: `Window > UXP Plugins > Asistent`.
+3. Панел: двоен клик на `tools/asistent/dist/Asistent-<версия>.ccx` (папката `dist/` не е в Git: пакетът се прави със `scripts/package_ccx.sh`, или направо `scripts/release_mac.sh`, виж по-долу). Creative Cloud показва предупреждение за плъгин извън Marketplace, натисни Install. После в Premiere: `Window > UXP Plugins > Asistent`.
 
 Спиране и махане на автоматичния старт: `scripts/uninstall_mac.sh`.
 
