@@ -7,7 +7,8 @@ engine spec in `docs/color-spec/` (see `COLOR_CORRECTION_PLAN.md`).
 
 Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AND_LIMITATIONS.md`.
 `DECISIONS.md` explains why things are the way they are. `PROGRESS.md` is the detailed chronological log
-(search it, do not read it whole). Model routing and agents: `../DEV_WORKFLOW.md`.
+(search it, do not read it whole). Model routing and agents: `../DEV_WORKFLOW.md` in the Content Studio vault,
+or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: `docs/INDEX.md`.
 
 ## Architecture
 - **UXP panel** `panel/` (manifest v5, id `com.contentstudio.asistent`, host `premierepro` ≥ 26.0.0,
