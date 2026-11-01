@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.39 (2026-11-01)
+# Project status — Asistent 0.9.40 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.39 via
-UnifiedPluginInstallerAgent, engine 0.9.39 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 173 pytest + 50 node, all passing at 0.9.39.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.40 via
+UnifiedPluginInstallerAgent, engine 0.9.40 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 202 pytest + 50 node, all passing at 0.9.40.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -180,7 +180,7 @@ that differs from „before“ (e.g. left from an older state) is not detectable
 ## Phase 7 subtitles (in progress)
 Plan `docs/SUBTITLES_PLAN.md` (user accepted the recommendations). M0 probes done at 0.9.39 (bridge commands
 `srt_import`, `caption_place`, `transcript_export`): SRT import works, automatic caption placement does not, Premiere
-transcript export needs a transcribed clip. The user dragged both test SRTs over the sequence: Cyrillic correct with and without BOM (writer: UTF-8 + BOM). Next: M1 text core.
+transcript export needs a transcribed clip. The user dragged both test SRTs over the sequence: Cyrillic correct with and without BOM (writer: UTF-8 + BOM). M1 text core built at 0.9.40 by feature-builder (`bgtext.py`, `subtitles.py`, 29 tests, nothing wired, nothing verified in Premiere or on real Whisper output). Deviations: nominal 11 chars, soft limit 16; glued number phrases may exceed 2 words in the short preset (kept whole); case/punctuation as Whisper gives them. Next: M2 ASR + install (needs the user's OK for pip and the ~3 GB model).
 
 ## Phases 7–9 (Planned)
 7 Bulgarian subtitles (faster-whisper; reuse `tools/autoedit/asr.py` by copying), 8 rough-cut markers and
