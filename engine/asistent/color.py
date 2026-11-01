@@ -465,14 +465,36 @@ def _found(path: str) -> str | None:
 
 
 def _wait_file(path: str, seconds: float = 6.0) -> str | None:
+    """The exported frame once Premiere has finished writing it (same size twice in a row).
+
+    exportSequenceFrame in 26.0.2 only queues the export and returns at once: the file appears later,
+    sometimes after the panel already changed the next value (seen 2026-11-01: seven probe frames written
+    together, byte-identical). So the panel waits for each frame through this before it touches anything."""
     import time
     end = time.time() + seconds
+    last = None
     while time.time() < end:
         hit = _found(path)
-        if hit:
+        size = os.path.getsize(hit) if hit else None
+        if hit and size == last:
             return hit
-        time.sleep(0.2)
+        last = size
+        time.sleep(0.15)
     return _found(path)
+
+
+def prune_frames(folder: str, max_age_s: float = 24 * 3600) -> int:
+    """Old exported frames out of the way; every export has its own name, so nothing reuses them."""
+    import time
+    gone = 0
+    if not os.path.isdir(folder):
+        return 0
+    for name in os.listdir(folder):
+        p = os.path.join(folder, name)
+        if name.lower().endswith(".png") and os.path.isfile(p) and time.time() - os.path.getmtime(p) > max_age_s:
+            os.remove(p)
+            gone += 1
+    return gone
 
 
 def probe_measure(refs: dict, frames: list[dict]) -> dict:
@@ -511,6 +533,16 @@ def probe_measure(refs: dict, frames: list[dict]) -> dict:
                     d_clipped=round(st["clipped"] - bs["clipped"], 4))
         out["frames"].append(rec)
     by = {f["param"]: f for f in out["frames"]}
+    # Every frame exactly like the baseline although the values were written: Premiere rendered them before or
+    # after the change (26.0.2 queues exports), not "the parameter does nothing". Say so and learn nothing.
+    measured = [f for f in out["frames"] if f.get("stops") is not None]
+    if len(measured) >= 2 and all(f["stops"] == 0 and f["d_temp"] == 0 and f["d_tint"] == 0 and f["d_spread"] == 0
+                                  and f["sat_ratio"] == 1 for f in measured):
+        out["error"] = ("Всички кадри са еднакви с изходния, макар стойностите да са записани: Premiere ги е "
+                        "изнесъл преди или след промяната. Резултатът не е достоверен, нищо не е научено.")
+        out["table"] = {f["param"]: "UNVERIFIED" for f in out["frames"]}
+        out["units"] = {}
+        return out
 
     def moved(key, field, limit):
         f = by.get(key) or {}

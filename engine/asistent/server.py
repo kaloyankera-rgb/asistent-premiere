@@ -17,6 +17,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /color/check          {"before", "after", "applied": {...}, "fix": {...}} -> verify a Premiere render
   POST /color/probe          {"refs": {"baseline", "source"?}, "frames": [{"path", ...}], "report"?}
                              -> Lumetri parameter responses + capability table, saved to lumetri_capabilities.json
+  POST /frames/wait          {"path", "timeout"?} -> {"path": file|null} once Premiere finished writing the frame
+                             (exportSequenceFrame only queues the export); paths inside the frames folder only
   GET  /import/status?project=P[&wait=s]   folder, queue, last imports; wait: return as soon as a file is ready
   POST /import/bind          {"project", "folder"?}  switch on (default folder: ~/Downloads)
   POST /import/unbind        {"project"}
@@ -242,6 +244,14 @@ class Handler(BaseHTTPRequestHandler):
                     _json.dump(record, fh, ensure_ascii=False, indent=1, default=str)
                 log.info("color probe: %s units %s identity %s", res.get("table"), res.get("units"), res.get("identity"))
                 return self._send(200, res)
+            if self.path == "/frames/wait":
+                # only files inside the engine's own frames folder
+                folder = os.path.realpath(os.path.join(config.app_dir(), "frames"))
+                want = os.path.realpath(str(body.get("path") or ""))
+                if os.path.dirname(want) != folder:
+                    raise ValueError("Кадърът трябва да е в папката frames на engine-а.")
+                timeout = min(max(float(body.get("timeout") or 15), 0.5), 60)
+                return self._send(200, {"path": COLOR._wait_file(want, timeout)})
             if self.path == "/color/check":
                 before = COLOR._wait_file(str(body.get("before") or ""), 4.0)
                 after = COLOR._wait_file(str(body.get("after") or ""), 4.0)
@@ -324,6 +334,10 @@ def main():
         log.exception("folder watching could not start")
         WATCHER = None
     httpd.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    try:
+        COLOR.prune_frames(os.path.join(config.app_dir(), "frames"))
+    except OSError:
+        log.exception("old frames could not be removed")
     log.info("Asistent engine %s listening on %s:%s", config.VERSION, config.HOST, config.PORT)
     try:
         httpd.serve_forever(poll_interval=0.5)

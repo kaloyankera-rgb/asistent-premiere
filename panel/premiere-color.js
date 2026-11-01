@@ -104,18 +104,34 @@ async function frameSize(sequence) {
   return { w: Math.round((w * s) / 2) * 2, h: Math.round((h * s) / 2) * 2 };
 }
 
-async function exportFrame(sequence, seconds, name, dir) {
+// The exported frame as a file that is really there, or null; `onError` gets Premiere's message.
+// exportSequenceFrame only queues the export and returns at once (26.0.2: seven probe frames came out
+// together after every value was already restored, byte-identical), so nothing may change in the sequence
+// until the engine has seen the finished file. Every export gets its own name: a frame left by an earlier
+// run must never be measured as this one.
+let exportCount = 0;
+async function exportFrame(sequence, seconds, name, dir, onError) {
   if (!has(ppro.Exporter, "exportSequenceFrame")) return null;
   const { w, h } = await frameSize(sequence);
+  // the name must end in ".png": Premiere takes the format from it ("x" alone throws "File Format is not
+  // supported", 0.9.5-0.9.10). It may add the extension once more (x.png.png): the engine looks for both.
+  const unique = `${Date.now().toString(36)}_${++exportCount}_${name}`;
   try {
-    // the name must end in ".png": Premiere takes the format from it ("x" alone throws "File Format is not
-    // supported", 0.9.5-0.9.10). It may add the extension once more (x.png.png): the engine looks for both.
-    const ok = await ppro.Exporter.exportSequenceFrame(sequence, TickTime.createWithSeconds(seconds), name, dir, w, h);
-    return ok === false ? null : `${dir}/${name}`;
+    const ok = await ppro.Exporter.exportSequenceFrame(sequence, TickTime.createWithSeconds(seconds), unique, dir, w, h);
+    if (ok === false) throw new Error("exportSequenceFrame върна false");
   } catch (e) {
-    debug(`exportSequenceFrame failed: ${e && e.message ? e.message : e}`);
+    const msg = e && e.message ? e.message : String(e);
+    debug(`exportSequenceFrame failed: ${msg}`);
+    if (onError) onError(msg);
     return null;
   }
+  const got = await engine.waitFrame(`${dir}/${unique}`).catch(() => null);
+  if (!got || !got.path) {
+    debug(`frame ${unique}: not written within the wait`);
+    if (onError) onError("Premiere не записа кадъра навреме");
+    return null;
+  }
+  return got.path;
 }
 
 // a picture with something on top of the clip (a title, a logo) cannot be measured
@@ -238,4 +254,4 @@ async function apply(project, timeline, plans) {
   return { steps };
 }
 
-module.exports = { readVideoSelection, apply };
+module.exports = { readVideoSelection, apply, exportFrame };

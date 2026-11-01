@@ -57,3 +57,6 @@ button.small { font-size: 11px; padding: 4px 7px; margin: 0 4px 4px 0; }
 .thumbs.portrait img { width: 32%; }
 .cap { font-size: 10px; color: var(--uxp-host-text-color-secondary, #999); }
 .title { font-size: 10px; font-weight: bold; letter-spacing: 1px; color: var(--uxp-host-text-color-secondary, #999); margin-bottom: 5px; }
+
+/* the probe question opens under its button, not at the top: nothing above it moves */
+.confirm { margin: 4px 0 6px; }

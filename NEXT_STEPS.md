@@ -7,7 +7,7 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 
 ## B. Colour engine, per `COLOR_CORRECTION_PLAN.md` (current focus of the user)
-1. **Run the capability probe** with the user (one clip without Lumetri in TEST, „Проба на Lumetri“); read
+1. **Rerun the capability probe at 0.9.13** (earlier runs invalid, see PROJECT_STATUS) with the user (one clip without Lumetri in TEST, „Проба на Lumetri“); read
    `~/Library/Application Support/Asistent/lumetri_capabilities.json`; record the SUPPORTED/PARTIAL/BLOCKED table,
    parameter indices/units and the identity check in `PROJECT_STATUS.md`. Confirm one apply + render check
    (`color check` lines in the log, `lumetri.json` created).

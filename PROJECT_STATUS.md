@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.11 (2026-11-01)
+# Project status — Asistent 0.9.13 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.11 via
-UnifiedPluginInstallerAgent, engine 0.9.11 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 98 pytest + 12 node, all passing at 0.9.11.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.13 via
+UnifiedPluginInstallerAgent, engine 0.9.13 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 101 pytest + 14 node, all passing at 0.9.13.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -50,7 +50,7 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
 - Verified in Premiere: Lumetri appended on C0730 (0.9.4), 130 parameters enumerated, frames exported.
 - NOT verified: values actually set and read back, render check (frame names fixed only in 0.9.5, no
   „color check“ entry in the log yet), Temperature/Tint calibration (`lumetri.json` does not exist yet),
-  the probe ran once at 0.9.10 (12:03): Exposure, Temperature, Tint, Contrast, Saturation are written, read back and restored (indices 19/14/15/20/16), but no frame was exported, so units and directions are still unmeasured; to rerun at 0.9.11.
+  probe runs 12:03-12:10 (0.9.10/0.9.11, clips C0731, C0729, C0733, C0736, fx31033): Exposure (index 19), Temperature (14), Tint (15), Contrast (20), Saturation (16) are written, read back and restored. The measured table is NOT valid: `exportSequenceFrame` only queues the export, all frames were rendered after the values were restored (byte-identical) and same-named files from earlier runs were measured; the tables differed per clip. The calibration learnt from them was moved to `lumetri.before-0.9.12.json`. Fixed in 0.9.13 (unique names, wait for each finished frame); probe to rerun.
 - Not implemented from the colour plan: analysis on timeline renders, colour-management/double-transform
   check, statuses + audit log, contrast, saturation, skin tones, shot match, Auto Color, accept/revert,
   managed correction ownership. See `COLOR_CORRECTION_PLAN.md` and `NEXT_STEPS.md`.
