@@ -106,14 +106,14 @@ test("the subtitle press ends with placing the captions, and the panel never rem
   }
 });
 
-test("the speaker and corrections boxes exist, are saved before a run and sent with it", () => {
+test("the corrections box exists, are saved before a run and sent with it", () => {
   const fs = require("node:fs");
   const html = fs.readFileSync(`${__dirname}/../panel/index.html`, "utf8");
   const main = fs.readFileSync(`${__dirname}/../panel/main.js`, "utf8");
   const sub = fs.readFileSync(`${__dirname}/../panel/premiere-subtitles.js`, "utf8");
-  assert.match(html, /<select id="speaker">[\s\S]*value="auto"[\s\S]*value="male"[\s\S]*value="female"/);
+  assert.doesNotMatch(html, /id="speaker"/);
   assert.match(html, /<textarea id="notes"/);
   assert.match(main, /saveSubtitleSettings\(project\.path\)/);
-  assert.match(main, /readInput\(project, \[\], \$\("speaker"\)\.value, \$\("notes"\)\.value\)/);
-  assert.match(sub, /gender: speaker, text: notes/);
+  assert.match(main, /readInput\(project, \[\], \$\("notes"\)\.value\)/);
+  assert.match(sub, /text: notes/);
 });

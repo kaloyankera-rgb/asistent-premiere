@@ -386,8 +386,8 @@ def test_a_weak_word_is_fitted_between_its_aligned_neighbours_and_never_overlaps
     assert all(a["end"] <= b["start"] + 1e-9 for a, b in zip(out, out[1:]))
 
 
-def test_the_job_applies_corrections_before_alignment_and_the_chosen_gender(home, monkeypatch):
-    """Corrections go into the aligner (new words get their time from the sound); the speaker's gender picks the form."""
+def test_the_job_applies_corrections_before_alignment_and_leaves_every_form_as_heard(home, monkeypatch):
+    """Corrections go into the aligner (new words get their time from the sound); no word is rewritten otherwise (both speakers are in one edit)."""
     f, its = two_pieces(home)
     heard = [{"word": "един", "start": 2.5, "end": 2.8, "p": 0.9}, {"word": "раф", "start": 2.8, "end": 3.1, "p": 0.89},
              {"word": "съм", "start": 3.3, "end": 3.5, "p": 0.9}, {"word": "свършила.", "start": 3.5, "end": 4.0, "p": 0.9}]   # 2 s of context first
@@ -400,16 +400,13 @@ def test_the_job_applies_corrections_before_alignment_and_the_chosen_gender(home
         return [dict(w, aligned=True, align=0.9, start=w["start"] + 0.01, end=w["end"] + 0.01) for w in ws], {"aligned": len(ws), "weak": 0}
     monkeypatch.setattr(align, "available", lambda: True)
     monkeypatch.setattr(align, "align_words", fake_align)
-    b = dict(body(home, items=its[:1]), text="раф => рафт\nабсолютно друго => нещо", gender="male")
+    b = dict(body(home, items=its[:1]), text="раф => рафт\nабсолютно друго => нещо")
     res = subtitle_job.run(b, lambda f, m: None, lambda: False)
     text = " ".join(c["text"].replace("\n", " ") for c in res["captions"])
     assert seen["words"] == ["един", "рафт", "съм", "свършила."]                      # the aligner got the corrected words
-    assert "рафт" in text and "свършил" in text and "свършила" not in text
+    assert "рафт" in text and "свършила" in text and "свършил " not in text + " "          # the form is kept as heard
     assert res["corrections"] == [{"heard": "раф", "said": "рафт", "applied": 1}, {"heard": "абсолютно друго", "said": "нещо", "applied": 0}]
-    assert res["gender"]["used"] == "m" and res["gender"]["changed"][0]["to"] == "свършил."
-    assert subtitle_job.validate(dict(b, gender="auto"))["gender"] == "auto"
-    with pytest.raises(ValueError):
-        subtitle_job.validate(dict(b, gender="robot"))
+    assert "gender" not in res
 
 
 def _voice_after_silence():

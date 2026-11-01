@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.46 (2026-11-02)
+# Project status — Asistent 0.9.47 (2026-11-02)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.46 via
-UnifiedPluginInstallerAgent, engine 0.9.46 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 283 pytest + 70 node, all passing at 0.9.46.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.47 via
+UnifiedPluginInstallerAgent, engine 0.9.47 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 280 pytest + 70 node, all passing at 0.9.47.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -223,6 +223,7 @@ press the button again on the same selection.** Timing („a little off in many 
 times are only about ±0.1–0.3 s accurate. A quick onset test on the clips was inconclusive (noise events), so no snap
 was added blindly. Open: ask whether captions are early or late (a fixed offset would fix a systematic shift);
 otherwise forced alignment (MMS_FA, torch, ~1–2 GB, needs the user's OK) per `docs/SUBTITLES_PLAN.md` M6.
+**0.9.47 (user: more correct now, timing still a bit off in places; no speaker gender, both speak).** Speaker setting and `gender.py` removed. Measured where timing can still be off (final run, `scripts/check_subtitles.py`, plus a switch-vs-loudness-dip test): word starts after a pause median +0.01 s, 13/14 within 80 ms; at caption switches inside continuous speech the median is -0.005 s but 6 of 15 switches are 50-120 ms late („мога и един“ +0.085, „и накрая“ +0.081, „съм свършил“ +0.12, „А уж,“ +0.11) and 2 early („какво ще трябва“ -0.10, corrected „трябваше“ -0.13); aligner boundaries between touching words are within 50 ms of the nearest loudness dip in 46 % (Whisper: 20 %). The aligner has about ±40 ms resolution (20 ms frames). Tail hold cut 0.3 → 0.15 s (captions lingered ~0.4 s after the speech). Not done on purpose: snapping boundaries to loudness dips (the dip is not ground truth and the check would be circular). Needs the user's places (time + early/late) to go further.
 **0.9.46 (user's list of 2026-11-02): corrections, gender, timing checks. Verified through the real panel in TEST.prproj (bridge): corrections matched, male form applied, 24 captions on C3, Premiere items equal the SRT cues within 0.033 s.**
 User ground truth: „раф“ → „рафт“; „сума ти нища“ → „неща“; the end „ще чакай да бъде десом“ is „трябваше да боядисам“; speaker is male. Whisper reproduces the wrong end in every setting (beam 10, no fallback, float32 instead of int8, shorter windows); only a hint word steers it („боядисвам“). So the fix is the correction line, which re-times the new words (aligned by the sound), not a text swap.
 - Checked against the audio (`scripts/check_subtitles.py`, final run): 0 stretches of voiced speech without a word (the two loud gaps are noise, centroid 3-4 kHz); onsets of words after a pause: median +0.01 s, 13/14 within 80 ms, worst 0.10 s („мога“); 0 captions over silence.

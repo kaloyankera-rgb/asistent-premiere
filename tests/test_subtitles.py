@@ -341,13 +341,13 @@ def test_very_short_one_word_captions_are_avoided_when_a_neighbour_can_take_the_
 
 def test_a_blank_screen_is_either_a_real_pause_or_none_at_all():
     """Seen on the real clip: „Ей,“ cleared 0.08 s before „то и за градината“ appeared. No blank of 0.2 s or less."""
-    ws = [{"word": "Ей,", "start": 11.5, "end": 11.85, "p": 1}, {"word": "то", "start": 12.3, "end": 12.45, "p": 1},
-          {"word": "и", "start": 12.45, "end": 12.55, "p": 1}, {"word": "за", "start": 12.55, "end": 12.65, "p": 1},
-          {"word": "градината", "start": 12.65, "end": 13.15, "p": 1}, {"word": "трябва", "start": 15.0, "end": 15.4, "p": 1},
+    ws = [{"word": "Ей,", "start": 11.5, "end": 11.85, "p": 1}, {"word": "то", "start": 12.15, "end": 12.3, "p": 1},
+          {"word": "и", "start": 12.3, "end": 12.4, "p": 1}, {"word": "за", "start": 12.4, "end": 12.5, "p": 1},
+          {"word": "градината", "start": 12.5, "end": 13.0, "p": 1}, {"word": "трябва", "start": 15.0, "end": 15.4, "p": 1},
           {"word": "нещо.", "start": 15.4, "end": 15.9, "p": 1}]
     caps = S.build_captions(ws, "short", 25)
     for a, b in zip(caps, caps[1:]):
         blank = b["start"] - a["end"]
         assert blank < 1e-9 or blank > S.MIN_CLEAR, (a["text"], b["text"], blank)
-    assert caps[0]["end"] == caps[1]["start"]                                 # a 0.45 s pause leaves under 0.2 s of blank after the tail hold: bridged
+    assert caps[0]["end"] == caps[1]["start"]                                 # a 0.3 s pause leaves under 0.2 s of blank after the 0.15 s tail hold: bridged
     assert caps[-2]["end"] - caps[-2]["words"][-1]["end"] <= S.TAIL_HOLD + 0.05          # a real pause (1.7 s) still clears

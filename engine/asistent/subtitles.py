@@ -14,7 +14,7 @@ PUNCT_END = re.compile(r"[.,?!…]$")
 PAUSE_SPLIT = 0.35
 # A caption stays on screen this long after its last word in a pause (seconds); inside continuous speech it stays until
 # the next caption starts, so nothing flashes off for a moment and back.
-TAIL_HOLD = 0.3
+TAIL_HOLD = 0.15
 CONTINUOUS_GAP = 0.35      # a gap to the next caption up to this is bridged (no blink), a longer one is a pause
 MIN_CLEAR = 0.2            # two captions never leave a blank screen shorter than this (it reads as a blink): the first stays
 LEAD = 0.03                # a caption appears this long before its first word (about one frame: it reads as in sync)

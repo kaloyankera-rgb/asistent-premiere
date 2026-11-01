@@ -3,7 +3,7 @@
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
 ## Open bugs
-- **Subtitles 0.9.46:** an old Asistent caption track must be deleted by hand before a new run can be placed (no API to delete one). „трябваше“ (corrected) is timed from its neighbours, not found by the aligner. „Я“, „то и за градината“, „свършил“ remain marked „?“.
+- **Subtitles 0.9.47:** timing can still be 50-120 ms off at some caption switches inside continuous speech (aligner resolution); an old Asistent caption track must be deleted by hand before a new run can be placed (no API to delete one). „трябваше“ (corrected) is timed from its neighbours, not found by the aligner. „Я“, „то и за градината“, „свършил“ remain marked „?“.
 - **Subtitles 0.9.45: placement on the timeline not verified in Premiere** (host needs one Premiere restart); a second press with the first Asistent caption track still there is refused with instructions (no removal/mute by rule).
 - **Subtitles 0.9.45: some words stay wrong** (Whisper cannot hear them; listed as „?“ with time): „нища“ (neща), „десом“ (cut word at the end of the last piece), „свършила/свършил“. Fix path: M4 text correction.
 - Subtitles: the aligner's weights are CC-BY-NC 4.0 (non-commercial); installed at the user's request (the 4a1a autoedit tool already uses them), see `LICENSES.md`.

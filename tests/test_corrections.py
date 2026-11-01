@@ -1,8 +1,5 @@
-"""The editor's corrections (corrections.py) and the speaker-gender rule (gender.py)."""
-from collections import Counter
-
+"""The editor's corrections (corrections.py)."""
 from asistent import corrections as C
-from asistent import gender as G
 
 
 def W(*ws, t=0.0, d=0.4):
@@ -46,29 +43,3 @@ def test_a_correction_does_not_match_twice_or_inside_a_fixed_word_and_reports_ze
 def test_the_longest_pattern_wins():
     out, _ = C.apply(W("една", "стена", "е"), [("стена", "стена!"), ("една стена", "само стената")])
     assert [w["word"] for w in out] == ["само", "стената", "е"]
-
-
-def test_gender_forms_after_the_first_person_auxiliary_only():
-    assert G.forms(W("това", "съм", "свършила")) == [(2, "f")]
-    assert G.forms(W("вече", "бях", "свършил")) == [(2, "m")]
-    assert G.forms(W("съм", "вече", "не", "свършила")) == [(3, "f")]
-    assert G.forms(W("той", "е", "свършил")) == []                                             # third person: not the speaker
-    assert G.forms(W("съм", "учител")) == []                                                   # a noun, not a participle
-
-
-def test_gender_auto_needs_clear_evidence_and_explicit_choice_wins():
-    assert G.resolve("auto", Counter({"m": 2, "f": 1})) == "m"
-    assert G.resolve("auto", Counter({"m": 1, "f": 1})) is None and G.resolve("auto", Counter({"f": 1})) is None
-    assert G.resolve("auto", Counter({"f": 3, "m": 1})) == "f"
-    assert G.resolve("male", Counter({"f": 5})) == "m" and G.resolve("female", Counter()) == "f"
-
-
-def test_gender_converts_only_to_a_known_form_and_never_touches_a_correct_one():
-    known = lambda w: w.strip(".,") in {"свършил", "свършила", "пил", "пила"}
-    out, ch = G.apply(W("съм", "свършила."), "m", known)
-    assert out[1]["word"] == "свършил." and ch == [{"at": 0.4, "from": "свършила.", "to": "свършил."}]
-    assert G.apply(W("съм", "свършил"), "m", known)[1] == []
-    out, ch = G.apply(W("съм", "свършил"), "f", known)
-    assert out[1]["word"] == "свършила"
-    assert G.apply(W("съм", "свършила"), "m", lambda w: False)[1] == []                       # the other form is not a word
-    assert G.apply(W("съм", "свършила"), None, known)[1] == []

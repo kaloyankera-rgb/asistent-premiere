@@ -18,7 +18,7 @@ import re
 import time
 from typing import Callable
 
-from . import align, asr, config, consensus, corrections, dialoguemix, gender, lexicon, subtitles
+from . import align, asr, config, consensus, corrections, dialoguemix, lexicon, subtitles
 from .dialoguemix import ASR_SR, build_mix, read_segment
 from .sync import Cancelled
 
@@ -82,15 +82,12 @@ def validate(body: dict) -> dict:
     text = body.get("text") or ""
     if not isinstance(text, str) or len(text) > corrections.MAX_TEXT:
         raise ValueError("Невалиден текст с корекции и термини.")
-    who = body.get("gender") or "auto"
-    if who not in gender.SETTINGS:
-        raise ValueError("Невалиден избор за говорещия (авто, мъж или жена).")
     spoken = body.get("spoken") or {}
     if not isinstance(spoken, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in spoken.items()):
         raise ValueError("Невалиден речник за произношение.")
     return {"items": clean, "spoken": spoken, "preset": preset, "fps": _num(25.0 if body.get("fps") is None else body.get("fps"), "кадри в секунда", 1.0),
             "width": body.get("width"), "height": body.get("height"), "out_dir": out_dir,
-            "name": str(body.get("name") or "секвенция"), "terms": terms, "skipped": skipped, "text": text, "gender": who}
+            "name": str(body.get("name") or "секвенция"), "terms": terms, "skipped": skipped, "text": text}
 
 
 def _words_key(audio, prompt: str) -> str:
@@ -168,7 +165,7 @@ def _reading(seg: dict, pad: float, prompt: str, spoken: dict, align_it: bool, p
 
 
 def piece_words(seg: dict, prompt: str, spoken: dict, progress, cancelled, pairs=()) -> tuple[list[dict], dict]:
-    """Words of one piece in SEQUENCE seconds, plus {"cached", "aligned", "weak", "align_error"?, "changed", "unsure", "applied", "gender_votes"}.
+    """Words of one piece in SEQUENCE seconds, plus {"cached", "aligned", "weak", "align_error"?, "changed", "unsure", "applied"}.
 
     The main reading (PAD seconds around the piece) is aligned to the sound and gives the words and their times; the
     EXTRA_PADS readings only vote (consensus.py): a word they outvote is replaced, a word nobody agrees on is marked."""
@@ -184,7 +181,6 @@ def piece_words(seg: dict, prompt: str, spoken: dict, progress, cancelled, pairs
         ws, ld, inf = _reading(seg, pad, prompt, spoken, False, pairs, step(k), cancelled)
         info["cached"] = info["cached"] and inf["cached"]
         others.append([dict(w, start=w["start"] - ld, end=w["end"] - ld) for w in ws if _inside(w, ld, ld + dur)])
-    info["gender_votes"] = dict(gender.evidence([mine, *others]))
     mine, votes = consensus.merge(mine, others, lexicon.known, lexicon.respell)
     info.update(votes)
     return [dict(w, start=round(seg["at"] + w["start"], 3), end=round(seg["at"] + w["end"], 3)) for w in mine], info
@@ -212,7 +208,6 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     cached = True
     aligned = weak = changed = unsure = 0
     applied = [0] * len(parsed["pairs"])
-    votes: dict = {}
     align_error = None
     t_asr = time.time()
     for n, sg in enumerate(segments):
@@ -228,8 +223,6 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         changed += info["changed"]
         unsure += info["unsure"]
         applied = [a + b for a, b in zip(applied, info["applied"])]
-        for g, n in info["gender_votes"].items():
-            votes[g] = votes.get(g, 0) + n
         align_error = align_error or info.get("align_error")
         done += share
     asr_s = time.time() - t_asr
@@ -239,8 +232,6 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         if not any(_same_word(w, u) for u in unique[-3:]):
             unique.append(w)
     words = unique
-    who = gender.resolve(p["gender"], votes)
-    words, gender_changed = gender.apply(words, who, lexicon.known)
     progress(0.96, "Подреждам редовете…")
 
     preset = subtitles.preset_for(p["width"], p["height"]) if p["preset"] == "auto" else p["preset"]
@@ -259,7 +250,6 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         "timing": {"method": timing, "aligned": aligned, "weak": weak, "error": align_error},
         "corrections": [{"heard": a, "said": b, "applied": n} for (a, b), n in zip(parsed["pairs"], applied)],
         "correction_errors": parsed["errors"],
-        "gender": {"setting": p["gender"], "used": who, "evidence": votes, "changed": gender_changed},
         "readings": {"count": 1 + len(EXTRA_PADS), "changed": changed, "unsure": unsure, "dictionary": lexicon.available()},
         "notes": mix["notes"], "duplicates": mix["duplicates"], "skipped": p["skipped"],
         "origin": round(mix["origin"], 3), "mix_seconds": round(len(mix["audio"]) / ASR_SR, 1), "asr_seconds": round(asr_s, 1), "cached": cached,
