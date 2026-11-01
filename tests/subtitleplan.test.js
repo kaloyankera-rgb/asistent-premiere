@@ -90,3 +90,16 @@ test("describeResult: says whether the times were aligned to the sound, or why n
   assert.match(text({ ...base, timing: { method: "aligned", aligned: 59, weak: 6, error: null } }), /подравнени по звука \(59 думи, 6 слаби остават от Whisper\)/);
   assert.match(text({ ...base, timing: { method: "whisper", aligned: 0, weak: 0, error: "torch missing" } }), /подравняването не успя \(torch missing\)/);
 });
+
+test("describeResult: corrections, unmatched correction, gender change", () => {
+  const r = describeResult({ counts: { captions: 1, words: 3, flagged: 0 }, preset: "short", fps: 25, asr_seconds: 1, mix_seconds: 2, skipped: [],
+    captions: [{ start: 1, end: 2, text: "ред", flags: [] }], srt: "/p/x.srt", timing: { method: "aligned", aligned: 3, weak: 0 },
+    corrections: [{ heard: "раф", said: "рафт", applied: 1 }, { heard: "нещо друго", said: "x", applied: 0 }],
+    correction_errors: ["ред 4: „х =>“ - трябва да е „чуто => казано“"],
+    gender: { setting: "male", used: "m", evidence: { m: 2, f: 1 }, changed: [{ at: 19.85, from: "свършила", to: "свършил" }] } });
+  const all = r.lines.map((l) => l.text).join("\n");
+  assert.match(all, /Корекции \(1\): „раф“ → „рафт“; новите думи са подравнени по звука/);
+  assert.match(all, /Корекцията „нещо друго“ → „x“ не намери тези думи/);
+  assert.match(all, /Не разбирам: ред 4/);
+  assert.match(all, /Говорещ: мъжки род: „свършила“ → „свършил“ \(0:19\.9\)/);
+});

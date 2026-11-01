@@ -16,7 +16,7 @@ async function frameSize(sequence) {
 }
 
 /** -> { payload, plan } or throws P.UserError with what to fix. */
-async function readInput(project, terms) {
+async function readInput(project, terms, speaker = "auto", notes = "") {
   const t = await P.readTimeline(project);
   const plan = planDialogue(t.items);
   if (!plan.selected) throw new P.UserError("Маркирай в таймлайна аудио клиповете с говор.");
@@ -26,7 +26,7 @@ async function readInput(project, terms) {
   const size = await frameSize(t.sequence);
   const payload = {
     items: plan.use, out_dir: folder, name: t.sequence.name || "секвенция", fps: t.fps || 25,
-    width: size && size.width, height: size && size.height, preset: "auto", terms: terms || [], skipped: plan.skipped,
+    width: size && size.width, height: size && size.height, preset: "auto", terms: terms || [], skipped: plan.skipped, gender: speaker, text: notes,
   };
   engine.log("info", `subtitles: ${plan.use.length} items (${plan.use.map((x) => `A${x.track + 1} ${x.name}`).join(" | ")}), ` +
     `${plan.skipped.length} skipped, ${t.fps} fps, ${size ? `${size.width}x${size.height}` : "size unknown"}`);

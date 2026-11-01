@@ -91,6 +91,7 @@ async function refreshHeader() {
   try {
     const project = await premiere.activeProject();
     $("project").textContent = project.name;
+    if (state.online && !state.busy) loadSubtitleSettings(project.path);
   } catch (e) {
     $("project").textContent = "Няма отворен проект";
   }
@@ -286,6 +287,30 @@ function renderSubtitleModel(st) {
   show("subtitleAsk", st.backend && !st.model);
 }
 
+// who speaks and the corrections text are kept per project in the engine; shown again when the project changes
+async function saveSubtitleSettings(path) {
+  const r = await engine.saveSubtitleSettings(path, $("speaker").value, $("notes").value);
+  showNotesState(r.errors || []);
+  return r;
+}
+
+function showNotesState(errors) {
+  $("notesState").textContent = errors.length ? `Не разбирам: ${errors.join("; ")}` : "";
+  show("notesState", errors.length > 0);
+}
+
+async function loadSubtitleSettings(path) {
+  if (state.settingsFor === path) return;
+  state.settingsFor = path;
+  try {
+    const r = await engine.subtitleSettings(path);
+    $("speaker").value = r.gender || "auto";
+    $("notes").value = r.text || "";
+  } catch (e) {
+    state.settingsFor = null;
+  }
+}
+
 async function onSubtitles() {
   if (state.busy) return;
   if (!state.online) {
@@ -304,7 +329,8 @@ async function onSubtitles() {
     }
     const project = await premiere.activeProject();
     progress(0.02, "Чета маркираните клипове…");
-    const { payload, plan } = await premiereSubtitles.readInput(project, []);
+    const saved = await saveSubtitleSettings(project.path);                  // what is in the boxes now is what runs, and is remembered
+    const { payload, plan } = await premiereSubtitles.readInput(project, [], $("speaker").value, $("notes").value);
     engine.log("info", `subtitles: ${plan.use.length} клипа, ${plan.skipped.length} пропуснати`);
     const { job } = await engine.startSubtitles(payload);
     const result = await runJob(job);

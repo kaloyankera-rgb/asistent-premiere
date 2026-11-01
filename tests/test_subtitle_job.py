@@ -373,3 +373,69 @@ def test_extra_readings_are_cached_per_context(home, monkeypatch):
     subtitle_job.run(b, lambda f, m: None, lambda: False)
     subtitle_job.run(b, lambda f, m: None, lambda: False)
     assert len(n) == 3                                              # three contexts once, nothing again
+
+
+def test_a_weak_word_is_fitted_between_its_aligned_neighbours_and_never_overlaps_them():
+    """Seen on the real clip: a corrected word the aligner could not find started 80 ms inside the word before it."""
+    ws = [{"word": "стена", "start": 8.0, "end": 8.3}, {"word": "трябваше", "start": 8.1, "end": 8.9},
+          {"word": "да", "start": 8.9, "end": 9.0}]
+    res = [{"start": 8.38, "end": 8.62, "align": 0.9}, {"start": None, "end": None, "align": 0.0}, {"start": 8.94, "end": 8.98, "align": 0.8}]
+    out, weak = align._fix(ws, res)
+    assert weak == 1 and out[1]["aligned"] is False
+    assert out[1]["start"] == 8.62 and out[1]["end"] == 8.9                         # starts where „стена“ ends, ends before „да“
+    assert all(a["end"] <= b["start"] + 1e-9 for a, b in zip(out, out[1:]))
+
+
+def test_the_job_applies_corrections_before_alignment_and_the_chosen_gender(home, monkeypatch):
+    """Corrections go into the aligner (new words get their time from the sound); the speaker's gender picks the form."""
+    f, its = two_pieces(home)
+    heard = [{"word": "един", "start": 2.5, "end": 2.8, "p": 0.9}, {"word": "раф", "start": 2.8, "end": 3.1, "p": 0.89},
+             {"word": "съм", "start": 3.3, "end": 3.5, "p": 0.9}, {"word": "свършила.", "start": 3.5, "end": 4.0, "p": 0.9}]   # 2 s of context first
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: [dict(w) for w in heard])
+    monkeypatch.setattr(subtitle_job.lexicon, "known", lambda w: w.strip(".,") in {"един", "рафт", "съм", "свършил", "свършила"})
+    seen = {}
+
+    def fake_align(y, ws, sp=None):
+        seen["words"] = [w["word"] for w in ws]
+        return [dict(w, aligned=True, align=0.9, start=w["start"] + 0.01, end=w["end"] + 0.01) for w in ws], {"aligned": len(ws), "weak": 0}
+    monkeypatch.setattr(align, "available", lambda: True)
+    monkeypatch.setattr(align, "align_words", fake_align)
+    b = dict(body(home, items=its[:1]), text="раф => рафт\nабсолютно друго => нещо", gender="male")
+    res = subtitle_job.run(b, lambda f, m: None, lambda: False)
+    text = " ".join(c["text"].replace("\n", " ") for c in res["captions"])
+    assert seen["words"] == ["един", "рафт", "съм", "свършила."]                      # the aligner got the corrected words
+    assert "рафт" in text and "свършил" in text and "свършила" not in text
+    assert res["corrections"] == [{"heard": "раф", "said": "рафт", "applied": 1}, {"heard": "абсолютно друго", "said": "нещо", "applied": 0}]
+    assert res["gender"]["used"] == "m" and res["gender"]["changed"][0]["to"] == "свършил."
+    assert subtitle_job.validate(dict(b, gender="auto"))["gender"] == "auto"
+    with pytest.raises(ValueError):
+        subtitle_job.validate(dict(b, gender="robot"))
+
+
+def _voice_after_silence():
+    """16 kHz audio: 0-1.0 s silence (-70 dB), voice 1.0-2.0 s (loud), silence 2.0-3.0 s."""
+    sr = 16000
+    t = np.arange(3 * sr) / sr
+    y = (np.random.default_rng(3).standard_normal(3 * sr) * 3e-4).astype(np.float32)
+    v = (0.2 * np.sin(2 * np.pi * 150 * t) * ((t >= 1.0) & (t < 2.0))).astype(np.float32)
+    return y + v
+
+
+def test_a_word_is_not_spoken_in_silence_its_edges_move_to_where_the_voice_is():
+    y = _voice_after_silence()
+    out, moved = align.trim_silence(y, [{"word": "Ей,", "start": 0.6, "end": 2.4}])
+    assert moved == 2 and abs(out[0]["start"] - 1.0) < 0.03 and abs(out[0]["end"] - 2.0) < 0.03
+
+
+def test_words_with_voice_in_them_are_left_alone_and_the_input_is_not_changed():
+    y = _voice_after_silence()
+    ws = [{"word": "а", "start": 1.0, "end": 1.5}, {"word": "б", "start": 1.45, "end": 2.0}, {"word": "в", "start": 0.9, "end": 1.4}]
+    out, moved = align.trim_silence(y, ws)
+    assert moved == 0 and out == ws and out is not ws
+    assert align.trim_silence(y[:100], ws)[1] == 0                                  # too short to judge
+
+
+def test_a_correct_word_that_starts_a_little_early_in_a_quiet_lead_in_is_not_moved_far():
+    y = _voice_after_silence()
+    out, _ = align.trim_silence(y, [{"word": "ето", "start": 0.93, "end": 1.6}])      # 70 ms early: under the 150 ms silence test? no, head is voiced
+    assert out[0]["start"] >= 0.93 and out[0]["start"] <= 1.03

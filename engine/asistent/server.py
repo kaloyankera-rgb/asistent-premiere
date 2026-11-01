@@ -14,6 +14,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /host/result          {id, ok, data} from the host
   POST /captions/place       {"srt", "sequence", "project"?, "bin"?} -> puts the SRT on a caption track of the active
                              sequence through the host; {"ok", "msg", ...} (503 with the reason when the host is away)
+  GET  /subtitles/settings?project=   {gender: auto|male|female, text}: who speaks, corrections and names (per project)
+  POST /subtitles/settings   {project, gender, text} -> saved + {errors} of the text; /subtitles also takes "gender" and "text"
   GET  /captions/state?project=&sequence=   the caption track Asistent placed there before ({} when none)
   POST /captions/record      {project, sequence, signature: {index, count, first, last, srt}}; POST /captions/forget
   GET  /dev/poll?wait=s      test bridge (only with devbridge.enabled): the next panel command
@@ -68,6 +70,7 @@ from . import subtitle_job
 from . import devbridge
 from . import hostbridge
 from . import captionstate
+from . import subtitle_settings
 
 SHOT_REFS: dict = {}            # shot-match job id -> reference look (for the render check after applying)
 from .sync import sync_clips
@@ -236,6 +239,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, _import_status(project))
         if self.path == "/subtitles/model":
             return self._send(200, asr.model_status())
+        if url.path == "/subtitles/settings":
+            return self._send(200, subtitle_settings.get((parse_qs(url.query).get("project") or [""])[0]))
         if url.path == "/captions/state":
             q = parse_qs(url.query)
             return self._send(200, captionstate.get((q.get("project") or [""])[0], (q.get("sequence") or [""])[0]) or {})
@@ -296,6 +301,8 @@ class Handler(BaseHTTPRequestHandler):
                 res = hostbridge.place_captions(srt, seq, proj, str(body.get("bin") or "Субтитри"))
                 log.info("captions/place: %s", res)
                 return self._send(200, res)
+            if self.path == "/subtitles/settings":
+                return self._send(200, subtitle_settings.put(str(body.get("project") or ""), str(body.get("gender") or "auto"), body.get("text") or ""))
             if self.path in ("/captions/record", "/captions/forget"):
                 proj, seq = body.get("project"), body.get("sequence")
                 if not isinstance(proj, str) or not isinstance(seq, str) or not seq:

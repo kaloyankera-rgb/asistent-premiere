@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.45 (2026-11-01)
+# Project status — Asistent 0.9.46 (2026-11-02)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.45 via
-UnifiedPluginInstallerAgent, engine 0.9.45 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 269 pytest + 68 node, all passing at 0.9.45.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.46 via
+UnifiedPluginInstallerAgent, engine 0.9.46 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 283 pytest + 70 node, all passing at 0.9.46.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -223,6 +223,14 @@ press the button again on the same selection.** Timing („a little off in many 
 times are only about ±0.1–0.3 s accurate. A quick onset test on the clips was inconclusive (noise events), so no snap
 was added blindly. Open: ask whether captions are early or late (a fixed offset would fix a systematic shift);
 otherwise forced alignment (MMS_FA, torch, ~1–2 GB, needs the user's OK) per `docs/SUBTITLES_PLAN.md` M6.
+**0.9.46 (user's list of 2026-11-02): corrections, gender, timing checks. Verified through the real panel in TEST.prproj (bridge): corrections matched, male form applied, 24 captions on C3, Premiere items equal the SRT cues within 0.033 s.**
+User ground truth: „раф“ → „рафт“; „сума ти нища“ → „неща“; the end „ще чакай да бъде десом“ is „трябваше да боядисам“; speaker is male. Whisper reproduces the wrong end in every setting (beam 10, no fallback, float32 instead of int8, shorter windows); only a hint word steers it („боядисвам“). So the fix is the correction line, which re-times the new words (aligned by the sound), not a text swap.
+- Checked against the audio (`scripts/check_subtitles.py`, final run): 0 stretches of voiced speech without a word (the two loud gaps are noise, centroid 3-4 kHz); onsets of words after a pause: median +0.01 s, 13/14 within 80 ms, worst 0.10 s („мога“); 0 captions over silence.
+- Punctuation: the commas the user questioned have real pauses behind them („мен,“ 0.42 s, „А уж,“ 0.72 s); commas without a pause are list items. Left as written. „какво ще трябва“: the same in every reading (0.7/2/4 s of context), no evidence against it.
+- Aligner score is NOT a correctness signal (correct short words score 0.44-0.47, the wrong „десом“ 0.59), so it is not used to flag words.
+- The corrected „трябваше“ is the one word the aligner cannot find (score 0.00 in any window: spoken very fast); it is fitted between „стена“ (ends 22.62) and „да“ (22.94); „да боядисам“ aligns well (0.74/0.66). The audio has a dip at 22.65-22.72, so „трябваше“ may start up to 0.1 s later than shown.
+- Still open: no automatic replacement of an old Asistent caption track (no API); „Я“ (0:07.0), „то и за градината“ and „свършил“ stay marked „?“ (readings disagree); Windows host install.
+
 **0.9.45: one press = SRT + on the timeline (user's request 2026-11-01 night). Placement VERIFIED in Premiere (TEST.prproj 23:47: host loaded after one restart, 25 captions on caption track C2, read back by the panel: count and first/last time match). User: timing a lot better, some words corrected, spelling mistakes remain. Added after that: respelling by ear (`lexicon.respell`, „нища“ -> „неща“).**
 Root causes found on the Ludi Glavi clips (measured, not guessed):
 - *Missing first word:* Whisper's word starts are early (median 0.12 s); „Имаш“ (-0.34…0.18 s) had 35 % inside the piece and the 40 % rule dropped it. The speaker cut is inside „Имаш“ (energy jumps from -64 dB to -14 dB at 0.00 s). With the aligner the word sits at 0.02-0.28 s and is kept. Not a VAD problem (VAD is off) and not a chunk-boundary problem.

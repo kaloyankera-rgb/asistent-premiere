@@ -147,3 +147,11 @@ gives the words and times; the other two only vote. A word changes only if two r
 dictionary knows the new word and not the old one (voting alone turned „градината“ into „градвината“). Everything the
 readings or the dictionary doubt is reported by word and time. Cost: three times the recognition time (cached per
 context). The dictionary is GPL v2 data downloaded at setup, not stored in the repository.
+
+## Corrections, gender, alignment choice (2026-11-02, 0.9.46)
+- **Corrections re-time.** The editor's `чуто => казано` lines are applied to the heard words before the forced alignment, so the new words get times from the sound. Replacing text over the old timestamps (the first idea) leaves the phrase where the wrong words were. Names/terms (lines without `=>`) go to Whisper's prompt only. Rejected for now: fuzzy snapping to terms (a legitimate word could be turned into a term).
+- **Whisper cannot be tuned out of its mistake** (beam 10, no temperature fallback, float32, hotwords off, short windows all give the same wrong end phrase), and a prompt that contains the answer would be cheating. A different ASR model (e.g. large-v2) was not tried: it is a ~3 GB download for the user to approve.
+- **Gender: explicit choice first, Авто only from evidence in the speech.** Pitch is unreliable on these clips (150-258 Hz for one speaker in one clip). Scope is deliberately narrow (l-participle after съм/бях, other form must be in the dictionary) so a correctly spoken word is never rewritten.
+- **MMS_FA stays the aligner.** stable-ts 2.19.1 (MIT, Whisper attention + silence suppression) measured worse on the same 13 post-pause words (median -0.10 s, 5/13 within 80 ms vs +0.04 s, 11/13). Its licence advantage does not pay for that.
+- **Silence trim:** thresholds as shares of the way from noise floor to speech level, because a quiet microphone has a small gap (a fixed „35 dB under“ missed „Ей,“ on a −19 dB piece).
+- **No caption track deletion.** ExtendScript has `createCaptionTrack` only (probed: no caption track object, QE removes only video/audio tracks). Unchanged rule: refuse to stack, tell the editor what to delete.
