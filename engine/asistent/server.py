@@ -15,6 +15,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /color               {"items": [{"path", "start", "end"}]} -> job: exposure + white balance + preview
   POST /color/sliders        {"fix_temp", "fix_tint"} -> Lumetri Temperature/Tint (learnt calibration)
   POST /color/check          {"before", "after", "applied": {...}, "fix": {...}} -> verify a Premiere render
+  POST /color/probe          {"refs": {"baseline", "source"?}, "frames": [{"path", ...}], "report"?}
+                             -> Lumetri parameter responses + capability table, saved to lumetri_capabilities.json
   GET  /import/status?project=P[&wait=s]   folder, queue, last imports; wait: return as soon as a file is ready
   POST /import/bind          {"project", "folder"?}  switch on (default folder: ~/Downloads)
   POST /import/unbind        {"project"}

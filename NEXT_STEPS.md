@@ -3,10 +3,8 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
-## A. Fix known bugs (small, first)
-1. Volume level: always use Premiere's scale (0.1778 = 0 dB, 1.0 = +15 dB) in `panel/premiere-audio.js`
-   (`levelParam`); remove the value-based guess (BUGS #1).
-2. Add `POST /color/probe` to the `server.py` docstring (BUGS #4).
+## A. Fix known bugs
+Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 
 ## B. Colour engine, per `COLOR_CORRECTION_PLAN.md` (current focus of the user)
 1. **Run the capability probe** with the user (one clip without Lumetri in TEST, „Проба на Lumetri“); read
