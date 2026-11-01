@@ -412,3 +412,100 @@ class Calibration:
             json.dump(self.data, f)
         os.replace(tmp, self.path)
         return True
+
+
+# ---------------------------------------------------------------- capability probe (spec 01)
+
+def frame_stats(enc: np.ndarray) -> dict:
+    """Global numbers of a rendered frame: brightness (linear), cast, contrast, saturation."""
+    lin = to_linear(enc, None)
+    y_enc = _luma(enc)
+    use = (np.max(enc, axis=-1) < 0.97) & (y_enc > 0.04)
+    if use.sum() < 50:
+        use = np.ones(y_enc.shape, bool)
+    t, g = _cast(lin[use].sum(axis=0))
+    return {"lin_mean": float(_luma(lin)[use].mean()), "temp": t, "tint": g,
+            "spread": float(np.percentile(y_enc, 90) - np.percentile(y_enc, 10)),
+            "chroma": float((np.max(enc, axis=-1) - np.min(enc, axis=-1))[use].mean()),
+            "clipped": float(np.mean(np.max(enc, axis=-1) >= 0.97)), "_use": use}
+
+
+def _wait_file(path: str, seconds: float = 6.0) -> bool:
+    import time
+    end = time.time() + seconds
+    while time.time() < end:
+        if path and os.path.isfile(path) and os.path.getsize(path) > 0:
+            return True
+        time.sleep(0.2)
+    return bool(path) and os.path.isfile(path)
+
+
+def probe_measure(refs: dict, frames: list[dict]) -> dict:
+    """Responses of the Lumetri parameters measured on Premiere's own frames, and the capability table."""
+    out = {"frames": [], "identity": None}
+    base_path = (refs or {}).get("baseline")
+    if not base_path or not _wait_file(base_path):
+        out["error"] = "Няма изнесен кадър от Premiere (exportSequenceFrame не върна файл)."
+        return out
+    base = read_image(base_path)
+    bs = frame_stats(base)
+    src_path = (refs or {}).get("source")
+    if src_path and _wait_file(src_path):
+        ss = frame_stats(read_image(src_path))
+        out["identity"] = {"stops": round(float(np.log2(bs["lin_mean"] / max(ss["lin_mean"], 1e-9))), 3),
+                           "temp": round(bs["temp"] - ss["temp"], 3), "tint": round(bs["tint"] - ss["tint"], 3)}
+    for f in frames:
+        rec = {k: v for k, v in f.items() if k != "path"}
+        if f.get("path") and _wait_file(f["path"]):
+            a = read_image(f["path"])
+            if a.shape == base.shape:
+                st = frame_stats(a)
+                # brightness and cast compared pixel by pixel on pixels usable in BOTH frames (brightening
+                # burns some out; comparing different pixel sets would understate the change)
+                both = bs["_use"] & st["_use"]
+                la, lb = to_linear(a, None)[both], to_linear(base, None)[both]
+                ya, yb = _luma(la), _luma(lb)
+                ok = yb > 1e-4
+                stops = float(np.median(np.log2(ya[ok] / yb[ok]))) if ok.any() else 0.0
+                ca, cb = _cast(la.sum(axis=0)), _cast(lb.sum(axis=0))
+                rec.update(
+                    stops=round(stops, 3), d_temp=round(ca[0] - cb[0], 3), d_tint=round(ca[1] - cb[1], 3),
+                    d_spread=round(st["spread"] - bs["spread"], 3),
+                    sat_ratio=round(st["chroma"] / max(bs["chroma"], 1e-9), 3),
+                    d_clipped=round(st["clipped"] - bs["clipped"], 4))
+        out["frames"].append(rec)
+    by = {f["param"]: f for f in out["frames"]}
+
+    def moved(key, field, limit):
+        f = by.get(key) or {}
+        return f.get(field) is not None and abs(f[field]) >= limit
+
+    table = {}
+    table["white_balance"] = "SUPPORTED" if moved("temperature", "d_temp", 0.03) and moved("tint", "d_tint", 0.03) \
+        else "PARTIAL" if moved("temperature", "d_temp", 0.03) or moved("tint", "d_tint", 0.03) else "BLOCKED"
+    table["exposure"] = "SUPPORTED" if moved("exposure", "stops", 0.2) else "BLOCKED"
+    table["contrast"] = "SUPPORTED" if moved("contrast", "d_spread", 0.01) else "BLOCKED"
+    table["saturation"] = "SUPPORTED" if (by.get("saturation") or {}).get("sat_ratio", 1) > 1.03 else "BLOCKED"
+    table["skin_tones"] = "PARTIAL (само глобално: API-то не дава маски/HSL избор по област)"
+    table["shot_match"] = "SUPPORTED" if table["white_balance"] != "BLOCKED" and table["exposure"] == "SUPPORTED" \
+        else "BLOCKED"
+    table["render_check"] = "SUPPORTED"
+    table["color_management"] = "PARTIAL (входен LUT на клипа се чете; работното и изходното пространство не се " \
+                                "виждат през API: проверява се с кадри от Premiere)"
+    out["table"] = table
+    # units for the planner
+    units = {}
+    if moved("exposure", "stops", 0.2):
+        f = by["exposure"]
+        units["exposure_stops_per_unit"] = round(f["stops"] / (f["to"] - f["from"]), 3)
+    for key, field in (("temperature", "d_temp"), ("tint", "d_tint")):
+        if moved(key, field, 0.03):
+            f = by[key]
+            units[f"{key}_units_per_log2"] = round((f["to"] - f["from"]) / f[field], 1)
+    out["units"] = units
+    cal = Calibration()
+    for key, axis in (("temperature", "temp"), ("tint", "tint")):
+        f = by.get(key) or {}
+        if f.get("d_" + axis) is not None:
+            cal.learn(axis, float(f["to"] - f["from"]), float(f["d_" + axis]))
+    return out
