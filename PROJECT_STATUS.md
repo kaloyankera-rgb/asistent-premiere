@@ -101,7 +101,14 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   „Цвят“ press right after an apply. The diagnostics stay until then.
 - 0.9.22 (user's rule: one static best-effort value per clip, no keyframes; a clip too far gone gets what is
   possible within the range and the work moves on): out-of-range clips say so („извън обхвата… не се гони“);
-  one failing clip no longer stops the analysis or the apply of the others. Attempt 12:26 on fx31031 was skipped: the
+  one failing clip no longer stops the analysis or the apply of the others.
+- **Re-run on a corrected clip VERIFIED (13:24, fx39026, 0.9.22):** with Asistent's Temperature −4.7 / Tint 12.5
+  on the clip (diag lumetri confirms), the timeline analysis measured the white as balanced (cast 0.05/−0.008,
+  was −0.094/+0.187) and suggested no new white correction; exposure +2 was still suggested because it had
+  not been applied (exposure was medium confidence, „Приложи сигурните“ = high only).
+- Gap found: „Приложи и средните“ afterwards was refused („вече има Lumetri с промени (temperature, tint)“):
+  the never-touch-a-grade rule also blocks Asistent's OWN correction, so a missing exposure cannot be added.
+  Needs managed correction ownership (NEXT_STEPS B6). Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.
