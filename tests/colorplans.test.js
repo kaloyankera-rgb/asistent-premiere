@@ -83,3 +83,25 @@ test("the limits are the render check's, used by the refine step too", () => {
   assert.match(src, /chk\.residual\[0\]\) > WHITE_OK\.temp/);
   assert.match(src, /keptWhite = !t\.skip && t\.owned && pl\.wb && whiteWithinCheck/);
 });
+
+const { statusOf, STATUS_BG } = require("../panel/colorplans.js");
+
+test("statuses per clip", () => {
+  assert.strictEqual(statusOf({ skipped: true, skipReason: "вече има Lumetri с промени (tint), които не са от Асистент" }), "BLOCKED");
+  assert.strictEqual(statusOf({ skipped: true, skipReason: "не стана за този клип (x); другите продължават" }), "FAILED");
+  assert.strictEqual(statusOf({ nothing: true }), "ALREADY_BALANCED");
+  const both = { applied: { exposure: 1, temperature: -5, tint: 2 } };
+  assert.strictEqual(statusOf({ ...both, reverted: ["white", "exposure"] }), "REVERTED");
+  assert.strictEqual(statusOf({ ...both, reverted: ["white"] }), "PARTLY_REVERTED");
+  assert.strictEqual(statusOf({ ...both, reverted: [], finalChk: { clipping_status: "REVIEW_NEEDED" } }), "REVIEW_NEEDED");
+  assert.strictEqual(statusOf({ ...both, reverted: [], finalChk: { clipping_status: "ACCEPTED_WITH_WARNING" } }), "CORRECTED");
+  for (const k of ["CORRECTED", "ALREADY_BALANCED", "REVIEW_NEEDED", "REVERTED", "PARTLY_REVERTED", "BLOCKED", "FAILED"]) {
+    assert.ok(STATUS_BG[k]);
+  }
+});
+
+test("a revert is driven by the final check and costs one Undo step for all clips", () => {
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "panel", "premiere-color.js"), "utf8");
+  assert.match(src, /steps \+= await revertWorse\(project, prepared\)/);
+  assert.match(src, /transaction\(project, "Asistent: върни влошеното"/);
+});

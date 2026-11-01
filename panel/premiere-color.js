@@ -173,53 +173,16 @@ async function exportFrame(sequence, seconds, name, dir, onError, long = 480) {
 
 
 // What the viewer sees of the clip: frames exported from the sequence (any correction already on the clip
-// included). Fewer than two usable moments: the engine falls back to the file.
-// 480 px like the render checks: at 720 px Premiere 26.0.2 kept returning the clip as it was before a
-// correction (C0739 13:08: Exposure 0.5 on the clip, analysis frames byte-identical to the uncorrected ones),
-// while the 480 px check frames follow every change. `diag720` exports the first moment once more at 720 px
-// so the engine log shows whether the size is the cause (temporary diagnostic).
+// included), 480 px like the render checks. Fewer than two usable moments: the engine falls back to the file.
+// (A 720 px experiment and a Lumetri readout lived here in 0.9.20-0.9.25 while a „correction not seen" report
+// was chased: every case turned out to be a correction undone before the re-run.)
 async function timelineFrames(timeline, clip, dir, index) {
   const frames = [];
-  const moments = analysisMoments(timeline, clip);
-  for (const [k, t] of moments.entries()) {
+  for (const [k, t] of analysisMoments(timeline, clip).entries()) {
     const f = await exportFrame(timeline.sequence, t, `analyse_${index}_${k}.png`, dir);
     if (f) frames.push(f);
   }
-  const diag720 = moments.length ? await exportFrame(timeline.sequence, moments[0], `diag720_${index}.png`, dir, null, 720) : null;
-  // temporary (0.9.21): C0739 rendered the correction in the middle of the clip but not at these moments.
-  // Log the clip's Lumetri values as Premiere reports them and export the middle once more.
-  await logLumetriState(clip, moments);
-  const diagMid = await exportFrame(timeline.sequence, clip.start + (clip.end - clip.start) / 2, `diagmid_${index}.png`, dir);
-  return { frames, diag720, diagMid };
-}
-
-async function logLumetriState(clip, moments) {
-  try {
-    const chain = await maybe(clip.ti, "getComponentChain");
-    const n = chain ? await chain.getComponentCount() : 0;
-    const found = [];
-    for (let i = 0; i < n; i++) {
-      const comp = await chain.getComponentAtIndex(i);
-      if (!/lumetri/i.test((await maybe(comp, "getMatchName")) || "")) continue;
-      const ps = await params(comp);
-      for (const k of ["exposure", "temperature", "tint"]) {
-        const p = ps[k];
-        if (!p) continue;
-        const varying = await maybe(p, "isTimeVarying");
-        const keys = varying ? ((await maybe(p, "getKeyframeListAsTickTimes")) || []).map((t) => (t.seconds || 0).toFixed(3)) : [];
-        const at = [];
-        for (const t of moments.slice(0, 2)) {
-          const v = has(p, "getValueAtTime") ? await maybe(p, "getValueAtTime", TickTime.createWithSeconds(t - clip.start + (clip.inPt || 0))) : null;
-          at.push(v && v.value !== undefined ? (v.value.value ?? v.value) : v);
-        }
-        found.push(`#${i} ${k}=${await value(p)} varying=${varying} keys=[${keys.join(",")}] atMoments=${JSON.stringify(at)}`);
-      }
-    }
-    debug(`diag lumetri ${clip.name} (start ${clip.start.toFixed(3)}, end ${clip.end.toFixed(3)}, in ${(clip.inPt || 0).toFixed(3)}, ` +
-      `moments ${moments.map((t) => t.toFixed(3)).join(",")}): ${found.join(" | ") || "no Lumetri"}`);
-  } catch (e) {
-    debug(`diag lumetri failed: ${e && e.message ? e.message : e}`);
-  }
+  return { frames };
 }
 
 // final: the re-check after the one step back. The engine then gives its verdict and never proposes another step
@@ -257,12 +220,14 @@ async function apply(project, timeline, plans) {
     if (t.skip) {
       pl.lines = [t.skip];
       pl.skipped = true;
+      pl.skipReason = t.skip;
       debug(`color apply ${pl.clip.name}: skipped, ${t.skip}`);
       continue;
     }
     const { values, applied } = mergeValues(t.current, pl.exposure, sliders);
     pl.applied = applied;
     if (!Object.keys(values).length) {
+      pl.nothing = true;
       pl.lines = [pl.keptWhite ? "бялото вече е неутрално (в границата на проверката): нищо за прилагане" : "нищо за прилагане"];
       continue;
     }
@@ -327,13 +292,14 @@ async function apply(project, timeline, plans) {
       continue;
     }
     debug(`color check ${pl.clip.name}: ${JSON.stringify(chk)}`);
+    pl.firstChk = chk;
+    pl.finalChk = chk;
     const fixValues = {};
     if (pl.values.exposure && chk.new_clipping > 0.03) {
       // as far back as the clipping needs (engine, from the frames and the probe curve); older engines: 0.5
       const back = chk.pullback_units || 0.5;
       fixValues.exposure = Math.max(0, Math.round((pl.values.exposure - back) * 100) / 100);
       pl.lines.push(`изгоряха ${(chk.new_clipping * 100).toFixed(1)}%: експозицията свалена с ${back} на ${fixValues.exposure}`);
-      pl.recheck = true;
     }
     if (pl.wb && !pl.keptWhite && chk.residual && (Math.abs(chk.residual[0]) > WHITE_OK.temp ||
         Math.abs(chk.residual[1]) > WHITE_OK.tint) && chk.sliders_now) {
@@ -344,33 +310,69 @@ async function apply(project, timeline, plans) {
     } else if (pl.wb && !pl.keptWhite && chk.residual) {
       pl.lines.push("проверено на кадър: бялото е неутрално");
     }
+    // a step back or a refined white is measured once more (the re-check); otherwise this check is final
+    pl.recheck = Object.keys(fixValues).length > 0;
     if (!pl.recheck && chk.clipping_status && chk.clipping_status !== "ACCEPTED") pl.lines.push(finalLine(chk));
-    if (Object.keys(fixValues).length) second.push(...setActions(pl.t, fixValues));
+    if (pl.recheck) second.push(...setActions(pl.t, fixValues));
     pl.final = { ...pl.values, ...fixValues };
-    pl.refined = Object.keys(fixValues).length > 0;
-    pl.finalApplied = { ...pl.applied, ...(fixValues.exposure !== undefined
-      ? { exposure: Math.round((pl.applied.exposure - (pl.values.exposure - fixValues.exposure)) * 100) / 100 } : {}) };
   }
   if (second.length) {
     transaction(project, "Asistent: поправи цвета (уточнение)", (c) => {
       for (const make of second) c.addAction(make());
     });
     steps++;
-    for (const pl of prepared) if (pl.refined) await remember(pl);
+    for (const pl of prepared) if (pl.recheck) await remember(pl);
   }
-  // the step back is measured once more on a new frame: report where it really landed, change nothing more
+  // the second step is measured once more on a new frame: report where it really landed, change nothing more
   for (const [i, pl] of prepared.entries()) {
     if (!pl.recheck) continue;
     const after2 = await exportFrame(timeline.sequence, pl.mid, `after2_${i}.png`, dir);
-    const chk2 = after2 && (await checkWithRetry(pl.before, after2, pl.finalApplied, pl.res.white, true));
+    const chk2 = after2 && (await checkWithRetry(pl.before, after2, sinceBefore(pl), pl.res.white, true));
     if (!chk2) {
-      pl.lines.push("след свалянето: проверката не успя");
+      pl.lines.push("след уточнението: проверката не успя");
+      pl.finalChk = null;
       continue;
     }
     debug(`color recheck ${pl.clip.name}: ${JSON.stringify(chk2)}`);
-    pl.lines.push(`след свалянето: ${finalLine(chk2)}`);
+    pl.finalChk = chk2;
+    pl.lines.push(`след ${pl.final.exposure !== pl.values.exposure ? "свалянето" : "уточнението"}: ${finalLine(chk2)}`);
   }
+  steps += await revertWorse(project, prepared);
   return { steps };
+}
+
+// what this press changed compared with the frame before it (the render check measures these differences)
+function sinceBefore(pl) {
+  const out = {};
+  for (const [k, v] of Object.entries(pl.final || pl.values)) out[k] = Math.round((v - (pl.t.current[k] || 0)) * 100) / 100;
+  return out;
+}
+
+// Accept / revert (colour plan B5): a part that left the picture measurably worse than before this press is
+// put back to the value it had before (0 on a new Lumetri, which then changes nothing). One Undo step for all.
+const REVERT_KEYS = { white: ["temperature", "tint"], exposure: ["exposure"] };
+
+async function revertWorse(project, prepared) {
+  const acts = [];
+  for (const pl of prepared) {
+    const g = pl.finalChk && pl.finalChk.gates;
+    pl.reverted = [];
+    if (!g || !g.revert || !g.revert.length) continue;
+    const back = {};
+    for (const part of g.revert) for (const k of REVERT_KEYS[part]) if (k in pl.final) back[k] = pl.t.current[k] || 0;
+    if (!Object.keys(back).length) continue;
+    acts.push(...setActions(pl.t, back));
+    pl.final = { ...pl.final, ...back };
+    pl.reverted = g.revert;
+    const why = { white: "бялото стана по-далеч от неутрално", exposure: "яркостта отиде по-далеч от целта" };
+    pl.lines.push(`върнато както беше: ${g.revert.map((p) => why[p]).join("; ")}`);
+  }
+  if (!acts.length) return 0;
+  transaction(project, "Asistent: върни влошеното", (c) => {
+    for (const make of acts) c.addAction(make());
+  });
+  for (const pl of prepared) if (pl.reverted.length) await remember(pl);
+  return 1;
 }
 
 // The engine's verdict on the final clipping (ACCEPTED / ACCEPTED_WITH_WARNING / REVIEW_NEEDED) in its

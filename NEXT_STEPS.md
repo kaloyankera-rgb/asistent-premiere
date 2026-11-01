@@ -19,12 +19,10 @@ Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 3. **Colour management / double transform (T12)**: for log clips compare the timeline render with the source
    decoded as Rec.709 and as S-Log3→709; if Premiere already converts, measure as Rec.709 and never add a
    transform; unknown → REVIEW_NEEDED. Read `getInputLUTID`/`getEmbeddedLUTID` into the record.
-4. **Statuses + audit log**: ALREADY_BALANCED / CORRECTED / REVIEW_NEEDED / REVERTED / BLOCKED / FAILED, one
-   JSON record per clip and operation (format in `docs/color-spec/03_ANALYSIS_AND_QA.md`), stored in the engine
-   data folder; show the status in the panel.
-5. **Accept / revert**: save exact prior values and keyframe state of every touched parameter, apply, export,
-   re-measure, revert to the saved values when any gate worsens (new clipping, neutral residual, skin, cast,
-   continuity). Report Undo steps.
+4. **Statuses + audit log: built in 0.9.26** (`color_audit.jsonl`, status next to each clip).
+5. **Accept / revert: built in 0.9.26** (white/exposure gates on the final check; clipping is not a gate). Still
+   open from the spec: keyframe state of touched parameters (none are keyframed by Asistent) and continuity
+   between clips of one scene (with Shot Match).
 6. **Managed correction ownership: built in 0.9.24** (fingerprints in `managed.json`). Confirm in Premiere:
    „Приложи сигурните“ (white only) → „Цвят“ → „Приложи и средните“ adds the exposure to the same Lumetri;
    touching any Lumetri slider by hand → the next apply leaves the clip alone.

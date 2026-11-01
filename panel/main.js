@@ -6,7 +6,7 @@ const PANEL_VERSION = require("./version.js");
 const premiereImport = require("./premiere-import.js");
 const premiereColor = require("./premiere-color.js");
 const premiereProbe = require("./premiere-probe.js");
-const { plansFor, corrections } = require("./colorplans.js");
+const { plansFor, corrections, statusOf, STATUS_BG } = require("./colorplans.js");
 
 const $ = (id) => document.getElementById(id);
 const state = { online: false, busy: false, jobId: null, settleUntil: 0 };
@@ -312,7 +312,7 @@ async function onColor() {
     for (const [i, c] of sel.clips.entries()) {
       progress((0.4 * i) / sel.clips.length, `Кадри от таймлайна: ${i + 1} от ${sel.clips.length}…`);
       const tl = dir ? await premiereColor.timelineFrames(sel.timeline, c, dir, i) : { frames: [] };
-      items.push({ path: c.path, start: c.inPt, end: c.outPt, frames: tl.frames, diag720: tl.diag720, diagMid: tl.diagMid });
+      items.push({ path: c.path, start: c.inPt, end: c.outPt, frames: tl.frames });
     }
     const { job } = await engine.startColor(items);
     const result = await runJob(job);
@@ -346,6 +346,20 @@ async function onColor() {
   }
 }
 
+// one JSON record per clip and press in the engine's audit log (colour plan B4); never blocks the panel
+function audit(pl, level) {
+  const chk = (c) => (c ? { new_clipping: c.new_clipping, clipping_status: c.clipping_status, exposure_before: c.exposure_before,
+    exposure_after: c.exposure_after, cast_before: c.cast_before, cast_after: c.cast_after, gates: c.gates } : null);
+  engine.colorAudit({
+    clip: pl.clip.name, path: pl.clip.path, in: pl.clip.inPt, out: pl.clip.outPt, button: level, status: pl.status,
+    measured_on: pl.res.measured_on, suggestion: { stops: pl.res.exposure.stops, units: pl.res.exposure.units,
+      exposure_confidence: pl.res.exposure.confidence, white: pl.res.white },
+    asistent_lumetri: !!(pl.t && pl.t.owned), before: pl.t ? pl.t.current : null, written: pl.values || null,
+    final: pl.final || null, reverted: pl.reverted || [], first_check: chk(pl.firstChk), final_check: chk(pl.finalChk),
+    lines: pl.lines || [],
+  }).catch(() => {});
+}
+
 async function onColorApply(level) {
   if (state.busy || !colorState.sel) return;
   setBusy(true);
@@ -354,8 +368,10 @@ async function onColorApply(level) {
     const plans = colorPlans(level);
     const { steps } = await premiereColor.apply(colorState.project, colorState.sel.timeline, plans);
     const blocks = plans.map((pl) => {
+      pl.status = statusOf(pl);
+      audit(pl, level);
       const box = el("div", "group");
-      box.appendChild(el("div", "name", pl.clip.name));
+      box.appendChild(el("div", "name", `${pl.clip.name} · ${STATUS_BG[pl.status]}`));
       for (const l of pl.lines || []) box.appendChild(el("div", "line", l));
       if (pl.left && pl.left.length && !pl.skipped) {
         box.appendChild(el("div", "warn", `Не е приложено (средна сигурност): ${pl.left.join(" и ")}. ` +

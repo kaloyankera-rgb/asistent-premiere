@@ -55,4 +55,23 @@ function whiteWithinCheck(white) {
   return Math.abs(white.fix_temp || 0) <= WHITE_OK.temp && Math.abs(white.fix_tint || 0) <= WHITE_OK.tint;
 }
 
-module.exports = { plansFor, corrections, mergeValues, whiteWithinCheck, WHITE_OK };
+// One status per clip and press (colour plan B4), from what happened to it in `apply`.
+const STATUS_BG = {
+  CORRECTED: "поправено", ALREADY_BALANCED: "вече е наред", REVIEW_NEEDED: "провери ръчно",
+  REVERTED: "върнато (стана по-лошо)", PARTLY_REVERTED: "поправено, част е върната",
+  BLOCKED: "не е пипано (ръчна корекция)", FAILED: "не стана",
+};
+
+function statusOf(pl) {
+  if (pl.skipped) return /не стана/.test(pl.skipReason || "") ? "FAILED" : "BLOCKED";
+  if (pl.nothing) return "ALREADY_BALANCED";
+  const parts = ["white", "exposure"].filter((k) => (k === "white" ? pl.applied && ("temperature" in pl.applied)
+    : pl.applied && ("exposure" in pl.applied)));
+  const reverted = pl.reverted || [];
+  if (parts.length && reverted.length >= parts.length) return "REVERTED";
+  if (reverted.length) return "PARTLY_REVERTED";
+  if (pl.finalChk && pl.finalChk.clipping_status === "REVIEW_NEEDED") return "REVIEW_NEEDED";
+  return "CORRECTED";
+}
+
+module.exports = { plansFor, corrections, mergeValues, whiteWithinCheck, WHITE_OK, statusOf, STATUS_BG };

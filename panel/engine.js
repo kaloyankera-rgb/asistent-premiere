@@ -75,6 +75,10 @@ function managedRecord(key, snapshot, values) {
   return call("POST", "/color/managed/record", { key, snapshot, values });
 }
 
+function colorAudit(record) {
+  return call("POST", "/color/audit", { record });
+}
+
 function waitFrame(path, timeout = 20) {
   return call("POST", "/frames/wait", { path, timeout });
 }
@@ -96,4 +100,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, job, cancel, log };
