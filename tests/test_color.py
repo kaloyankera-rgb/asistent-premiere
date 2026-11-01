@@ -558,3 +558,37 @@ def test_no_keyframes_in_the_colour_path():
     import pathlib
     src = (pathlib.Path(__file__).parent.parent / "panel" / "premiere-color.js").read_text()
     assert "createSetTimeVaryingAction" not in src and "createAddKeyframeAction" not in src
+
+
+# ---- accept / revert gates (colour plan B5)
+
+def test_gates_white_worse_only_when_outside_neutral_and_further_than_before():
+    g = C.gates({"cast_before": (-0.05, 0.02), "cast_after": (0.25, 0.0)}, {"temperature": -10, "tint": 0})
+    assert g["white"] == "worse" and g["revert"] == ["white"]
+    # fx39024 16:12: −0.094 → +0.096 is within the limits: not worse
+    g = C.gates({"cast_before": (-0.094, 0.187), "cast_after": (0.096, -0.042)}, {"temperature": -4.9, "tint": 12.8})
+    assert g["white"] == "better" and g["revert"] == []
+
+
+def test_gates_exposure_overshoot_is_worse_undershoot_is_better():
+    assert C.gates({"exposure_before": 0.5, "exposure_after": -0.9}, {"exposure": 1.2})["revert"] == ["exposure"]
+    # fx39024 13:34: +2.43 → +0.68 (capped, still dark) is better, never reverted
+    assert C.gates({"exposure_before": 2.43, "exposure_after": 0.68}, {"exposure": 2.1})["exposure"] == "better"
+    assert C.gates({"exposure_before": 0.1, "exposure_after": 0.05}, {"exposure": 0.1})["exposure"] == "same"
+
+
+def test_parts_not_applied_are_never_reverted():
+    g = C.gates({"cast_before": (0, 0), "cast_after": (0.5, 0.5), "exposure_before": 0, "exposure_after": 3},
+                {})
+    assert g == {"white": "n/a", "exposure": "n/a", "revert": []}
+
+
+def test_clipping_alone_never_reverts(tmp_path):
+    # a clip that burns gets what is possible (user, 2026-11-01): clipping is not a revert gate. A dark room
+    # with a bright window: the exposure fix lands on target while the window burns out.
+    lin = scene(window=True) / 2 ** 1.5
+    paths = [_png(C.encode(lin), tmp_path / "b.png"), _png(C.encode(lin * 2 ** 1.5), tmp_path / "a.png")]
+    r = C.check_render(paths[0], paths[1], 1.5, C.Calibration(str(tmp_path / "l.json")), final=True,
+                       applied={"exposure": 1.5})
+    assert r["new_clipping"] > C.NEW_CLIP
+    assert r["gates"]["exposure"] == "better" and r["gates"]["revert"] == []

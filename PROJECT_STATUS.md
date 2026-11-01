@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.25 (2026-11-01)
+# Project status — Asistent 0.9.26 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.25 via
-UnifiedPluginInstallerAgent, engine 0.9.25 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 135 pytest + 32 node, all passing at 0.9.25.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.26 via
+UnifiedPluginInstallerAgent, engine 0.9.26 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 139 pytest + 34 node, all passing at 0.9.26.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -128,7 +128,15 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   the next apply left the clip alone. Bug: step 2 also moved Temperature −4.9 → −0.2 and Tint 12.8 → 11.5: the
   render check called the white neutral (residual 0.096 < 0.1) but the re-analysis flags from 0.08 and
   „corrected" it back. 0.9.25: on Asistent's own Lumetri a white within the check's limits (0.1 / 0.06,
-  `WHITE_OK`) is kept; the refine step uses the same limits. NOT verified in Premiere yet. Attempt 12:26 on fx31031 was skipped: the
+  `WHITE_OK`) is kept; the refine step uses the same limits. NOT verified in Premiere yet.
+- 0.9.26: temporary diagnostics removed (4 timeline frames per clip again). Statuses + audit (B4): every clip of
+  a press gets CORRECTED / ALREADY_BALANCED / REVIEW_NEEDED / REVERTED / PARTLY_REVERTED / BLOCKED / FAILED
+  (shown next to the clip name) and one JSON line in `color_audit.jsonl`. Accept/revert (B5): every check
+  measures before and after; a part (white, exposure) that ended measurably worse than before this press is
+  put back to its previous value in one extra Undo step („Asistent: върни влошеното“). White: worse = outside
+  the neutral limits AND further than before; exposure: further from the target by > 0.15 stop (overshoot).
+  Clipping is never a revert gate (user's rule). A refined white now also gets the final re-check.
+  NOT verified in Premiere yet. Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.

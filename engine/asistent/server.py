@@ -14,6 +14,7 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /log                  {"level": "info"|"error", "message": "..."} panel messages into the engine log
   POST /color               {"items": [{"path", "start", "end"}]} -> job: exposure + white balance + preview
   POST /color/sliders        {"fix_temp", "fix_tint"} -> Lumetri Temperature/Tint (learnt calibration)
+  POST /color/audit          {"record"} -> one JSON line per clip and press in color_audit.jsonl
   POST /color/managed/check  {"key", "snapshot"} -> {"owned"}: is this Lumetri exactly as Asistent left it?
   POST /color/managed/record {"key", "snapshot", "values"} -> remember a Lumetri Asistent just wrote
   POST /color/check          {"before", "after", "applied", "fix", "clip_tolerance"?, "final"?} -> verify a
@@ -234,6 +235,15 @@ class Handler(BaseHTTPRequestHandler):
                                            for r in res["items"]])
                     return res
                 return self._send(200, {"job": JOBS.submit("color", work).id})
+            if self.path == "/color/audit":
+                # one JSON line per clip and press (colour plan B4): what was measured, written, kept, reverted
+                import time as _time
+                rec = body.get("record") if isinstance(body.get("record"), dict) else {}
+                rec = {"at": _time.strftime("%Y-%m-%dT%H:%M:%S"), "engine": config.VERSION, **rec}
+                with open(os.path.join(config.app_dir(), "color_audit.jsonl"), "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(rec, ensure_ascii=False, default=str) + "\n")
+                log.info("color audit: %s %s", rec.get("clip"), rec.get("status"))
+                return self._send(200, {"ok": True})
             if self.path in ("/color/managed/check", "/color/managed/record"):
                 store = ManagedStore(os.path.join(config.app_dir(), "managed.json"))
                 key, snap = str(body.get("key") or ""), str(body.get("snapshot") or "")
@@ -274,9 +284,9 @@ class Handler(BaseHTTPRequestHandler):
                 # clip_tolerance: the soft tolerance above the 3 % target (default 0.25 points), configurable per call
                 tol = float(body.get("clip_tolerance", COLOR.CLIP_SOFT_TOLERANCE))
                 res = COLOR.check_render(before, after, float(applied.get("exposure") or 0),
-                                         soft_tolerance=min(max(tol, 0.0), 0.02), final=bool(body.get("final")))
-                b = COLOR.measure(COLOR.read_image(before))
-                cb = b.get("cast_neutral") or b.get("cast_world")
+                                         soft_tolerance=min(max(tol, 0.0), 0.02), final=bool(body.get("final")),
+                                         applied=applied)
+                cb = res.get("cast_before")
                 if cb and res["cast_after"]:
                     cal = COLOR.Calibration()
                     # only an axis the probe never measured, and only from a render without an Exposure change

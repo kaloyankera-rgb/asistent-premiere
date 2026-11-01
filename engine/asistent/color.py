@@ -347,17 +347,20 @@ def new_clipping(before: np.ndarray, after: np.ndarray) -> float:
 
 
 def check_render(before_path: str, after_path: str, exposure_units: float = 0.0, cal=None,
-                 soft_tolerance: float = CLIP_SOFT_TOLERANCE, final: bool = False) -> dict:
+                 soft_tolerance: float = CLIP_SOFT_TOLERANCE, final: bool = False, applied: dict | None = None) -> dict:
     """Two frames exported by Premiere (without / with the correction): how neutral and how bright the
     result is, and how much burnt out. Used to verify and, if needed, step the correction back."""
     b, a = read_image(before_path), read_image(after_path)
     if b.shape != a.shape:
         raise MediaError("Кадрите преди и след са с различен размер.")
-    ma = measure(a)
+    ma, mb = measure(a), measure(b)
     out = {"new_clipping": round(new_clipping(b, a), 4),
            "cast_after": ma.get("cast_neutral") or ma.get("cast_world"),
            "exposure_after": ma.get("exp_skin", ma.get("exp_mid")),
-           "skin_after": round(ma.get("skin", 0.0), 4)}
+           "skin_after": round(ma.get("skin", 0.0), 4),
+           "cast_before": mb.get("cast_neutral") or mb.get("cast_world"),
+           "exposure_before": mb.get("exp_skin", mb.get("exp_mid"))}
+    out["gates"] = gates(out, applied or {})
     # final: the re-check after the one step back; it gets a verdict, never another step (C0739 12:58 was
     # labelled STEP_BACK at 3.08 % because the engine could not tell the two checks apart)
     if exposure_units > 0 and out["new_clipping"] > NEW_CLIP and not final:
@@ -372,6 +375,46 @@ def check_render(before_path: str, after_path: str, exposure_units: float = 0.0,
                                     f"{out['pullback_units']} units once and is re-checked.",
                    clipping_message_bg=f"Изгорели {pct}, над границата: експозицията се сваля веднъж с "
                                        f"{out['pullback_units']} и се проверява пак.")
+    return out
+
+
+WHITE_OK = (0.1, 0.06)         # |cast| per log2 axis the render check calls neutral (panel: colorplans.WHITE_OK)
+EXPOSURE_WORSE = 0.15         # stops further from the target than before = the exposure made it worse
+
+
+def _white_error(cast) -> float | None:
+    """How far from neutral, in units of the check's limits (≤ 1 = neutral)."""
+    if not cast:
+        return None
+    return max(abs(cast[0]) / WHITE_OK[0], abs(cast[1]) / WHITE_OK[1])
+
+
+def gates(check: dict, applied: dict) -> dict:
+    """Did each applied part make the picture better or worse than before (accept/revert, colour plan B5)?
+
+    white: worse only when the result is outside the neutral limits AND further from neutral than before.
+    exposure: worse when the brightness ended further from the target than it started (an overshoot), by more
+    than EXPOSURE_WORSE. Highlight clipping is not a gate here: the step-back and the soft tolerance handle it,
+    and a clip that burns gets what is possible (user, 2026-11-01). A part that was not applied is "n/a"."""
+    out = {}
+    if applied.get("temperature") or applied.get("tint"):
+        eb, ea = _white_error(check.get("cast_before")), _white_error(check.get("cast_after"))
+        if eb is None or ea is None:
+            out["white"] = "unknown"
+        else:
+            out["white"] = "worse" if ea > 1 and ea > eb + 0.25 else "better" if ea < eb - 0.25 else "same"
+    else:
+        out["white"] = "n/a"
+    if applied.get("exposure"):
+        b, a = check.get("exposure_before"), check.get("exposure_after")
+        if b is None or a is None:
+            out["exposure"] = "unknown"
+        else:
+            out["exposure"] = "worse" if abs(a) > abs(b) + EXPOSURE_WORSE else \
+                "better" if abs(a) < abs(b) - EXPOSURE_WORSE else "same"
+    else:
+        out["exposure"] = "n/a"
+    out["revert"] = [k for k in ("white", "exposure") if out[k] == "worse"]
     return out
 
 
@@ -511,7 +554,6 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
                 # so a clip corrected once measures as fine and a re-run suggests nothing (spec T13/T18)
                 r = decide(timeline, None, source_gamma=gamma)
                 r["measured_on"] = "timeline"
-                _diag_720(it, timeline[0], path)
                 shown, shown_gamma = timeline, None
             else:
                 frames = read_frames(path, start=float(it.get("start") or 0), end=it.get("end"))
@@ -559,19 +601,6 @@ def timeline_frames(paths: list) -> list[np.ndarray]:
         if hit:
             out.append(read_image(hit))
     return [f for f in out if f.shape == out[0].shape] if out else []
-
-
-def _diag_720(item: dict, first: np.ndarray, path: str) -> None:
-    """Temporary (0.9.20): the same moment exported at 480 and at 720 px, mean brightness of each, to see
-    whether Premiere returns a stale picture at 720 px (C0739 13:08)."""
-    import logging
-    out = {"480px moment 0": round(float(_luma(first).mean()), 4)}
-    for key, label in (("diag720", "720px moment 0"), ("diagMid", "480px middle")):
-        p = item.get(key)
-        hit = _wait_file(p, 3.0) if isinstance(p, str) and _in_frames_dir(p) else None
-        if hit:
-            out[label] = round(float(_luma(read_image(hit)).mean()), 4)
-    logging.getLogger("asistent").info("diag frames %s: %s", os.path.basename(path), out)
 
 
 def review_needed(r: dict) -> None:
