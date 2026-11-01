@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.40 (2026-11-01)
+# Project status — Asistent 0.9.41 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.40 via
-UnifiedPluginInstallerAgent, engine 0.9.40 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 202 pytest + 50 node, all passing at 0.9.40.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.41 via
+UnifiedPluginInstallerAgent, engine 0.9.41 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 211 pytest + 50 node, all passing at 0.9.41.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -180,7 +180,13 @@ that differs from „before“ (e.g. left from an older state) is not detectable
 ## Phase 7 subtitles (in progress)
 Plan `docs/SUBTITLES_PLAN.md` (user accepted the recommendations). M0 probes done at 0.9.39 (bridge commands
 `srt_import`, `caption_place`, `transcript_export`): SRT import works, automatic caption placement does not, Premiere
-transcript export needs a transcribed clip. The user dragged both test SRTs over the sequence: Cyrillic correct with and without BOM (writer: UTF-8 + BOM). M1 text core built at 0.9.40 by feature-builder (`bgtext.py`, `subtitles.py`, 29 tests, nothing wired, nothing verified in Premiere or on real Whisper output). Deviations: nominal 11 chars, soft limit 16; glued number phrases may exceed 2 words in the short preset (kept whole); case/punctuation as Whisper gives them. Next: M2 ASR + install (needs the user's OK for pip and the ~3 GB model).
+transcript export needs a transcribed clip. The user dragged both test SRTs over the sequence: Cyrillic correct with and without BOM (writer: UTF-8 + BOM). M1 text core built at 0.9.40 by feature-builder (`bgtext.py`, `subtitles.py`, 29 tests, nothing wired, nothing verified in Premiere or on real Whisper output). Deviations: nominal 11 chars, soft limit 16; glued number phrases may exceed 2 words in the short preset (kept whole); case/punctuation as Whisper gives them. M2 ASR built at 0.9.41 (user approved the downloads 2026-11-01): `asr.py`, `requirements-asr.txt` (faster-whisper 1.2.1,
+ctranslate2 4.8.4, tokenizers 0.23.3, huggingface_hub 2.4.0, onnxruntime 1.31.1, av 19.0.2; installed in the engine
+venv, +~250 MB), model `Systran/faster-whisper-large-v3` 3.09 GB in `~/Library/Application Support/Asistent/models/whisper`,
+`GET /subtitles/model`, job `POST /subtitles/model/download`, `--subtitles` / `-Subtitles` in the setup scripts.
+Measured on this Mac (M4 Max, CPU int8): model load 1.8 s; 29 s of audio in 10.2 s and 54 s in 19.4 s (2.8x real time,
+better than the plan's 20-60 s per minute); Bulgarian recognised (GStroy clips, sparse speech), 2 of 52 words below p 0.5.
+The panel has no button for the install/download yet (M3/M4); Windows CUDA is untested. Next: M3 dialogue mix + job.
 
 ## Phases 7–9 (Planned)
 7 Bulgarian subtitles (faster-whisper; reuse `tools/autoedit/asr.py` by copying), 8 rough-cut markers and

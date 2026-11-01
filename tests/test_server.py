@@ -146,3 +146,17 @@ def test_dev_bridge_poll_wakes_up_when_a_command_arrives(engine, tmp_path, monke
     call("POST", "/dev/command", {"name": "ping"})
     t.join(4)
     assert got["r"][0] == 200 and got["r"][1]["name"] == "ping"
+
+
+def test_subtitle_model_endpoints(engine, tmp_path, monkeypatch):
+    from asistent import asr
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    code, st = call("GET", "/subtitles/model")
+    assert code == 200 and st["model"] is False and st["dir"] == str(tmp_path / "models" / "whisper") and st["bytes"] == 0
+    assert set(st) >= {"backend", "model", "dir", "bytes", "expected_bytes", "device"}
+    d = tmp_path / "models" / "whisper"
+    d.mkdir(parents=True)
+    for f in asr.MODEL_FILES:
+        (d / f).write_bytes(b"x")
+    code, res = call("POST", "/subtitles/model/download", {})
+    assert code == 200 and res["done"] is True and res["status"]["model"] is True     # nothing to download: no job, no fetch

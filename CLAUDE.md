@@ -23,6 +23,7 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
   - `media.py` ffprobe/ffmpeg · `cache.py` decoded-audio cache · `sync.py` audio sync · `groups.py` many-clip groups
   - `audio.py` channel analysis, loudness, phrase leveling · `importer.py` folder watching and queue
   - `shotmatch.py` Auto Shot Match: anchors (skin from faces, neutrals, tones), Lumetri simulation, absolute fit, check
+  - `asr.py` speech recognition (faster-whisper large-v3 from `<app>/models/whisper`, local only, never downloads by itself; optional `requirements-asr.txt`)
   - `subtitles.py` Phase 7 text core: captions from timed words (Bulgarian spelling `bgtext.py`, line breaking, presets short/standard, frame snap, SRT with BOM); not wired yet
   - `devbridge.py` test bridge: the panel runs commands from the engine (`scripts/dev_cmd.py`), only in TEST.prproj, off without the flag file `devbridge.enabled`
   - `faces.py` face detector (YuNet through OpenCV, model in `models/`); no OpenCV/model → no skin anchor
@@ -42,7 +43,7 @@ Read first when continuing: `PROJECT_STATUS.md` → `NEXT_STEPS.md` → `BUGS_AN
   `scripts/release_mac.sh` (packs `.ccx`, removes + installs it with Adobe's UnifiedPluginInstallerAgent
   without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
-  (202 tests; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere) and
+  (211 tests; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere) and
   `node --test tests/layout.test.js tests/channels.test.js tests/wiring.test.js tests/moments.test.js tests/colorplans.test.js` (50 tests);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Premiere tests only in the user's test project `TEST.prproj`, never in client projects; never close or

@@ -43,7 +43,7 @@ Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 „Изравни фразите“, one Undo (audio), „Раздели R/L“, auto-import speed.
 
 ## C2. Phase 7 subtitles (user's current focus, 2026-11-01)
-Plan: `docs/SUBTITLES_PLAN.md`. Done: M0 probes (0.9.39), M1 text core (0.9.40). Next: M2 ASR + install, which needs the user's explicit OK for the pip packages (~250 MB) and the ~3 GB model.
+Plan: `docs/SUBTITLES_PLAN.md`. Done: M0 probes (0.9.39), M1 text core (0.9.40), M2 ASR + model (0.9.41; Mac 2.8x real time). Next: M3 dialogue mix + `/subtitles` job + panel section.
 
 ## D. Later phases
 5 Client profiles + Prepare Project (in the office; draft in `profiles.py`/`prepare.py`; Basecamp paste),

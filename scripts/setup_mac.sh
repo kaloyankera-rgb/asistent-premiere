@@ -17,6 +17,8 @@ command -v ffmpeg >/dev/null 2>&1 || [ -x /opt/homebrew/bin/ffmpeg ] || { echo "
 [ -x "$APP/venv/bin/python" ] || "$PY" -m venv "$APP/venv"
 "$APP/venv/bin/pip" install -q --upgrade pip
 "$APP/venv/bin/pip" install -q -r "$REPO/requirements.txt"
+# speech recognition for subtitles (about 250 MB; the ~3 GB model is a separate download from the panel)
+if [ "${1:-}" = "--subtitles" ]; then "$APP/venv/bin/pip" install -q -r "$REPO/requirements-asr.txt"; fi
 
 cat > "$PLIST" <<PL
 <?xml version="1.0" encoding="UTF-8"?>
