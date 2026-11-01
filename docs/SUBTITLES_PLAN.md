@@ -86,8 +86,9 @@ Bulgarian accuracy and timing judged by the user; speed on the Mac and on the Wi
 
 ## M0 results (2026-11-01 18:43-18:50, TEST.prproj, panel/engine 0.9.39, through the bridge)
 - **P1 SRT import: works.** `project.importFiles([utf8.srt, bom.srt], true, bin, false)` → `true`; both appear in the bin
-  „Asistent тест“ as `ClipProjectItem`, `type` 1, `getContentType()` 1, media path = the .srt. Whether the Cyrillic text is
-  intact (with and without BOM) is NOT visible through the API: the user drags each over a sequence and looks.
+  „Asistent тест“ as `ClipProjectItem`, `type` 1, `getContentType()` 1, media path = the .srt. Cyrillic checked by the user
+  (dragged over the sequence, Premiere made a caption track): both files, UTF-8 with and without BOM, show the text
+  correctly. Asistent writes UTF-8 with BOM (safer for Premiere on Windows; same result on the Mac).
 - **P2 caption placement: does not work.** `createOverwriteItemAction` and `createInsertProjectItemAction` with the SRT
   item at the sequence end (+5 s, top video/audio track) each committed a transaction without an error, but nothing
   appeared: caption tracks 0 → 0, video/audio tracks unchanged, no item after the end. (Two empty Undo steps
