@@ -63,8 +63,8 @@ function colorSliders(fixTemp, fixTint) {
   return call("POST", "/color/sliders", { fix_temp: fixTemp, fix_tint: fixTint });
 }
 
-function colorCheck(before, after, applied, fix) {
-  return call("POST", "/color/check", { before, after, applied, fix });
+function colorCheck(before, after, applied, fix, final = false) {
+  return call("POST", "/color/check", { before, after, applied, fix, final });
 }
 
 function waitFrame(path, timeout = 20) {

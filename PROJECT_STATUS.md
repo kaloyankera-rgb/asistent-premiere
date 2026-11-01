@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.18 (2026-11-01)
+# Project status — Asistent 0.9.19 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.18 via
-UnifiedPluginInstallerAgent, engine 0.9.18 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 127 pytest + 19 node, all passing at 0.9.18.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.19 via
+UnifiedPluginInstallerAgent, engine 0.9.19 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 128 pytest + 20 node, all passing at 0.9.19.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -81,7 +81,12 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   them as Rec.709 with any existing correction included, so a corrected clip measures as fine. Fewer than two
   usable frames (covered, export failed) → measured on the file, `status: REVIEW_NEEDED`, confidence low
   (shown, never applied). Log sources measured on the timeline: confidence low until the colour-management
-  step shows whether Premiere converts them. NOT verified in Premiere yet. Attempt 12:26 on fx31031 was skipped: the
+  step shows whether Premiere converts them.
+- 12:58 (C0739, 0.9.18): analysis measured on 4 timeline frames (verified); the clip had no correction (the
+  12:40 one was undone), so +0.5 again was right and the apply reproduced 12:40 exactly. Bug found: the final
+  re-check was labelled STEP_BACK. 0.9.19: the panel sends `final` on the re-check; the engine then gives the
+  verdict only (replayed on the real frames: ACCEPTED_WITH_WARNING, the specified message).
+- NOT verified yet: re-running „Цвят“ on a clip that IS corrected (should suggest nothing). Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.

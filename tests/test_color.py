@@ -510,3 +510,22 @@ def test_timeline_preview_comes_from_the_timeline_frames(frames_dir):
     tl = [_png(C.encode(scene() / 2), frames_dir / f"p_{k}.png") for k in range(3)]
     r = C.analyze_items([{"path": "/nowhere/C0006.MP4", "frames": tl}], with_preview=True)["items"][0]
     assert r["preview"]["before"] and r["preview"]["after"] and r["preview"]["portrait"] is False
+
+
+def test_final_recheck_gets_a_verdict_never_a_step_back(tmp_path):
+    # C0739 12:58 regression: the re-check at 3.08 % was labelled STEP_BACK („сваля се веднъж с 0.05“)
+    import subprocess as sp
+    rng = np.random.default_rng(3)
+    lin = rng.uniform(0.0, 1.0, size=(120, 160, 1)) ** 3 * 0.6 * np.ones(3)
+    paths = []
+    for name, u in (("b", 0.0), ("a", 1.0)):
+        raw = (C.encode(lin * 2 ** u) * 65535).astype("<u2")
+        p = tmp_path / f"{name}.png"
+        sp.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb48le", "-s", "160x120", "-i", "-",
+                "-frames:v", "1", str(p)], input=raw.tobytes(), check=True)
+        paths.append(str(p))
+    cal = C.Calibration(str(tmp_path / "l.json"))
+    r = C.check_render(paths[0], paths[1], 1.0, cal, final=True)
+    assert r["new_clipping"] > C.NEW_CLIP
+    assert "pullback_units" not in r and r["clipping_status"] != "STEP_BACK"
+    assert "No further correction applied" in r["clipping_message"]

@@ -59,3 +59,9 @@ test("every panel module that is required is packed into the .ccx", () => {
     for (const m of src.matchAll(/require\("\.\/([^"]+)"\)/g)) assert.ok(zipped.has(m[1]), `${f} needs ${m[1]}, not packed`);
   }
 });
+
+test("the re-check after the step back is sent as final (C0739 12:58 regression)", () => {
+  const color = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
+  assert.match(color, /const chk2 = [^\n]*checkWithRetry\([^\n]*, true\)\)/);
+  assert.match(fs.readFileSync(path.join(panel, "engine.js"), "utf8"), /"\/color\/check", \{[^}]*final/);
+});
