@@ -1,12 +1,11 @@
-"""The subtitle choices the editor makes once per project: who speaks (авто / мъж / жена) and the corrections and
-names text (corrections.py). Kept in the app folder, keyed by the project file, so the panel shows them again."""
+"""The subtitle choice the editor makes once per project: the corrections and names text (corrections.py). Kept in the app folder, keyed by the project file, so the panel shows them again."""
 from __future__ import annotations
 
 import json
 import os
 import threading
 
-from . import config, corrections, gender
+from . import config, corrections
 
 _lock = threading.Lock()
 
@@ -31,21 +30,19 @@ def _load() -> dict:
 def get(project: str) -> dict:
     with _lock:
         s = _load().get(_key(project)) or {}
-    return {"gender": s.get("gender", "auto"), "text": s.get("text", "")}
+    return {"text": s.get("text", "")}
 
 
-def put(project: str, who: str, text: str) -> dict:
+def put(project: str, text: str) -> dict:
     if not project:
         raise ValueError("Липсва проект.")
-    if who not in gender.SETTINGS:
-        raise ValueError("Невалиден избор за говорещия (авто, мъж или жена).")
     if not isinstance(text, str) or len(text) > corrections.MAX_TEXT:
         raise ValueError("Невалиден текст с корекции и термини.")
     with _lock:
         data = _load()
-        data[_key(project)] = {"gender": who, "text": text}
+        data[_key(project)] = {"text": text}
         tmp = _path() + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=1)
         os.replace(tmp, _path())
-    return {"gender": who, "text": text, "errors": corrections.parse(text)["errors"]}
+    return {"text": text, "errors": corrections.parse(text)["errors"]}

@@ -112,8 +112,8 @@ function subtitleSettings(project) {
   return call("GET", `/subtitles/settings?project=${encodeURIComponent(project)}`);
 }
 
-function saveSubtitleSettings(project, gender, text) {
-  return call("POST", "/subtitles/settings", { project, gender, text });
+function saveSubtitleSettings(project, text) {
+  return call("POST", "/subtitles/settings", { project, text });
 }
 
 function captionsState(project, sequence) {

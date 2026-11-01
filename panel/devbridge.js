@@ -90,15 +90,42 @@ function createBridge({ premiere, premiereColor, doc, version, engineApi = engin
       const ppro = require("premierepro");
       const Sel = ppro.TrackItemSelection;
       if (!Sel || !premiere.has(Sel, "createEmptySelection")) throw new Error("Няма TrackItemSelection в това API.");
-      const sel = await Sel.createEmptySelection();
-      for (const x of chosen) await sel.addItem(x.ti, true);
-      await t.sequence.setSelection(sel);
+      const step = [];
+      let sel;
+      for (const args of [[], [t.sequence], [() => {}]]) {
+        try {
+          sel = await Sel.createEmptySelection(...args);
+          break;
+        } catch (e) {
+          step.push(`createEmptySelection/${args.length}: ${(e && e.message) || e}`);
+        }
+      }
+      if (!sel) throw new Error(step.join(" | "));
+      for (const x of chosen) {
+        let ok = false;
+        for (const args of [[x.ti], [x.ti, true], [x.ti, true, true], [x.ti, false, true]]) {
+          try {
+            await sel.addItem(...args);
+            ok = true;
+            break;
+          } catch (e) {
+            step.push(`addItem/${args.length}: ${(e && e.message) || e}`);
+          }
+        }
+        if (!ok) throw new Error(step.join(" | "));
+      }
+      try {
+        await t.sequence.setSelection(sel);
+      } catch (e) {
+        step.push(`setSelection(sel): ${(e && e.message) || e}`);
+        throw new Error(step.join(" | "));
+      }
       const again = await premiere.readTimeline(p);
       return { requested: chosen.map(brief), selected: again.items.filter((x) => x.selected).map(brief) };
     },
-    // fill one of the subtitle boxes (speaker select, corrections textarea) the way a person would
+    // fill the corrections box the way a person would
     async fill(a) {
-      if (!["speaker", "notes"].includes(a.id)) throw new Error("fill: само speaker или notes.");
+      if (a.id !== "notes") throw new Error("fill: само notes.");
       const e = doc.getElementById(a.id);
       e.value = String(a.value);
       return { id: a.id, value: e.value };

@@ -4,7 +4,7 @@
   dev_cmd.py on | off                   create / remove the flag file (the bridge is off without it)
   dev_cmd.py ping | state | selection | timeline [json args]
   dev_cmd.py click "Цвят: бяло и експозиция"       press a panel button by its label
-  dev_cmd.py fill '{"id": "speaker", "value": "male"}'   fill the speaker select / the corrections box ("notes")
+  dev_cmd.py fill '{"id": "notes", "value": "раф => рафт"}'   fill the corrections box
   dev_cmd.py wait_idle [seconds]                     wait until the panel is not busy, print its answer
   dev_cmd.py select '{"names": ["fx39026"]}'         select clips on the timeline (API unverified)
   dev_cmd.py frame '{"seconds": 12.5, "name": "a"}'  export a sequence frame into the engine's frames folder

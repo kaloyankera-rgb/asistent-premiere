@@ -85,13 +85,6 @@ function describeResult(r) {
   for (const f of fixes.filter((x) => !x.applied)) {
     lines.push({ cls: "warn", text: `Корекцията „${f.heard}“ → „${f.said}“ не намери тези думи в разпознатото (пишат се така, както се виждат в субтитрите).` });
   }
-  const g = r.gender;
-  if (g && g.changed && g.changed.length) {
-    const who = g.used === "m" ? "мъжки" : "женски";
-    lines.push({ cls: "line", text: `${g.setting === "auto" ? "Авто" : "Говорещ"}: ${who} род: ${g.changed.map((c) => `„${c.from}“ → „${c.to}“ (${clock(c.at)})`).join(", ")}.` });
-  } else if (g && g.setting === "auto" && g.used) {
-    lines.push({ cls: "hint", text: `Авто: говорещият е ${g.used === "m" ? "мъж" : "жена"} (по ${(g.evidence.m || 0) + (g.evidence.f || 0)} четения на формите „съм …л/ла“); нищо не трябваше да се сменя.` });
-  }
   const rd = r.readings;
   if (rd && rd.changed) lines.push({ cls: "line", text: `${rd.changed} ${rd.changed === 1 ? "дума е сменена" : "думи са сменени"}, защото повечето четения и речникът са за друга дума.` });
   for (const d of r.duplicates || []) {
