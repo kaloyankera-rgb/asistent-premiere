@@ -14,7 +14,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /log                  {"level": "info"|"error", "message": "..."} panel messages into the engine log
   POST /color               {"items": [{"path", "start", "end"}]} -> job: exposure + white balance + preview
   POST /color/sliders        {"fix_temp", "fix_tint"} -> Lumetri Temperature/Tint (learnt calibration)
-  POST /color/check          {"before", "after", "applied": {...}, "fix": {...}} -> verify a Premiere render
+  POST /color/check          {"before", "after", "applied": {...}, "fix": {...}, "clip_tolerance"?} -> verify a
+                             Premiere render; clipping_status ACCEPTED / ACCEPTED_WITH_WARNING / REVIEW_NEEDED
   POST /color/probe          {"refs": {"baseline", "source"?}, "frames": [{"path", ...}], "report"?}
                              -> Lumetri parameter responses + capability table, saved to lumetri_capabilities.json
   POST /frames/wait          {"path", "timeout"?} -> {"path": file|null} once Premiere finished writing the frame
@@ -258,7 +259,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not (before and after):
                     raise ValueError("Няма изнесени кадри за проверка.")
                 applied, fix = body.get("applied") or {}, body.get("fix") or {}
-                res = COLOR.check_render(before, after, float(applied.get("exposure") or 0))
+                # clip_tolerance: the soft tolerance above the 3 % target (default 0.25 points), configurable per call
+                tol = float(body.get("clip_tolerance", COLOR.CLIP_SOFT_TOLERANCE))
+                res = COLOR.check_render(before, after, float(applied.get("exposure") or 0),
+                                         soft_tolerance=min(max(tol, 0.0), 0.02))
                 b = COLOR.measure(COLOR.read_image(before))
                 cb = b.get("cast_neutral") or b.get("cast_world")
                 if cb and res["cast_after"]:

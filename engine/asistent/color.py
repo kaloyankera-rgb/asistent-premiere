@@ -28,6 +28,10 @@ MID_TARGET = 0.42             # encoded median of an average scene
 STEP = 0.5
 MAX_STOPS = 2.0               # the user's range: +0.5 … +2 (and the same down)
 NEW_CLIP = 0.03               # brightening may burn out at most this much more of the picture
+CLIP_SOFT_TOLERANCE = 0.0025  # up to 0.25 points over NEW_CLIP the final result is accepted with a warning
+SKIN_CLIP_LIMIT = 0.01        # newly clipped share of the skin area that makes a result need review
+LIGHT_LEVEL = 0.90            # already this bright before (lamps, windows, sky, reflections): usually intended
+SKIN_ON_TARGET = 0.2          # stops from the skin/mid-tone target that still count as "preserved"
 BALANCED = (0.08, 0.05)       # |temp|, |tint| below this: leave it
 MAX_FIX = (0.8, 0.4)          # never correct more than this in one go
 SEARCH = (0.9, 0.5)           # |temp|, |tint| a camera cast can have: only there a surface may count as grey
@@ -329,7 +333,8 @@ def new_clipping(before: np.ndarray, after: np.ndarray) -> float:
     return float(np.mean(a & ~b))
 
 
-def check_render(before_path: str, after_path: str, exposure_units: float = 0.0, cal=None) -> dict:
+def check_render(before_path: str, after_path: str, exposure_units: float = 0.0, cal=None,
+                 soft_tolerance: float = CLIP_SOFT_TOLERANCE) -> dict:
     """Two frames exported by Premiere (without / with the correction): how neutral and how bright the
     result is, and how much burnt out. Used to verify and, if needed, step the correction back."""
     b, a = read_image(before_path), read_image(after_path)
@@ -342,7 +347,80 @@ def check_render(before_path: str, after_path: str, exposure_units: float = 0.0,
            "skin_after": round(ma.get("skin", 0.0), 4)}
     if exposure_units > 0 and out["new_clipping"] > NEW_CLIP:
         out["pullback_units"] = pullback_units(b, a, exposure_units, cal or Calibration())
+    out["clipping_regions"] = clipping_regions(b, a)
+    out.update(classify_clipping(out["new_clipping"], out["clipping_regions"], out["exposure_after"], soft_tolerance))
+    if out.get("pullback_units"):
+        # not a final verdict: the validated one-time step back follows and the re-check gives the verdict
+        pct = f"{round(out['new_clipping'] * 10000) / 100:.2f}%"
+        out.update(clipping_status="STEP_BACK",
+                   clipping_message=f"Highlight clipping {pct} is over the target: Exposure steps back "
+                                    f"{out['pullback_units']} units once and is re-checked.",
+                   clipping_message_bg=f"Изгорели {pct}, над границата: експозицията се сваля веднъж с "
+                                       f"{out['pullback_units']} и се проверява пак.")
     return out
+
+
+def clipping_regions(before: np.ndarray, after: np.ndarray) -> dict:
+    """Where the new clipping is: on skin (what matters most), in areas that were already near white before
+    (lamps, windows, sky, reflections: usually intended), or in other detail. `skin` is a share of the skin
+    area, `light` and `detail` are shares of the whole picture (they add up to the new clipping).
+
+    Skin means skin TONES: only skin-coloured pixels below LIGHT_LEVEL before. Warm near-white highlights also
+    fall in the skin colour box (C0739: 189 scattered pixels across the whole frame, all 0.94-0.97 before),
+    and calling them burnt skin turned a good result into REVIEW_NEEDED."""
+    mb, ma = np.max(before, axis=-1), np.max(after, axis=-1)
+    was = mb >= 0.97
+    new = (ma >= 0.97) & ~was
+    skin = _skin(before) & (mb < LIGHT_LEVEL)
+    light = new & (mb >= LIGHT_LEVEL)
+    return {"skin": round(float(np.mean(new[skin])), 4) if np.mean(skin) >= 0.005 else 0.0,
+            "light": round(float(np.mean(light)), 4), "detail": round(float(np.mean(new & ~light)), 4)}
+
+
+def classify_clipping(new: float, regions: dict | None = None, exposure_after: float | None = None,
+                      soft_tolerance: float = CLIP_SOFT_TOLERANCE, limit: float = NEW_CLIP) -> dict:
+    """Status of the final clipping. Never asks for another correction: it only says how good the result is.
+
+    ACCEPTED ≤ limit; ACCEPTED_WITH_WARNING up to `soft_tolerance` above it (verified C0739: 3.08 % with the
+    skin on target is a good result, another step would only darken the skin), or above that when the excess
+    is all in areas that were already near white; REVIEW_NEEDED when skin clips or real detail goes beyond the
+    tolerance. Compared in hundredths of a percent, so 3.25 % is inside the tolerance and 3.26 % is not."""
+    regions = regions or {}
+    bp, lim, top = round(new * 10000), round(limit * 10000), round((limit + soft_tolerance) * 10000)
+    pct, target = f"{bp / 100:.2f}%", f"≤{lim / 100:.2f}%"
+    skin_ok = exposure_after is None or abs(exposure_after) < SKIN_ON_TARGET
+    skin_clip = regions.get("skin", 0.0)
+    if skin_clip > SKIN_CLIP_LIMIT:
+        status = "REVIEW_NEEDED"
+        en = (f"Highlight clipping on skin ({skin_clip * 100:.1f}% of the skin area, {pct} of the picture). "
+              "No further correction applied: review the exposure by hand.")
+        bg = (f"Кожата изгаря ({skin_clip * 100:.1f}% от кожата, {pct} от кадъра). "
+              "Нищо повече не е пипано: провери експозицията ръчно.")
+    elif bp <= lim:
+        status = "ACCEPTED"
+        en = f"Highlight clipping within target ({pct}, target {target})."
+        bg = f"Изгорелите места са в границата ({pct}, граница {target})."
+    elif bp <= top or round(regions.get("detail", new) * 10000) <= lim:
+        status = "ACCEPTED_WITH_WARNING"
+        light = bp > top                        # over the tolerance only because of lamps, windows, sky
+        skin_en = " Skin exposure is preserved." if skin_ok else ""
+        skin_bg = " Кожата е запазена." if skin_ok else ""
+        if light:
+            en = (f"Highlight clipping remains ({pct}, target {target}), mostly in areas that were already near "
+                  f"white (lamps, windows, sky: {regions.get('light', 0) * 100:.2f}%).{skin_en} "
+                  "No further correction applied.")
+            bg = (f"Остават изгорели места ({pct}, граница {target}), главно където вече беше почти бяло "
+                  f"(лампи, прозорци, небе: {regions.get('light', 0) * 100:.2f}%).{skin_bg} Нищо повече не е пипано.")
+        else:
+            en = f"Minor highlight clipping remains ({pct}, target {target}).{skin_en} No further correction applied."
+            bg = f"Остават малко изгорели места ({pct}, граница {target}).{skin_bg} Нищо повече не е пипано."
+    else:
+        status = "REVIEW_NEEDED"
+        en = (f"Highlight clipping above tolerance ({pct}, target {target}, tolerance "
+              f"+{soft_tolerance * 100:.2f}). No further correction applied: pull Highlights/Whites by hand.")
+        bg = (f"Изгорелите места са над допустимото ({pct}, граница {target}). Нищо повече не е пипано: "
+              "прибери светлите части ръчно (Highlights/Whites).")
+    return {"clipping_status": status, "clipping_message": en, "clipping_message_bg": bg}
 
 
 def pullback_units(before: np.ndarray, after: np.ndarray, units: float, cal, limit: float = NEW_CLIP) -> float:

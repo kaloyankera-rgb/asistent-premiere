@@ -248,6 +248,7 @@ async function apply(project, timeline, plans) {
     } else if (pl.wb && chk.residual) {
       pl.lines.push("проверено на кадър: бялото е неутрално");
     }
+    if (!pl.recheck && chk.clipping_status && chk.clipping_status !== "ACCEPTED") pl.lines.push(finalLine(chk));
     if (Object.keys(fixValues).length) second.push(...setActions(pl.t, fixValues));
     pl.final = { ...pl.values, ...fixValues };
   }
@@ -267,19 +268,21 @@ async function apply(project, timeline, plans) {
       continue;
     }
     debug(`color recheck ${pl.clip.name}: ${JSON.stringify(chk2)}`);
-    const burnt = `${(chk2.new_clipping * 100).toFixed(1)}%`;
-    const skin = typeof chk2.exposure_after === "number" ? skinLine(chk2.exposure_after) : "";
-    pl.lines.push(chk2.new_clipping > 0.03
-      ? `след свалянето още изгорели ${burnt}: светлите части може да се приберат ръчно (Highlights/Whites)${skin}`
-      : `след свалянето изгорели ${burnt}, в границата${skin}`);
+    pl.lines.push(`след свалянето: ${finalLine(chk2)}`);
   }
   return { steps };
 }
 
-// how far the measured brightness is from the target after the correction, in plain words
-function skinLine(stops) {
-  if (Math.abs(stops) < 0.2) return "; яркостта е в целта";
-  return `; ${Math.abs(stops).toFixed(1)} стопа ${stops > 0 ? "по-тъмно" : "по-светло"} от целта`;
+// The engine's verdict on the final clipping (ACCEPTED / ACCEPTED_WITH_WARNING / REVIEW_NEEDED) in its
+// Bulgarian wording, plus how far the brightness is from the target when that is not already said.
+// It only reports: no status ever triggers another correction.
+function finalLine(chk) {
+  const pct = `${(chk.new_clipping * 100).toFixed(2)}%`;
+  const msg = chk.clipping_message_bg || (chk.new_clipping > 0.03 ? `изгорели ${pct}` : `изгорели ${pct}, в границата`);
+  const stops = chk.exposure_after;
+  if (typeof stops !== "number" || /Кожата е запазена/.test(msg)) return msg;
+  if (Math.abs(stops) < 0.2) return `${msg} Яркостта е в целта.`;
+  return `${msg} Яркостта е ${Math.abs(stops).toFixed(1)} стопа ${stops > 0 ? "под" : "над"} целта.`;
 }
 
 module.exports = { readVideoSelection, apply, exportFrame };

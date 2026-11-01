@@ -324,3 +324,113 @@ def test_pullback_uses_the_curve_for_bright_pixels(tmp_path):
     b, a = C.encode(lin), C.encode(lin * 2)
     # highlights move slowly per unit, so taking them back under the limit costs more units
     assert C.pullback_units(b, a, 1.0, curved) > C.pullback_units(b, a, 1.0, flat)
+
+
+# ---- final clipping verdict (soft tolerance 0.25 points over the 3 % target; verified case C0739: 3.08 %)
+
+@pytest.mark.parametrize("pct, status", [
+    (3.00, "ACCEPTED"),
+    (3.01, "ACCEPTED_WITH_WARNING"),
+    (3.08, "ACCEPTED_WITH_WARNING"),
+    (3.25, "ACCEPTED_WITH_WARNING"),
+    (3.26, "REVIEW_NEEDED"),
+])
+def test_clipping_boundaries(pct, status):
+    new = pct / 100
+    v = C.classify_clipping(new, {"skin": 0.0, "light": 0.0, "detail": new}, exposure_after=0.10)
+    assert v["clipping_status"] == status
+
+
+def test_c0739_message_exactly():
+    # 12:40 recheck: 3.08 % newly clipped, skin 0.10 stop from target
+    v = C.classify_clipping(0.0308, {"skin": 0.0, "light": 0.0, "detail": 0.0308}, exposure_after=0.10057)
+    assert v["clipping_status"] == "ACCEPTED_WITH_WARNING"
+    assert v["clipping_message"] == ("Minor highlight clipping remains (3.08%, target ≤3.00%). "
+                                     "Skin exposure is preserved. No further correction applied.")
+    assert "Кожата е запазена" in v["clipping_message_bg"]
+
+
+def test_skin_preserved_is_claimed_only_when_true():
+    v = C.classify_clipping(0.0308, {"skin": 0.0, "detail": 0.0308}, exposure_after=0.45)
+    assert v["clipping_status"] == "ACCEPTED_WITH_WARNING"
+    assert "Skin exposure is preserved" not in v["clipping_message"]
+
+
+def test_tolerance_is_configurable():
+    r = {"skin": 0.0, "light": 0.0, "detail": 0.0308}
+    assert C.classify_clipping(0.0308, r, 0.1, soft_tolerance=0.0)["clipping_status"] == "REVIEW_NEEDED"
+    assert C.classify_clipping(0.0340, {**r, "detail": 0.034}, 0.1, soft_tolerance=0.005)["clipping_status"] \
+        == "ACCEPTED_WITH_WARNING"
+
+
+def test_clipping_on_skin_needs_review_even_under_the_target():
+    v = C.classify_clipping(0.02, {"skin": 0.05, "light": 0.0, "detail": 0.02}, exposure_after=0.0)
+    assert v["clipping_status"] == "REVIEW_NEEDED" and "skin" in v["clipping_message"]
+
+
+def test_excess_in_lamps_and_windows_is_a_warning_not_a_review():
+    # 4 % in all, but 2.5 % of it was near white already (a window): the detail itself is under 3 %
+    v = C.classify_clipping(0.04, {"skin": 0.0, "light": 0.025, "detail": 0.015}, exposure_after=0.05)
+    assert v["clipping_status"] == "ACCEPTED_WITH_WARNING" and "near white" in v["clipping_message"]
+    # the same 4 % in real detail is over the tolerance
+    v = C.classify_clipping(0.04, {"skin": 0.0, "light": 0.0, "detail": 0.04}, exposure_after=0.05)
+    assert v["clipping_status"] == "REVIEW_NEEDED"
+
+
+def test_clipping_regions_split_window_from_skin_and_detail():
+    h, w = 200, 300
+    before = np.full((h, w, 3), 0.5)
+    before[:, :60] = 0.93                                  # a window, near white already
+    before[:100, 100:160] = C.encode(np.array([0.45, 0.28, 0.20]) * 1.2)   # skin, stays under the clip
+    before[150:, 200:] = 0.85                              # a pale wall (detail)
+    after = np.clip(before * 1.15, 0, 1)                   # everything above ~0.84 burns out
+    r = C.clipping_regions(before, after)
+    assert r["skin"] == 0.0
+    assert r["light"] == pytest.approx(60 * h / (h * w), abs=1e-3)
+    assert r["detail"] == pytest.approx(50 * 100 / (h * w), abs=1e-3)
+    assert r["light"] + r["detail"] == pytest.approx(C.new_clipping(before, after), abs=1e-3)
+    burnt_skin = np.clip(before * 1.4, 0, 1)               # now the skin patch clips too
+    assert C.clipping_regions(before, burnt_skin)["skin"] > C.SKIN_CLIP_LIMIT
+
+
+def test_verdict_never_changes_the_validated_step_back(tmp_path):
+    # the classification is reporting only: pullback_units and its 3 % target are untouched
+    cal = C.Calibration(str(tmp_path / "lumetri.json"))
+    rng = np.random.default_rng(3)
+    lin = rng.uniform(0.0, 1.0, size=(300, 400, 1)) ** 3 * 0.6 * np.ones(3)
+    shot = lambda u: C.encode(lin * 2 ** u)
+    assert C.pullback_units(shot(0), shot(1.0), 1.0, cal) == C.pullback_units(shot(0), shot(1.0), 1.0, cal,
+                                                                               limit=C.NEW_CLIP)
+
+
+def test_warm_near_white_highlights_are_not_burnt_skin():
+    # C0739 regression: warm pixels at 0.94-0.97 sit in the skin colour box; their clipping is a highlight,
+    # and the 3.08 % result must stay ACCEPTED_WITH_WARNING
+    h, w = 200, 300
+    before = np.full((h, w, 3), 0.45)
+    before[:100, 100:160] = C.encode(np.array([0.45, 0.28, 0.20]) * 1.2)       # real skin, stays fine
+    warm = np.array([0.955, 0.86, 0.80])                                           # warm near-white glow
+    assert C._skin(warm[None, None, :])[0, 0]                                      # it does pass as skin colour
+    before[150:, :] = warm
+    after = before.copy()
+    after[150:, :] = 1.0                                                           # the glow burns out
+    r = C.clipping_regions(before, after)
+    assert r["skin"] == 0.0 and r["detail"] == 0.0 and r["light"] > 0
+    v = C.classify_clipping(0.0308, {**r, "light": 0.0308}, exposure_after=0.10)
+    assert v["clipping_status"] == "ACCEPTED_WITH_WARNING"
+
+
+def test_first_check_before_a_step_back_is_not_a_final_verdict(tmp_path):
+    import subprocess as sp
+    rng = np.random.default_rng(3)
+    lin = rng.uniform(0.0, 1.0, size=(120, 160, 1)) ** 3 * 0.6 * np.ones(3)
+    paths = []
+    for name, u in (("b", 0.0), ("a", 1.0)):
+        raw = (C.encode(lin * 2 ** u) * 65535).astype("<u2")
+        p = tmp_path / f"{name}.png"
+        sp.run(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb48le", "-s", "160x120", "-i", "-",
+                "-frames:v", "1", str(p)], input=raw.tobytes(), check=True)
+        paths.append(str(p))
+    r = C.check_render(paths[0], paths[1], 1.0, C.Calibration(str(tmp_path / "l.json")))
+    assert r["pullback_units"] > 0 and r["clipping_status"] == "STEP_BACK"
+    assert "No further correction" not in r["clipping_message"]
