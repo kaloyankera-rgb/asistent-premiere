@@ -201,9 +201,14 @@ captions, file path. Verified by tests: mix at the right sequence times with a s
 validation, cache hit, auto preset by sequence shape, cancel writes nothing (16 + 1 pytest, 9 node + 1 wiring).
 Verified end to end through the live engine on a real clip (fx39011, 11 s, Bulgarian): 4 captions / 8 words in 10.1 s
 (2.8x real time), times start at the item's sequence position, second run (other preset) 0.2 s from the cache.
-**NOT verified in Premiere:** the panel section itself, `getVideoFrameRect`/`getVideoFrameSize` (the API names are
-guesses; if neither works the preset falls back to „кратки“ and the log says so), selection → payload. „Имена и термини“
-(Whisper prompt) has no field yet. Next: M4 review + import into the bin („Внеси в проекта“, one Undo).
+**Verified in Premiere (user, 2026-11-01 21:56, TEST.prproj, SYNC sequence 2160x3840 at 59.94 fps):** the section works:
+4 selected audio items, 4 more skipped as „дублира A1“ (duplicate rule works), frame size read as 2160x3840 (so one of
+`getVideoFrameRect`/`getVideoFrameSize` exists) → preset „кратки“, 34 captions / 60 words (8 uncertain) from 23.4 s of
+mix in 19.7 s, SRT + JSON written in `<project folder>/Asistent_subtitles/`. Not yet judged by the user: Bulgarian
+accuracy and caption timing against the picture. Observation: in the short preset glued function words give captions
+longer than 2 words („и аз да видим“, „то и за граднината“); the M1 rule is „function words never end a line“, so this is
+by design but may look too long for 9:16: ask the user. „Имена и термини“ (Whisper prompt) has no field yet.
+Next: M4 review + import into the bin („Внеси в проекта“, one Undo).
 
 ## Phases 7–9 (Planned)
 7 Bulgarian subtitles (faster-whisper; reuse `tools/autoedit/asr.py` by copying), 8 rough-cut markers and
