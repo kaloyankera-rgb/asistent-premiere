@@ -57,7 +57,10 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
   brightening only; darkening still 1:1, unmeasured); the panel writes units and shows stops = units.
   Probe values (`probe` in `lumetri.json`: temp −50, tint −66.67) are authoritative; a render check learns
   only an axis the probe never measured and never from a render that also changed Exposure.
-- NOT verified: an apply with the 0.9.14 units reaching the skin target. Attempt 12:26 on fx31031 was skipped: the
+- **Apply with the curve verified (12:29, fx31032, 0.9.15):** +1.5 stops → Exposure 1.7 units; skin 0.14 stop
+  short (was 0.28 with 1:1 units), white residual 0.047 (neutral), Temperature −5.1 / Tint 2.4 from the probe
+  values, nothing learnt (correct). 5.6 % newly clipped → stepped back a fixed 0.5 to 1.2 units: that final
+  state is NOT re-checked (skin likely ~0.5 stop under again, clipping after the step unknown). Attempt 12:26 on fx31031 was skipped: the
   clip already had a graded Lumetri (left alone by design); 0.9.15 no longer reports such a press as „Приложено“.
   Earlier probe runs 12:03-12:10 (0.9.10/0.9.11) were invalid (queued exports, reused file names); their calibration
   is kept aside in `lumetri.before-0.9.12.json`.
