@@ -30,23 +30,13 @@ test("speed, reversed, offline and empty items are skipped and named with the re
     "empty (без дължина)"]);
 });
 
-test("the same speech on two tracks is transcribed once: the lowest track wins", () => {
+test("duplicates are left to the engine: every eligible item is sent, in timeline order, with its track", () => {
   const p = planDialogue([
     item({ name: "POV2", track: 2, path: "/pov2.mp4" }),
     item({ name: "lav", track: 0, path: "/lav.wav" }),
-    item({ name: "POV1", track: 1, path: "/pov1.mp4", start: 1, end: 11 }),       // 90 % covered by A1
+    item({ name: "later", track: 1, start: 20, end: 30 }),
   ]);
-  assert.deepStrictEqual(p.use.map((x) => x.name), ["lav"]);
-  assert.deepStrictEqual(p.skipped, ["POV1 (пропуснат, дублира A1)", "POV2 (пропуснат, дублира A1)"]);
-});
-
-test("items that only touch, or overlap by less than half, are both kept; same track never duplicates itself", () => {
-  const p = planDialogue([
-    item({ name: "one", track: 0, start: 0, end: 10 }),
-    item({ name: "two", track: 1, start: 8, end: 20 }),                           // overlap 2 of 12 s
-    item({ name: "three", track: 0, start: 10, end: 14 }),
-  ]);
-  assert.deepStrictEqual(p.use.map((x) => x.name), ["one", "two", "three"]);
+  assert.deepStrictEqual(p.use.map((x) => [x.name, x.track]), [["lav", 0], ["POV2", 2], ["later", 1]]);
   assert.deepStrictEqual(p.skipped, []);
 });
 
@@ -71,13 +61,15 @@ test("dirOf takes the folder of a project path on both systems", () => {
 test("describeResult: counts, uncertain words, skipped clips, first captions, file", () => {
   const caps = Array.from({ length: 10 }, (_, i) => ({ start: 65 + i, end: 66 + i, text: i === 0 ? "Здравейте\nприятели" : "ред", flags: i === 1 ? [{}] : [] }));
   const r = describeResult({ counts: { captions: 10, words: 20, flagged: 1 }, preset: "short", fps: 29.97002997, cached: false,
-    asr_seconds: 10.2, mix_seconds: 29, skipped: ["B (дублира A1)"], captions: caps, srt: "/p/Asistent_subtitles/x.srt" });
+    asr_seconds: 10.2, mix_seconds: 29, skipped: ["B (дублира A1)"],
+    duplicates: [{ dropped: "C9013.MP4", kept: "fx39013.MP4", kept_snr_db: 45, dropped_snr_db: 20, kept_rest_seconds: 4 }], captions: caps, srt: "/p/Asistent_subtitles/x.srt" });
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r.text, "Готово: 10 реда субтитри.");
   const all = r.lines.map((l) => l.text).join("\n");
   assert.match(all, /20 думи · вид кратки \(9:16\) · 29\.97 fps · разпознаване 10\.2 s за 29 s звук/);
   assert.match(all, /1 несигурни думи/);
   assert.match(all, /Пропуснат: B \(дублира A1\)/);
+  assert.match(all, /C9013\.MP4 и fx39013\.MP4 чуват едно и също: взет е fx39013\.MP4 \(по-чист звук, 45 dB срещу 20 dB; 4 s от C9013\.MP4 са запазени/);
   assert.match(all, /1:05\.0  Здравейте \/ приятели/);
   assert.match(all, /1:06\.0  ред {2}\?/);                        // the flagged caption is marked
   assert.match(all, /още 2 реда/);

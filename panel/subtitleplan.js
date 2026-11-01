@@ -1,11 +1,7 @@
-// Pure logic of the „СУБТИТРИ“ section (no Premiere here, so node can test it): which selected audio items form the
-// dialogue, why the others are left out, how the sequence frame size is read, and how the engine's answer is
-// shown. Overlap rule (SUBTITLES_PLAN.md): audio items of different cameras that carry the same speech sit on
-// different tracks at the same time; the lowest track wins and the others are named as duplicates.
-
-const DUPLICATE_SHARE = 0.5;      // an item covered this much by a lower-track item is a duplicate of it
-
-const label = (it) => `A${it.track + 1}`;
+// Pure logic of the „СУБТИТРИ“ section (no Premiere here, so node can test it): which selected audio items are sent
+// to the engine, why the others are left out, how the sequence frame size is read, and how the engine's answer is
+// shown. Duplicates (several cameras hearing the same speech) are decided by the engine, which can listen: it keeps
+// the cleanest copy (dialoguemix.py), not the one on the lowest track.
 
 /**
  * items: panel items from premiere.readTimeline() ({kind, track, start, end, inPt, path, name, speed, reversed,
@@ -24,24 +20,8 @@ function planDialogue(items) {
     else if (!(x.end > x.start)) skipped.push(`${name} (без дължина)`);
     else usable.push(x);
   }
-  usable.sort((a, b) => a.track - b.track || a.start - b.start);
-  const kept = [];
-  for (const x of usable) {
-    const dur = x.end - x.start;
-    let twin = null;
-    for (const k of kept) {
-      if (k.track === x.track) continue;               // same track never overlaps itself
-      const overlap = Math.min(k.end, x.end) - Math.max(k.start, x.start);
-      if (overlap >= DUPLICATE_SHARE * dur) {
-        twin = k;
-        break;
-      }
-    }
-    if (twin) skipped.push(`${x.name || "клип"} (пропуснат, дублира ${label(twin)})`);
-    else kept.push(x);
-  }
-  kept.sort((a, b) => a.start - b.start || a.track - b.track);
-  const use = kept.map((x) => ({ path: x.path, start: x.inPt || 0, end: (x.inPt || 0) + (x.end - x.start), at: x.start,
+  usable.sort((a, b) => a.start - b.start || a.track - b.track);
+  const use = usable.map((x) => ({ path: x.path, start: x.inPt || 0, end: (x.inPt || 0) + (x.end - x.start), at: x.start,
     name: x.name || "клип", track: x.track }));
   return { use, skipped, selected: picked.length };
 }
@@ -87,6 +67,10 @@ function describeResult(r) {
   lines.push({ cls: "line", text: `${c.words} думи · вид ${PRESET_NAME[r.preset] || r.preset} · ${r.fps.toFixed(3).replace(/\.?0+$/, "")} fps` +
     ` · ${r.cached ? "разпознаването е от преди" : `разпознаване ${r.asr_seconds} s за ${r.mix_seconds} s звук`}` });
   if (c.flagged) lines.push({ cls: "warn", text: `${c.flagged} несигурни думи (малка вероятност): проверете ги в субтитрите.` });
+  for (const d of r.duplicates || []) {
+    const rest = d.kept_rest_seconds ? `; ${d.kept_rest_seconds} s от ${d.dropped} са запазени, там другият не чува` : "";
+    lines.push({ cls: "line", text: `${d.dropped} и ${d.kept} чуват едно и също: взет е ${d.kept} (по-чист звук, ${d.kept_snr_db} dB срещу ${d.dropped_snr_db} dB${rest}).` });
+  }
   for (const s of r.skipped || []) lines.push({ cls: "warn", text: `Пропуснат: ${s}.` });
   for (const cap of (r.captions || []).slice(0, 8)) {
     const unsure = (cap.flags || []).length ? "  ?" : "";
@@ -97,4 +81,4 @@ function describeResult(r) {
   return { ok: true, text: `Готово: ${c.captions} реда субтитри.`, lines };
 }
 
-module.exports = { planDialogue, sizeFrom, dirOf, describeResult, DUPLICATE_SHARE };
+module.exports = { planDialogue, sizeFrom, dirOf, describeResult };

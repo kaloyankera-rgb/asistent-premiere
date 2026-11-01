@@ -160,3 +160,71 @@ def test_cancelled_recognition_writes_nothing(home, monkeypatch):
     with pytest.raises(Cancelled):
         subtitle_job.run(b, lambda f, m: None, lambda: False)
     assert not os.path.exists(os.path.join(b["out_dir"], "Asistent_subtitles"))
+
+
+# ---- duplicates: several microphones hear the same speech, the cleanest one is recognised
+
+def two_mics_one_voice(home, seconds=10.0):
+    voice = synth.talker(seconds + 2, 11)
+    clean = synth.write_wav(home / "clean.wav", [synth.mic([(voice, 1.0)], 0, seconds, gain_db=0, noise_db=-75, seed=1)])
+    far = synth.write_wav(home / "far.wav", [synth.mic([(voice, 1.0)], 0, seconds, gain_db=-30, noise_db=-58, seed=2)])
+    return clean, far
+
+
+def test_the_cleanest_copy_of_the_same_speech_is_recognised_not_the_one_on_the_lowest_track(home):
+    clean, far = two_mics_one_voice(home)
+    mix = dialoguemix.build_mix([
+        {"path": far, "start": 0, "end": 10, "at": 0, "name": "far", "track": 0},       # lowest track, but noisy and quiet
+        {"path": clean, "start": 0, "end": 10, "at": 0, "name": "clean", "track": 1},
+    ])
+    assert [d["kept"] for d in mix["duplicates"]] == ["clean"] and mix["duplicates"][0]["dropped"] == "far"
+    assert mix["duplicates"][0]["kept_snr_db"] > mix["duplicates"][0]["dropped_snr_db"] + 10
+    assert mix["duplicates"][0]["kept_rest_seconds"] == 0
+    assert rms(mix["audio"]) > 0.03                                    # the clean copy, not a sum with the weak one
+
+
+def test_equally_clean_copies_keep_the_lowest_track(home):
+    clean, _ = two_mics_one_voice(home)
+    mix = dialoguemix.build_mix([
+        {"path": clean, "start": 0, "end": 10, "at": 0, "name": "second", "track": 3},
+        {"path": clean, "start": 0, "end": 10, "at": 0, "name": "first", "track": 1},
+    ])
+    assert [d["kept"] for d in mix["duplicates"]] == ["first"]
+
+
+def test_what_the_winner_does_not_cover_is_kept_from_the_weaker_copy(home):
+    voice = synth.talker(14, 11)
+    clean = synth.write_wav(home / "c.wav", [synth.mic([(voice, 1.0)], 0, 6, gain_db=0, noise_db=-75, seed=1)])      # 0..6
+    far = synth.write_wav(home / "f.wav", [synth.mic([(voice, 1.0)], 0, 10, gain_db=-30, noise_db=-58, seed=2)])     # 0..10
+    mix = dialoguemix.build_mix([{"path": far, "start": 0, "end": 10, "at": 0, "name": "far", "track": 0},
+                                 {"path": clean, "start": 0, "end": 6, "at": 0, "name": "clean", "track": 1}])
+    d = mix["duplicates"][0]
+    assert d["kept"] == "clean" and abs(d["kept_rest_seconds"] - 4.0) < 0.05
+    assert abs(len(mix["audio"]) / 16000 - 10.0) < 0.05                # the last 4 s still exist, from the weaker copy
+
+
+def test_two_different_people_talking_at_once_are_not_duplicates(home):
+    s1, s2 = synth.scene(12, 3)
+    a = synth.write_wav(home / "a.wav", [synth.mic([(s1, 1.0)], 0, 10, noise_db=-75, seed=1)])
+    b = synth.write_wav(home / "b.wav", [synth.mic([(s2, 1.0)], 0, 10, noise_db=-75, seed=2)])
+    mix = dialoguemix.build_mix([{"path": a, "start": 0, "end": 10, "at": 0, "name": "A", "track": 0},
+                                 {"path": b, "start": 0, "end": 10, "at": 0, "name": "B", "track": 1}])
+    assert mix["duplicates"] == []
+
+
+def test_items_that_do_not_overlap_in_time_are_never_duplicates(home):
+    clean, far = two_mics_one_voice(home)
+    mix = dialoguemix.build_mix([{"path": clean, "start": 0, "end": 4, "at": 0, "name": "x", "track": 0},
+                                 {"path": far, "start": 6, "end": 10, "at": 6, "name": "y", "track": 1}])
+    assert mix["duplicates"] == []
+
+
+def test_the_job_reports_duplicates_and_keeps_the_items_for_reproduction(home, monkeypatch):
+    clean, far = two_mics_one_voice(home)
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: [dict(w) for w in WORDS])
+    b = body(home, items=[{"path": far, "start": 0.0, "end": 10.0, "at": 0.0, "name": "far", "track": 0},
+                          {"path": clean, "start": 0.0, "end": 10.0, "at": 0.0, "name": "clean", "track": 1}])
+    res = subtitle_job.run(b, lambda f, m: None, lambda: False)
+    assert res["duplicates"][0]["kept"] == "clean"
+    with open(res["json"], encoding="utf-8") as f:
+        assert [i["name"] for i in json.load(f)["items"]] == ["far", "clean"]

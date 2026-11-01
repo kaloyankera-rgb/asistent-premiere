@@ -1,8 +1,8 @@
-# Project status — Asistent 0.9.42 (2026-11-01)
+# Project status — Asistent 0.9.43 (2026-11-01)
 
-Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.42 via
-UnifiedPluginInstallerAgent, engine 0.9.42 as LaunchAgent `com.contentstudio.asistent` (starts at login).
-Git: `tools/asistent` repo, last commit see `git log`. Tests: 228 pytest + 60 node, all passing at 0.9.42.
+Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.43 via
+UnifiedPluginInstallerAgent, engine 0.9.43 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+Git: `tools/asistent` repo, last commit see `git log`. Tests: 234 pytest + 59 node, all passing at 0.9.43.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
 
@@ -208,6 +208,21 @@ mix in 19.7 s, SRT + JSON written in `<project folder>/Asistent_subtitles/`. Not
 accuracy and caption timing against the picture. Observation: in the short preset glued function words give captions
 longer than 2 words („и аз да видим“, „то и за граднината“); the M1 rule is „function words never end a line“, so this is
 by design but may look too long for 9:16: ask the user. „Имена и термини“ (Whisper prompt) has no field yet.
+**0.9.43: accuracy fix (user: „a lot of words are wrong“).** Cause found by running the same speech from every source
+through Whisper (8 GStroy clips): the camera-mic copies on the lowest track (C90xx: speech −42…−53 dBFS, SNR 14–26 dB)
+gave wrong words („Природа на мен“, „граднина“, „сършила“) while the other camera's close mic (fx390xx: −16…−25 dBFS,
+SNR 38–51 dB) gave „Примерно на мен ми трябва“, „градината“, „свършила днеска“. Fix: duplicates are now decided by the
+engine (`dialoguemix.py`), not by the lowest track: items that overlap ≥ 50 % of the shorter one AND follow the same
+loudness envelope (correlation ≥ 0.5, lag ±0.25 s) are the same speech; the cleanest copy wins (speech level over
+noise floor; within 3 dB the lowest track), and the part of a weaker item the winner does not cover is kept. The panel
+now sends every eligible item with its track; the result lists each replaced copy with both SNRs. The result JSON
+keeps `items` so a run can be reproduced. Also measured and rejected: a descriptive Whisper prompt (hallucinated
+„Ремонт на български език за ремонт“, worse text), VAD filter (drops speech), `condition_on_previous_text=False`
+(no gain, one hallucination), beam 10 (little gain, +20 % time). **Not verified in Premiere at 0.9.43; the user must
+press the button again on the same selection.** Timing („a little off in many places“): not changed yet; Whisper's word
+times are only about ±0.1–0.3 s accurate. A quick onset test on the clips was inconclusive (noise events), so no snap
+was added blindly. Open: ask whether captions are early or late (a fixed offset would fix a systematic shift);
+otherwise forced alignment (MMS_FA, torch, ~1–2 GB, needs the user's OK) per `docs/SUBTITLES_PLAN.md` M6.
 Next: M4 review + import into the bin („Внеси в проекта“, one Undo).
 
 ## Phases 7–9 (Planned)
