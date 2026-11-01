@@ -235,8 +235,11 @@ async function apply(project, timeline, plans) {
     debug(`color check ${pl.clip.name}: ${JSON.stringify(chk)}`);
     const fixValues = {};
     if (pl.values.exposure && chk.new_clipping > 0.03) {
-      fixValues.exposure = Math.max(0, pl.values.exposure - 0.5);
-      pl.lines.push(`изгоряха ${(chk.new_clipping * 100).toFixed(1)}%: експозицията свалена на ${fixValues.exposure}`);
+      // as far back as the clipping needs (engine, from the frames and the probe curve); older engines: 0.5
+      const back = chk.pullback_units || 0.5;
+      fixValues.exposure = Math.max(0, Math.round((pl.values.exposure - back) * 100) / 100);
+      pl.lines.push(`изгоряха ${(chk.new_clipping * 100).toFixed(1)}%: експозицията свалена с ${back} на ${fixValues.exposure}`);
+      pl.recheck = true;
     }
     if (pl.wb && chk.residual && (Math.abs(chk.residual[0]) > 0.1 || Math.abs(chk.residual[1]) > 0.06) && chk.sliders_now) {
       fixValues.temperature = chk.sliders_now.temperature;
@@ -246,6 +249,7 @@ async function apply(project, timeline, plans) {
       pl.lines.push("проверено на кадър: бялото е неутрално");
     }
     if (Object.keys(fixValues).length) second.push(...setActions(pl.t, fixValues));
+    pl.final = { ...pl.values, ...fixValues };
   }
   if (second.length) {
     transaction(project, "Asistent: поправи цвета (уточнение)", (c) => {
@@ -253,7 +257,29 @@ async function apply(project, timeline, plans) {
     });
     steps++;
   }
+  // the step back is measured once more on a new frame: report where it really landed, change nothing more
+  for (const [i, pl] of prepared.entries()) {
+    if (!pl.recheck) continue;
+    const after2 = await exportFrame(timeline.sequence, pl.mid, `after2_${i}.png`, dir);
+    const chk2 = after2 && (await checkWithRetry(pl.before, after2, pl.final, pl.res.white));
+    if (!chk2) {
+      pl.lines.push("след свалянето: проверката не успя");
+      continue;
+    }
+    debug(`color recheck ${pl.clip.name}: ${JSON.stringify(chk2)}`);
+    const burnt = `${(chk2.new_clipping * 100).toFixed(1)}%`;
+    const skin = typeof chk2.exposure_after === "number" ? skinLine(chk2.exposure_after) : "";
+    pl.lines.push(chk2.new_clipping > 0.03
+      ? `след свалянето още изгорели ${burnt}: светлите части може да се приберат ръчно (Highlights/Whites)${skin}`
+      : `след свалянето изгорели ${burnt}, в границата${skin}`);
+  }
   return { steps };
+}
+
+// how far the measured brightness is from the target after the correction, in plain words
+function skinLine(stops) {
+  if (Math.abs(stops) < 0.2) return "; яркостта е в целта";
+  return `; ${Math.abs(stops).toFixed(1)} стопа ${stops > 0 ? "по-тъмно" : "по-светло"} от целта`;
 }
 
 module.exports = { readVideoSelection, apply, exportFrame };

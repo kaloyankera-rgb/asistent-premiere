@@ -329,17 +329,44 @@ def new_clipping(before: np.ndarray, after: np.ndarray) -> float:
     return float(np.mean(a & ~b))
 
 
-def check_render(before_path: str, after_path: str) -> dict:
+def check_render(before_path: str, after_path: str, exposure_units: float = 0.0, cal=None) -> dict:
     """Two frames exported by Premiere (without / with the correction): how neutral and how bright the
     result is, and how much burnt out. Used to verify and, if needed, step the correction back."""
     b, a = read_image(before_path), read_image(after_path)
     if b.shape != a.shape:
         raise MediaError("Кадрите преди и след са с различен размер.")
     ma = measure(a)
-    return {"new_clipping": round(new_clipping(b, a), 4),
-            "cast_after": ma.get("cast_neutral") or ma.get("cast_world"),
-            "exposure_after": ma.get("exp_skin", ma.get("exp_mid")),
-            "skin_after": round(ma.get("skin", 0.0), 4)}
+    out = {"new_clipping": round(new_clipping(b, a), 4),
+           "cast_after": ma.get("cast_neutral") or ma.get("cast_world"),
+           "exposure_after": ma.get("exp_skin", ma.get("exp_mid")),
+           "skin_after": round(ma.get("skin", 0.0), 4)}
+    if exposure_units > 0 and out["new_clipping"] > NEW_CLIP:
+        out["pullback_units"] = pullback_units(b, a, exposure_units, cal or Calibration())
+    return out
+
+
+def pullback_units(before: np.ndarray, after: np.ndarray, units: float, cal, limit: float = NEW_CLIP) -> float:
+    """How many Exposure units to take back so that at most `limit` of the picture is newly burnt out.
+
+    The brightest `limit` of what was not clipped before may clip; the pixel at that edge must land just
+    under the clip level. The darkest pixels that did clip at `units` show where the clip level sits; both
+    are moved with the probe's curve (bright pixels gain only ~0.5 stop per unit). Rounded up to 0.05, so
+    it errs towards a darker picture; the panel re-checks the result on a new frame anyway."""
+    mb, ma = np.max(before, axis=-1), np.max(after, axis=-1)
+    was = mb >= 0.97
+    new = (ma >= 0.97) & ~was
+    if units <= 0 or np.mean(new) <= limit:
+        return 0.0
+    free = mb[~was]
+    edge = float(np.quantile(free, float(np.clip(1 - limit * mb.size / free.size, 0, 1))))
+    clipped_from = float(np.percentile(mb[new], 2))      # darkest pixels that burnt out at `units`
+    if edge <= clipped_from:
+        return 0.0
+    log_lin = lambda v: GAMMA * np.log2(max(v, 1e-4))
+    clip_level = log_lin(clipped_from) + units * cal.exposure_rate(clipped_from)
+    keep = (clip_level - log_lin(edge)) / cal.exposure_rate(edge)
+    back = float(np.ceil((units - keep) * 20 - 1e-9) / 20)
+    return float(min(units, max(0.05, back)))
 
 
 # ---------------------------------------------------------------- preview and Lumetri calibration
@@ -463,13 +490,18 @@ class Calibration:
         about +0.7 at skin brightness and +0.57 at 0.75 (soft highlight shoulder). Brightening uses the
         probe's curve; darkening was never measured, so it stays 1 unit = 1 stop until it is. The render
         check after applying still measures the real result."""
-        curve = self.data.get("exposure_curve") or []
-        if stops <= 0 or luma is None or len(curve) < 2:
+        if stops <= 0 or luma is None or not self.data.get("exposure_curve"):
             return round(stops, 2)
-        ys, rates = zip(*sorted(curve))
-        rate = float(np.interp(luma, ys, rates))            # flat beyond the measured ends
-        units = stops / max(rate, 0.25)
+        units = stops / self.exposure_rate(luma)
         return round(float(min(units, 2 * MAX_STOPS)) * 20) / 20     # Lumetri steps of 0.05
+
+    def exposure_rate(self, luma: float) -> float:
+        """Stops gained per Exposure unit at this encoded brightness (1.0 until the probe measured it)."""
+        curve = self.data.get("exposure_curve") or []
+        if len(curve) < 2:
+            return 1.0
+        ys, rates = zip(*sorted(curve))
+        return max(float(np.interp(luma, ys, rates)), 0.25)          # flat beyond the measured ends
 
     def set_exposure_curve(self, points: list[list[float]]) -> bool:
         """[[encoded luma, stops per unit], ...] measured by the probe; replaces the old curve."""
