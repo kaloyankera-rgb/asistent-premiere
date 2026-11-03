@@ -111,9 +111,11 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 - Sync works from the timeline selection and builds a new `SYNC – <sequence>`; the user's sequence is read only.
 - No AI voices, no paid tools, no cloud, nothing uploaded.
 
-## Version control and documentation (GitHub, public repo)
-- The repo is `tools/asistent` (own git, branch `main`). Remote `origin` is `kaloyankera-rgb/asistent-premiere`, a PUBLIC
-  GitHub repository (checked 2026-11-04; the updater needs public releases): nothing private in commits, ever.
+## Version control and documentation (GitHub)
+- The repo is `tools/asistent` (own git, branch `main`). Remote `origin` is `kaloyankera-rgb/asistent-premiere`. It was public
+  until 2026-11-04, then made PRIVATE by the user until the office install ("make it public tomorrow in the office"). The
+  updater needs it public: while private, every update check gets 404 and the panel shows no update line. Treat everything
+  committed as public: nothing private in commits, ever.
   History is never rewritten: no force-push, no `reset --hard`, no history rewriting, no deleting branches or tags.
   Rename files with `git mv`. Never commit secrets, models, `dist/`, logs or client footage (`.gitignore` covers them).
 - Documents and what each is for: `CLAUDE.md` rules and architecture · `PROJECT_STATUS.md` what exists and what is
