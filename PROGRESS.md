@@ -191,3 +191,4 @@
 
 ## 2026-11-03: 0.9.56 (звук)
 - Оправи звука: L/L горе и R/R долу през Audio Channels на копия (subclip с map на канала) вместо Fill ефекти; ExtendScript в host.jsx (createSubClip, setMappingForChannel, setAudioChannelMapping, overwriteClip, linkSelection). Тествано в TEST.prproj с един, три клипа и повторно натискане; потребителят потвърди диалога Audio Channels: A1 L/L, A2 R/R. host.jsx е с BOM (иначе кирилицата се чупи).
+- Оправи звука: баланс на двамата говорещи (по говор BS.1770, само сваля по-силния, макс 12 dB, праг 2 dB, не пипа канал без свой говорител) и Dynamics → Limiter -6 dB на всеки клип (главната писта Mix не се достига със скрипт). Проверено в TEST.prproj: един клип, второ натискане без дубликати, четири клипа. Остава: потребителят да види прага -6 dB в панела Dynamics.

@@ -9,7 +9,7 @@ const TEST_PROJECT = /(^|[\\/])TEST\.prproj$/i;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const SETTLE = 900;                                 // main.js ignores clicks for 700 ms after the panel changed
 
-function createBridge({ premiere, premiereColor, doc, version, engineApi = engine, sleep = wait }) {
+function createBridge({ premiere, premiereColor, premiereAudio, doc, version, engineApi = engine, sleep = wait }) {
   const $ = (id) => doc.getElementById(id);
   const text = (n) => ((n && n.textContent) || "").trim();
   const buttons = () => [...doc.querySelectorAll("button")].filter((b) => !b.hidden);
@@ -172,6 +172,24 @@ function createBridge({ premiere, premiereColor, doc, version, engineApi = engin
       const out = [];
       for (const x of pick(t.items, { kind: "video", ...a })) out.push({ clip: brief(x), effects: await premiereColor.devChain(x) });
       return { clips: out };
+    },
+    // every effect on audio clips with all parameters (name, value, keyframed), read only: for finding how Premiere
+    // names the parameters of an audio effect (Dynamics, Volume). args: names/track/from/to as for `timeline`
+    async audio_chain(a) {
+      const { p } = await project();
+      const t = await premiere.readTimeline(p);
+      const out = [];
+      for (const x of pick(t.items, { kind: "audio", ...a })) out.push({ clip: brief(x), effects: await premiereAudio.dumpChain(x) });
+      return { clips: out };
+    },
+    // append one audio effect (default "Dynamics") to ONE audio clip, in one Undo step, and report its parameters
+    async audio_fx_add(a) {
+      const { p } = await project();
+      const t = await premiere.readTimeline(p);
+      const chosen = pick(t.items, { kind: "audio", ...a });
+      if (chosen.length !== 1) throw new Error(`Трябва точно един клип, намерени ${chosen.length}: ${chosen.map((x) => `${x.name} ${x.start.toFixed(1)}`).join(", ")}`);
+      await premiereAudio.addEffectProbe(p, chosen[0], a.effect || "Dynamics");
+      return { clip: brief(chosen[0]), effects: await premiereAudio.dumpChain(chosen[0]) };
     },
     // write Lumetri values (e.g. {"exposure": 3}) into ONE clip's existing Lumetri, in one Undo step: for measuring how
     // Lumetri really responds. Refuses unless exactly one clip matches; returns the values before and after.

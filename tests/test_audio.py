@@ -253,3 +253,73 @@ def test_split_all_splits_every_stereo_clip_and_keeps_the_sum_under_the_ceiling(
     assert 20 * np.log10(np.max(np.abs(mix))) <= -6.0 + 0.6        # true peak vs sample peak margin
     mono = synth.write_wav(tmp_path / "mono.wav", [x])
     assert analyze_item(mono, force="split_all")["action"] == "none"
+
+
+# ---- balance of the two speakers (2026-11-03)
+
+def _two_speakers(tmp_path, louder_db=12.0, bleed_db=-30.0, seed=21):
+    """L: speaker 1 at full level; R: speaker 2 `louder_db` quieter; each mic hears the other at bleed_db."""
+    import synth
+    s1, s2 = synth.scene(60.0, seed=seed)
+    g = lambda db: 10 ** (db / 20)
+    left = synth.mic([(s1, 1.0), (s2, g(bleed_db))], 2.0, 40.0, seed=1)
+    right = synth.mic([(s2, g(-louder_db)), (s1, g(bleed_db - louder_db))], 2.0, 40.0, seed=2)
+    return synth.write_wav(tmp_path / "two.wav", [left, right]), left, right
+
+
+def test_balance_lowers_only_the_louder_speaker_to_within_the_tolerance(tmp_path):
+    from asistent.audio import analyze_item, loudness
+    path, left, right = _two_speakers(tmp_path)
+    off = analyze_item(path, force="split_all", balance_tol=None)
+    on = analyze_item(path, force="split_all")
+    gap_before = abs(off["outputs"][0]["result_lufs"] - off["outputs"][1]["result_lufs"])
+    ll, rr = on["outputs"]
+    gap = abs(ll["result_lufs"] - rr["result_lufs"])
+    assert gap <= 2.0 + 0.15, (gap_before, gap)
+    # the audible check, on the real signals: measured again after the gains
+    after = abs(loudness([left * 10 ** (ll["gain_db"] / 20)] * 2) - loudness([right * 10 ** (rr["gain_db"] / 20)] * 2))
+    assert after <= 2.3, after
+    off_ll, off_rr = off["outputs"]
+    assert ll["gain_db"] <= off_ll["gain_db"] + 1e-9 and rr["gain_db"] <= off_rr["gain_db"] + 1e-9    # never lifted
+    assert any("Говорителите се различаваха" in r for r in on["reasons"])
+
+
+def test_balance_leaves_similar_speakers_and_one_voice_on_two_mics_alone(tmp_path):
+    import synth
+    from asistent.audio import analyze_item
+    from asistent.audio import balance
+    mk = lambda route, lufs: {"route": route, "lufs": lufs, "gain_db": 1.0, "result_lufs": lufs, "result_peak_db": lufs - 10}
+    similar = [mk("LL", -20.0), mk("RR", -21.5)]                   # 1.5 dB apart: equally loud
+    assert balance(similar, {"dominant_L": 0.3, "dominant_R": 0.3}) == [] and [o["gain_db"] for o in similar] == [1.0, 1.0]
+    # one voice, the second microphone farther away: it carries nobody of its own and is not matched to anything
+    s1, _ = synth.scene(60.0, seed=7)
+    near = synth.mic([(s1, 1.0)], 2.0, 40.0, seed=3)
+    far = synth.mic([(s1, 0.05)], 2.0, 40.0, seed=4)
+    one = synth.write_wav(tmp_path / "one.wav", [far, near])
+    r = analyze_item(one, force="split_all")
+    quiet = r["outputs"][0]                                   # L = the far copy
+    assert quiet["gain_db"] <= 0.0, quiet
+
+
+def test_balance_never_lifts_noise_on_a_channel_without_speech(tmp_path):
+    import numpy as np
+    import synth
+    from asistent.audio import analyze_item
+    s1, _ = synth.scene(60.0, seed=9)
+    speech = synth.mic([(s1, 0.05)], 2.0, 40.0, seed=5)
+    hiss = (np.random.default_rng(3).standard_normal(len(speech)) * 10 ** (-62 / 20)).astype(np.float32)
+    path = synth.write_wav(tmp_path / "hiss.wav", [speech, hiss])
+    r = analyze_item(path, force="split_all")
+    assert r["outputs"][1]["gain_db"] <= 0.0 or r["outputs"][1].get("limited_by_noise") or r["outputs"][1]["lufs"] is None, r["outputs"][1]
+    ll, rr = r["outputs"]
+    if rr["lufs"] is not None:
+        assert rr["result_peak_db"] < -40               # the hiss stays hiss
+
+
+def test_balance_cut_is_capped():
+    from asistent.audio import balance, BALANCE_MAX_CUT
+    mk = lambda route, lufs: {"route": route, "lufs": lufs, "gain_db": 0.0, "result_lufs": lufs, "result_peak_db": lufs - 10}
+    outs = [mk("LL", -10.0), mk("RR", -40.0)]
+    lines = balance(outs, {"dominant_L": 0.3, "dominant_R": 0.3})
+    assert outs[0]["gain_db"] == -BALANCE_MAX_CUT and outs[1]["gain_db"] == 0.0
+    assert "остават" in lines[0]

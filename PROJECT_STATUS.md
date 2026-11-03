@@ -1,4 +1,4 @@
-# Project status — Asistent 0.9.56 (2026-11-03)
+# Project status — Asistent 0.9.57 (2026-11-03)
 
 Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.48 via
 UnifiedPluginInstallerAgent, engine 0.9.48 as LaunchAgent `com.contentstudio.asistent` (starts at login).
@@ -13,6 +13,11 @@ channel mapping, linked to the video (see CHANGELOG). **Verified in TEST.prproj 
 readback of the timeline (placement, In points, links, repeat press without duplicates). Not tried: clips with a speed change
 (skipped by design), nested sequences, locked tracks beyond the refusal message, a project where the bin „Asistent L-R“ was
 renamed or the subclips deleted by hand (the clip is then split again with new subclips).
+
+**0.9.57: balance + limiter** (user's request 2026-11-03, reference video of Dynamics on the Mix track). Engine-tested (4 new pytest on
+synthetic speakers, real Masterhaus clips) and verified in TEST.prproj by readback of the effect parameters (single clip, second
+press, four clips). NOT confirmed by eye in Premiere's Dynamics panel that the threshold reads −6 dB (the API reports the
+normalised 0.9; the −1 dB default = 0.98333 fixes the scale). The limiter is per clip, not on the Mix track (not scriptable).
 
 ## Panel layout (0.9.55, user's request 2026-11-03)
 Cards per feature (title, one-line purpose, buttons), tooltips on every button, three views: Инструменти / Дневник

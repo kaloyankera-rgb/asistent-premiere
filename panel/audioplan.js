@@ -103,4 +103,35 @@ function routeLine(r) {
   return `Каналите: ${sides} (Audio Channels на копие от клипа${link}).`;
 }
 
-module.exports = { sideOf, forceFor, engineJobs, routeFor, levelTargets, routeLine };
+// ---------------------------------------------------------------- the limiter (Dynamics > Limiter, -6 dB)
+// The user's reference video (2026-11-03) puts Dynamics on the Mix track, ticks only Limiter and changes its
+// Threshold from the default -1 dB to -6 dB. A script cannot reach the Mix track in Premiere 26.0.2 (QE has only the
+// numbered tracks, the sequence has no master), so the same Dynamics goes on every clip that was levelled, and the sum
+// of both sides is kept under -6 dB by the gains themselves (engine: audio.py, the true peak of the sum).
+//
+// Dynamics' parameters are normalised: Limiter Threshold 0.98333 is the default -1 dB, i.e. value = (dB + 60) / 60.
+const LIMITER_DB = -6;
+const dynValue = (db) => (db + 60) / 60;
+const SAME = 0.004;                                     // 0.24 dB: a threshold this close counts as -6 dB
+
+/**
+ * What to do with the Dynamics effects already on a clip. dynamics: [{ params: { "Limiter Enabled": 0|1, ... } }]
+ * -> "add" (none: append one), "configure" (one untouched Dynamics: switch the limiter on), "ok" (already
+ * Limiter on at -6 dB), "foreign" (somebody else's settings or several Dynamics: left alone, said).
+ */
+function limiterState(dynamics, db = LIMITER_DB) {
+  if (!dynamics.length) return { state: "add" };
+  if (dynamics.length > 1) return { state: "foreign", why: "на клипа има няколко Dynamics" };
+  const p = dynamics[0].params;
+  const on = (k) => Number(p[k]) >= 0.5;
+  const others = ["AutoGate Enabled", "Compressor Enabled", "Expander Enabled"].filter(on);
+  if (on("Limiter Enabled")) {
+    if (Math.abs(Number(p["Limiter Threshold"]) - dynValue(db)) <= SAME && !others.length) return { state: "ok" };
+    if (Math.abs(Number(p["Limiter Threshold"]) - dynValue(db)) <= SAME) return { state: "foreign", why: "Dynamics има и други включени процесори" };
+    return { state: "foreign", why: `Dynamics вече има лимитер с друг праг (${(Number(p["Limiter Threshold"]) * 60 - 60).toFixed(1)} dB)` };
+  }
+  if (others.length) return { state: "foreign", why: "Dynamics вече е настроен с други процесори" };
+  return { state: "configure" };
+}
+
+module.exports = { sideOf, forceFor, engineJobs, routeFor, levelTargets, routeLine, limiterState, dynValue, LIMITER_DB };

@@ -357,7 +357,11 @@ async function onAudio(force) {
       const box = el("div", "group");
       box.appendChild(el("div", "name", p.it.name));
       // a side Asistent made earlier: its analysis lines describe the pair, not this clip
-      if (p.it.side) box.appendChild(el("div", "reason", "Вече е разделен от Asistent: само силата."));
+      if (p.it.side) {
+        box.appendChild(el("div", "reason", "Вече е разделен от Asistent: само силата."));
+        // what the pair's analysis said about the balance of the two speakers still applies
+        for (const r of (p.res && p.res.reasons) || []) if (/Говорителите се различаваха|няма свой говорител/.test(r)) box.appendChild(el("div", "reason", r));
+      }
       else if (p.it.route) box.appendChild(el("div", "reason", "Има Fill ефект отпреди: каналите не са пипани, само силата."));
       else for (const r of (p.res && p.res.reasons) || []) if (r) box.appendChild(el("div", "reason", r));
       const line = audioplan.routeLine(p.routed);
@@ -371,9 +375,11 @@ async function onAudio(force) {
       blocks.push(box);
     }
     for (const s of sel.skipped) blocks.push(el("div", "warn", `Пропуснат: ${s}.`));
+    blocks.push(el("div", "hint", `Лимитерът (Dynamics → Limiter ${audioplan.LIMITER_DB} dB) е на всеки клип, не на Mix пистата: скриптовете на ` +
+      "Premiere не стигат до главната писта. Сборът на двете писти е държан под −6 dB от самите нива."));
     const split = plans.filter((p) => p.routed && p.routed.ok && p.routed.status === "done").length;
     const clips = (n) => `${n} ${n === 1 ? "клип" : "клипа"}`;
-    const undo = [undoSteps ? "силата е една стъпка Cmd/Ctrl+Z" : "",
+    const undo = [undoSteps ? `силата и лимитерът са ${undoSteps === 1 ? "една стъпка" : `${undoSteps} стъпки`} Cmd/Ctrl+Z` : "",
       split ? "разделянето е отделни стъпки на Premiere (копията и връзката на всеки клип)" : ""].filter(Boolean).join("; ");
     finish(`${failed ? `Готово с проблеми: ${clips(changed)} оправени, ${failed} не.` : `Готово: ${changed} от ${clips(plans.length)}.`}` +
       `${split ? ` Разделени: ${split}.` : ""}${undo ? ` Връщане: ${undo}.` : ""}`, !failed, blocks);
@@ -917,7 +923,7 @@ $("app").addEventListener("scroll", hideTip);
 
 refreshHeader();
 // test bridge: does nothing unless the engine has its flag file (see devbridge.js)
-createBridge({ premiere, premiereColor, doc: document, version: PANEL_VERSION }).loop();
+createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION }).loop();
 setInterval(() => {
   if (!state.busy) refreshHeader();
 }, 4000);

@@ -23,7 +23,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /sync                 {"paths": [...], "reference": null|int} -> {"job": id}
   POST /sync_groups          {"paths": [...]} -> {"job": id}; groups among all clips (timeline selection)
   POST /audio                {"items": [{"path", "start", "end", "force"?}], "force"?, "target"?, "ceiling"?,
-                              "phrases"?: true -> Volume keyframes that even out phrases}
+                              "phrases"?: true -> Volume keyframes that even out phrases,
+                              "balance_db"?: how far apart two speakers may be (default 2)}
   POST /audio/route          {"items": [{track, start, end, route}], "sequence", "project"?} -> through the host:
                               L/L and R/R subclips placed and linked (host.jsx as_audio_route); {"ok", "items"}
   GET  /jobs/<id>            state, progress, message, result
@@ -159,12 +160,13 @@ def _start_audio(body: dict) -> dict:
         raise ValueError("Файлът липсва (офлайн медия?): " + ", ".join(missing))
     target = float(body.get("target", -17.0))
     ceiling = float(body.get("ceiling", -6.0))
+    balance_tol = float(body.get("balance_db", 2.0))             # how far apart two speakers may be, in dB
 
     def work(job):
         def progress(f, msg):
             job.progress, job.message = f, msg
         res = analyze_items(items, body.get("force"), target, ceiling, progress, lambda: job.cancelled,
-                            phrases=bool(body.get("phrases")))
+                            phrases=bool(body.get("phrases")), balance_tol=balance_tol)
         log.info("audio: %s", [(r["name"], r.get("kind"), r.get("action"),
                                 [o.get("gain_db") for o in r.get("outputs", [])]) for r in res["items"]])
         return res
