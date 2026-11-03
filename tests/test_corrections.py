@@ -9,7 +9,7 @@ def W(*ws, t=0.0, d=0.4):
 def test_parse_splits_corrections_terms_comments_and_reports_bad_lines():
     r = C.parse("# note\nраф => рафт\n\nДжи Строй\nще чакай да бъде десом  =>  трябваше да боядисам\nлошо =>\n=> нищо\n")
     assert r["pairs"] == [("раф", "рафт"), ("ще чакай да бъде десом", "трябваше да боядисам")]
-    assert r["terms"] == ["Джи Строй"] and len(r["errors"]) == 2 and "ред 6" in r["errors"][0]
+    assert r["terms"] == ["Джи Строй"] and len(r["errors"]) == 2 and "line 6" in r["errors"][0]
 
 
 def test_a_correction_replaces_the_heard_words_and_keeps_span_punctuation_and_capital():

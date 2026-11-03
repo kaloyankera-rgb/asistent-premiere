@@ -9,9 +9,9 @@ New-Item -ItemType Directory -Force -Path (Join-Path $App "logs") | Out-Null
 
 $py = $null
 try { $py = (& py -3.12 -c "import sys; print(sys.executable)") } catch {}
-if (-not $py) { Write-Host "Нужен е Python 3.12: winget install Python.Python.3.12"; exit 1 }
+if (-not $py) { Write-Host "Python 3.12 is needed: winget install Python.Python.3.12"; exit 1 }
 if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
-  Write-Host "Нужен е FFmpeg в PATH: winget install Gyan.FFmpeg (после рестартирай терминала)"; exit 1
+  Write-Host "FFmpeg is needed in PATH: winget install Gyan.FFmpeg (then restart the terminal)"; exit 1
 }
 
 $venvPy = Join-Path $App "venv\Scripts\python.exe"
@@ -40,8 +40,8 @@ Start-Process -FilePath $pyw -ArgumentList $s.Arguments -WorkingDirectory $App -
 for ($i = 0; $i -lt 40; $i++) {
   try {
     $r = Invoke-RestMethod -Uri "http://127.0.0.1:47390/status" -Headers @{ "X-Asistent" = "1" } -TimeoutSec 2
-    if ($r.app -eq "asistent") { Write-Host "Asistent engine работи (стартира се сам при вход)."; exit 0 }
+    if ($r.app -eq "asistent") { Write-Host "Asistent engine is running (it starts by itself at login)."; exit 0 }
   } catch {}
   Start-Sleep -Seconds 1
 }
-Write-Host "Engine-ът не отговаря. Виж $App\logs\"; exit 1
+Write-Host "The engine does not answer. See $App\logs\"; exit 1

@@ -38,13 +38,13 @@ function levelValue(db) {
 async function levelParam(ti, label) {
   const { list } = await components(ti);
   const vol = list.find((c) => /^volume$/i.test(c.name) || /volume/i.test(c.match));
-  if (!vol) throw new Error(`Няма Volume на ${label}.`);
+  if (!vol) throw new Error(`${label} has no Volume.`);
   let param = null;
   for (let i = 0; i < (await vol.comp.getParamCount()); i++) {
     const p = await vol.comp.getParam(i);
     if (/level/i.test(p.displayName || "")) param = p;
   }
-  if (!param) throw new Error(`Няма Level във Volume на ${label}.`);
+  if (!param) throw new Error(`The Volume of ${label} has no Level.`);
   const start = await param.getStartValue();
   const v0 = Number(start && start.value !== undefined ? (start.value.value ?? start.value) : NaN);
   return { param, keyframed: !!(await maybe(param, "isTimeVarying")), toValue: levelValue, scale: "premiere", v0 };
@@ -70,7 +70,7 @@ async function readAudioSelection(project) {
   const items = [];
   for (const x of picked) {
     if (Math.abs(x.speed - 1) >= 0.01 || x.reversed) {
-      skipped.push(`${x.name} (променена скорост)`);
+      skipped.push(`${x.name} (changed speed)`);
       continue;
     }
     items.push({ ...x, route: await currentRoute(x.ti), side: sideOf(x.name) });
@@ -88,7 +88,7 @@ function levelActions(lv, o, who, inPt) {
   const checks = [];
   const lines = [];
   if (o.gain_db > LEVEL_MAX_DB) {
-    lines.push(`${who}: трябваха +${o.gain_db} dB, но Volume на клип в Premiere стига до +${LEVEL_MAX_DB} dB: сложени са +${LEVEL_MAX_DB}`);
+    lines.push(`${who}: +${o.gain_db} dB was needed, but a clip's Volume in Premiere goes up to +${LEVEL_MAX_DB} dB: +${LEVEL_MAX_DB} was set`);
     o = { ...o, result_lufs: Math.round((o.result_lufs - (o.gain_db - LEVEL_MAX_DB)) * 10) / 10,
       result_peak_db: Math.round((o.result_peak_db - (o.gain_db - LEVEL_MAX_DB)) * 10) / 10, gain_db: LEVEL_MAX_DB,
       keyframes: (o.keyframes || []).map(([t, g]) => [t, Math.min(g, LEVEL_MAX_DB)]) };
@@ -108,23 +108,23 @@ function levelActions(lv, o, who, inPt) {
       const got = (await lv.param.getKeyframeListAsTickTimes()) || [];
       debug(`keyframes ${who}: asked ${keys.length} at ${keys.slice(0, 3).map((k) => k[0]).join(", ")}… ` +
         `(clip In ${inPt.toFixed(3)} s), got ${got.length} at ${got.slice(0, 3).map((t) => (t.seconds || 0).toFixed(3)).join(", ")}…`);
-      return got.length >= keys.length ? null : `ключовите кадри на ${who} не се записаха`;
+      return got.length >= keys.length ? null : `the keyframes of ${who} were not written`;
     });
-    lines.push(`${who}: изравнени ${o.phrases_moved} фрази (разликата беше ${o.spread_db} dB), ${keys.length} ключови кадъра`);
-    if (inPt > 0.01) lines.push(`${who}: клипът е подрязан: провери, че ключовите кадри са в паузите`);
+    lines.push(`${who}: ${o.phrases_moved} phrases evened out (the difference was ${o.spread_db} dB), ${keys.length} keyframes`);
+    if (inPt > 0.01) lines.push(`${who}: the clip is trimmed: check that the keyframes are in the pauses`);
   } else {
     const value = lv.toValue(o.gain_db);
     actions.push(() => lv.param.createSetValueAction(lv.param.createKeyframe(value), true));
     checks.push(async () => (Math.abs((await readLevel(lv.param)) - value) < 1e-3 * Math.max(1, Math.abs(value))
-      ? null : `силата на ${who} не се записа`));
+      ? null : `the level of ${who} was not written`));
     if (o.note) lines.push(`${who}: ${o.note}`);
   }
   return { actions, checks, lines };
 }
 
 function levelLine(who, o) {
-  return `${who}: ${o.gain_db >= 0 ? "+" : ""}${o.gain_db} dB → ${o.result_lufs} LUFS, пик ${o.result_peak_db} dB` +
-    (o.limited_by_peak ? " (спряно от границата −6 dB)" : "");
+  return `${who}: ${o.gain_db >= 0 ? "+" : ""}${o.gain_db} dB → ${o.result_lufs} LUFS, peak ${o.result_peak_db} dB` +
+    (o.limited_by_peak ? " (stopped by the −6 dB limit)" : "");
 }
 
 /**
@@ -141,7 +141,7 @@ async function applyLevels(project, sequence, targets) {
     const ti = items.find((x) => x.kind === "audio" && x.track === t.track && Math.abs(x.start - t.start) < 0.002);
     const p = t.plan;
     if (!ti) {
-      p.problems.push(`${t.who}: клипът не е намерен за силата`);
+      p.problems.push(`${t.who}: the clip for the level was not found`);
       continue;
     }
     try {
@@ -158,12 +158,12 @@ async function applyLevels(project, sequence, targets) {
       } else if (lim.state === "configure") {
         limit.push({ ti, p, who: t.who, state: "configured" });
       } else if (lim.state === "ok") {
-        p.lines.push(`${t.who}: лимитерът е вече на ${LIMITER_DB} dB.`);
+        p.lines.push(`${t.who}: the limiter is already at ${LIMITER_DB} dB.`);
       } else {
-        p.lines.push(`${t.who}: лимитерът не е пипан: ${lim.why}.`);
+        p.lines.push(`${t.who}: the limiter was not touched: ${lim.why}.`);
       }
     } catch (e) {
-      if (!e.skip) p.problems.push(`${t.who}: лимитер: ${e.message || e}`);
+      if (!e.skip) p.problems.push(`${t.who}: limiter: ${e.message || e}`);
     }
     if (t.out.lufs === null) {
       p.lines.push(`${t.who}: ${t.out.note}`);
@@ -172,7 +172,7 @@ async function applyLevels(project, sequence, targets) {
     try {
       const lv = await levelParam(ti.ti, t.who);
       if (lv.keyframed) {
-        p.lines.push(`${t.who}: вече има ключови кадри на силата: не е пипано (Cmd/Ctrl+Z и пусни пак)`);
+        p.lines.push(`${t.who}: already has level keyframes: not touched (Cmd/Ctrl+Z and run again)`);
         continue;
       }
       const l = levelActions(lv, t.out, t.who, ti.inPt || 0);
@@ -185,7 +185,7 @@ async function applyLevels(project, sequence, targets) {
     }
   }
   if (actions.length) {
-    transaction(project, "Asistent: сила на звука", (c) => {
+    transaction(project, "Asistent: audio level", (c) => {
       for (const make of actions) c.addAction(make());
     });
   }
@@ -204,7 +204,7 @@ const KNOWN_AUDIO = /^(volume|channel volume|dynamics|panner|mute)$/i;
 async function readEffects(ti) {
   const out = { gain_db: null, keyframed: false, limiter: false, others: [] };
   try {
-    const lv = await levelParam(ti, "клипа");
+    const lv = await levelParam(ti, "the clip");
     out.keyframed = lv.keyframed;
     if (!lv.keyframed && Number.isFinite(lv.v0) && lv.v0 > 0) {
       const db = Math.round((20 * Math.log10(lv.v0) + LEVEL_MAX_DB) * 100) / 100;
@@ -223,7 +223,7 @@ async function readEffects(ti) {
 
 async function createEffect(name, ti) {
   const comp = await ppro.AudioFilterFactory.createComponentByDisplayName(name, ti);
-  if (!comp) throw new Error(`Premiere не направи ефекта ${name}`);
+  if (!comp) throw new Error(`Premiere did not make the effect ${name}`);
   return comp;
 }
 
@@ -255,13 +255,13 @@ async function switchLimiterOn(project, limit) {
   for (const l of limit) {
     const dyn = await dynamicsOf(l.ti.ti);
     if (dyn.length !== 1 || !dyn[0].params["Limiter Enabled"] || !dyn[0].params["Limiter Threshold"]) {
-      l.p.problems.push(`${l.who}: Dynamics не се появи с параметри на лимитера`);
+      l.p.problems.push(`${l.who}: Dynamics did not appear with the limiter parameters`);
       continue;
     }
     work.push({ l, d: dyn[0] });
   }
   if (work.length) {
-    transaction(project, "Asistent: лимитер −6 dB", (c) => {
+    transaction(project, "Asistent: limiter −6 dB", (c) => {
       for (const { d } of work) {
         c.addAction(d.params["Limiter Enabled"].createSetValueAction(d.params["Limiter Enabled"].createKeyframe(1), true));
         c.addAction(d.params["Limiter Threshold"].createSetValueAction(d.params["Limiter Threshold"].createKeyframe(dynValue(LIMITER_DB)), true));
@@ -272,9 +272,9 @@ async function switchLimiterOn(project, limit) {
     const back = (await dynamicsOf(l.ti.ti))[0];
     const st = back ? limiterState([{ params: back.values }]) : { state: "missing" };
     if (st.state === "ok") {
-      l.p.lines.push(`${l.who}: Dynamics → Limiter включен, праг ${LIMITER_DB} dB (${l.state === "added" ? "нов ефект" : "съществуващ Dynamics"}).`);
+      l.p.lines.push(`${l.who}: Dynamics → Limiter on, threshold ${LIMITER_DB} dB (${l.state === "added" ? "new effect" : "existing Dynamics"}).`);
     } else {
-      l.p.problems.push(`${l.who}: лимитерът не се записа като ${LIMITER_DB} dB (${st.why || st.state}; праг ${back && back.values["Limiter Threshold"]})`);
+      l.p.problems.push(`${l.who}: the limiter was not written as ${LIMITER_DB} dB (${st.why || st.state}; threshold ${back && back.values["Limiter Threshold"]})`);
     }
   }
   return work.length > 0;
@@ -283,7 +283,7 @@ async function switchLimiterOn(project, limit) {
 // the clip's Volume level in dB as it is now (0 for an untouched clip), or null
 async function readLevelDb(ti) {
   try {
-    const lv = await levelParam(ti, "клипа");
+    const lv = await levelParam(ti, "the clip");
     return Number.isFinite(lv.v0) && lv.v0 > 0 ? Math.round((20 * Math.log10(lv.v0) + LEVEL_MAX_DB) * 100) / 100 : null;
   } catch (e) {
     return null;
@@ -328,7 +328,7 @@ async function addEffectProbe(project, x, name) {
   };
   const comp = await step("create", () => ppro.AudioFilterFactory.createComponentByDisplayName(name, x.ti));
   const { chain } = await step("chain", () => components(x.ti));
-  await step("append", () => transaction(project, `Asistent: проба ${name}`, (c) => c.addAction(chain.createAppendComponentAction(comp))));
+  await step("append", () => transaction(project, `Asistent: probe ${name}`, (c) => c.addAction(chain.createAppendComponentAction(comp))));
 }
 
 module.exports = { readAudioSelection, applyLevels, readEffects, readLevelDb, dumpChain, addEffectProbe };

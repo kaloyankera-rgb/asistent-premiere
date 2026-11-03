@@ -137,7 +137,7 @@ def test_split_is_refused_when_both_channels_carry_one_sound(tmp_path, voices):
     path = synth.write_wav(tmp_path / "cam.wav", stereo)
     res = A.analyze_item(path, force="split")
     assert res["action"] != "split" and len(res["outputs"]) == 1
-    assert "двойно" in res["reasons"][0]
+    assert "doubled" in res["reasons"][0]
 
 
 def test_split_keeps_the_sum_under_the_ceiling(tmp_path, voices):
@@ -157,7 +157,7 @@ def test_split_refusal_says_why(tmp_path, voices):
     s1, s2, _ = voices
     path = synth.write_wav(tmp_path / "one.wav", [(s1 + s2).astype(np.float32), np.zeros_like(s1, dtype=np.float32)])
     res = A.analyze_item(path, force="split")
-    assert res["action"] == "use_left" and "няма звук" in res["reasons"][0]
+    assert res["action"] == "use_left" and "has no sound" in res["reasons"][0]
 
 
 def phrase_spread(x, fs=SR):
@@ -224,7 +224,7 @@ def test_quiet_phrase_in_a_noisy_room_is_not_pumped(voices):
 def test_analyze_item_suggests_and_returns_keyframes(tmp_path, uneven):
     path = synth.write_wav(tmp_path / "u.wav", [uneven, np.zeros_like(uneven)])
     res = A.analyze_item(path, 3.0, 33.0)
-    assert any("Изравни фразите" in r for r in res["reasons"])
+    assert any("Even out phrases" in r for r in res["reasons"])
     res = A.analyze_item(path, 3.0, 33.0, phrases=True)
     keys = res["outputs"][0]["keyframes"]
     assert keys and keys[0][0] == 3.0                         # media time: starts at the clip's In point
@@ -248,7 +248,7 @@ def test_split_all_splits_every_stereo_clip_and_keeps_the_sum_under_the_ceiling(
     stereo = synth.write_wav(tmp_path / "same.wav", [x, x])
     r = analyze_item(stereo, force="split_all")
     assert r["action"] == "split" and [o["route"] for o in r["outputs"]] == ["LL", "RR"]
-    assert r["reasons"][0].startswith("Разделено на L/L и R/R. За сведение: анализът вижда еднакви канали")
+    assert r["reasons"][0].startswith("Split into L/L and R/R. For information: the analysis sees identical channels")
     mix = sum(np.asarray(x, np.float64) * 10 ** (o["gain_db"] / 20) for o in r["outputs"])
     assert 20 * np.log10(np.max(np.abs(mix))) <= -6.0 + 0.6        # true peak vs sample peak margin
     mono = synth.write_wav(tmp_path / "mono.wav", [x])
@@ -281,7 +281,7 @@ def test_balance_lowers_only_the_louder_speaker_to_within_the_tolerance(tmp_path
     assert after <= 2.3, after
     off_ll, off_rr = off["outputs"]
     assert ll["gain_db"] <= off_ll["gain_db"] + 1e-9 and rr["gain_db"] <= off_rr["gain_db"] + 1e-9    # never lifted
-    assert any("Говорителите се различаваха" in r for r in on["reasons"])
+    assert any("The speakers differed" in r for r in on["reasons"])
 
 
 def test_balance_leaves_similar_speakers_and_one_voice_on_two_mics_alone(tmp_path):
@@ -322,4 +322,4 @@ def test_balance_cut_is_capped():
     outs = [mk("LL", -10.0), mk("RR", -40.0)]
     lines = balance(outs, {"dominant_L": 0.3, "dominant_R": 0.3})
     assert outs[0]["gain_db"] == -BALANCE_MAX_CUT and outs[1]["gain_db"] == 0.0
-    assert "остават" in lines[0]
+    assert "remain" in lines[0]

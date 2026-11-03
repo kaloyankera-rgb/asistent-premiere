@@ -64,8 +64,11 @@ def write(path: str, name: str, fps: float, width: int, height: int, pieces: lis
         dur = int(m.duration * fps)
         video = ""
         if m.has_video:
+            # a file stored sideways with a rotation flag (3840x2160, rotation 90) is described as it DISPLAYS (2160x3840): the
+            # sequence the user sees upright is made of such files, and the stored size made them come in sideways
+            w, h = (m.height, m.width) if getattr(m, "rotation", 0) in (90, 270) else (m.width, m.height)
             video = ('<video><samplecharacteristics>%s<width>%d</width><height>%d</height></samplecharacteristics></video>'
-                     % (rate, m.width, m.height))
+                     % (rate, w, h))
         audio = ""
         if m.audio:
             audio = ('<audio><samplecharacteristics><depth>16</depth><samplerate>%d</samplerate></samplecharacteristics>'

@@ -47,9 +47,9 @@ def _num(v, what: str, lo: float = 0.0) -> float:
     try:
         f = float(v)
     except (TypeError, ValueError):
-        raise ValueError(f"Невалидна стойност: {what}.")
+        raise ValueError(f"Invalid value: {what}.")
     if not f >= lo:
-        raise ValueError(f"Невалидна стойност: {what}.")
+        raise ValueError(f"Invalid value: {what}.")
     return f
 
 
@@ -57,44 +57,44 @@ def validate(body: dict) -> dict:
     """Request body -> clean parameters, or ValueError with a message for the editor."""
     items = body.get("items")
     if not isinstance(items, list) or not items:
-        raise ValueError("Маркирай в таймлайна поне един аудио клип с говор.")
+        raise ValueError("Select at least one audio clip with speech in the timeline.")
     clean = []
     for it in items:
         if not isinstance(it, dict) or not isinstance(it.get("path"), str):
-            raise ValueError("Невалиден клип в заявката.")
+            raise ValueError("Invalid clip in the request.")
         if not os.path.isfile(it["path"]):
-            raise ValueError("Файлът липсва (офлайн медия?): " + os.path.basename(it["path"]))
-        start, end = _num(it.get("start"), "начало"), _num(it.get("end"), "край")
+            raise ValueError("The file is missing (offline media?): " + os.path.basename(it["path"]))
+        start, end = _num(it.get("start"), "start"), _num(it.get("end"), "end")
         if end <= start:
-            raise ValueError("Невалиден клип в заявката.")
-        clean.append({"path": it["path"], "start": start, "end": end, "at": _num(it.get("at"), "позиция"),
+            raise ValueError("Invalid clip in the request.")
+        clean.append({"path": it["path"], "start": start, "end": end, "at": _num(it.get("at"), "position"),
                       "name": str(it.get("name") or os.path.basename(it["path"])),
-                      "track": int(_num(it.get("track", 0), "писта"))})
+                      "track": int(_num(it.get("track", 0), "track"))})
     preset = body.get("preset", "auto")
     if preset not in PRESET_NAMES:
-        raise ValueError("Невалиден вид субтитри.")
+        raise ValueError("Invalid subtitle style.")
     out_dir = body.get("out_dir")
     if not isinstance(out_dir, str) or not os.path.isdir(out_dir):
-        raise ValueError("Папката на проекта не е намерена: запази проекта и опитай пак.")
+        raise ValueError("The project folder was not found: save the project and try again.")
     terms = body.get("terms") or []
     if not isinstance(terms, list) or not all(isinstance(t, str) for t in terms):
-        raise ValueError("Невалиден списък с имена и термини.")
+        raise ValueError("Invalid list of names and terms.")
     skipped = body.get("skipped") or []
     if not isinstance(skipped, list) or not all(isinstance(s, str) for s in skipped):
-        raise ValueError("Невалиден списък с пропуснати клипове.")
+        raise ValueError("Invalid list of skipped clips.")
     if not asr.backend_installed():
-        raise ValueError("Пакетите за разпознаване на реч (faster-whisper) не са инсталирани: пусни scripts/setup_mac.sh --subtitles.")
+        raise ValueError("The speech recognition packages (faster-whisper) are not installed: run scripts/setup_mac.sh --subtitles.")
     if not asr.model_present():
-        raise ValueError("Моделът за разпознаване на реч още не е свален: натисни „Свали модела“ в раздел СУБТИТРИ.")
+        raise ValueError("The speech recognition model is not downloaded yet: press Download the model in SUBTITLES.")
     text = body.get("text") or ""
     if not isinstance(text, str) or len(text) > corrections.MAX_TEXT:
-        raise ValueError("Невалиден текст с корекции и термини.")
+        raise ValueError("Invalid text of corrections and terms.")
     spoken = body.get("spoken") or {}
     if not isinstance(spoken, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in spoken.items()):
-        raise ValueError("Невалиден речник за произношение.")
-    return {"items": clean, "spoken": spoken, "preset": preset, "fps": _num(25.0 if body.get("fps") is None else body.get("fps"), "кадри в секунда", 1.0),
+        raise ValueError("Invalid pronunciation dictionary.")
+    return {"items": clean, "spoken": spoken, "preset": preset, "fps": _num(25.0 if body.get("fps") is None else body.get("fps"), "frames per second", 1.0),
             "width": body.get("width"), "height": body.get("height"), "out_dir": out_dir,
-            "name": str(body.get("name") or "секвенция"), "terms": terms, "skipped": skipped, "text": text}
+            "name": str(body.get("name") or "sequence"), "terms": terms, "skipped": skipped, "text": text}
 
 
 def _words_key(audio, prompt: str) -> str:
@@ -272,7 +272,7 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
             a, b = max(a, lo), min(b, hi)
             if b - a >= 0.4:
                 disputes.append({"at": round(sg["at"] + a - lo, 2), "end": round(sg["at"] + b - lo, 2), "word": "",
-                                 "reason": "има говор без дума (може да липсва дума или да е дишане)"})
+                                 "reason": "speech without a word (a word may be missing, or it is breathing)"})
         verbatim += [{"word": w["word"], "start": round(sg["at"] + w["start"] - lo, 3), "end": round(sg["at"] + w["end"] - lo, 3), "p": w.get("p")}
                      for w in entry["words"] if _inside(w, lo, hi)]                    # what Whisper wrote, untouched
         mine = _clamp([dict(w, start=w["start"] - lo, end=w["end"] - lo) for w in words if _inside(w, lo, hi)], hi - lo)
@@ -288,12 +288,12 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
             for i in agreement.disputed(checked, other):          # the two readings hear different genders: say so, change nothing
                 checked[i]["p"] = min(checked[i].get("p", 1.0), consensus.UNSURE_P)
                 votes["unsure"] += 1
-                disputes.append({"at": round(sg["at"] + checked[i]["start"], 2), "word": checked[i]["word"], "reason": "форма за мъж или жена: прочитанията се различават"})
+                disputes.append({"at": round(sg["at"] + checked[i]["start"], 2), "word": checked[i]["word"], "reason": "male or female form: the readings differ"})
         for w in checked:
             if w.get("unheard"):
                 w["p"] = min(w.get("p", 1.0), consensus.UNSURE_P)
                 votes["unsure"] += 1
-                disputes.append({"at": round(sg["at"] + w["start"], 2), "word": w["word"], "reason": "не се чува ясно в звука (тих шум)"})
+                disputes.append({"at": round(sg["at"] + w["start"], 2), "word": w["word"], "reason": "not clearly audible (quiet noise)"})
         changed += votes["changed"]
         unsure += votes["unsure"]
         changes += votes["changes"]
@@ -307,7 +307,7 @@ def _same_word(a: dict, b: dict) -> bool:
 
 
 def _file_stem(name: str) -> str:
-    stem = re.sub(r"[^\w\-. ()]", "_", name, flags=re.UNICODE).strip(" .") or "субтитри"
+    stem = re.sub(r"[^\w\-. ()]", "_", name, flags=re.UNICODE).strip(" .") or "subtitles"
     return f"{stem[:60]} {time.strftime('%Y-%m-%d %H-%M-%S')}"
 
 
@@ -354,7 +354,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     vocab = vocabulary(reads, [t for _, b in parsed["pairs"] for t in b.split()])
     def finish_one(i: int):
         return window_words(wins[i], reads[i], p["spoken"], parsed["pairs"], vocab, prompt, lambda f, m: None, cancelled)
-    progress(0.86, "Подравнявам думите по звука…")
+    progress(0.86, "Aligning the words to the sound…")
     with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(wins)))) as pool:   # pass 2: corrections, alignment, spelling
         futures = [pool.submit(finish_one, i) for i in range(len(wins))]
         try:
@@ -386,7 +386,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     for f in found:
         words[f["i"]]["p"] = min(words[f["i"]].get("p", 1.0), consensus.UNSURE_P)
     review = sorted(disputes + [{"at": round(f["at"], 2), "word": f["word"], "reason": f["reason"]} for f in found], key=lambda r: r["at"])
-    progress(0.96, "Подреждам редовете…")
+    progress(0.96, "Arranging the lines…")
 
     preset = subtitles.preset_for(p["width"], p["height"]) if p["preset"] == "auto" else p["preset"]
     captions = subtitles.build_captions(words, preset, p["fps"])
@@ -420,5 +420,5 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
              len(segments), len(wins), sum(w["b"] - w["a"] for w in wins), timing,
              aligned, weak, f", {align_error}" if align_error else "", asr_s, " (cached)" if cached else "",
              time.time() - t0, preset, stem + ".srt")
-    progress(1.0, "Готово")
+    progress(1.0, "Done")
     return result

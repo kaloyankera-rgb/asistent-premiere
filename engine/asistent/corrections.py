@@ -31,7 +31,7 @@ def parse(text: str) -> dict:
         if "=>" in line:
             src, dst = (p.strip() for p in line.split("=>", 1))
             if not norm(src).strip() or not dst or "=>" in dst:
-                errors.append(f"ред {n}: „{line}“ - трябва да е „чуто => казано“, и двете страни непразни")
+                errors.append(f"line {n}: \"{line}\" - must be \"heard => said\", both sides non-empty")
             else:
                 pairs.append((src, dst))
         else:

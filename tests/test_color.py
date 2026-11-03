@@ -69,7 +69,7 @@ def test_correct_footage_is_left_alone():
 @pytest.mark.parametrize("under", [0.5, 1.0, 1.5, 2.0])
 def test_underexposure_found_in_half_stops(under):
     r = C.decide(shot(scene(), stops=-under))
-    assert r["exposure"]["stops"] == under and r["exposure"]["basis"] == "кожата"
+    assert r["exposure"]["stops"] == under and r["exposure"]["basis"] == "the skin"
     assert r["exposure"]["confidence"] == "high"
 
 
@@ -84,9 +84,9 @@ def test_warm_and_cool_casts():
 def test_green_and_magenta_casts():
     green = C.decide(shot(scene(), gains=(1.0, 1.18, 1.0)))
     assert green["white"]["fix_tint"] == pytest.approx(-np.log2(1.18), abs=0.04)
-    assert any("Зелен" in r for r in green["reasons"])
+    assert any("Green" in r for r in green["reasons"])
     mag = C.decide(shot(scene(), gains=(1.1, 0.88, 1.1)))
-    assert mag["white"]["fix_tint"] > 0.1 and any("магента" in r for r in mag["reasons"])
+    assert mag["white"]["fix_tint"] > 0.1 and any("magenta" in r for r in mag["reasons"])
 
 
 def test_correction_actually_neutralises_the_wall():
@@ -111,7 +111,7 @@ def test_warm_room_without_neutrals_is_not_touched():
 def test_highlights_are_flagged_for_a_render_check():
     r = C.decide(shot(scene(window=True), stops=-2.0))
     assert r["exposure"]["stops"] == 2.0
-    assert r["exposure"]["burn_estimate"] > C.NEW_CLIP and any("изгор" in w for w in r["warnings"])
+    assert r["exposure"]["burn_estimate"] > C.NEW_CLIP and any("clip" in w for w in r["warnings"])
 
 
 def test_new_clipping_measure():
@@ -359,7 +359,7 @@ def test_c0739_message_exactly():
     assert v["clipping_status"] == "ACCEPTED_WITH_WARNING"
     assert v["clipping_message"] == ("Minor highlight clipping remains (3.08%, target ≤3.00%). "
                                      "Skin exposure is preserved. No further correction applied.")
-    assert "Кожата е запазена" in v["clipping_message_bg"]
+    assert "Skin exposure is preserved" in v["clipping_message"]
 
 
 def test_skin_preserved_is_claimed_only_when_true():
@@ -489,7 +489,7 @@ def test_no_timeline_frames_falls_back_to_the_file_as_review_needed(frames_dir, 
     r = C.analyze_items([{"path": str(clip), "frames": []}], with_preview=False)["items"][0]
     assert r["measured_on"] == "source" and r["status"] == "REVIEW_NEEDED"
     assert r["exposure"]["confidence"] == "low" and r["white"]["confidence"] == "low"
-    assert any("не на таймлайна" in w for w in r["warnings"])
+    assert any("not on the timeline" in w for w in r["warnings"])
 
 
 def test_frames_outside_the_engine_folder_are_ignored(frames_dir, tmp_path):
@@ -527,7 +527,7 @@ def test_timeline_preview_comes_from_the_timeline_frames(frames_dir):
 
 
 def test_final_recheck_gets_a_verdict_never_a_step_back(tmp_path):
-    # C0739 12:58 regression: the re-check at 3.08 % was labelled STEP_BACK („сваля се веднъж с 0.05“)
+    # C0739 12:58 regression: the re-check at 3.08 % was labelled STEP_BACK ("steps back once by 0.05")
     import subprocess as sp
     rng = np.random.default_rng(3)
     lin = rng.uniform(0.0, 1.0, size=(120, 160, 1)) ** 3 * 0.6 * np.ones(3)
@@ -557,14 +557,14 @@ def test_one_failing_clip_never_stops_the_others(frames_dir, monkeypatch):
     monkeypatch.setattr(C, "decide", flaky)
     res = C.analyze_items([{"path": "/nowhere/BAD.MP4", "frames": bad},
                            {"path": "/nowhere/GOOD.MP4", "frames": good}], with_preview=False)["items"]
-    assert "error" in res[0] and "другите продължават" in res[0]["error"]
+    assert "error" in res[0] and "the others go on" in res[0]["error"]
     assert res[1]["measured_on"] == "timeline" and res[1]["exposure"]["stops"] > 0
 
 
 def test_out_of_range_clip_gets_one_capped_pass_and_says_so():
     r = C.decide([scene() * 0 + C.encode(scene() / 2 ** 3.5)[..., :] for _ in range(3)])   # ~3.5 stops dark
     assert r["exposure"]["stops"] == C.MAX_STOPS                     # what is possible, nothing more
-    assert any("извън обхвата" in x for x in r["reasons"])
+    assert any("out of range" in x for x in r["reasons"])
 
 
 def test_no_keyframes_in_the_colour_path():
@@ -609,7 +609,7 @@ def test_clipping_alone_never_reverts(tmp_path):
 
 
 def test_wood_in_the_frame_is_not_skin_for_exposure_and_burnt_skin(monkeypatch):
-    # GStroy regression (2026-11-01): OSB boards sit in skin's colour; the single-clip „Цвят“ used a colour box
+    # GStroy regression (2026-11-01): OSB boards sit in skin's colour; the single-clip Auto color used a colour box
     # and would have exposed for the wood. Without a face there is no skin at all: the mid-tones decide.
     h, w = 120, 160
     img = np.full((h, w, 3), 0.18)
@@ -620,14 +620,14 @@ def test_wood_in_the_frame_is_not_skin_for_exposure_and_burnt_skin(monkeypatch):
     assert "exp_skin" not in m and "exp_mid" in m
     assert C.clipping_regions(enc, np.clip(enc * 1.3, 0, 1))["skin"] == 0.0
     r = C.decide([enc, enc])
-    assert r["exposure"]["basis"] == "средните тонове"
+    assert r["exposure"]["basis"] == "the midtones"
     monkeypatch.setattr(F, "detect", lambda e: [(100, 20, 40, 50, 0.9)])    # a face the detector says is there
     wall_face = C.measure(enc)                                              # ...on grey: a false detection
     assert "exp_skin" not in wall_face
 
 
 def test_identical_frames_after_a_correction_are_not_a_verdict(tmp_path):
-    # GStroy 2026-11-01: the same PNG before and after Exposure +2.15 / +4.3 was reported as „2.3 стопа под целта“
+    # GStroy 2026-11-01: the same PNG before and after Exposure +2.15 / +4.3 was reported as "2.3 stops under the target"
     # and the next press stacked another +2.15 on it
     lin = scene() * 0.5
     p = _png(C.encode(lin), tmp_path / "same.png")

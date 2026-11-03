@@ -127,9 +127,9 @@ def similarity(a: dict, ref: dict) -> float:
     return float(np.minimum(a["hist"], ref["hist"]).sum())
 
 
-BASIS_BG = {"face": "лице", "neutral": "бели/сиви повърхности", "mid": "общи тонове"}
-CONFIDENCE_BG = {"face": "висока", "neutral": "средна", "mid": "ниска"}      # what each anchor is worth
-PART_BG = {"exposure": "яркостта", "white": "бялото", "saturation": "наситеността", "contrast": "контрастът"}
+BASIS_BG = {"face": "face", "neutral": "white/grey surfaces", "mid": "overall tones"}
+CONFIDENCE_BG = {"face": "high", "neutral": "medium", "mid": "low"}      # what each anchor is worth
+PART_BG = {"exposure": "brightness", "white": "white balance", "saturation": "saturation", "contrast": "contrast"}
 
 
 def common_basis(looks: list[dict], ref: dict, allow_mid: bool = True) -> dict:
@@ -197,23 +197,23 @@ def fit(frames_lin: list[np.ndarray], ref: dict, cal, overlap: bool, current: di
     # and may disagree on Temperature while both anchors agree the camera is greener (Tint); the axis that agrees is
     # fitted, the one that does not is left alone and said
     d, unfitted = [None, None], set()
-    axes = (("temperature", "температурата"), ("tint", "нюансът зелено/магента"))
+    axes = (("temperature", "temperature"), ("tint", "green/magenta tint"))
     if dn and ds:
         for i, (key, bg) in enumerate(axes):
             if abs(dn[i] - ds[i]) > AGREE[i]:
-                flags.append(f"бялото, {bg}: неутралните повърхности и лицето показват различно (различна светлина?): не е пипано")
+                flags.append(f"white balance, {bg}: the neutral surfaces and the face disagree (different light?): not touched")
             else:
                 d[i] = (dn[i] + ds[i]) / 2
-        basis_name = "неутрални + лице"
+        basis_name = "neutrals + face"
     elif dn or ds:
         d = list(dn or ds)
-        basis_name = "неутрални" if dn else "лице"
+        basis_name = "neutrals" if dn else "face"
     else:
-        flags.append("бялото: няма бели/сиви повърхности или лице и в двете камери: не е пипано")
+        flags.append("white balance: no white/grey surfaces or face in both cameras: not touched")
         basis_name = None
     for i, (key, bg) in enumerate(axes):
         if d[i] is not None and abs(d[i]) > LIMITS["temp" if i == 0 else "tint"]:
-            flags.append(f"бялото, {bg}: разликата е голяма ({d[i]:+.2f}), вероятно нарочна светлина: не е пипано")
+            flags.append(f"white balance, {bg}: the difference is large ({d[i]:+.2f}), probably intended light: not touched")
             d[i] = None
         if d[i] is None:
             unfitted.add(key)
@@ -228,20 +228,20 @@ def fit(frames_lin: list[np.ndarray], ref: dict, cal, overlap: bool, current: di
     cur = look(frames_lin, v, cal, faces)
     def need(c):
         if ref["skin"] and c["skin"]:
-            return float(np.log2(ref["skin"]["y"] / c["skin"]["y"])), "лицето", float(C.encode(np.array(c["skin"]["y"])))
+            return float(np.log2(ref["skin"]["y"] / c["skin"]["y"])), "the face", float(C.encode(np.array(c["skin"]["y"])))
         if overlap and ref.get("neutral_y") and c.get("neutral_y"):        # same moment, same light
-            return float(np.log2(ref["neutral_y"] / c["neutral_y"])), "белите/сивите повърхности", \
+            return float(np.log2(ref["neutral_y"] / c["neutral_y"])), "the white/grey surfaces", \
                 float(C.encode(np.array(c["neutral_y"])))
         if overlap and ref["mid"] and c["mid"] and similarity(c, ref) >= SIMILAR:
-            return C.GAMMA * float(np.log2(ref["mid"] / c["mid"])), "общия момент", c["mid"]
+            return C.GAMMA * float(np.log2(ref["mid"] / c["mid"])), "the shared moment", c["mid"]
         return None, None, None
     stops, why, at = need(cur)
     if stops is None:
-        flags.append("яркостта: няма лице или бели/сиви повърхности в общи моменти с еталона: не е пипано")
+        flags.append("brightness: no face or white/grey surfaces in moments shared with the reference: not touched")
     elif abs(stops) > LIMITS["stops_overlap" if overlap else "stops"]:
         # the same real moment (synced POVs) has the same light: a big gap is then the cameras' settings, so the
         # limit is wider there; elsewhere it may be another scene or intent
-        flags.append(f"яркостта: разликата е {stops:+.1f} стопа, вероятно нарочна или друга сцена: не е пипано")
+        flags.append(f"brightness: the difference is {stops:+.1f} stops, probably intended or another scene: not touched")
     else:
         basis["exposure"] = why
         for _ in range(3):                     # the curve and the shoulder: correct, look again, correct
@@ -259,25 +259,25 @@ def fit(frames_lin: list[np.ndarray], ref: dict, cal, overlap: bool, current: di
             ratio = ref["skin"]["chroma"] / max(cur["skin"]["chroma"], 1e-6)
             s = v["saturation"] + (ratio - 1) / SAT_B
             if abs(s - 100) > LIMITS["saturation"]:
-                flags.append(f"наситеността: разликата е голяма ({s - 100:+.0f}): не е пипано")
+                flags.append(f"saturation: the difference is large ({s - 100:+.0f}): not touched")
                 v["saturation"], ok = 100.0, False
                 break
             v["saturation"] = round(s, 0)
             cur = look(frames_lin, v, cal, faces)
         if ok:
-            basis["saturation"] = "лицето"
+            basis["saturation"] = "the face"
     elif not (ref["skin"] and cur["skin"]):
-        flags.append("наситеността: няма разпознато лице и в двете камери (за нея се мери само кожа на лице): не е пипано")
+        flags.append("saturation: no recognised face in both cameras (it is measured only on facial skin): not touched")
     # contrast: the tone spread, only on the same real moments AND comparable content (framing decides otherwise)
     if not (overlap and similarity(cur, ref) >= SIMILAR):
-        flags.append("контрастът: кадрите показват различно съдържание (ракурс), не може да се сравни: не е пипано")
+        flags.append("contrast: the frames show different content (angle), cannot be compared: not touched")
     elif ref["spread"] and cur["spread"]:
         c = v["contrast"] + (ref["spread"] / cur["spread"] - 1) / CONTRAST_K
         if abs(c) > LIMITS["contrast"]:
-            flags.append(f"контрастът: разликата е голяма ({c:+.0f}): кадрите не са сравними (ракурс или светлина), не е пипано")
+            flags.append(f"contrast: the difference is large ({c:+.0f}): the frames are not comparable (angle or light), not touched")
         else:
             v["contrast"] = round(c, 0)
-            basis["contrast"] = "общия момент"
+            basis["contrast"] = "the shared moment"
     fitted = {"white": ("temperature", "tint"), "exposure": ("exposure",), "saturation": ("saturation",),
               "contrast": ("contrast",)}
     for part, keys in fitted.items():
@@ -290,7 +290,8 @@ def fit(frames_lin: list[np.ndarray], ref: dict, cal, overlap: bool, current: di
     changed = [k for k in DEFAULT if abs(v[k] - current[k]) >= 1e-9]
     conf = {}
     for part, how in basis.items():
-        kind = "face" if "лице" in how else "mid" if "момент" in how else "neutral"
+        words = how.split()                       # whole words: "surfaces" holds "face"
+        kind = "face" if "face" in words else "mid" if "moment" in words else "neutral"
         conf[part] = CONFIDENCE_BG[kind]
     return {"values": v, "changed": changed, "flags": flags, "basis": basis, "confidence": conf,
             "error_before": before, "error_after": after}
@@ -315,13 +316,13 @@ def run(items: list[dict], reference: str | None, cal=None, progress=None) -> di
     progress = progress or (lambda f, m: None)
     clips = []
     for i, it in enumerate(items):
-        progress(0.6 * i / max(len(items), 1), f"Гледам {i + 1} от {len(items)}")
+        progress(0.6 * i / max(len(items), 1), f"Looking at {i + 1} of {len(items)}")
         rec = {"index": i, "name": os.path.basename(it["path"]), "camera": it.get("camera") or "?",
                "overlap": bool(it.get("overlap")), "current": {**DEFAULT, **(it.get("current") or {})},
                "lumetri": it.get("lumetri") or "none", "flags": []}
         gamma = sony_xml(it["path"]).get("gamma")
         if gamma and "log" in gamma.lower():
-            rec["flags"].append(f"запис в {gamma}: Shot Match засега е само за Rec.709, пропуснато")
+            rec["flags"].append(f"recorded in {gamma}: Shot Match is only for Rec.709 for now, skipped")
         else:
             try:
                 frames, rec["faces"] = _frames_and_faces(it["path"], it.get("times") or None)
@@ -332,7 +333,7 @@ def run(items: list[dict], reference: str | None, cal=None, progress=None) -> di
     usable = [c for c in clips if c.get("frames")]
     cameras = sorted({c["camera"] for c in usable})
     if len(cameras) < 2:
-        raise ValueError("За изравняване трябват клипове от поне две камери (папки).")
+        raise ValueError("Matching needs clips from at least two cameras (folders).")
     # each camera as it looks now (its current Lumetri values simulated on the source)
     looks = {cam: pool([a for c in usable if c["camera"] == cam for a in
                         [anchors(C.encode(simulate(f, c["current"], cal)), fc)
@@ -342,13 +343,13 @@ def run(items: list[dict], reference: str | None, cal=None, progress=None) -> di
     ref = looks[ref_cam]
     notes = []
     if not F.available():
-        notes.append("няма разпознаване на лица (OpenCV или моделът липсва): кожата не се мери, яркостта и бялото "
-                     "се взимат от бели/сиви повърхности, наситеността не се пипа")
+        notes.append("no face detection (OpenCV or the model is missing): skin is not measured, brightness and white balance "
+                     "come from white/grey surfaces, saturation is not touched")
     if any(c["lumetri"] == "manual" for c in usable if c["camera"] == ref_cam):
-        notes.append("еталонът има ръчна корекция: взети са само Exposure/Temperature/Tint/Contrast/Saturation от нея")
+        notes.append("the reference has a manual grade: only Exposure/Temperature/Tint/Contrast/Saturation are taken from it")
     out = []
     for n, c in enumerate(clips):
-        progress(0.6 + 0.4 * n / max(len(clips), 1), f"Изравнявам {n + 1} от {len(clips)}")
+        progress(0.6 + 0.4 * n / max(len(clips), 1), f"Matching {n + 1} of {len(clips)}")
         r = {k: c[k] for k in ("index", "name", "camera", "overlap", "current", "lumetri")}
         r["flags"] = list(c["flags"])
         if not c.get("frames"):
@@ -362,7 +363,7 @@ def run(items: list[dict], reference: str | None, cal=None, progress=None) -> di
                      error_before=f["error_before"], error_after=f["error_after"])
             r["flags"] += f["flags"]
             if c["lumetri"] == "manual":
-                r["flags"].append("има ръчна Lumetri корекция: няма да се пипа")
+                r["flags"].append("has a manual Lumetri grade: will not be touched")
             r["preview"] = _preview(c["frames"][0], c["current"], f["values"], cal)
         out.append(r)
     return {"reference": ref_cam, "cameras": cameras, "scores": scores, "reference_look": ref, "notes": notes,
@@ -416,11 +417,11 @@ def check(before_path: str, after_path: str, ref: dict) -> dict:
         # GStroy 2026-11-01 (0.9.31): a clip piece's before and after frames were byte-identical although the values
         # changed (the clip was not what the viewer shows at that moment, or Premiere gave back the old frame).
         # Nothing was measured on the clip's change, so nothing may be called "same" or "better".
-        skipped = {k: "кадърът преди и след е един и същ: промяната не се вижда на него" for k in PART_BG}
+        skipped = {k: "the frame before and after is the same: the change does not show on it" for k in PART_BG}
         return {"error_before": {k: None for k in PART_BG}, "error_after": {k: None for k in PART_BG},
                 "verdict": {k: "unknown" for k in PART_BG}, "revert": [], "reliable": {}, "skipped": skipped,
-                "summary": "не мога да проверя на кадър: кадърът след промяната е същият като преди (клипът е скрит под "
-                           "друг слой на този момент или Premiere не е обновил кадъра), нищо не е потвърдено",
+                "summary": "cannot check on a frame: the frame after the change is the same as before (the clip is hidden under "
+                           "another layer at this moment, or Premiere did not refresh the frame), nothing is confirmed",
                 "report": []}
     b = pool([anchors(img_b, F.detect(img_b))])
     a = pool([anchors(img_a, F.detect(img_a))])
@@ -432,23 +433,23 @@ def check(before_path: str, after_path: str, ref: dict) -> dict:
             verdict[k] = "unknown"
         else:
             verdict[k] = "worse" if ea[k] > eb[k] + WORSE[k] else "better" if ea[k] < eb[k] - WORSE[k] else "same"
-    why = {"exposure": "няма лице или бели/сиви повърхности на еталона и на двата кадъра",
-           "white": "няма бели/сиви повърхности или лице на еталона и на двата кадъра",
-           "saturation": "няма лице на еталона и на двата кадъра",
-           "contrast": "кадрите показват различно съдържание"}
+    why = {"exposure": "no face or white/grey surfaces on the reference and on both frames",
+           "white": "no white/grey surfaces or face on the reference and on both frames",
+           "saturation": "no face on the reference and on both frames",
+           "contrast": "the frames show different content"}
     reliable = {k: basis[k] for k in verdict if k in basis and verdict[k] != "unknown"}
     skipped = {k: why[k] for k in verdict if verdict[k] == "unknown"}
     revert = [k for k, x in verdict.items() if x == "worse"]
-    report = [f"{PART_BG[k]}: {BASIS_BG.get(v, 'общи тонове')}, {_VERDICT_BG[verdict[k]]}" for k, v in reliable.items()]
-    report += [f"{PART_BG[k]}: не е проверено ({r})" for k, r in skipped.items()]
+    report = [f"{PART_BG[k]}: {BASIS_BG.get(v, 'overall tones')}, {_VERDICT_BG[verdict[k]]}" for k, v in reliable.items()]
+    report += [f"{PART_BG[k]}: not checked ({r})" for k, r in skipped.items()]
     if not reliable:
-        summary = "не мога да проверя на кадър: нито едно измерване не е надеждно, затова нищо не е върнато и нищо не е потвърдено"
+        summary = "cannot check on a frame: no measurement is reliable, so nothing was reverted and nothing is confirmed"
     elif revert:
         summary = ""
     else:
-        summary = "проверено на кадър: по-близо до еталона или същото (само надеждните измервания)"
+        summary = "checked on a frame: closer to the reference or the same (reliable measurements only)"
     return {"error_before": eb, "error_after": ea, "verdict": verdict, "revert": revert, "reliable": reliable,
             "skipped": skipped, "summary": summary, "report": report}
 
 
-_VERDICT_BG = {"better": "по-близо до еталона", "same": "същото", "worse": "по-далеч от еталона"}
+_VERDICT_BG = {"better": "closer to the reference", "same": "the same", "worse": "further from the reference"}

@@ -33,30 +33,30 @@ def status() -> dict:
             "version": _state["version"]}
 
 
-NOT_RUNNING = ("Помощникът на Asistent в Premiere не работи. Затвори и отвори Premiere веднъж "
-               "(инсталира се със scripts/install_host_mac.sh).")
+NOT_RUNNING = ("The Asistent helper in Premiere is not running. Close and reopen Premiere once "
+               "(it is installed with scripts/install_host_mac.sh).")
 
 
 def run(name: str, args: dict | None = None, wait: float = 60.0) -> dict:
     """One command to the host -> its answer {ok, msg, ...}; raises ValueError with a Bulgarian message."""
     if name not in COMMANDS:
-        raise ValueError("Непозната команда към Premiere.")
+        raise ValueError("Unknown command to Premiere.")
     if name == "eval" and not devbridge.enabled():
-        raise ValueError("Тестовият мост е изключен.")
+        raise ValueError("The test bridge is off.")
     if not status()["connected"]:
         raise ValueError(NOT_RUNNING)
     cid = HOST.submit(name, args or {})
     res = HOST.wait_result(cid, wait)
     if res is None:
-        raise ValueError("Premiere не отговори навреме (заето ли е?). Опитай пак.")
+        raise ValueError("Premiere did not answer in time (is it busy?). Try again.")
     data = res["data"] if isinstance(res["data"], dict) else {"ok": res["ok"], "msg": str(res["data"])}
     return data
 
 
-def place_captions(srt: str, sequence: str, project: str | None, bin_name: str = "Субтитри") -> dict:
+def place_captions(srt: str, sequence: str, project: str | None, bin_name: str = "Subtitles") -> dict:
     """Put the SRT on a caption track of the active sequence (times in the file are sequence times)."""
     if not os.path.isfile(srt):
-        raise ValueError("Файлът със субтитрите липсва: " + srt)
+        raise ValueError("The subtitle file is missing: " + srt)
     return run("captions", {"srt": srt, "sequence": sequence, "project": project, "bin": bin_name})
 
 
@@ -68,10 +68,10 @@ def route_audio(items: list, sequence: str, project: str | None) -> dict:
     clean = []
     for it in items if isinstance(items, list) else []:
         if not isinstance(it, dict) or it.get("route") not in ROUTES:
-            raise ValueError("Неясно какво да се направи с клипа.")
+            raise ValueError("Unclear what to do with the clip.")
         clean.append({"track": int(it["track"]), "start": float(it["start"]), "end": float(it["end"]), "route": it["route"]})
     if not clean:
-        raise ValueError("Няма клипове за разделяне.")
+        raise ValueError("No clips to split.")
     return run("audio_route", {"items": clean, "sequence": sequence, "project": project}, wait=120.0)
 
 

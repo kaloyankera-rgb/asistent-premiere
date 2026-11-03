@@ -21,7 +21,7 @@ class Job:
         self.kind = kind
         self.state = "queued"          # queued | running | done | error | cancelled
         self.progress = 0.0
-        self.message = "Изчаква"
+        self.message = "Waiting"
         self.result = None
         self.error: str | None = None
         self.created = time.time()
@@ -76,10 +76,10 @@ class JobManager:
             job.state = "done"
             job.progress = 1.0
         except Cancelled:
-            job.state, job.message = "cancelled", "Отказано"
+            job.state, job.message = "cancelled", "Cancelled"
         except (MediaError, ValueError) as e:
             job.state, job.error = "error", str(e)
         except Exception as e:  # unexpected: keep the detail in the log, show a short message
-            job.state, job.error = "error", f"Неочаквана грешка: {e}"
+            job.state, job.error = "error", f"Unexpected error: {e}"
             log.error("job %s %s failed\n%s", job.kind, job.id, traceback.format_exc())
         log.info("job %s %s -> %s in %.1fs", job.kind, job.id, job.state, time.time() - t0)

@@ -45,7 +45,7 @@ test("levels go to the clips where the host put the sides", () => {
     routed: { ok: true, status: "done", upperSide: "R", lowerSide: null, upper: { track: 0, start: 60 }, lower: null } };
   const asis = { it: { name: "d", track: 0, start: 70 }, res: { action: "none", outputs: [out("as_is", -2)] }, routed: null };
   const again = { it: { name: "C0738 R 3.84-13.28", side: "R", track: 2, start: 34.9 }, res: { action: "use_right", outputs: [out("RR", 5)] }, routed: null };
-  const failed = { it: { name: "e", track: 0, start: 80 }, res: { action: "split", outputs: [out("LL", 1), out("RR", 1)] }, routed: { ok: false, msg: "няма свободна писта" } };
+  const failed = { it: { name: "e", track: 0, start: 80 }, res: { action: "split", outputs: [out("LL", 1), out("RR", 1)] }, routed: { ok: false, msg: "no free track" } };
   const ask = { it: { name: "f", track: 0, start: 90 }, res: { action: "ask", outputs: [] }, routed: null };
   const t = levelTargets([split, rl, lone, asis, again, failed, ask]);
   assert.deepStrictEqual(t.map((x) => [x.track, x.start, x.out.route, x.out.gain_db]), [
@@ -59,10 +59,10 @@ test("levels go to the clips where the host put the sides", () => {
 
 test("the report says where each side went and whether it is linked", () => {
   assert.match(routeLine({ ok: true, status: "done", upperSide: "L", lowerSide: "R", upper: { track: 0 }, lower: { track: 1 }, linked: true }),
-    /L\/L на A1, R\/R на A2 .*свързани с картината/);
+    /L\/L on A1, R\/R on A2 .*linked to the picture/);
   assert.match(routeLine({ ok: true, status: "done", upperSide: "L", lowerSide: "R", upper: { track: 0 }, lower: { track: 1 }, linked: false, relinked: 1 }),
-    /НЕ са свързани/);
-  assert.match(routeLine({ ok: false, msg: "няма свободна аудио писта под A1" }), /^Не е разделено: няма свободна/);
+    /NOT linked/);
+  assert.match(routeLine({ ok: false, msg: "no free audio track below A1" }), /^Not split: no free/);
   assert.strictEqual(routeLine(null), null);
 });
 

@@ -11,8 +11,8 @@ PY=""
 for c in /opt/homebrew/bin/python3.12 /usr/local/bin/python3.12 python3.12; do
   if command -v "$c" >/dev/null 2>&1; then PY="$(command -v "$c")"; break; fi
 done
-[ -n "$PY" ] || { echo "Нужен е Python 3.12: brew install python@3.12"; exit 1; }
-command -v ffmpeg >/dev/null 2>&1 || [ -x /opt/homebrew/bin/ffmpeg ] || { echo "Нужен е FFmpeg: brew install ffmpeg"; exit 1; }
+[ -n "$PY" ] || { echo "Python 3.12 is needed: brew install python@3.12"; exit 1; }
+command -v ffmpeg >/dev/null 2>&1 || [ -x /opt/homebrew/bin/ffmpeg ] || { echo "FFmpeg is needed: brew install ffmpeg"; exit 1; }
 
 [ -x "$APP/venv/bin/python" ] || "$PY" -m venv "$APP/venv"
 "$APP/venv/bin/pip" install -q --upgrade pip
@@ -67,8 +67,8 @@ launchctl bootstrap "gui/$(id -u)" "$PLIST"
 # the first start compiles and loads SciPy, which can take ~20 s
 for i in $(seq 1 40); do
   if curl -s -H "X-Asistent: 1" http://127.0.0.1:47390/status | grep -q asistent; then
-    echo "Asistent engine работи (стартира се сам при вход)."; exit 0
+    echo "Asistent engine is running (it starts by itself at login)."; exit 0
   fi
   sleep 1
 done
-echo "Engine-ът не отговаря. Виж $APP/logs/"; exit 1
+echo "The engine does not answer. See $APP/logs/"; exit 1

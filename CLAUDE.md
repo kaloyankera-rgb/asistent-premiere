@@ -16,7 +16,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `main.js` UI and flows · `engine.js` HTTP client · `premiere.js` timeline reading, SYNC sequence,
     shared helpers (`transaction`, `has`, `maybe`, `ensureBin`, `readTimeline`, `readItems`)
   - `premiere-audio.js` Fill L/R, split copy, Volume level/keyframes · `channels.js` effect-chain routing
-  - `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
+  - `captionedit.js` (what a typed caption correction becomes: correction lines for the engine) · `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
   - `devbridge.js` test bridge executor · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
 - **Asistent host** `host/` (since 0.9.45): an invisible CEP extension (`CSXS/manifest.xml`, `main.js`, `host.jsx`) installed by
   `scripts/install_host_mac.sh` (called by `release_mac.sh`). It long-polls `GET /host/poll` and runs ExtendScript inside Premiere,
@@ -33,7 +33,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `subtitle_job.py` + `dialoguemix.py` the `/subtitles` job: cleanest microphone per speech, per-piece recognition (3 readings), `align.py`/`align_worker.py` optional MMS_FA alignment in `venv-align`, `consensus.py` + `lexicon.py` word votes with the Bulgarian dictionary, `corrections.py` the editor's `чуто => казано` lines (applied before the alignment), `subtitle_settings.py` per-project choices; `scripts/check_subtitles.py` checks a run against the audio
   - `hostbridge.py` + `captionstate.py` the channel to the Asistent host (below) and the memory of which caption track Asistent placed
   - `devbridge.py` test bridge: the panel runs commands from the engine (`scripts/dev_cmd.py`), only in TEST.prproj, off without the flag file `devbridge.enabled`
-  - `speechmap.py` + `vad.py` + `pauses.py` + `edl.py` + `xmeml.py` + `roughcut_job.py` Phase 8 rough cut: label every 10 ms (word / voiced / low / silent), cut pauses, same cuts on every selected item, write FCP7 XML that the panel imports as a new sequence (`docs/ROUGHCUT_PLAN.md`)
+  - `speechmap.py` + `vad.py` + `pauses.py` + `edl.py` + `xmeml.py` + `takes.py` (repeated takes: a plain repeat is cut, the last full take stays) + `roughcut_job.py` Phase 8 rough cut: label every 10 ms (word / voiced / low / silent), cut pauses, same cuts on every selected item, write FCP7 XML that the panel imports as a new sequence (`docs/ROUGHCUT_PLAN.md`)
   - `faces.py` face detector (YuNet through OpenCV, model in `models/`); no OpenCV/model → no skin anchor
   - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`)
   - `color.py` exposure/white-balance analysis, previews, render check, Lumetri calibration, probe measurement
@@ -61,8 +61,10 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 - Diagnose from logs: `~/Library/Application Support/Asistent/logs/engine.log` (panel writes every step and
   the API method lists), `~/Library/Logs/Adobe/Adobe Premiere Pro 2026/UXPLogs_*`, crash dumps in
   `~/Library/Caches/Adobe/Premiere Pro/26.0/SentryIO-db/completed/` (symbolicate with `atos`).
-- Code style: English code and comments; all user-facing panel text and messages in Bulgarian
-  (natural Bulgarian, no long dash). Comments explain why, as in the existing modules.
+- Code style: English code and comments; all user-facing panel text, messages, names Asistent gives things in Premiere
+  (bins, sequences, markers, Undo steps) and the README in plain English (the user's decision 2026-11-03, 0.9.66). The
+  Bulgarian language data of the subtitle and take pipelines (spelling, dictionary, numbers, fillers, month and money
+  words, folder keywords) is not UI text and stays Bulgarian. Comments explain why, as in the existing modules.
 
 ## Bulgarian subtitles: read the guide first
 `docs/BULGARIAN_TRANSCRIPTION_GUIDE.md` is the permanent reference for everything that touches the subtitle pipeline

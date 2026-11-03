@@ -44,7 +44,7 @@ def read_range(path: str, start: float = 0.0, end: float | None = None, sr: int 
     """First audio stream, all channels, float32 (channels, samples), only [start, end) of the media."""
     info = probe(path)
     if not info.audio:
-        raise MediaError(f"{os.path.basename(path)} няма звук.")
+        raise MediaError(f"{os.path.basename(path)} has no sound.")
     ch = info.audio[0].channels
     cmd = [_tool("ffmpeg"), "-v", "error", "-nostdin"]
     if start > 0:
@@ -55,7 +55,7 @@ def read_range(path: str, start: float = 0.0, end: float | None = None, sr: int 
     cmd += ["-ar", str(sr), "-ac", str(ch), "-f", "f32le", "-"]
     p = _run(cmd)
     if p.returncode != 0:
-        raise MediaError(f"FFmpeg не може да прочете звука на {os.path.basename(path)}: "
+        raise MediaError(f"FFmpeg cannot read the sound of {os.path.basename(path)}: "
                          f"{p.stderr.decode(errors='replace').strip()[:200]}")
     x = np.frombuffer(p.stdout, dtype=np.float32)
     n = len(x) // ch
@@ -169,7 +169,7 @@ def classify(x: np.ndarray) -> dict:
     """x: (channels, samples). Returns kind, confidence, the proposed action and the evidence."""
     if x.shape[0] == 1:
         return {"kind": "mono", "confidence": "high", "action": "none", "evidence": {},
-                "reasons": ["Клипът е моно: няма какво да се разпределя."]}
+                "reasons": ["The clip is mono: nothing to route."]}
     l, r = x[0], x[1]
     fl, fr = _frames_db(l), _frames_db(r)
     al, ar = _activity(fl), _activity(fr)
@@ -182,48 +182,48 @@ def classify(x: np.ndarray) -> dict:
     ev = {"L": sl, "R": sr_, "corr": round(corr, 3), "lag_ms": round(lag, 2), "level_diff_db": round(diff, 1),
           "dominant_L": round(dom_l, 3), "dominant_R": round(dom_r, 3)}
     louder = "use_left" if diff >= 0 else "use_right"
-    side = lambda a: "ляв" if a == "use_left" else "десен"   # noqa: E731
+    side = lambda a: "left" if a == "use_left" else "right"   # noqa: E731
 
     def out(kind, conf, action, *reasons):
         return {"kind": kind, "confidence": conf, "action": action, "evidence": ev, "reasons": list(reasons)}
 
     if not (al.any() or ar.any()):
-        return out("silent", "high", "none", "В клипа няма говор: нищо не е пипано.")
+        return out("silent", "high", "none", "No speech in the clip: nothing was touched.")
     if sl["silent"] or sr_["silent"] or abs(diff) >= 30:
         act = "use_right" if (sl["silent"] or diff <= -30) else "use_left"
         return out("one_channel", "high", act,
-                   f"Звук има само в {side(act)}ия канал (другият е с {abs(diff):.0f} dB по-тих или празен).")
+                   f"There is sound only in the {side(act)} channel (the other is {abs(diff):.0f} dB quieter or empty).")
     if corr >= 0.98 and abs(diff) < 1:
-        return out("dual_mono", "high", "none", "Двата канала са еднакви: звукът вече е в центъра.")
+        return out("dual_mono", "high", "none", "Both channels are the same: the sound is already in the centre.")
     if corr <= -0.9:
         return out("phase_inverted", "high", louder,
-                   "Каналите са еднакви, но с обърната фаза: ползва се само единият, иначе се изличават.")
+                   "The channels are the same but phase-inverted: only one is used, otherwise they cancel out.")
     if corr >= 0.9 and abs(diff) >= 3:
         main, other = (sl, sr_) if diff > 0 else (sr_, sl)
         act = louder
         if main["clipped"] > 1e-4 and other["clipped"] <= 1e-5:
             act = "use_right" if louder == "use_left" else "use_left"
-            return out("safety", "high", act, f"Единият канал е копие за безопасност с {abs(diff):.0f} dB "
-                       f"по-ниско ниво; основният клипира, затова се ползва копието ({side(act)}ия).")
-        return out("safety", "high", act, f"Единият канал е копие за безопасност с {abs(diff):.0f} dB по-ниско "
-                   f"ниво: ползва се основният ({side(act)}ия).")
+            return out("safety", "high", act, f"One channel is a safety copy {abs(diff):.0f} dB "
+                       f"lower; the main one clips, so the copy is used (the {side(act)} one).")
+        return out("safety", "high", act, f"One channel is a safety copy {abs(diff):.0f} dB lower: "
+                   f"the main one is used (the {side(act)} one).")
     if corr >= 0.6:
         return out("stereo_mic", "medium", "none",
-                   "Прилича на стерео микрофон (камера): оставен е както е.")
+                   "Looks like a stereo microphone (camera): left as it is.")
     lead = max(dom_l, dom_r)
     if lead >= 0.2 and min(dom_l, dom_r) <= 0.1:
         act = "use_left" if dom_l > dom_r else "use_right"
         return out("same_voice", "high", act,
-                   f"Двата канала чуват един и същ глас: {side(act)}ият води в {lead:.0%} от говора, другият почти "
-                   f"никога (същият глас от по-далеч, {abs(lag):.1f} ms по-късно). Ползва се само {side(act)}ият, "
-                   "иначе се чува двойно.")
+                   f"Both channels hear the same voice: the {side(act)} one leads in {lead:.0%} of the speech, the other almost "
+                   f"never (the same voice from further away, {abs(lag):.1f} ms later). Only the {side(act)} one is used, "
+                   "otherwise it sounds doubled.")
     # two people, each with their own mic: both channels carry speech and each one leads a real share
     if corr < 0.5 and dom_l >= 0.15 and dom_r >= 0.15 and sl["active"] >= 0.15 and sr_["active"] >= 0.15:
         return out("two_mics", "high", "split",
-                   f"Два отделни микрофона: ляв води в {dom_l:.0%}, десен в {dom_r:.0%} от говора. "
-                   "Разделят се на две моно писти (L/L и R/R).")
+                   f"Two separate microphones: left leads in {dom_l:.0%}, right in {dom_r:.0%} of the speech. "
+                   "They are split onto two mono tracks (L/L and R/R).")
     return out("uncertain", "low", "ask",
-               "Не съм сигурен дали това са два микрофона или един: избери ръчно (Раздели L/R, Само L, Само R).")
+               "Not sure whether these are two microphones or one: choose by hand (Split L/R, L only, R only).")
 
 
 def outputs_for(x: np.ndarray, action: str) -> list[tuple[str, list[np.ndarray]]]:
@@ -243,7 +243,7 @@ def gain_for(chs: list[np.ndarray], target: float, ceiling: float) -> dict:
     peak = max(true_peak(c) for c in chs)
     if lufs <= -69:
         return {"lufs": None, "peak_db": round(peak, 1), "gain_db": 0.0, "limited_by_peak": False,
-                "note": "Няма говор за измерване: силата не е пипана."}
+                "note": "No speech to measure: the level was not touched."}
     want = target - lufs
     room = ceiling - peak
     # a boost may not lift the room noise above NOISE_MAX (near-silent clips would only get louder hiss)
@@ -257,12 +257,12 @@ def gain_for(chs: list[np.ndarray], target: float, ceiling: float) -> dict:
            "limited_by_peak": room < want, "result_lufs": round(lufs + gain, 1),
            "result_peak_db": round(peak + gain, 1)}
     if by_noise:
-        res["note"] = (f"Вдигнато само с {gain:+.1f} dB: повече би вдигнало шума на стаята над {NOISE_MAX:.0f} dBFS "
-                       f"(шумът е {noise_db:.0f} dBFS).")
+        res["note"] = (f"Raised only by {gain:+.1f} dB: more would lift the room noise above {NOISE_MAX:.0f} dBFS "
+                       f"(the noise is {noise_db:.0f} dBFS).")
         res["limited_by_noise"] = True
     elif room < want:
-        res["note"] = (f"Вдигнато само с {gain:+.1f} dB, за да не мине пикът {ceiling:.0f} dB; до {target:.0f} LUFS "
-                       f"липсват {want - room:.1f} dB (за повече трябва компресия, не е приложена).")
+        res["note"] = (f"Raised only by {gain:+.1f} dB so the peak stays under {ceiling:.0f} dB; {want - room:.1f} dB are missing "
+                       f"to {target:.0f} LUFS (more needs compression, which is not applied).")
     return res
 
 
@@ -372,9 +372,9 @@ def apply_keyframes(x: np.ndarray, keys: list[tuple[float, float]], offset: floa
     return x * 10 ** (np.interp(t, kt, kv) / 20)
 
 
-_KINDS = {"same_voice": "един глас от два микрофона", "one_channel": "звук само в единия канал", "dual_mono": "еднакви канали",
-          "safety": "копие за безопасност", "phase_inverted": "обърната фаза", "stereo_mic": "стерео микрофон",
-          "two_mics": "два микрофона", "uncertain": "несигурно", "silent": "без говор", "mono": "моно"}
+_KINDS = {"same_voice": "one voice on two microphones", "one_channel": "sound in one channel only", "dual_mono": "identical channels",
+          "safety": "a safety copy", "phase_inverted": "inverted phase", "stereo_mic": "a stereo microphone",
+          "two_mics": "two microphones", "uncertain": "uncertain", "silent": "no speech", "mono": "mono"}
 
 
 def _shift(o: dict, delta: float) -> None:
@@ -382,7 +382,7 @@ def _shift(o: dict, delta: float) -> None:
     o["gain_db"] = round(o["gain_db"] + delta, 1)
     o["result_lufs"] = round(o["result_lufs"] + delta, 1)
     o["result_peak_db"] = round(o["result_peak_db"] + delta, 1)
-    o.pop("note", None)                       # "Вдигнато само с +3.9 dB…" described the gain before this shift
+    o.pop("note", None)                       # "Raised only by +3.9 dB…" described the gain before this shift
 
 
 def balance(outs: list[dict], ev: dict, tol: float = BALANCE_TOL) -> list[str]:
@@ -399,10 +399,10 @@ def balance(outs: list[dict], ev: dict, tol: float = BALANCE_TOL) -> list[str]:
     if own["LL"] != own["RR"]:
         quiet = next(o for o in outs if not own[o["route"]])
         if quiet["gain_db"] > 0:
-            lines.append(f"{side[quiet['route']]} няма свой говорител (само далечно копие или прослушване): не се вдига "
-                         f"({quiet['gain_db']:+.1f} dB стават 0).")
+            lines.append(f"{side[quiet['route']]} has no speaker of its own (only a distant copy or bleed): not raised "
+                         f"({quiet['gain_db']:+.1f} dB become 0).")
             _shift(quiet, -quiet["gain_db"])
-            quiet["balance_note"] = "не е вдигано"
+            quiet["balance_note"] = "not raised"
         return lines
     if not (own["LL"] and own["RR"]):
         return lines
@@ -417,11 +417,11 @@ def balance(outs: list[dict], ev: dict, tol: float = BALANCE_TOL) -> list[str]:
     left = abs(diff) - cut
     why = ""
     if soft.get("limited_by_noise"):
-        why = f" ({side[soft['route']]} не може да се вдигне повече: шумът на стаята)"
+        why = f" ({side[soft['route']]} cannot be raised more: the room noise)"
     elif soft.get("limited_by_peak"):
-        why = f" ({side[soft['route']]} не може да се вдигне повече: пикът)"
-    lines.append(f"Говорителите се различаваха с {abs(diff):.1f} dB (говор по BS.1770): {side[loud['route']]} е свален с "
-                 f"{cut:.1f} dB{why}" + (f"; остават {left:.1f} dB (границата за сваляне е {BALANCE_MAX_CUT:.0f} dB)" if left > tol + 1e-6 else "") + ".")
+        why = f" ({side[soft['route']]} cannot be raised more: the peak)"
+    lines.append(f"The speakers differed by {abs(diff):.1f} dB (speech by BS.1770): {side[loud['route']]} was lowered by "
+                 f"{cut:.1f} dB{why}" + (f"; {left:.1f} dB remain (the limit for lowering is {BALANCE_MAX_CUT:.0f} dB)" if left > tol + 1e-6 else "") + ".")
     return lines
 
 
@@ -436,8 +436,8 @@ def analyze_item(path: str, start: float = 0.0, end: float | None = None, force:
     if force == "split_all":
         if x.shape[0] >= 2:
             if c["kind"] != "two_mics":
-                # the analysis' own reasons are worded as its decision ("оставен е както е"): only say what it saw
-                c["reasons"] = [f"Разделено на L/L и R/R. За сведение: анализът вижда {_KINDS.get(c['kind'], c['kind'])}."]
+                # the analysis' own reasons are worded as its decision ("left as it is"): only say what it saw
+                c["reasons"] = [f"Split into L/L and R/R. For information: the analysis sees {_KINDS.get(c['kind'], c['kind'])}."]
             force = "split"
         else:
             force = None
@@ -450,22 +450,22 @@ def analyze_item(path: str, start: float = 0.0, end: float | None = None, force:
     if refused:
         action = c["action"] if c["action"] in ("use_left", "use_right") else "none"
     if force and not refused and not split_all:
-        chosen = {"use_left": "Само L", "use_right": "Само R", "split": "Раздели L/R", "none": "Само сила"}
-        auto = {"use_left": "Само L", "use_right": "Само R", "split": "Раздели L/R", "none": "без разпределяне",
-                "ask": "да пита"}.get(c["action"], c["action"])
+        chosen = {"use_left": "L only", "use_right": "R only", "split": "Split L/R", "none": "Level only"}
+        auto = {"use_left": "L only", "use_right": "R only", "split": "Split L/R", "none": "no routing",
+                "ask": "to ask"}.get(c["action"], c["action"])
         kinds = _KINDS
-        lines = [f"Избрано ръчно: {chosen.get(force, force)}."]
+        lines = [f"Chosen by hand: {chosen.get(force, force)}."]
         if force != c["action"]:
-            lines.append(f"За сведение: анализът вижда {kinds.get(c['kind'], c['kind'])} и сам би избрал {auto}.")
+            lines.append(f"For information: the analysis sees {kinds.get(c['kind'], c['kind'])} and would choose {auto} by itself.")
         c["reasons"] = lines
     if refused:
-        why = ("в единия канал няма звук" if c["kind"] in ("one_channel", "silent")
-               else "двата канала носят един и същ звук и на две писти ще се чува двойно")
-        c["reasons"] = [f"Не е разделено: {why}."] + c["reasons"]
+        why = ("one channel has no sound" if c["kind"] in ("one_channel", "silent")
+               else "both channels carry the same sound and on two tracks it would sound doubled")
+        c["reasons"] = [f"Not split: {why}."] + c["reasons"]
     ev = c.get("evidence") or {}
     clipped = [k for k in ("L", "R") if ev.get(k, {}).get("clipped", 0) > 1e-4]
     if clipped:
-        c["reasons"].append(f"Записът е клипирал ({' и '.join(clipped)}): по-ниска сила не поправя изкривяването.")
+        c["reasons"].append(f"The recording clipped ({' and '.join(clipped)}): a lower level does not fix the distortion.")
     outs = []
     if action != "ask":
         for route, chs in outputs_for(x, action):
@@ -482,7 +482,7 @@ def analyze_item(path: str, start: float = 0.0, end: float | None = None, force:
             for o in outs:
                 _shift(o, -over)
                 o["limited_by_peak"] = True
-            c["reasons"].append(f"Двете писти заедно минаваха {ceiling:.0f} dB: и двете са свалени с {over:.1f} dB.")
+            c["reasons"].append(f"Both tracks together went over {ceiling:.0f} dB: both were lowered by {over:.1f} dB.")
     # phrase leveling: always measured (to suggest it), keyframes only when asked for
     for (route, chs), o in zip(outputs_for(x, action) if action != "ask" else [], outs):
         if o["lufs"] is None:
@@ -501,7 +501,7 @@ def analyze_item(path: str, start: float = 0.0, end: float | None = None, force:
     if not phrases:
         spread = max((o.get("spread_db", 0) for o in outs), default=0)
         if spread >= 6:
-            c["reasons"].append(f"Силата между фразите варира с {spread:.0f} dB: пробвай „Изравни фразите“.")
+            c["reasons"].append(f"The level between phrases varies by {spread:.0f} dB: try Even out phrases.")
     return {"path": path, "name": os.path.basename(path), "start": start, "end": end,
             **c, "action": action, "auto_action": c["action"], "outputs": outs}
 
@@ -526,7 +526,7 @@ def analyze_items(items: list[dict], force: str | None = None, target: float = T
         except MediaError as e:
             r = {"path": it["path"], "name": os.path.basename(it["path"]), "error": str(e), "outputs": []}
         done[0] += 1
-        progress(done[0] / len(items), f"Слушам {done[0]} от {len(items)}")
+        progress(done[0] / len(items), f"Listening to {done[0]} of {len(items)}")
         return r
 
     with ThreadPoolExecutor(max_workers=max(2, min(8, (os.cpu_count() or 4) - 2))) as pool:

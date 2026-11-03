@@ -3,7 +3,7 @@
 
   dev_cmd.py on | off                   create / remove the flag file (the bridge is off without it)
   dev_cmd.py ping | state | selection | timeline [json args]
-  dev_cmd.py click "Цвят: бяло и експозиция"       press a panel button by its label
+  dev_cmd.py click "Auto color"                       press a panel button by its label
   dev_cmd.py fill '{"id": "notes", "value": "раф => рафт"}'   fill the corrections box
   dev_cmd.py wait_idle [seconds]                     wait until the panel is not busy, print its answer
   dev_cmd.py select '{"names": ["fx39026"]}'         select clips on the timeline (API unverified)
@@ -11,7 +11,7 @@
   dev_cmd.py lumetri '{"names": ["fx39026"]}'        what Lumetri holds on those clips
   dev_cmd.py set_lumetri '{"names": ["fx39026"], "from": 126, "to": 127, "values": {"exposure": 3}}'   ONE clip, one Undo step
   dev_cmd.py chain '{"names": ["fx39026"]}'          every effect on those clips in chain order
-  dev_cmd.py srt_import '{"paths": ["/abs/a.srt"]}'     P1: import into bin „Asistent тест“
+  dev_cmd.py srt_import '{"paths": ["/abs/a.srt"]}'     P1: import into bin "Asistent test"
   dev_cmd.py caption_place '{"name": "a.srt"}'       P2: place it after the sequence end
   dev_cmd.py transcript_export                       P3: Premiere's transcript of the selected clip
   dev_cmd.py api '{"target": "sequence"}'            method names of project | sequence | ppro | selection
@@ -79,7 +79,7 @@ def main(argv):
         if code == 200:
             print(json.dumps(res["data"], ensure_ascii=False, indent=1))
             return 0 if res["ok"] else 1
-    print("Няма отговор от панела (Premiere отворен ли е, панелът отворен ли е?)")
+    print("No answer from the panel (is Premiere open, is the panel open?)")
     return 3
 
 

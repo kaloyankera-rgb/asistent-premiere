@@ -1,4 +1,4 @@
-# Project status — Asistent 0.9.63 (2026-11-03)
+# Project status — Asistent 0.9.67 (2026-11-03)
 
 Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.48 via
 UnifiedPluginInstallerAgent, engine 0.9.48 as LaunchAgent `com.contentstudio.asistent` (starts at login).
@@ -19,11 +19,16 @@ synthetic speakers, real Masterhaus clips) and verified in TEST.prproj by readba
 press, four clips). **Confirmed by the user by eye in Premiere's Dynamics panel: Limiter on, Threshold −6 dB** (the API reports the
 normalised 0.9; the −1 dB default = 0.98333 fixes the scale). The limiter is per clip, not on the Mix track (not scriptable).
 
-## Phase 8 rough cut (0.9.59, user's go-ahead 2026-11-03; plan `docs/ROUGHCUT_PLAN.md`)
-M0 probes done and verified in TEST.prproj (XML import path). 0.9.59 was pressed by the user in TEST.prproj (v1-v4): the sequences were built, four problems found and fixed in 0.9.60 (see CHANGELOG), the carry-over of effects is new and unverified. M1-M2 (speech map, pauses, EDL, XML, card) built and engine-tested,
-run on real footage by number. **NOT yet pressed in Premiere** (open TEST.prproj, select fx31028 + C0728 video and audio in
-„SYNC – C9025 (3)“, press „Груб монтаж“: expect a new sequence „ГРУБ – … v1“ in bin „Груб монтаж“, same camera offset, source
-sequence unchanged). Takes, Smart takes, review view, evaluation harness: M3-M4 not started.
+## 0.9.67 (user's requests 2026-11-03: fix the bugs, correct words in the subtitles, a click-to-edit caption list)
+Captions tab with one editable field per subtitle line (see CHANGELOG), muted/disabled audio left out of the rough cut, rotated files described upright in the rough-cut XML. All engine- and node-tested; **none of it seen in Premiere**: press Subtitles on a clip, open Captions, fix a word, Apply and rebuild; mute the camera-microphone track and press Rough cut; run the rough cut on the vertical Sony clips.
+
+## Language (0.9.66, user's request 2026-11-03)
+The whole tool is in English: panel, messages, names of what it creates in Premiere, scripts, README. The Bulgarian language data of the subtitles and the take finder stays. Tests pass; **not yet seen in Premiere** (open the panel: every button and tooltip English, then one press of each section in TEST.prproj). Button-name map in CHANGELOG 0.9.66. Older docs (PROGRESS, CHANGELOG entries before 0.9.66, plans) still use the old Bulgarian button names.
+
+## Phase 8 rough cut (0.9.59-0.9.64, user's go-ahead 2026-11-03; plan `docs/ROUGHCUT_PLAN.md`)
+M0 probes verified in TEST.prproj (XML import path). M1-M2 (speech map, pauses, EDL, XML, card, effect carry-over) were pressed by the user in TEST.prproj through several test rounds; "the cuts are better". Latest user report (0.9.63): the rows connect once the quiet, unused audio track (the camera's own mic, A1) is deleted; with it selected it counts as sound and leaves gaps in the other camera's row (open, BUGS.md). The user also says the effects of „Оправи звука“ still do not transfer; read back through the API on the new sequence's clips (TEST.prproj, 2026-11-03): Volume level (A2 -2.9 dB, A3 -10.2 dB, equal to the source) and Dynamics → Limiter -6 dB are there, the L/L and R/R channel routing cannot be read through any API, so what the user means is not yet known (BUGS.md).
+M3 (0.9.64-0.9.65): `takes.py` finds repeated takes, false starts and restarts; 0.9.65 cuts a plain repeat in both modes (from the first take to the last full one, over short setup talk), lists a group said differently. 0.9.64 was pressed by the user (it only listed, "it kept all 3"); 0.9.65 replayed on that input by number, **not pressed in Premiere**. Open: vertical footage with a rotation flag comes in sideways (BUGS.md). Not built: the „Преглед“ view to pick another take and rebuild, the take score (M4), `scripts/eval_roughcut.py`.
+Colour buttons: the user confirmed in Premiere 2026-11-03 that they are there and work.
 
 ## Colour buttons (0.9.58, user's request 2026-11-03, TODO B7)
 Card ЦВЯТ: „Авто цвят“ (= the old „Бяло и експозиция“), „Бяло“ and „Експозиция“ (the same analysis and apply, narrowed to one

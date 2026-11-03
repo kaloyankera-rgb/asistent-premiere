@@ -38,7 +38,7 @@ def find(words: list[dict]) -> list[dict]:
                 before = norm(words[i - 2]["word"]) if i > 1 else ""
                 if day and before in DATE_WORDS:
                     continue                                                         # „на 2 септември“: a date
-                out.append({"i": i, "word": words[i]["word"], "at": words[i]["start"], "reason": "месец в разговор за цени"})
+                out.append({"i": i, "word": words[i]["word"], "at": words[i]["start"], "reason": "a month in a talk about prices"})
             elif len(core) >= 4 and words[i]["end"] - words[i]["start"] < MIN_WORD_SECONDS and not words[i].get("fixed"):
-                out.append({"i": i, "word": words[i]["word"], "at": words[i]["start"], "reason": "прекалено кратка дума"})
+                out.append({"i": i, "word": words[i]["word"], "at": words[i]["start"], "reason": "a word that is too short"})
     return out

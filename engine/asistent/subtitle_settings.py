@@ -35,9 +35,9 @@ def get(project: str) -> dict:
 
 def put(project: str, text: str) -> dict:
     if not project:
-        raise ValueError("Липсва проект.")
+        raise ValueError("The project is missing.")
     if not isinstance(text, str) or len(text) > corrections.MAX_TEXT:
-        raise ValueError("Невалиден текст с корекции и термини.")
+        raise ValueError("Invalid text of corrections and terms.")
     with _lock:
         data = _load()
         data[_key(project)] = {"text": text}

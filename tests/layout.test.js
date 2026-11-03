@@ -89,17 +89,17 @@ test("unmatched clips stay in recording order instead of going to the end", () =
 
 test("a clip without a recording time keeps its timeline neighbour and is reported", () => {
   const order = { "/m/A/a1.mp4": 0, "/m/A/a2.mp4": 100, "/m/B/b2.mp4": 100, "/m/A/a3.mp4": 200 };
-  const e = withTimes(chronoEngine(), [null, T(10, 5), T(10, 15), T(10, 5) + 4], ["няма време на запис"]);
+  const e = withTimes(chronoEngine(), [null, T(10, 5), T(10, 15), T(10, 5) + 4], ["no recording time"]);
   const { placements, uncertain } = syncLayout(e, order);
   // a1 is first in the timeline and has no time: it stays first
   assert.deepStrictEqual(placements.map((p) => p.name), ["a1.mp4", "a2.mp4", "b2.mp4", "a3.mp4"]);
   assert.deepStrictEqual(uncertain.map((u) => u.name), ["a1.mp4"]);
-  assert.match(uncertain[0].reason, /по таймлайна/);
+  assert.match(uncertain[0].reason, /by the timeline/);
 });
 
 test("an unchecked clock is used but reported; a group with one timed member is still ordered", () => {
   const e = withTimes(chronoEngine(), [T(10, 20), null, T(10, 15), T(10, 5) + 4],
-    ["часовникът на тази камера не е проверен"]);
+    ["this camera's clock is not checked"]);
   const { placements, uncertain } = syncLayout(e, {});
   assert.deepStrictEqual(placements.map((p) => p.name), ["a2.mp4", "b2.mp4", "a3.mp4", "a1.mp4"]);
   assert.deepStrictEqual(uncertain.map((u) => u.name), ["a1.mp4"]);

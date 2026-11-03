@@ -42,8 +42,8 @@ async function importPending(project, pending) {
   const done = [];
   for (const it of pending) {
     if (have.has(norm(it.path))) {
-      await engine.importResult(it.id, true, "вече беше в проекта");
-      done.push({ name: it.name, category: it.category, ok: true, note: "вече беше в проекта" });
+      await engine.importResult(it.id, true, "already in the project");
+      done.push({ name: it.name, category: it.category, ok: true, note: "already in the project" });
       continue;
     }
     let ok = false;
@@ -53,7 +53,7 @@ async function importPending(project, pending) {
       const target = ppro.ProjectItem.cast(bin) || bin;
       const accepted = await project.importFiles([it.path], true, target, false);
       ok = !!accepted && (await binHas(bin, it.path));
-      if (!ok) note = accepted ? "не се появи в папката" : "Premiere не го прие";
+      if (!ok) note = accepted ? "did not appear in the bin" : "Premiere did not accept it";
     } catch (e) {
       note = (e && e.message) || String(e);
     }

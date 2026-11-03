@@ -1,7 +1,7 @@
 ﻿// Asistent host: the ExtendScript (ES3) side. main.js evaluates this file for every command and calls as_run(name, args).
 // Every function answers with a JSON string {ok, msg, ...}; nothing here throws out of as_run.
 
-var AS_HOST_VERSION = "0.9.63";
+var AS_HOST_VERSION = "0.9.67";
 
 function as_json(v) {
     if (v === null || v === undefined) return "null";
@@ -118,21 +118,21 @@ function as_caption_format() {
 // args: {srt, sequence, project, bin}. Imports the SRT into the bin and puts it on a new caption track at 0 (the
 // times in the file are sequence times). The panel has already removed what an earlier press placed.
 function as_captions(a) {
-    if (!app.project) return as_result(false, "Няма отворен проект.");
+    if (!app.project) return as_result(false, "No project open.");
     var seq = app.project.activeSequence;
-    if (!seq) return as_result(false, "Няма активна секвенция.");
+    if (!seq) return as_result(false, "No active sequence.");
     if (a.sequence && seq.name !== a.sequence) {
-        return as_result(false, "Активната секвенция е „" + seq.name + "“, а субтитрите са за „" + a.sequence + "“. Върни се на нея и опитай пак.");
+        return as_result(false, "The active sequence is \"" + seq.name + "\", but the subtitles are for \"" + a.sequence + "\". Go back to it and try again.");
     }
     if (a.project && as_norm(app.project.path) !== as_norm(a.project)) {
-        return as_result(false, "Отворен е друг проект. Нищо не е пипано.");
+        return as_result(false, "Another project is open. Nothing was touched.");
     }
     var f = new File(a.srt);
-    if (!f.exists) return as_result(false, "Файлът със субтитрите липсва: " + a.srt);
+    if (!f.exists) return as_result(false, "The subtitle file is missing: " + a.srt);
     if (seq.createCaptionTrack === undefined) {
-        return as_result(false, "Тази версия на Premiere няма създаване на caption писта през скрипт.", { premiere: String(app.version) });
+        return as_result(false, "This Premiere version cannot create a caption track by script.", { premiere: String(app.version) });
     }
-    var bin = as_find_bin(a.bin || "Субтитри", true);
+    var bin = as_find_bin(a.bin || "Subtitles", true);
     var before = as_caption_tracks(seq);
     var item = as_find_item(bin, a.srt);
     var imported = false;
@@ -140,13 +140,13 @@ function as_captions(a) {
         imported = app.project.importFiles([a.srt], true, bin, false);
         item = as_find_item(bin, a.srt);
     }
-    if (!item) return as_result(false, "Premiere не внесе файла със субтитрите.", { imported: imported });
+    if (!item) return as_result(false, "Premiere did not import the subtitle file.", { imported: imported });
     var fmt = as_caption_format();
     var made;
     try {
         made = fmt ? seq.createCaptionTrack(item, 0, fmt.value) : seq.createCaptionTrack(item, 0);
     } catch (e) {
-        return as_result(false, "Premiere не създаде caption пистата: " + e, { format: fmt ? fmt.name : null });
+        return as_result(false, "Premiere did not create the caption track: " + e, { format: fmt ? fmt.name : null });
     }
     var after = as_caption_tracks(seq);
     return as_result(true, "ok", { imported: imported, item: item.name, format: fmt ? fmt.name : null, returned: String(made),
@@ -193,12 +193,12 @@ function as_side_clip(bin, pi, c, side) {
     var name = base + " " + side + " " + c.inPoint.seconds.toFixed(2) + "-" + c.outPoint.seconds.toFixed(2);
     for (var i = 0; i < bin.children.numItems; i++) if (bin.children[i].name === name) return bin.children[i];
     var sub = pi.createSubClip(name, c.inPoint.ticks, c.outPoint.ticks, 0, 0, 1);
-    if (!sub) throw new Error("Premiere не направи копие на " + pi.name + ".");
+    if (!sub) throw new Error("Premiere did not make a copy of " + pi.name + ".");
     sub.moveBin(bin);
     var m = sub.getAudioChannelMapping;
     var src = side === "L" ? 0 : 1;
     if (!m.setMappingForChannel(0, src) || !m.setMappingForChannel(1, src) || !sub.setAudioChannelMapping(m)) {
-        throw new Error("Premiere не прие каналите " + side + "/" + side + " за " + name + ".");
+        throw new Error("Premiere did not accept the channels " + side + "/" + side + " for " + name + ".");
     }
     return sub;
 }
@@ -215,20 +215,20 @@ function as_where(c) {
 // one clip: {track, start, end, route: "split" | "split_rl" | "use_left" | "use_right"}
 function as_route_one(seq, bin, a) {
     var track = seq.audioTracks[a.track];
-    if (!track) return { ok: false, msg: "няма аудио писта A" + (a.track + 1) };
+    if (!track) return { ok: false, msg: "no audio track A" + (a.track + 1) };
     var c = as_tracks_clip(track, a.start, a.end);
-    if (!c) return { ok: false, msg: "клипът не е на мястото си (преместен ли е?)" };
+    if (!c) return { ok: false, msg: "the clip is not in its place (was it moved?)" };
     var pi = c.projectItem;
     if (as_in_bin(bin, pi)) {
         var mine = /\s(L|R)\s[\d.]+-[\d.]+$/.exec(String(pi.name));
-        if (!mine) return { ok: false, msg: "клипът е от папка „" + AS_LR_BIN + "“, но името му не казва L или R: не е пипан" };
+        if (!mine) return { ok: false, msg: "the clip is from the bin \"" + AS_LR_BIN + "\", but its name does not say L or R: not touched" };
         return { ok: true, status: "already", side: mine[1], upper: as_where(c) };
     }
     var map = pi.getAudioChannelMapping;
     if (!map || map.audioChannelsType !== 1 || map.audioClipsNumber !== 1) {
-        return { ok: false, msg: "клипът не е един стерео клип (виж Modify > Audio Channels), не е пипан" };
+        return { ok: false, msg: "the clip is not one stereo clip (see Modify > Audio Channels), not touched" };
     }
-    if (track.isLocked()) return { ok: false, msg: "пистата A" + (a.track + 1) + " е заключена" };
+    if (track.isLocked()) return { ok: false, msg: "track A" + (a.track + 1) + " is locked" };
     var split = a.route === "split" || a.route === "split_rl";
     var upperSide = a.route === "use_right" || a.route === "split_rl" ? "R" : "L";
     var lowerSide = upperSide === "L" ? "R" : "L";
@@ -238,7 +238,7 @@ function as_route_one(seq, bin, a) {
             var tr = seq.audioTracks[t];
             if (!tr.isLocked() && !as_busy(tr, a.start, a.end)) { below = t; break; }
         }
-        if (below < 0) return { ok: false, msg: "няма свободна аудио писта под A" + (a.track + 1) + ": добави една (десен клик > Add Track) и натисни пак" };
+        if (below < 0) return { ok: false, msg: "no free audio track below A" + (a.track + 1) + ": add one (right-click > Add Track) and press again" };
     }
     // what the original audio was linked to (the video, other audio of the same clip), to link it all again
     var keep = [], li = c.getLinkedItems();
@@ -250,15 +250,15 @@ function as_route_one(seq, bin, a) {
     var up = as_side_clip(bin, pi, c, upperSide);
     var low = split ? as_side_clip(bin, pi, c, lowerSide) : null;
     var at = c.start.seconds, inPt = c.inPoint.seconds;
-    if (low && !seq.audioTracks[below].overwriteClip(low, at)) return { ok: false, msg: "Premiere не сложи копието на A" + (below + 1) };
-    if (!track.overwriteClip(up, at)) return { ok: false, msg: "Premiere не сложи " + upperSide + "/" + upperSide + " на A" + (a.track + 1) };
+    if (low && !seq.audioTracks[below].overwriteClip(low, at)) return { ok: false, msg: "Premiere did not put the copy on A" + (below + 1) };
+    if (!track.overwriteClip(up, at)) return { ok: false, msg: "Premiere did not put " + upperSide + "/" + upperSide + " on A" + (a.track + 1) };
     // check: both sides exactly where the original was, the same part of the media
     var u = as_tracks_clip(seq.audioTracks[a.track], a.start, a.end);
     var l = low ? as_tracks_clip(seq.audioTracks[below], a.start, a.end) : null;
     var bad = [];
     if (!u || u.projectItem.nodeId !== up.nodeId || Math.abs(u.inPoint.seconds - inPt) > 0.002) bad.push(upperSide);
     if (low && (!l || l.projectItem.nodeId !== low.nodeId || Math.abs(l.inPoint.seconds - inPt) > 0.002)) bad.push(lowerSide);
-    if (bad.length) return { ok: false, msg: "проверката не мина за " + bad.join(", ") + ": провери клипа ръчно" };
+    if (bad.length) return { ok: false, msg: "the check failed for " + bad.join(", ") + ": check the clip by hand" };
     var linked = false;
     try {
         as_deselect_all(seq);
@@ -279,11 +279,11 @@ function as_route_one(seq, bin, a) {
 
 // args: {project, sequence, items: [...]} -> {ok, items: [result per item, in order]}
 function as_audio_route(a) {
-    if (!app.project) return as_result(false, "Няма отворен проект.");
+    if (!app.project) return as_result(false, "No project open.");
     var seq = app.project.activeSequence;
-    if (!seq) return as_result(false, "Няма активна секвенция.");
-    if (a.sequence && seq.name !== a.sequence) return as_result(false, "Активната секвенция е „" + seq.name + "“, а клиповете са от „" + a.sequence + "“.");
-    if (a.project && as_norm(app.project.path) !== as_norm(a.project)) return as_result(false, "Отворен е друг проект. Нищо не е пипано.");
+    if (!seq) return as_result(false, "No active sequence.");
+    if (a.sequence && seq.name !== a.sequence) return as_result(false, "The active sequence is \"" + seq.name + "\", but the clips are from \"" + a.sequence + "\".");
+    if (a.project && as_norm(app.project.path) !== as_norm(a.project)) return as_result(false, "Another project is open. Nothing was touched.");
     var bin = as_find_bin(AS_LR_BIN, true);
     var out = [], items = a.items || [];
     for (var i = 0; i < items.length; i++) {
@@ -295,7 +295,7 @@ function as_audio_route(a) {
 
 // test bridge only (the engine forwards it only with devbridge.enabled; refused outside TEST.prproj)
 function as_eval(a) {
-    if (!app.project || String(app.project.name) !== "TEST.prproj") return as_result(false, "eval само в TEST.prproj.");
+    if (!app.project || String(app.project.name) !== "TEST.prproj") return as_result(false, "eval only in TEST.prproj.");
     var out = eval(String(a.code));
     return as_result(true, "ok", { value: (out === undefined ? null : (typeof out === "object" ? as_json(out) : String(out))) });
 }
@@ -307,8 +307,8 @@ function as_run(name, args) {
         if (name === "captions") return as_captions(args || {});
         if (name === "audio_route") return as_audio_route(args || {});
         if (name === "eval") return as_eval(args || {});
-        return as_result(false, "Непозната команда: " + name);
+        return as_result(false, "Unknown command: " + name);
     } catch (e) {
-        return as_result(false, "ExtendScript: " + e.toString() + (e.line ? " (ред " + e.line + ")" : ""));
+        return as_result(false, "ExtendScript: " + e.toString() + (e.line ? " (line " + e.line + ")" : ""));
     }
 }

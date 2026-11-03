@@ -34,7 +34,7 @@ def _tool(name: str) -> str:
         cand = os.path.join(folder, exe)
         if os.path.isfile(cand):
             return cand
-    raise MediaError(f"{name} не е намерен. Инсталирай FFmpeg (виж README).")
+    raise MediaError(f"{name} was not found. Install FFmpeg (see README).")
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
@@ -78,6 +78,7 @@ class MediaInfo:
     video_start: float = 0.0
     width: int = 0
     height: int = 0
+    rotation: int = 0                            # the display-matrix flag (90/270: phones and Sony store vertical video sideways)
     timecode: str | None = None
     audio: list[AudioStream] = field(default_factory=list)
     # when the recording started, in the camera's own clock (Unix seconds): the container's creation_time
@@ -103,11 +104,11 @@ class MediaInfo:
 
 def probe(path: str) -> MediaInfo:
     if not os.path.isfile(path):
-        raise MediaError(f"Файлът липсва: {path}")
+        raise MediaError(f"The file is missing: {path}")
     p = _run([_tool("ffprobe"), "-v", "error", "-print_format", "json",
               "-show_format", "-show_streams", path])
     if p.returncode != 0:
-        raise MediaError(f"FFprobe не може да прочете {os.path.basename(path)}: "
+        raise MediaError(f"FFprobe cannot read {os.path.basename(path)}: "
                          f"{p.stderr.decode(errors='replace').strip()[:200]}")
     data = json.loads(p.stdout or b"{}")
     fmt = data.get("format", {})
@@ -127,6 +128,11 @@ def probe(path: str) -> MediaInfo:
             info.video_start = _float(s.get("start_time")) or 0.0
             info.width = int(s.get("width") or 0)
             info.height = int(s.get("height") or 0)
+            for sd in s.get("side_data_list") or []:
+                if sd.get("rotation") is not None:
+                    info.rotation = int(round(float(sd["rotation"]))) % 360
+            if tags.get("rotate"):
+                info.rotation = int(round(float(tags["rotate"]))) % 360
             info.timecode = info.timecode or tags.get("timecode")
         elif kind == "audio":
             info.audio.append(AudioStream(
@@ -173,7 +179,7 @@ def read_audio(path: str, stream: int, channels: int, sr: int) -> np.ndarray:
               "-af", "aresample=filter_size=64:cutoff=0.95", "-ar", str(sr), "-ac", str(channels),
               "-f", "f32le", "-"])
     if p.returncode != 0:
-        raise MediaError(f"FFmpeg не може да декодира звука на {os.path.basename(path)}: "
+        raise MediaError(f"FFmpeg cannot decode the sound of {os.path.basename(path)}: "
                          f"{p.stderr.decode(errors='replace').strip()[:200]}")
     x = np.frombuffer(p.stdout, dtype=np.float32)
     n = len(x) // channels

@@ -1,6 +1,6 @@
 // node --test tests/wiring.test.js
 // The panel has no DOM in tests, so the wiring is checked on the source: only the audio buttons may start
-// „Оправи звука“ (0.9.9 and earlier ran it from the probe and the import buttons too).
+// Fix audio (0.9.9 and earlier ran it from the probe and the import buttons too).
 const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
@@ -11,9 +11,9 @@ const html = fs.readFileSync(path.join(panel, "index.html"), "utf8");
 const main = fs.readFileSync(path.join(panel, "main.js"), "utf8");
 
 function audioBlock() {
-  const start = html.indexOf('<div class="title">ЗВУК</div>');
+  const start = html.indexOf('<div class="title">AUDIO</div>');
   const end = html.indexOf('<div class="card"', start);
-  assert.ok(start > 0 && end > start, "раздел ЗВУК не е намерен");
+  assert.ok(start > 0 && end > start, "section AUDIO not found");
   return html.slice(start, end);
 }
 
@@ -37,7 +37,7 @@ test("the probe and import buttons have their own handlers", () => {
   }
 });
 
-test("every press but Отказ goes through onTap (logged, ignored while the panel moves)", () => {
+test("every press but Cancel goes through onTap (logged, ignored while the panel moves)", () => {
   const direct = main.split("\n").filter((l) => /addEventListener\("click"/.test(l));
   assert.deepStrictEqual(direct.map((l) => l.trim().slice(0, 40)), [
     'button.addEventListener("click", () => {',
@@ -69,18 +69,18 @@ test("the re-check after the step back is sent as final (C0739 12:58 regression)
 test("a white refine that would write the same sliders is skipped (fx39026 16:24 regression)", () => {
   const color = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
   assert.match(color, /Math\.abs\(temp - pl\.values\.temperature\) >= 0\.5 \|\| Math\.abs\(tint - pl\.values\.tint\) >= 0\.5/);
-  assert.match(color, /pl\.lines\.push\(`резултат: \$\{finalLine\(chk\)\}`\)/);           // always one result line
+  assert.match(color, /pl\.lines\.push\(`result: \$\{finalLine\(chk\)\}`\)/);           // always one result line
   const main = fs.readFileSync(path.join(panel, "main.js"), "utf8");
-  assert.doesNotMatch(main, /върни с Cmd\/Ctrl\+Z, натисни „Цвят“/);                   // ownership: no Undo needed
+  assert.doesNotMatch(main, /undo with Cmd\/Ctrl\+Z, press Auto color/);                   // ownership: no Undo needed
 });
 
 test("Shot Match writes only the components the engine changed, into new or Asistent-owned Lumetri", () => {
   const color = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
   const apply = color.slice(color.indexOf("async function applyShotMatch"), color.indexOf("const NAMES ="));
   assert.match(apply, /for \(const k of e\.r\.changed \|\| \[\]\) values\[k\] = e\.r\.proposal\[k\];/);
-  assert.match(apply, /t = await target\(e\.clip\)/);                 // the manual-grade guard of „Цвят“
+  assert.match(apply, /t = await target\(e\.clip\)/);                 // the manual-grade guard of Auto color
   assert.match(apply, /engine\.shotMatchCheck\(jobId, pl\.before, after/);   // checked on Premiere's frame
-  assert.match(html, /<button id="shotmatch" class="small"[^>]*>Изравни POV-тата<\/button>/);
+  assert.match(html, /<button id="shotmatch" class="small"[^>]*>Match POVs<\/button>/);
 });
 
 test("the subtitle section has its own buttons: no data-force, pressed through onTap, model download never automatic", () => {
@@ -92,7 +92,7 @@ test("the subtitle section has its own buttons: no data-force, pressed through o
   assert.strictEqual((main.match(/engine\.downloadSubtitleModel\(\)/g) || []).length, 1);
   const download = main.slice(main.indexOf("async function onSubtitleDownload"), main.indexOf("// ---------------------------------------------------------------- colour"));
   assert.match(download, /engine\.downloadSubtitleModel\(\)/);
-  assert.match(html, /Свали модела \(около 3,1 GB\)/);
+  assert.match(html, /Download the model \(about 3\.1 GB\)/);
 });
 
 test("the subtitle press ends with placing the captions, and the panel never removes or mutes anything", () => {
@@ -134,12 +134,12 @@ test("the report and the pictures live in their own views; the main view keeps s
   }
   const tools = html.slice(html.indexOf('id="paneTools"'), html.indexOf('id="paneLog"'));
   assert.doesNotMatch(tools, /id="details"|id="previews"/);
-  // pictures are made only for „Преди / след“, never inside the report blocks
+  // pictures are made only for Before / after, never inside the report blocks
   assert.strictEqual((main.match(/createElement\("img"\)/g) || []).length, 1);
   assert.match(main.slice(main.indexOf("function previewBlock")), /^function previewBlock[\s\S]*?createElement\("img"\)/);
 });
 
-test("ЦВЯТ: the separate buttons run the same analysis and the same apply as Auto Color, only the part differs", () => {
+test("COLOR: the separate buttons run the same analysis and the same apply as Auto Color, only the part differs", () => {
   for (const id of ["color", "colorWhite", "colorExposure", "shotmatch", "probe"]) {
     assert.match(html, new RegExp(`<button id="${id}"`));
     assert.match(main, new RegExp(`onTap\\(\\$\\("${id}"\\)`));
@@ -155,12 +155,23 @@ test("ЦВЯТ: the separate buttons run the same analysis and the same apply as
   assert.doesNotMatch(html, /id="color(Contrast|Saturation)"/);
 });
 
-test("ГРУБ МОНТАЖ: the source sequence is only read; the result is imported as a new sequence and checked", () => {
+test("ROUGH CUT: the source sequence is only read; the result is imported as a new sequence and checked", () => {
   const rough = fs.readFileSync(path.join(panel, "premiere-roughcut.js"), "utf8");
-  assert.match(html, /<button id="rough" class="action" data-tip="[^"]+">Груб монтаж<\/button>/);
+  assert.match(html, /<button id="rough" class="action" data-tip="[^"]+">Rough cut<\/button>/);
   assert.match(main, /onTap\(\$\("rough"\), onRoughCut\)/);
   assert.match(rough, /project\.importFiles\(\[result\.xml\]/);
   assert.match(rough, /verify\(result\.check, got\)/);
   assert.doesNotMatch(rough, /createRemove|removeItem|deleteSequence|createSetInPoint|createSetOutPoint|createOverwrite|createInsert/);
   assert.match(fs.readFileSync(path.join(__dirname, "..", "scripts", "package_ccx.sh"), "utf8"), /roughcutplan\.js premiere-roughcut\.js/);
+});
+
+test("SUBTITLES: the caption editor is a hidden tab that appears after a run; Apply goes through onTap and re-runs with a new track allowed", () => {
+  const main = fs.readFileSync(path.join(__dirname, "..", "panel", "main.js"), "utf8");
+  const html = fs.readFileSync(path.join(__dirname, "..", "panel", "index.html"), "utf8");
+  assert.match(html, /<button id="tabCaptions" class="tab" data-tab="paneCaptions"[^>]*hidden>Captions<\/button>/);
+  assert.match(html, /<div id="paneCaptions" class="pane" hidden>/);
+  assert.match(main, /onTap\(\$\("captionApply"\), onCaptionApply\)/);
+  assert.match(main, /onSubtitles\(\{ again: true \}\)/);
+  assert.match(main, /renderCaptionEditor\(result\)/);
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "panel", "premiere-captions.js"), "utf8"), /own && !opts\.again/);
 });

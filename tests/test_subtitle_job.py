@@ -139,10 +139,10 @@ def test_skipped_clips_are_passed_through_for_the_review(home, monkeypatch):
 
 
 @pytest.mark.parametrize("change, message", [
-    ({"items": []}, "Маркирай"),
-    ({"out_dir": "/nonexistent/folder"}, "Папката на проекта"),
-    ({"preset": "huge"}, "Невалиден вид"),
-    ({"fps": 0}, "Невалидна стойност"),
+    ({"items": []}, "Select"),
+    ({"out_dir": "/nonexistent/folder"}, "project folder"),
+    ({"preset": "huge"}, "Invalid subtitle style"),
+    ({"fps": 0}, "Invalid value"),
 ])
 def test_bad_requests_say_what_is_wrong(home, change, message):
     with pytest.raises(ValueError, match=message):
@@ -150,13 +150,13 @@ def test_bad_requests_say_what_is_wrong(home, change, message):
 
 
 def test_a_missing_file_is_named(home):
-    with pytest.raises(ValueError, match="липсва.*nope.wav"):
+    with pytest.raises(ValueError, match="missing.*nope.wav"):
         subtitle_job.validate(body(home, items=[{"path": "/x/nope.wav", "start": 0, "end": 1, "at": 0}]))
 
 
 def test_missing_backend_or_model_is_an_instruction_not_a_crash(home, monkeypatch):
     monkeypatch.setattr(asr, "model_present", lambda: False)
-    with pytest.raises(ValueError, match="Свали модела"):
+    with pytest.raises(ValueError, match="Download the model"):
         subtitle_job.validate(body(home))
     monkeypatch.setattr(asr, "backend_installed", lambda: False)
     with pytest.raises(ValueError, match="faster-whisper"):
@@ -338,7 +338,7 @@ def test_align_wrapper_without_the_optional_install_is_a_quiet_fallback(home, mo
     monkeypatch.delenv("ASISTENT_ALIGN_PYTHON", raising=False)
     ws = [{"word": "а", "start": 0.0, "end": 0.2, "p": 1.0}]
     out, info = align.align_words(__import__("numpy").zeros(16000, "float32"), ws)
-    assert out == ws and "не е инсталирано" in info["error"] and align.status()["available"] is False
+    assert out == ws and "not installed" in info["error"] and align.status()["available"] is False
 
 
 def test_weak_and_letterless_words_keep_whisper_times_and_order_stays_monotonic():

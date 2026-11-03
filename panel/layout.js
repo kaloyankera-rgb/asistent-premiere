@@ -54,7 +54,7 @@ function chronological(engine, when) {
     const ids = e.members ? e.members.map((m) => m.clip) : [e.clip];
     const name = ids.map((i) => clips[i].name).join(" + ");
     const why = ids.map((i) => clips[i].rec_note).find((x) => x);
-    if (e.key === null) uncertain.push({ name, reason: `${why || "няма време на запис"}: мястото е по таймлайна` });
+    if (e.key === null) uncertain.push({ name, reason: `${why || "no recording time"}: placed by the timeline` });
     else if (!e.members && why) uncertain.push({ name, reason: why });
   }
   return { entries, uncertain };

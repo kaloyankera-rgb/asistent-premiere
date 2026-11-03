@@ -92,7 +92,7 @@ def read_frames(path: str, n: int = 6, width: int = 480, start: float = 0.0, end
     `width` is the long side; the picture keeps its shown proportions (rotation included)."""
     info = probe(path)
     if not info.has_video:
-        raise MediaError(f"{os.path.basename(path)} няма картина.")
+        raise MediaError(f"{os.path.basename(path)} has no picture.")
     dur = (end if end else info.duration) - start
     dw, dh = _display_size(path, info)
     if dw >= dh:
@@ -113,7 +113,7 @@ def read_frames(path: str, n: int = 6, width: int = 480, start: float = 0.0, end
         if p.returncode == 0 and data.size == width * h * 3:
             frames.append(data.reshape(h, width, 3).astype(np.float64) / 65535.0)
     if not frames:
-        raise MediaError(f"Не мога да прочета кадри от {os.path.basename(path)}.")
+        raise MediaError(f"Cannot read frames from {os.path.basename(path)}.")
     return frames
 
 
@@ -242,10 +242,10 @@ def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str
     mid_vals = [m["exp_mid"] for m in ms if "exp_mid" in m]
     # at_luma: the encoded brightness being corrected (Lumetri Exposure moves dark and bright pixels differently)
     if len(skin_vals) >= max(2, len(ms) // 2):
-        raw, basis, spread = float(np.median(skin_vals)), "кожата", float(np.std(skin_vals))
+        raw, basis, spread = float(np.median(skin_vals)), "the skin", float(np.std(skin_vals))
         at_luma = float(np.median([m["y_skin"] for m in ms if "y_skin" in m]))
     elif mid_vals:
-        raw, basis, spread = float(np.median(mid_vals)), "средните тонове", float(np.std(mid_vals))
+        raw, basis, spread = float(np.median(mid_vals)), "the midtones", float(np.std(mid_vals))
         at_luma = float(np.median([m["y_mid"] for m in ms if "y_mid" in m]))
     else:
         raw, basis, spread, at_luma = 0.0, None, 9.0, None
@@ -256,18 +256,18 @@ def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str
         return float(np.mean([np.mean((m["_lin_max"] * 2 ** s) ** (1 / GAMMA) >= 0.97) - m["clipped"] for m in ms]))
     burn = burnt(stops) if stops > 0 else 0.0
     if burn > NEW_CLIP:
-        warnings.append(f"Светлите части може да изгорят (груба оценка {burn:.0%} от картината): "
-                        "проверява се на кадър от Premiere след прилагането.")
+        warnings.append(f"The highlights may clip (rough estimate {burn:.0%} of the picture): "
+                        "checked on a frame from Premiere after applying.")
     # a face of a few dozen pixels (a wide shot) is a thin sample: never "high"
     face_px = float(np.median([m["skin"] for m in ms]))
-    exp_conf = "high" if basis == "кожата" and spread < 0.4 and face_px >= 0.002 else \
+    exp_conf = "high" if basis == "the skin" and spread < 0.4 and face_px >= 0.002 else \
         "medium" if basis and spread < 0.6 else "low"
     if basis:
-        reasons.append(f"Експозиция по {basis}: {'+' if stops > 0 else ''}{stops:g} (измерено {raw:+.2f} стопа).")
+        reasons.append(f"Exposure by {basis}: {'+' if stops > 0 else ''}{stops:g} (measured {raw:+.2f} stops).")
         if abs(raw) > MAX_STOPS + STEP / 2:
             # too far gone: one best-effort pass within the range, then move on (user, 2026-11-01)
-            reasons.append(f"Клипът е извън обхвата ({raw:+.1f} стопа): направено е каквото може "
-                           f"({'+' if stops > 0 else ''}{stops:g}), останалото не се гони.")
+            reasons.append(f"The clip is out of range ({raw:+.1f} stops): what is possible was done "
+                           f"({'+' if stops > 0 else ''}{stops:g}), the rest is not chased.")
 
     # ---- white balance
     neu = [m["cast_neutral"] for m in ms if "cast_neutral" in m]
@@ -286,42 +286,42 @@ def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str
         elif neutral_frac >= 0.005 and n_sd < 0.2:
             wb_conf = "medium"
         if not agree:
-            reasons.append("Неутралните повърхности и цялата картина не са съгласни (цветни обекти или смесена светлина).")
+            reasons.append("The neutral surfaces and the whole picture disagree (coloured objects or mixed light).")
     elif wor:
         temp = float(np.median([c[0] for c in wor]))
         tint = float(np.median([c[1] for c in wor]))
-        reasons.append("Няма неутрални повърхности за мерене: само ориентир.")
+        reasons.append("No neutral surfaces to measure: a rough guide only.")
     if neutral_frac < 0.01 and temp < -0.25:
         wb_conf = "low"
-        reasons.append("Топла светлина без неутрални повърхности: вероятно е нарочна (ресторант, лампи), не се пипа.")
+        reasons.append("Warm light with no neutral surfaces: probably intended (restaurant, lamps), left alone.")
     balanced = abs(temp) < BALANCED[0] and abs(tint) < BALANCED[1]
     fix_t = 0.0 if balanced else float(np.clip(-temp, -MAX_FIX[0], MAX_FIX[0]))
     fix_g = 0.0 if balanced else float(np.clip(-tint, -MAX_FIX[1], MAX_FIX[1]))
     if balanced and wb_conf != "low":
-        reasons.append("Бялото е наред: без корекция.")
+        reasons.append("The white balance is fine: no correction.")
     if not balanced:
         if tint > 0.08:
-            reasons.append(f"Зелен оттенък ({tint:+.2f}).")
+            reasons.append(f"Green cast ({tint:+.2f}).")
         elif tint < -0.08:
-            reasons.append(f"Лилав/магента оттенък ({tint:+.2f}).")
+            reasons.append(f"Purple/magenta cast ({tint:+.2f}).")
         if temp < -0.08:
-            reasons.append(f"Твърде топло ({temp:+.2f}).")
+            reasons.append(f"Too warm ({temp:+.2f}).")
         elif temp > 0.08:
-            reasons.append(f"Твърде студено ({temp:+.2f}).")
+            reasons.append(f"Too cold ({temp:+.2f}).")
 
     # log footage: Lumetri on the flat signal does not act like on Rec.709 and the render check would
     # measure a flat picture; until the colour management / LUT of these projects is known: suggest only
     if gamma and "log" in gamma.lower():
         exp_conf = "medium" if exp_conf == "high" else exp_conf
         wb_conf = "medium" if wb_conf == "high" else wb_conf
-        warnings.append(f"Запис в {gamma}: предложението е за картината след превръщане в Rec.709; "
-                        "не се прилага само (първо LUT или цветово управление).")
+        warnings.append(f"Recorded in {gamma}: the proposal is for the picture after conversion to Rec.709; "
+                        "it is not applied by itself (first a LUT or colour management).")
     elif source_gamma and "log" in source_gamma.lower():
         # a timeline render of log footage: whether Premiere already converts it to Rec.709 is not checked yet
         # (colour-management step); a flat log picture read as Rec.709 would give a wrong correction
         exp_conf = wb_conf = "low"
-        warnings.append(f"Запис в {source_gamma}, мерено на таймлайна: още не е проверено дали Premiere го "
-                        "превръща в Rec.709. Само предложение, не се прилага.")
+        warnings.append(f"Recorded in {source_gamma}, measured on the timeline: not yet checked whether Premiere "
+                        "converts it to Rec.709. A proposal only, not applied.")
 
     # channel gains (linear) that remove the cast, luminance kept
     r, g, b = 2 ** (-fix_t / 2 - fix_g / 3), 2 ** (2 * fix_g / 3), 2 ** (fix_t / 2 - fix_g / 3)
@@ -362,7 +362,7 @@ def check_render(before_path: str, after_path: str, exposure_units: float = 0.0,
     result is, and how much burnt out. Used to verify and, if needed, step the correction back."""
     b, a = read_image(before_path), read_image(after_path)
     if b.shape != a.shape:
-        raise MediaError("Кадрите преди и след са с различен размер.")
+        raise MediaError("The before and after frames differ in size.")
     if float(np.max(np.abs(a - b))) < 2 / 255 and (exposure_units or any((applied or {}).values())):
         # GStroy 2026-11-01 (0.9.33, fx39026 second piece): the frame after the correction was byte-identical to the
         # one before although Lumetri was changed, on every press. Nothing can be said about the correction from
@@ -372,9 +372,8 @@ def check_render(before_path: str, after_path: str, exposure_units: float = 0.0,
                 "gates": {"white": "unknown", "exposure": "unknown", "revert": []},
                 "clipping_regions": {"skin": 0.0, "light": 0.0, "detail": 0.0},
                 "clipping_status": "NOT_VERIFIED",
-                "clipping_message": "Not verified: the frame after the correction is identical to the one before.",
-                "clipping_message_bg": "Не е потвърдено: кадърът след корекцията е същият като преди (клипът може да е "
-                                       "под друг слой или Premiere не е обновил кадъра)."}
+                "clipping_message": "Not verified: the frame after the correction is the same as before (the clip may be "
+                                    "under another layer, or Premiere did not refresh the frame)."}
     ma, mb = measure(a), measure(b)
     # one basis for both frames: a face in one and none in the other is not a comparison
     both_skin = "exp_skin" in ma and "exp_skin" in mb
@@ -397,9 +396,7 @@ def check_render(before_path: str, after_path: str, exposure_units: float = 0.0,
         pct = f"{round(out['new_clipping'] * 10000) / 100:.2f}%"
         out.update(clipping_status="STEP_BACK",
                    clipping_message=f"Highlight clipping {pct} is over the target: Exposure steps back "
-                                    f"{out['pullback_units']} units once and is re-checked.",
-                   clipping_message_bg=f"Изгорели {pct}, над границата: експозицията се сваля веднъж с "
-                                       f"{out['pullback_units']} и се проверява пак.")
+                                    f"{out['pullback_units']} units once and is re-checked.")
     return out
 
 
@@ -477,33 +474,24 @@ def classify_clipping(new: float, regions: dict | None = None, exposure_after: f
         status = "REVIEW_NEEDED"
         en = (f"Highlight clipping on skin ({skin_clip * 100:.1f}% of the skin area, {pct} of the picture). "
               "No further correction applied: review the exposure by hand.")
-        bg = (f"Кожата изгаря ({skin_clip * 100:.1f}% от кожата, {pct} от кадъра). "
-              "Нищо повече не е пипано: провери експозицията ръчно.")
     elif bp <= lim:
         status = "ACCEPTED"
         en = f"Highlight clipping within target ({pct}, target {target})."
-        bg = f"Изгорелите места са в границата ({pct}, граница {target})."
     elif bp <= top or round(regions.get("detail", new) * 10000) <= lim:
         status = "ACCEPTED_WITH_WARNING"
         light = bp > top                        # over the tolerance only because of lamps, windows, sky
         skin_en = " Skin exposure is preserved." if skin_ok else ""
-        skin_bg = " Кожата е запазена." if skin_ok else ""
         if light:
             en = (f"Highlight clipping remains ({pct}, target {target}), mostly in areas that were already near "
                   f"white (lamps, windows, sky: {regions.get('light', 0) * 100:.2f}%).{skin_en} "
                   "No further correction applied.")
-            bg = (f"Остават изгорели места ({pct}, граница {target}), главно където вече беше почти бяло "
-                  f"(лампи, прозорци, небе: {regions.get('light', 0) * 100:.2f}%).{skin_bg} Нищо повече не е пипано.")
         else:
             en = f"Minor highlight clipping remains ({pct}, target {target}).{skin_en} No further correction applied."
-            bg = f"Остават малко изгорели места ({pct}, граница {target}).{skin_bg} Нищо повече не е пипано."
     else:
         status = "REVIEW_NEEDED"
         en = (f"Highlight clipping above tolerance ({pct}, target {target}, tolerance "
               f"+{soft_tolerance * 100:.2f}). No further correction applied: pull Highlights/Whites by hand.")
-        bg = (f"Изгорелите места са над допустимото ({pct}, граница {target}). Нищо повече не е пипано: "
-              "прибери светлите части ръчно (Highlights/Whites).")
-    return {"clipping_status": status, "clipping_message": en, "clipping_message_bg": bg}
+    return {"clipping_status": status, "clipping_message": en}
 
 
 def pullback_units(before: np.ndarray, after: np.ndarray, units: float, cal, limit: float = NEW_CLIP) -> float:
@@ -601,9 +589,9 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
         except Exception as e:                     # one clip never stops the others (user, 2026-11-01)
             import logging
             logging.getLogger("asistent").exception("color analysis failed on %s", path)
-            r = {"path": path, "name": os.path.basename(path), "error": f"Не стана за този клип ({e}); другите продължават."}
+            r = {"path": path, "name": os.path.basename(path), "error": f"Did not work for this clip ({e}); the others go on."}
         done[0] += 1
-        progress(done[0] / len(items), f"Гледам {done[0]} от {len(items)}")
+        progress(done[0] / len(items), f"Looking at {done[0]} of {len(items)}")
         return r
 
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -635,8 +623,8 @@ def review_needed(r: dict) -> None:
     r["status"] = "REVIEW_NEEDED"
     r["exposure"]["confidence"] = "low"
     r["white"]["confidence"] = "low"
-    r["warnings"].append("Мерено на файла, не на таймлайна (няма изнесени кадри или клипът е покрит от друг "
-                         "слой): поправка, която вече е на клипа, не се вижда. Само предложение.")
+    r["warnings"].append("Measured on the file, not on the timeline (no exported frames, or the clip is covered by another "
+                         "layer): a correction already on the clip does not show. A proposal only.")
 
 
 class Calibration:
@@ -794,7 +782,7 @@ def probe_measure(refs: dict, frames: list[dict]) -> dict:
     out = {"frames": [], "identity": None}
     base_path = _wait_file((refs or {}).get("baseline") or "")
     if not base_path:
-        out["error"] = "Няма изнесен кадър от Premiere (exportSequenceFrame не върна файл)."
+        out["error"] = "No frame exported from Premiere (exportSequenceFrame returned no file)."
         return out
     base = read_image(base_path)
     bs = frame_stats(base)
@@ -832,8 +820,8 @@ def probe_measure(refs: dict, frames: list[dict]) -> dict:
     measured = [f for f in out["frames"] if f.get("stops") is not None]
     if len(measured) >= 2 and all(f["stops"] == 0 and f["d_temp"] == 0 and f["d_tint"] == 0 and f["d_spread"] == 0
                                   and f["sat_ratio"] == 1 for f in measured):
-        out["error"] = ("Всички кадри са еднакви с изходния, макар стойностите да са записани: Premiere ги е "
-                        "изнесъл преди или след промяната. Резултатът не е достоверен, нищо не е научено.")
+        out["error"] = ("All frames equal the starting one although the values were written: Premiere exported them "
+                        "before or after the change. The result is not reliable, nothing was learned.")
         out["table"] = {f["param"]: "UNVERIFIED" for f in out["frames"]}
         out["units"] = {}
         return out
@@ -848,12 +836,12 @@ def probe_measure(refs: dict, frames: list[dict]) -> dict:
     table["exposure"] = "SUPPORTED" if moved("exposure", "stops", 0.2) else "BLOCKED"
     table["contrast"] = "SUPPORTED" if moved("contrast", "d_spread", 0.01) else "BLOCKED"
     table["saturation"] = "SUPPORTED" if (by.get("saturation") or {}).get("sat_ratio", 1) > 1.03 else "BLOCKED"
-    table["skin_tones"] = "PARTIAL (само глобално: API-то не дава маски/HSL избор по област)"
+    table["skin_tones"] = "PARTIAL (global only: the API gives no masks/HSL selection by area)"
     table["shot_match"] = "SUPPORTED" if table["white_balance"] != "BLOCKED" and table["exposure"] == "SUPPORTED" \
         else "BLOCKED"
     table["render_check"] = "SUPPORTED"
-    table["color_management"] = "PARTIAL (входен LUT на клипа се чете; работното и изходното пространство не се " \
-                                "виждат през API: проверява се с кадри от Premiere)"
+    table["color_management"] = "PARTIAL (the clip's input LUT can be read; the working and output spaces are not " \
+                                "visible through the API: checked with frames from Premiere)"
     out["table"] = table
     # units for the planner
     units = {}

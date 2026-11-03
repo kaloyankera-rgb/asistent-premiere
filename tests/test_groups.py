@@ -86,7 +86,7 @@ def test_scattered_match_from_another_take_is_vetoed_by_learnt_clocks():
     loose = _edge(2, 3, 1.5, "high", loose=True)
     rec = [1000.0, 1004.0 - 3600, 2000.0, 2300.0 - 3600]
     G._clock_check(_clips(4), ["/A", "/B", "/A", "/B"], True, [strict, loose], rec, ["metadata"] * 4)
-    assert loose["confidence"] == "medium" and "друг дубъл" in loose["reasons"][-1]
+    assert loose["confidence"] == "medium" and "another take" in loose["reasons"][-1]
     assert strict["confidence"] == "high"
 
 

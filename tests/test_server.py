@@ -51,7 +51,7 @@ def test_rejects_browser_requests(engine):
 
 def test_sync_validation(engine):
     code, data = call("POST", "/sync", {"paths": ["/nope/a.mp4", "/nope/b.mp4"]})
-    assert code == 400 and "липсва" in data["error"]
+    assert code == 400 and "missing" in data["error"]
 
 
 def test_sync_job_end_to_end(engine, tmp_path):
@@ -124,15 +124,15 @@ def test_dev_bridge_is_off_without_its_flag_and_round_trips_with_it(engine, tmp_
     assert call("GET", "/dev/poll?wait=0")[0] == 404
     assert call("POST", "/dev/command", {"name": "ping"}, {"X-Asistent": "0"})[0] == 403   # same guard as the rest
     (tmp_path / "devbridge.enabled").write_text("")
-    code, sent = call("POST", "/dev/command", {"name": "click", "args": {"text": "Цвят"}})
+    code, sent = call("POST", "/dev/command", {"name": "click", "args": {"text": "Auto color"}})
     assert code == 200 and sent["id"]
     code, cmd = call("GET", "/dev/poll?wait=1")                                # the panel picks it up
-    assert code == 200 and cmd["name"] == "click" and cmd["args"] == {"text": "Цвят"} and cmd["id"] == sent["id"]
+    assert code == 200 and cmd["name"] == "click" and cmd["args"] == {"text": "Auto color"} and cmd["id"] == sent["id"]
     assert call("GET", "/dev/poll?wait=0")[1] == {}                           # one command is handed out once
     assert call("GET", f"/dev/result?id={sent['id']}&wait=0")[0] == 202       # not answered yet
-    assert call("POST", "/dev/result", {"id": sent["id"], "ok": True, "data": {"clicked": "Цвят"}})[0] == 200
+    assert call("POST", "/dev/result", {"id": sent["id"], "ok": True, "data": {"clicked": "Auto color"}})[0] == 200
     code, res = call("GET", f"/dev/result?id={sent['id']}&wait=1")
-    assert code == 200 and res["ok"] and res["data"] == {"clicked": "Цвят"}
+    assert code == 200 and res["ok"] and res["data"] == {"clicked": "Auto color"}
     assert call("POST", "/dev/command", {"name": ""})[0] == 400                # a name is required
 
 
@@ -164,9 +164,9 @@ def test_subtitle_model_endpoints(engine, tmp_path, monkeypatch):
 
 def test_subtitles_request_is_checked_before_a_job_starts(engine):
     code, res = call("POST", "/subtitles", {"items": []})
-    assert code == 400 and "Маркирай" in res["error"]
+    assert code == 400 and "Select" in res["error"]
     code, res = call("POST", "/subtitles", {"items": [{"path": "/nope.wav", "start": 0, "end": 1, "at": 0}]})
-    assert code == 400 and "липсва" in res["error"]
+    assert code == 400 and "missing" in res["error"]
 
 
 def test_host_channel_places_captions_through_the_host(engine, tmp_path, monkeypatch):
@@ -176,7 +176,7 @@ def test_host_channel_places_captions_through_the_host(engine, tmp_path, monkeyp
     srt.write_text("1\n00:00:00,000 --> 00:00:01,000\nда\n", encoding="utf-8")
     hostbridge._state.update(seen=0.0, version=None)
     code, data = call("POST", "/captions/place", {"srt": str(srt), "sequence": "Seq"})
-    assert code == 400 and "не работи" in data["error"]                       # no host has polled: a clear reason
+    assert code == 400 and "not running" in data["error"]                       # no host has polled: a clear reason
     assert call("GET", "/host/status")[1]["connected"] is False
 
     got = {}
@@ -192,7 +192,7 @@ def test_host_channel_places_captions_through_the_host(engine, tmp_path, monkeyp
     code, res = call("POST", "/captions/place", {"srt": str(srt), "sequence": "Seq", "project": "/p/TEST.prproj"})
     t.join(5)
     assert code == 200 and res["ok"] and res["tracks_after"] == 1
-    assert got["cmd"]["name"] == "captions" and got["cmd"]["args"] == {"srt": str(srt), "sequence": "Seq", "project": "/p/TEST.prproj", "bin": "Субтитри"}
+    assert got["cmd"]["name"] == "captions" and got["cmd"]["args"] == {"srt": str(srt), "sequence": "Seq", "project": "/p/TEST.prproj", "bin": "Subtitles"}
 
 
 def test_host_place_is_checked_and_eval_needs_the_dev_flag(engine, tmp_path, monkeypatch):
@@ -229,8 +229,8 @@ def test_subtitle_settings_are_kept_per_project_and_validated(engine, tmp_path, 
 def test_audio_route_is_validated_before_it_reaches_premiere():
     import pytest
     from asistent import hostbridge
-    with pytest.raises(ValueError, match="Неясно"):
+    with pytest.raises(ValueError, match="Unclear"):
         hostbridge.route_audio([{"track": 0, "start": 1.0, "end": 2.0, "route": "fill_left"}], "S", None)
-    with pytest.raises(ValueError, match="Няма клипове"):
+    with pytest.raises(ValueError, match="No clips"):
         hostbridge.route_audio([], "S", None)
     assert "audio_route" in hostbridge.COMMANDS

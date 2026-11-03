@@ -43,7 +43,7 @@ def get(project: str, sequence: str) -> dict | None:
 def record(project: str, sequence: str, signature: dict) -> None:
     for k in ("index", "count"):
         if not isinstance(signature.get(k), int):
-            raise ValueError("Невалиден подпис на писта със субтитри.")
+            raise ValueError("Invalid signature of a subtitle track.")
     with _lock:
         data = _load()
         data[_key(project, sequence)] = signature

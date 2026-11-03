@@ -14,6 +14,7 @@ const premiereSubtitles = require("./premiere-subtitles.js");
 const premiereCaptions = require("./premiere-captions.js");
 const { describeResult } = require("./subtitleplan.js");
 const { describePlacement } = require("./captionplan.js");
+const captionedit = require("./captionedit.js");
 const premiereRough = require("./premiere-roughcut.js");
 const roughcutplan = require("./roughcutplan.js");
 
@@ -22,7 +23,7 @@ const state = { online: false, busy: false, jobId: null, settleUntil: 0 };
 
 // Every press goes through onTap: it is logged with the button's label (so the log says what was really
 // pressed) and ignored for a moment after the panel changed under the pointer. An answer appearing at the
-// top moves every button down, and a second click on the same spot landed on „Оправи звука“ (2026-11-01).
+// top moves every button down, and a second click on the same spot landed on Fix audio (2026-11-01).
 const SETTLE_MS = 700;
 
 function settle() {
@@ -49,7 +50,7 @@ function setBusy(busy) {
   state.busy = busy;
   for (const b of document.querySelectorAll("button.action, button.small")) b.disabled = busy || !state.online;
   show("work", busy);
-  if (busy && $("paneTools").hidden) openTab("paneTools");      // the progress and Отказ are there
+  if (busy && $("paneTools").hidden) openTab("paneTools");      // the progress and Cancel are there
   settle();
 }
 
@@ -62,16 +63,16 @@ function signed(seconds) {
   return `${seconds >= 0 ? "+" : "−"}${Math.abs(seconds).toFixed(3)} s`;
 }
 
-// a camera clock difference in words: "+730 дни 0:47 ч", "−3:12 мин"
+// a camera clock difference in words: "+730 days 0:47 h", "−3:12 min"
 function clockGap(seconds) {
   const s = Math.abs(Math.round(seconds));
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
   const m = Math.floor((s % 3600) / 60);
   const sign = seconds >= 0 ? "+" : "−";
-  if (d) return `${sign}${d} дни ${h}:${String(m).padStart(2, "0")} ч`;
-  if (h) return `${sign}${h}:${String(m).padStart(2, "0")} ч`;
-  return `${sign}${m}:${String(s % 60).padStart(2, "0")} мин`;
+  if (d) return `${sign}${d} days ${h}:${String(m).padStart(2, "0")} h`;
+  if (h) return `${sign}${h}:${String(m).padStart(2, "0")} h`;
+  return `${sign}${m}:${String(s % 60).padStart(2, "0")} min`;
 }
 
 function el(tag, cls, text) {
@@ -129,8 +130,8 @@ function bindTips(root) {
 }
 
 // ---------------------------------------------------------------- views and the result of a run
-// The main view keeps only the summary, the decisions (Приложи …) and links; the full report goes to
-// „Дневник“ and the before/after pictures to „Преди / след“ (2026-11-03: they used to push the buttons away).
+// The main view keeps only the summary, the decisions (Apply …) and links; the full report goes to
+// Log and the before/after pictures to Before / after (2026-11-03: they used to push the buttons away).
 const history = [];
 
 function openTab(pane) {
@@ -155,8 +156,8 @@ function fillWith(id, nodes) {
 }
 
 /**
- * text: one line; ok: green/red; blocks: the report („Дневник“); opts.actions: () => [buttons] for the
- * decisions, shown under the summary and above the pictures; opts.previews: [nodes] for „Преди / след“.
+ * text: one line; ok: green/red; blocks: the report (Log); opts.actions: () => [buttons] for the
+ * decisions, shown under the summary and above the pictures; opts.previews: [nodes] for Before / after.
  */
 function finish(text, ok, blocks, opts = {}) {
   show("result", true);
@@ -173,7 +174,7 @@ function finish(text, ok, blocks, opts = {}) {
   $("logSummary").className = ok ? "ok" : "err";
   const warns = $("details").querySelectorAll(".warn, .err").length;
   const link = $("openLog");
-  link.textContent = warns ? `Подробности · ${warns} ${warns === 1 ? "бележка" : "бележки"}` : "Подробности";
+  link.textContent = warns ? `Details · ${warns} ${warns === 1 ? "note" : "notes"}` : "Details";
   link.className = warns ? "link has-warn" : "link";
   show("openLog", (blocks || []).length > 0);
   $("logBadge").textContent = warns ? String(warns) : "!";
@@ -189,23 +190,23 @@ function finish(text, ok, blocks, opts = {}) {
   history.unshift({ at: new Date().toLocaleTimeString().slice(0, 5), text, ok });
   history.length = Math.min(history.length, 11);
   fillWith("history", history.slice(1).map((h) => el("div", `history-item ${h.ok ? "" : "err"}`, `${h.at}  ${h.text}`)));
-  if (history.length < 2) $("history").textContent = "Още няма.";
+  if (history.length < 2) $("history").textContent = "None yet.";
 }
 
 async function refreshHeader() {
   const st = await engine.status();
   state.online = !!(st && st.ok);
   $("dot").className = `dot ${state.online ? "on" : "off"}`;
-  $("engine").textContent = state.online ? `Свързан · панел ${PANEL_VERSION} · engine ${st.version}`
-    : `Няма връзка с engine-а (панел ${PANEL_VERSION})`;
-  $("detail").textContent = state.online ? "" : `${st.error}. Провери дали engine-ът е пуснат (README).`;
+  $("engine").textContent = state.online ? `Connected · panel ${PANEL_VERSION} · engine ${st.version}`
+    : `No connection to the engine (panel ${PANEL_VERSION})`;
+  $("detail").textContent = state.online ? "" : `${st.error}. Check that the engine is running (README).`;
   show("detail", !state.online);
   try {
     const project = await premiere.activeProject();
     $("project").textContent = project.name;
     if (state.online && !state.busy) loadSubtitleSettings(project.path);
   } catch (e) {
-    $("project").textContent = "Няма отворен проект";
+    $("project").textContent = "No project open";
   }
   if (!state.busy) for (const b of document.querySelectorAll("button.action, button.small")) b.disabled = !state.online;
   if (state.online && !state.modelShown) {                 // once per start: does the subtitle section need the install?
@@ -226,8 +227,8 @@ async function runJob(id) {
     const j = await engine.job(id);
     progress(0.05 + 0.85 * j.progress, j.message);
     if (j.state === "done") return j.result;
-    if (j.state === "cancelled") throw new premiere.UserError("Отказано.");
-    if (j.state === "error") throw new premiere.UserError(j.error || "Грешка в engine-а.");
+    if (j.state === "cancelled") throw new premiere.UserError("Cancelled.");
+    if (j.state === "error") throw new premiere.UserError(j.error || "Engine error.");
     await wait(300);
   }
 }
@@ -239,33 +240,33 @@ function describe(result, timeline, lay) {
   const first = (g) => (lay ? lay.placements.findIndex((p) => g.members.some((m) => m.clip === p.clip)) : 0);
   result.groups.slice().sort((a, b) => first(a) - first(b)).forEach((g, n) => {
     const box = el("div", "group");
-    box.appendChild(el("div", "name", `Група ${n + 1}: ${g.members.map((m) => name(m.clip)).join(", ")}`));
+    box.appendChild(el("div", "name", `Group ${n + 1}: ${g.members.map((m) => name(m.clip)).join(", ")}`));
     for (const m of g.members) {
-      if (m.clip !== g.anchor) box.appendChild(el("div", "line", `${name(m.clip)}  ${signed(m.offset)} спрямо ${name(g.anchor)}`));
+      if (m.clip !== g.anchor) box.appendChild(el("div", "line", `${name(m.clip)}  ${signed(m.offset)} against ${name(g.anchor)}`));
     }
     // pairs that needed the scattered-window rule or the clocks say how they were decided
     for (const x of result.accepted_notes || []) {
-      if (g.members.some((m) => m.clip === x.a)) box.appendChild(el("div", "hint", `${name(x.a)} и ${name(x.b)}: ${x.text}`));
+      if (g.members.some((m) => m.clip === x.a)) box.appendChild(el("div", "hint", `${name(x.a)} and ${name(x.b)}: ${x.text}`));
     }
     blocks.push(box);
   });
   const notes = [];
   if (result.unsynced.length) {
-    notes.push(`Без общ звук с друг клип (сложени на мястото си по време на запис): ${result.unsynced.map(name).join(", ")}`);
+    notes.push(`No shared sound with another clip (placed where they belong in recording time): ${result.unsynced.map(name).join(", ")}`);
   }
   for (const c of result.clocks || []) {
     if (c.linked && c.name !== result.clock_reference && Math.abs(c.offset) >= 60) {
-      notes.push(`Часовникът на ${c.name} е разместен спрямо ${result.clock_reference} (${clockGap(c.offset)}): поправен по синхрона.`);
+      notes.push(`The clock of ${c.name} is off against ${result.clock_reference} (${clockGap(c.offset)}): corrected by the sync.`);
     }
   }
-  for (const u of (lay && lay.uncertain) || []) notes.push(`Несигурно място: ${u.name} (${u.reason}).`);
-  for (const c of result.conflicts) notes.push(`Не е синхронизирано: ${c.reason}.`);
+  for (const u of (lay && lay.uncertain) || []) notes.push(`Uncertain place: ${u.name} (${u.reason}).`);
+  for (const c of result.conflicts) notes.push(`Not synced: ${c.reason}.`);
   for (const s of result.suggestions) {
     const why = (s.reasons || []).join(" ");
-    notes.push(`Възможно, но несигурно (не е приложено): ${name(s.a)} и ${name(s.b)} ${signed(s.offset)}.` +
-      `${why ? ` Причина: ${why}` : ""} Провери ръчно.`);
+    notes.push(`Possible but uncertain (not applied): ${name(s.a)} and ${name(s.b)} ${signed(s.offset)}.` +
+      `${why ? ` Reason: ${why}` : ""} Check it by hand.`);
   }
-  for (const s of timeline.skipped) notes.push(`Пропуснат: ${s}.`);
+  for (const s of timeline.skipped) notes.push(`Skipped: ${s}.`);
   for (const n of notes) blocks.push(el("div", "warn", n));
   return blocks;
 }
@@ -273,41 +274,41 @@ function describe(result, timeline, lay) {
 async function onSync() {
   if (state.busy) return;
   if (!state.online) {
-    finish("Няма връзка с engine-а. Виж README.", false);
+    finish("No connection to the engine. See README.", false);
     return;
   }
   show("result", false);
   setBusy(true);
-  progress(0, "Чета маркираните клипове в таймлайна…");
+  progress(0, "Reading the selected clips in the timeline…");
   try {
     const project = await premiere.activeProject();
     const timeline = await premiere.readTimeline(project);
     if (timeline.clips.length < 2) {
-      const seen = timeline.clips.map((c) => c.name).join(", ") || "нищо";
-      throw new premiere.UserError(`Синхронът подравнява поне две камери: маркирай клипове от поне два различни ` +
-        `файла. Сега е маркирано: ${seen}. (За цвят или звук стига и един клип: бутоните в ЦВЯТ и ЗВУК.)`);
+      const seen = timeline.clips.map((c) => c.name).join(", ") || "nothing";
+      throw new premiere.UserError(`Sync lines up at least two cameras: select clips from at least two different ` +
+        `files. Selected now: ${seen}. (For color or audio one clip is enough: the buttons in COLOR and AUDIO.)`);
     }
     engine.log("info", `timeline: ${timeline.clips.length} files selected, fps ${timeline.fps}`);
     const t0 = Date.now();
     const { job } = await engine.startGroups(timeline.clips.map((c) => c.path));
     const result = await runJob(job);
     if (!result.groups.length) {
-      finish("Не намерих клипове със сигурно общ звук. Не е създадена секвенция.", false, describe(result, timeline));
+      finish("Found no clips with surely shared sound. No sequence was made.", false, describe(result, timeline));
       return;
     }
-    progress(0.95, "Правя SYNC секвенцията…");
+    progress(0.95, "Making the SYNC sequence…");
     const order = Object.fromEntries(timeline.clips.map((c) => [c.path, c.start]));
     const lay = layout.syncLayout(result, order);
     const blocks = describe(result, timeline, lay);
     const done = await premiere.buildSyncSequence(project, timeline, lay);
     const secsTaken = ((Date.now() - t0) / 1000).toFixed(0);
     if (done.bad.length) {
-      finish(`${done.name} е създадена, но проверката не мина за: ${done.bad.join(", ")}. Провери ги ръчно.`, false, blocks);
+      finish(`${done.name} was made, but the check failed for: ${done.bad.join(", ")}. Check them by hand.`, false, blocks);
       return;
     }
     const synced = result.groups.reduce((n, g) => n + g.members.length, 0);
-    finish(`Готово за ${secsTaken} s: ${done.name}, ${synced} клипа в ${result.groups.length} групи. ` +
-      `Проверено (разлика до ${done.worstMs.toFixed(1)} ms от кадрите). Твоята секвенция не е пипана.`, true, blocks);
+    finish(`Done in ${secsTaken} s: ${done.name}, ${synced} clips in ${result.groups.length} groups. ` +
+      `Checked (off by at most ${done.worstMs.toFixed(1)} ms from the frames). Your sequence was not touched.`, true, blocks);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `sync: ${e && e.stack ? e.stack : e}`);
@@ -318,20 +319,20 @@ async function onSync() {
 }
 
 async function onAudio(force) {
-  // "phrases": everything "Оправи звука" does, plus Volume keyframes that even out the phrases
+  // "phrases": everything "Fix audio" does, plus Volume keyframes that even out the phrases
   const phrases = force === "phrases";
   if (state.busy) return;
   if (!state.online) {
-    finish("Няма връзка с engine-а. Виж README.", false);
+    finish("No connection to the engine. See README.", false);
     return;
   }
   show("result", false);
   setBusy(true);
-  progress(0, "Чета маркираните клипове…");
+  progress(0, "Reading the selected clips…");
   try {
     const project = await premiere.activeProject();
     const sel = await premiereAudio.readAudioSelection(project);
-    if (!sel.items.length) throw new premiere.UserError("Маркирай в таймлайна поне един клип със звук (видеото или звука му).");
+    if (!sel.items.length) throw new premiere.UserError("Select at least one clip with sound in the timeline (its video or its audio).");
     const work = audioplan.engineJobs(sel.items, force);
     engine.log("info", `audio: ${sel.items.length} clips (${work.jobs.length} measured), force ${force || "auto"}`);
     const { job } = await engine.startAudio(work.jobs, phrases);
@@ -342,14 +343,14 @@ async function onAudio(force) {
     // the channels: the host makes the L/L and R/R copies and puts them where the clip is (ExtendScript)
     const todo = plans.map((p) => ({ p, route: audioplan.routeFor(p.it, p.res, force) })).filter((x) => x.route);
     if (todo.length) {
-      progress(0.9, `Разделям каналите: ${todo.length} ${todo.length === 1 ? "клип" : "клипа"}…`);
+      progress(0.9, `Splitting the channels: ${todo.length} ${todo.length === 1 ? "clip" : "clips"}…`);
       const answer = await engine.routeAudio({ sequence: sel.timeline.sequence.name, project: project.path,
         items: todo.map((x) => ({ track: x.p.it.track, start: x.p.it.start, end: x.p.it.end, route: x.route })) });
-      if (!answer.ok) throw new premiere.UserError(answer.msg || "Premiere не раздели каналите.");
-      todo.forEach((x, i) => { x.p.routed = answer.items[i] || { ok: false, msg: "няма отговор" }; });
+      if (!answer.ok) throw new premiere.UserError(answer.msg || "Premiere did not split the channels.");
+      todo.forEach((x, i) => { x.p.routed = answer.items[i] || { ok: false, msg: "no answer" }; });
       engine.log("info", `audio route: ${JSON.stringify(answer.items)}`);
     }
-    progress(0.95, "Слагам силата…");
+    progress(0.95, "Setting the levels…");
     const { undoSteps } = await premiereAudio.applyLevels(project, sel.timeline.sequence, audioplan.levelTargets(plans));
 
     const blocks = [];
@@ -360,31 +361,31 @@ async function onAudio(force) {
       box.appendChild(el("div", "name", p.it.name));
       // a side Asistent made earlier: its analysis lines describe the pair, not this clip
       if (p.it.side) {
-        box.appendChild(el("div", "reason", "Вече е разделен от Asistent: само силата."));
+        box.appendChild(el("div", "reason", "Already split by Asistent: level only."));
         // what the pair's analysis said about the balance of the two speakers still applies
-        for (const r of (p.res && p.res.reasons) || []) if (/Говорителите се различаваха|няма свой говорител/.test(r)) box.appendChild(el("div", "reason", r));
+        for (const r of (p.res && p.res.reasons) || []) if (/The speakers differed|has no speaker of its own/.test(r)) box.appendChild(el("div", "reason", r));
       }
-      else if (p.it.route) box.appendChild(el("div", "reason", "Има Fill ефект отпреди: каналите не са пипани, само силата."));
+      else if (p.it.route) box.appendChild(el("div", "reason", "Has a Fill effect from before: channels left alone, level only."));
       else for (const r of (p.res && p.res.reasons) || []) if (r) box.appendChild(el("div", "reason", r));
       const line = audioplan.routeLine(p.routed);
       if (line) box.appendChild(el("div", p.routed.ok ? "line" : "warn", line));
       for (const l of p.lines) box.appendChild(el("div", "line", l));
-      if (p.res && p.res.action === "ask") box.appendChild(el("div", "warn", "Не е пипано: избери ръчно (Ръчно ▸)."));
-      if (p.routed && !p.routed.ok) p.problems.push("каналите не са разделени");
+      if (p.res && p.res.action === "ask") box.appendChild(el("div", "warn", "Not touched: choose by hand (Manual ▸)."));
+      if (p.routed && !p.routed.ok) p.problems.push("the channels were not split");
       for (const pr of p.problems) box.appendChild(el("div", "warn", pr));
       if (p.problems.length) failed++;
       else if (p.res && p.res.action !== "ask") changed++;
       blocks.push(box);
     }
-    for (const s of sel.skipped) blocks.push(el("div", "warn", `Пропуснат: ${s}.`));
-    blocks.push(el("div", "hint", `Лимитерът (Dynamics → Limiter ${audioplan.LIMITER_DB} dB) е на всеки клип, не на Mix пистата: скриптовете на ` +
-      "Premiere не стигат до главната писта. Сборът на двете писти е държан под −6 dB от самите нива."));
+    for (const s of sel.skipped) blocks.push(el("div", "warn", `Skipped: ${s}.`));
+    blocks.push(el("div", "hint", `The limiter (Dynamics → Limiter ${audioplan.LIMITER_DB} dB) is on every clip, not on the Mix track: Premiere's ` +
+      "scripts cannot reach the main track. The sum of both tracks is kept under −6 dB by the levels themselves."));
     const split = plans.filter((p) => p.routed && p.routed.ok && p.routed.status === "done").length;
-    const clips = (n) => `${n} ${n === 1 ? "клип" : "клипа"}`;
-    const undo = [undoSteps ? `силата и лимитерът са ${undoSteps === 1 ? "една стъпка" : `${undoSteps} стъпки`} Cmd/Ctrl+Z` : "",
-      split ? "разделянето е отделни стъпки на Premiere (копията и връзката на всеки клип)" : ""].filter(Boolean).join("; ");
-    finish(`${failed ? `Готово с проблеми: ${clips(changed)} оправени, ${failed} не.` : `Готово: ${changed} от ${clips(plans.length)}.`}` +
-      `${split ? ` Разделени: ${split}.` : ""}${undo ? ` Връщане: ${undo}.` : ""}`, !failed, blocks);
+    const clips = (n) => `${n} ${n === 1 ? "clip" : "clips"}`;
+    const undo = [undoSteps ? `the levels and the limiter are ${undoSteps === 1 ? "one step" : `${undoSteps} steps`} of Cmd/Ctrl+Z` : "",
+      split ? "the split is separate Premiere steps (the copies and the link of each clip)" : ""].filter(Boolean).join("; ");
+    finish(`${failed ? `Done with problems: ${clips(changed)} fixed, ${failed} not.` : `Done: ${changed} of ${clips(plans.length)}.`}` +
+      `${split ? ` Split: ${split}.` : ""}${undo ? ` Undo: ${undo}.` : ""}`, !failed, blocks);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `audio: ${e && e.stack ? e.stack : e}`);
@@ -402,10 +403,10 @@ const gb = (b) => (b / 1e9).toFixed(1).replace(".", ",");
 function renderSubtitleModel(st) {
   let text = "";
   if (!st.backend) {
-    text = "Липсват пакетите за разпознаване на реч: пусни scripts/setup_mac.sh --subtitles (виж README).";
+    text = "The speech recognition packages are missing: run scripts/setup_mac.sh --subtitles (see README).";
   } else if (!st.model) {
-    text = `Моделът за българска реч (около ${gb(st.expected_bytes)} GB) още не е свален. Ще се запише в ${st.dir}.` +
-      (st.bytes ? ` Вече са свалени ${gb(st.bytes)} GB: свалянето продължава от там.` : "");
+    text = `The Bulgarian speech model (about ${gb(st.expected_bytes)} GB) is not downloaded yet. It will be saved in ${st.dir}.` +
+      (st.bytes ? ` ${gb(st.bytes)} GB are already downloaded: the download continues from there.` : "");
   }
   $("subtitleModel").textContent = text;
   show("subtitleModel", !!text);
@@ -420,7 +421,7 @@ async function saveSubtitleSettings(path) {
 }
 
 function showNotesState(errors) {
-  $("notesState").textContent = errors.length ? `Не разбирам: ${errors.join("; ")}` : "";
+  $("notesState").textContent = errors.length ? `Not understood: ${errors.join("; ")}` : "";
   show("notesState", errors.length > 0);
 }
 
@@ -435,38 +436,78 @@ async function loadSubtitleSettings(path) {
   }
 }
 
-async function onSubtitles() {
+// The caption editor (the Captions tab): one field per line of the last subtitles. What the user changed becomes
+// correction lines (captionedit.js); the next run applies them and places the result on a NEW caption track.
+const captionEdit = { result: null, inputs: [] };
+
+function renderCaptionEditor(result) {
+  captionEdit.result = result;
+  captionEdit.inputs = [];
+  const list = $("captionList");
+  while (list.firstChild) list.removeChild(list.firstChild);
+  const unsure = new Set((result.review || []).map((r) => Math.round(r.at * 10)));
+  for (const c of result.captions) {
+    const row = el("div", (c.flags || []).length || [...unsure].some((u) => u >= Math.round(c.start * 10) && u <= Math.round(c.end * 10)) ? "capline flag" : "capline");
+    row.appendChild(el("span", "t", `${Math.floor(c.start / 60)}:${String(Math.floor(c.start % 60)).padStart(2, "0")}`));
+    const input = document.createElement("input");
+    input.value = String(c.text).replace(/\s+/g, " ");
+    input.setAttribute("data-original", input.value);
+    input.addEventListener("input", () => { row.className = row.className.replace(" edited", "") + (input.value !== input.getAttribute("data-original") ? " edited" : ""); });
+    captionEdit.inputs.push(input);
+    row.appendChild(input);
+    list.appendChild(row);
+  }
+  $("captionEditState").textContent = `${result.captions.length} lines. Lines with a yellow edge hold a word that is not certain.`;
+  show("tabCaptions", true);
+}
+
+async function onCaptionApply() {
+  if (state.busy || !captionEdit.result) return;
+  const edited = captionEdit.inputs.map((i) => i.value);
+  const pairs = captionedit.pairsFromEdits(captionEdit.result.captions, edited);
+  if (!pairs.length) {
+    $("captionEditState").textContent = "Nothing changed: type a word right in one of the lines first.";
+    return;
+  }
+  $("notes").value = captionedit.addToNotes($("notes").value, pairs);
+  $("captionEditState").textContent = `${pairs.length} ${pairs.length === 1 ? "correction" : "corrections"} added: ${pairs.map((p) => `${p.heard} → ${p.said}`).join("; ")}. Rebuilding…`;
+  openTab("paneTools");
+  await onSubtitles({ again: true });
+}
+
+async function onSubtitles(opts = {}) {
   if (state.busy) return;
   if (!state.online) {
-    finish("Няма връзка с engine-а. Виж README.", false);
+    finish("No connection to the engine. See README.", false);
     return;
   }
   show("result", false);
   setBusy(true);
-  progress(0, "Проверявам модела за реч…");
+  progress(0, "Checking the speech model…");
   try {
     const st = await engine.subtitlesModel();
     renderSubtitleModel(st);
     if (!st.backend || !st.model) {
-      throw new premiere.UserError(!st.backend ? "Липсват пакетите за разпознаване на реч (виж СУБТИТРИ)."
-        : "Моделът за реч още не е свален: натисни „Свали модела“ в раздел СУБТИТРИ.");
+      throw new premiere.UserError(!st.backend ? "The speech recognition packages are missing (see SUBTITLES)."
+        : "The speech model is not downloaded yet: press Download the model in SUBTITLES.");
     }
     const project = await premiere.activeProject();
-    progress(0.02, "Чета маркираните клипове…");
+    progress(0.02, "Reading the selected clips…");
     const saved = await saveSubtitleSettings(project.path);                  // what is in the boxes now is what runs, and is remembered
     const { payload, plan } = await premiereSubtitles.readInput(project, [], $("notes").value);
-    engine.log("info", `subtitles: ${plan.use.length} клипа, ${plan.skipped.length} пропуснати`);
+    engine.log("info", `subtitles: ${plan.use.length} clips, ${plan.skipped.length} skipped`);
     const { job } = await engine.startSubtitles(payload);
     const result = await runJob(job);
     const out = describeResult(result);
     if (out.ok) {
       // one press: the file is made, then it goes onto a caption track of the same sequence (engine host, see DECISIONS.md)
-      progress(0.98, "Слагам субтитрите на таймлайна…");
-      const placed = describePlacement(await premiereCaptions.place(project, await project.getActiveSequence(), result), result.srt);
-      out.text = placed.ok ? `Готово: ${result.counts.captions} реда субтитри, на таймлайна.` : placed.text;
+      progress(0.98, "Putting the subtitles on the timeline…");
+      const placed = describePlacement(await premiereCaptions.place(project, await project.getActiveSequence(), result, { again: !!opts.again }), result.srt, !!opts.again);
+      out.text = placed.ok ? `Done: ${result.counts.captions} subtitle lines, on the timeline.` : placed.text;
       out.ok = placed.ok;
-      out.lines = [...placed.lines, ...out.lines.filter((l) => !/^Файл: /.test(l.text))];
+      out.lines = [...placed.lines, ...out.lines.filter((l) => !/^File: /.test(l.text))];
     }
+    renderCaptionEditor(result);
     finish(out.text, out.ok, out.lines.map((l) => el("div", l.cls, l.text)));
   } catch (e) {
     finish(e.message || String(e), false);
@@ -484,19 +525,19 @@ async function onSubtitles() {
 async function onRoughCut() {
   if (state.busy) return;
   if (!state.online) {
-    finish("Няма връзка с engine-а. Виж README.", false);
+    finish("No connection to the engine. See README.", false);
     return;
   }
   show("result", false);
   setBusy(true);
-  progress(0, "Чета маркираните клипове…");
+  progress(0, "Reading the selected clips…");
   try {
     const project = await premiere.activeProject();
     const opts = { mode: $("roughMode").value, tempo: $("roughTempo").value, markers: $("roughMarkers").checked };
     const { payload, meta } = await premiereRough.readInput(project, opts);
     const { job } = await engine.startRoughcut(payload);
     const result = await runJob(job);
-    progress(0.92, "Внасям новата секвенция…");
+    progress(0.92, "Importing the new sequence…");
     const placed = await premiereRough.place(project, result, meta);
     const out = roughcutplan.describeResult(result, placed);
     finish(out.text, !placed.problems.length, out.lines.map((l) => el("div", l.cls, l.text)));
@@ -513,17 +554,17 @@ async function onRoughCut() {
 async function onSubtitleDownload() {
   if (state.busy) return;
   if (!state.online) {
-    finish("Няма връзка с engine-а. Виж README.", false);
+    finish("No connection to the engine. See README.", false);
     return;
   }
   show("result", false);
   setBusy(true);
-  progress(0, "Свалям модела…");
+  progress(0, "Downloading the model…");
   try {
     const r = await engine.downloadSubtitleModel();
     if (!r.done) await runJob(r.job);
     renderSubtitleModel(await engine.subtitlesModel());
-    finish("Моделът е свален. Натисни „Субтитри (български)“.", true);
+    finish("The model is downloaded. Press Subtitles (Bulgarian).", true);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `subtitle model: ${e && e.stack ? e.stack : e}`);
@@ -536,7 +577,7 @@ async function onSubtitleDownload() {
 
 // ---------------------------------------------------------------- colour
 
-const CONF = { high: "висока", medium: "средна", low: "ниска" };
+const CONF = { high: "high", medium: "medium", low: "low" };
 // part: null is Auto Color (white and exposure), "white" / "exposure" the separate buttons (same analysis, same apply)
 const colorState = { project: null, sel: null, results: null, part: null };
 
@@ -547,7 +588,7 @@ function colorBlock(clip, r) {
     box.appendChild(el("div", "warn", r.error));
     return box;
   }
-  if (r.measured_on === "timeline") box.appendChild(el("div", "reason", `Мерено на таймлайна (${r.frames} кадъра).`));
+  if (r.measured_on === "timeline") box.appendChild(el("div", "reason", `Measured on the timeline (${r.frames} frames).`));
   for (const line of colorLines(r, colorState.part)) box.appendChild(el("div", "line", line));
   for (const x of r.reasons || []) box.appendChild(el("div", "reason", x));
   for (const x of r.warnings || []) box.appendChild(el("div", "warn", x));
@@ -557,14 +598,14 @@ function colorBlock(clip, r) {
 function colorLines(r, part = null) {
   const e = r.exposure;
   // stops are what the picture needs; units are what goes into Lumetri (they differ above the shadows)
-  const units = e.units !== undefined && e.units !== null && e.units !== e.stops ? ` = Exposure ${e.units > 0 ? "+" : ""}${e.units} в Lumetri` : "";
+  const units = e.units !== undefined && e.units !== null && e.units !== e.stops ? ` = Exposure ${e.units > 0 ? "+" : ""}${e.units} in Lumetri` : "";
   const w = r.white;
-  const lines = { exposure: e.stops ? `Експозиция ${e.stops > 0 ? "+" : ""}${e.stops} стопа${units} (${CONF[e.confidence]} сигурност)` : "Експозиция: без промяна",
-    white: w.balanced ? `Бяло: наред (${CONF[w.confidence]})` : `Бяло: корекция (${CONF[w.confidence]} сигурност)` };
+  const lines = { exposure: e.stops ? `Exposure ${e.stops > 0 ? "+" : ""}${e.stops} stops${units} (${CONF[e.confidence]} confidence)` : "Exposure: no change",
+    white: w.balanced ? `White balance: fine (${CONF[w.confidence]})` : `White balance: correction (${CONF[w.confidence]} confidence)` };
   return [part !== "white" ? lines.exposure : null, part !== "exposure" ? lines.white : null].filter(Boolean);
 }
 
-// one clip in „Преди / след“: its name, the two pictures and what would change
+// one clip in Before / after: its name, the two pictures and what would change
 function previewBlock(name, preview, caption, lines) {
   const box = el("div", "group");
   box.appendChild(el("div", "name", name));
@@ -586,19 +627,19 @@ function colorPlans(level) {
 
 async function onColor(part = null) {
   if (state.busy) return;
-  if (!state.online) return finish("Няма връзка с engine-а. Виж README.", false);
+  if (!state.online) return finish("No connection to the engine. See README.", false);
   show("result", false);
   setBusy(true);
-  progress(0, "Гледам маркираните клипове…");
+  progress(0, "Looking at the selected clips…");
   try {
     const project = await premiere.activeProject();
     const sel = await premiereColor.readVideoSelection(project);
-    if (!sel.clips.length) throw new premiere.UserError("Маркирай в таймлайна поне един видео клип.");
+    if (!sel.clips.length) throw new premiere.UserError("Select at least one video clip in the timeline.");
     // measure what is on the timeline (an earlier correction included), not the source file
     const dir = (await engine.status()).frames_dir;
     const items = [];
     for (const [i, c] of sel.clips.entries()) {
-      progress((0.4 * i) / sel.clips.length, `Кадри от таймлайна: ${i + 1} от ${sel.clips.length}…`);
+      progress((0.4 * i) / sel.clips.length, `Frames from the timeline: ${i + 1} of ${sel.clips.length}…`);
       const tl = dir ? await premiereColor.timelineFrames(sel.timeline, c, dir, i) : { frames: [] };
       items.push({ path: c.path, start: c.inPt, end: c.outPt, frames: tl.frames });
     }
@@ -607,19 +648,19 @@ async function onColor(part = null) {
     Object.assign(colorState, { project, sel, results: result.items, part });
     const blocks = sel.clips.map((c, i) => colorBlock(c, result.items[i]));
     const previews = sel.clips.map((c, i) => [c, result.items[i]]).filter(([, r]) => !r.error && r.preview && r.preview.before)
-      .map(([c, r]) => previewBlock(c.name, r.preview, "преди · след (приблизително)", colorLines(r, part)));
-    // buttons by what they apply: „и средните“ appears whenever it adds a correction „сигурните“ leaves out
+      .map(([c, r]) => previewBlock(c.name, r.preview, "before · after (approximate)", colorLines(r, part)));
+    // buttons by what they apply: "and the medium ones" appears whenever it adds a correction "the sure ones" leaves out
     const sure = colorPlans("sure").length;
     const all = colorPlans("all").length;
     const more = corrections(colorPlans("all")) > corrections(colorPlans("sure"));
     const actions = () => [
-      ...(sure ? [button("small", `Приложи сигурните (${sure})`, "Слага в Lumetri само корекциите с висока сигурност.",
+      ...(sure ? [button("small", `Apply the sure ones (${sure})`, "Puts only the high-confidence corrections into Lumetri.",
         () => onColorApply("sure"))] : []),
-      ...(more ? [button("small", `Приложи и средните (${all})`, "Слага в Lumetri и корекциите със средна сигурност.",
+      ...(more ? [button("small", `Apply the medium ones too (${all})`, "Also puts the medium-confidence corrections into Lumetri.",
         () => onColorApply("all"))] : []),
     ];
-    finish(all ? `Само предложение: в Lumetri още нищо не е сложено. Натисни „${sure ? `Приложи сигурните (${sure})` :
-      `Приложи и средните (${all})`}“ отдолу, за да се приложи.` : "Няма какво да се поправя със сигурност: нищо не е пипано.",
+    finish(all ? `Only a proposal: nothing is in Lumetri yet. Press "${sure ? `Apply the sure ones (${sure})` :
+      `Apply the medium ones too (${all})`}" below to apply it.` : "Nothing to correct with certainty: nothing was touched.",
     true, blocks, { actions, previews });
   } catch (e) {
     finish(e.message || String(e), false);
@@ -647,7 +688,7 @@ function audit(pl, level) {
 async function onColorApply(level) {
   if (state.busy || !colorState.sel) return;
   setBusy(true);
-  progress(0.5, "Прилагам в Lumetri и проверявам на кадър…");
+  progress(0.5, "Applying in Lumetri and checking on a frame…");
   try {
     const plans = colorPlans(level);
     const { steps } = await premiereColor.apply(colorState.project, colorState.sel.timeline, plans);
@@ -658,17 +699,17 @@ async function onColorApply(level) {
       box.appendChild(el("div", "name", `${pl.clip.name} · ${STATUS_BG[pl.status]}`));
       for (const l of pl.lines || []) box.appendChild(el("div", "line", l));
       if (pl.left && pl.left.length && !pl.skipped) {
-        box.appendChild(el("div", "warn", `Не е приложено (средна сигурност): ${pl.left.join(" и ")}. ` +
-          "За да влезе и то: натисни пак същия бутон и „Приложи и средните“ (добавя се към тази поправка)."));
+        box.appendChild(el("div", "warn", `Not applied (medium confidence): ${pl.left.join(" and ")}. ` +
+          "To add it too: press the same button again and Apply the medium ones too (it adds to this correction)."));
       }
       return box;
     });
-    const undo = steps === 1 ? "Един Cmd/Ctrl+Z връща всичко." : steps > 1 ? `${steps} пъти Cmd/Ctrl+Z връщат всичко.` : "";
+    const undo = steps === 1 ? "One Cmd/Ctrl+Z undoes everything." : steps > 1 ? `${steps} times Cmd/Ctrl+Z undo everything.` : "";
     // a clip that already has a graded Lumetri is left alone: never report it as applied
     const done = plans.filter((pl) => !pl.skipped).length;
     const skipped = plans.length - done;
-    finish(done ? `Приложено на ${done} ${done === 1 ? "клип" : "клипа"}${skipped ? `, ${skipped} пропуснати` : ""}. ${undo}`
-      : "Нищо не е приложено: виж причината отдолу.", done > 0, blocks);
+    finish(done ? `Applied to ${done} ${done === 1 ? "clip" : "clips"}${skipped ? `, ${skipped} skipped` : ""}. ${undo}`
+      : "Nothing was applied: see the reason below.", done > 0, blocks);
     colorState.sel = null;
   } catch (e) {
     finish(e.message || String(e), false);
@@ -685,27 +726,27 @@ function onProbeAsk() {
   const row = $("probe").parentNode;
   const box = el("div", "confirm");
   box.id = "probeConfirm";
-  box.appendChild(el("p", "hint", "Пробата слага Lumetri на маркирания клип, пише по един параметър, изнася кадри и " +
-    "връща стойностите. Само в тестов проект, с ЕДИН маркиран видео клип без Lumetri."));
+  box.appendChild(el("p", "hint", "The probe puts Lumetri on the selected clip, writes one parameter at a time, exports frames and " +
+    "restores the values. Test project only, with ONE selected video clip without Lumetri."));
   const bar = el("div", "row buttons");
   const close = () => box.parentNode && box.parentNode.removeChild(box);
-  bar.appendChild(button("small", "Да, пусни пробата", "Слага Lumetri на маркирания клип и мери как реагира. Само в тестов проект.", () => {
+  bar.appendChild(button("small", "Yes, run the probe", "Puts Lumetri on the selected clip and measures how it responds. Test project only.", () => {
     close();
     onProbe();
   }));
-  bar.appendChild(button("small", "Не", "Затваря въпроса, нищо не се пипа.", close));
+  bar.appendChild(button("small", "No", "Closes the question, nothing is touched.", close));
   box.appendChild(bar);
   row.parentNode.insertBefore(box, row.nextSibling);
   bindTips(box);
   settle();
 }
 
-const STATE_BG = { SUPPORTED: "работи", BLOCKED: "не е достъпно", UNVERIFIED: "не е измерено достоверно" };
+const STATE_BG = { SUPPORTED: "works", BLOCKED: "not available", UNVERIFIED: "not measured reliably" };
 
 async function onProbe() {
   if (state.busy) return;
   setBusy(true);
-  progress(0.3, "Проба: параметри, запис, кадри…");
+  progress(0.3, "Probe: parameters, writing, frames…");
   try {
     const project = await premiere.activeProject();
     const rep = await premiereProbe.run(project);
@@ -713,18 +754,18 @@ async function onProbe() {
     const blocks = [];
     const tbl = el("div", "group");
     tbl.appendChild(el("div", "name", `Premiere ${rep.host ? rep.host.version : "?"} · Lumetri: ${rep.lumetriMatch} · ` +
-      `${(rep.lumetriParams || []).length} параметъра · изнасяне на кадър: ${rep.exporter ? "да" : "не"}`));
+      `${(rep.lumetriParams || []).length} parameters · frame export: ${rep.exporter ? "yes" : "no"}`));
     for (const [k, v] of Object.entries(res.table || {})) {
       tbl.appendChild(el("div", "line", `${k}: ${STATE_BG[v] ? `${v} (${STATE_BG[v]})` : v}`));
     }
     blocks.push(tbl);
     const units = res.units || {};
-    if (Object.keys(units).length) blocks.push(el("div", "line", `Единици: ${JSON.stringify(units)}`));
-    if (res.identity) blocks.push(el("div", "line", `Празен Lumetri променя кадъра с: ${JSON.stringify(res.identity)}`));
-    if (res.error) blocks.push(el("div", "warn", res.error + (rep.exportError ? ` Premiere каза: ${rep.exportError}` : "")));
-    blocks.push(el("div", "reason", `Входен LUT на клипа: ${rep.colorManagement.clipInputLUT || "няма"}; вграден: ` +
-      `${rep.colorManagement.clipEmbeddedLUT || "няма"}. На клипа остана празен Lumetri: изтрий го или Cmd/Ctrl+Z.`));
-    finish("Пробата е готова: резултатът е записан и в engine-а.", !res.error, blocks);
+    if (Object.keys(units).length) blocks.push(el("div", "line", `Units: ${JSON.stringify(units)}`));
+    if (res.identity) blocks.push(el("div", "line", `An empty Lumetri changes the frame by: ${JSON.stringify(res.identity)}`));
+    if (res.error) blocks.push(el("div", "warn", res.error + (rep.exportError ? ` Premiere said: ${rep.exportError}` : "")));
+    blocks.push(el("div", "reason", `Input LUT of the clip: ${rep.colorManagement.clipInputLUT || "none"}; embedded: ` +
+      `${rep.colorManagement.clipEmbeddedLUT || "none"}. An empty Lumetri is left on the clip: delete it or Cmd/Ctrl+Z.`));
+    finish("The probe is done: the result is saved in the engine too.", !res.error, blocks);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `probe: ${e && e.stack ? e.stack : e}`);
@@ -737,18 +778,18 @@ async function onProbe() {
 
 const shotState = {};
 const SHOT_NAMES = { exposure: "Exposure", temperature: "Temperature", tint: "Tint", contrast: "Contrast", saturation: "Saturation" };
-const SHOT_PART_BG = { white: "бялото", exposure: "яркостта", saturation: "наситеността", contrast: "контрастът" };
-const SHOT_STATUS_BG = { CORRECTED: "изравнено", ALREADY_MATCHED: "вече съвпада", REVERTED: "върнато (стана по-лошо)",
-  PARTLY_REVERTED: "изравнено, част е върната", BLOCKED: "не е пипано (ръчна корекция)", FAILED: "не стана" };
+const SHOT_PART_BG = { white: "white balance", exposure: "brightness", saturation: "saturation", contrast: "contrast" };
+const SHOT_STATUS_BG = { CORRECTED: "matched", ALREADY_MATCHED: "already matches", REVERTED: "reverted (it got worse)",
+  PARTLY_REVERTED: "matched, part reverted", BLOCKED: "not touched (manual grade)", FAILED: "did not work" };
 
 // Selected clips from two or more cameras → a suggestion against one reference camera (chosen, or the most
-// reliable one). Nothing is written until „Приложи изравняването“.
+// reliable one). Nothing is written until Apply the match.
 async function onShotMatch(reference = null) {
   if (state.busy) return;
-  if (!state.online) return finish("Няма връзка с engine-а. Виж README.", false);
+  if (!state.online) return finish("No connection to the engine. See README.", false);
   show("result", false);
   setBusy(true);
-  progress(0, "Гледам камерите…");
+  progress(0, "Looking at the cameras…");
   try {
     const project = await premiere.activeProject();
     const sel = await premiereColor.readVideoSelection(project);
@@ -756,11 +797,11 @@ async function onShotMatch(reference = null) {
     const odd = sel.clips.length - clips.length;
     const cams = cameras(clips);
     if (new Set(cams).size < 2) {
-      throw new premiere.UserError("Маркирай в таймлайна клипове от поне две камери (различни папки).");
+      throw new premiere.UserError("Select clips from at least two cameras (different folders) in the timeline.");
     }
     const items = [];
     for (const [i, c] of clips.entries()) {
-      progress((0.3 * i) / clips.length, `Подготвям ${i + 1} от ${clips.length}…`);
+      progress((0.3 * i) / clips.length, `Preparing ${i + 1} of ${clips.length}…`);
       const m = shotMoments(c, clips.filter((_, j) => cams[j] !== cams[i]));
       const st = await premiereColor.lumetriState(c);
       items.push({ path: c.path, camera: cams[i], times: m.times.map((t) => (c.inPt || 0) + (t - c.start)),
@@ -772,26 +813,26 @@ async function onShotMatch(reference = null) {
     Object.assign(shotState, { project, sel, clips, res, job, reference });
     const blocks = [];
     const top = el("div", "group");
-    top.appendChild(el("div", "name", `Еталон: ${res.reference}`));
-    top.appendChild(el("div", "reason", reference ? "Избран от теб. Друга камера като еталон: бутоните горе."
-      : "Избран автоматично (най-надеждната камера). Друга камера като еталон: бутоните горе."));
+    top.appendChild(el("div", "name", `Reference: ${res.reference}`));
+    top.appendChild(el("div", "reason", reference ? "Chosen by you. Another camera as the reference: the buttons above."
+      : "Chosen automatically (the most reliable camera). Another camera as the reference: the buttons above."));
     for (const n of res.notes || []) top.appendChild(el("div", "warn", n));
-    if (odd) top.appendChild(el("div", "warn", `${odd} клипа с променена скорост са пропуснати.`));
+    if (odd) top.appendChild(el("div", "warn", `${odd} clips with changed speed were skipped.`));
     blocks.push(top);
     for (const r of res.clips) blocks.push(shotBlock(clips[r.index], r));
     const previews = res.clips.filter((r) => r.role === "match" && r.preview && r.preview.before)
-      .map((r) => previewBlock(clips[r.index].name, r.preview, "сега · след (приблизително)", [shotLine(r)]));
+      .map((r) => previewBlock(clips[r.index].name, r.preview, "now · after (approximate)", [shotLine(r)]));
     const ready = res.clips.filter((r) => r.role === "match" && (r.changed || []).length && r.lumetri !== "manual").length;
     // the decisions: apply, and the reference as a plain choice (one button per camera, the current one ticked)
     const actions = () => [
-      ...(ready ? [button("small", `Приложи изравняването (${ready})`, "Слага предложените стойности в Lumetri на камерите, които се изравняват.",
+      ...(ready ? [button("small", `Apply the match (${ready})`, "Puts the proposed values into Lumetri of the cameras being matched.",
         onShotMatchApply)] : []),
       ...res.cameras.map((cam) => (cam === res.reference
-        ? button("small", `✓ ${cam}`, "Това е еталонът: другите камери се изравняват към него.", () => {})
-        : button("small", cam, `Пуска изравняването отново с ${cam} като еталон.`, () => onShotMatch(cam)))),
+        ? button("small", `✓ ${cam}`, "This is the reference: the other cameras are matched to it.", () => {})
+        : button("small", cam, `Runs the match again with ${cam} as the reference.`, () => onShotMatch(cam)))),
     ];
-    finish(ready ? "Само предложение: в Lumetri още нищо не е сложено. Натисни „Приложи изравняването“."
-      : "Няма какво да се изравнява със сигурност: нищо не е пипано.", true, blocks, { actions, previews });
+    finish(ready ? "Only a proposal: nothing is in Lumetri yet. Press Apply the match."
+      : "Nothing to match with certainty: nothing was touched.", true, blocks, { actions, previews });
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `shot match: ${e && e.stack ? e.stack : e}`);
@@ -804,17 +845,17 @@ async function onShotMatch(reference = null) {
 function shotLine(r) {
   const ch = r.changed || [];
   return ch.length ? ch.map((k) => `${SHOT_NAMES[k]} ${r.proposal[k]}`).join(" · ")
-    : "без промяна: вече съвпада или разликите са отбелязани отдолу";
+    : "no change: it already matches or the differences are noted below";
 }
 
 function shotBlock(clip, r) {
   const box = el("div", "group");
-  const role = r.role === "reference" ? "еталон" : r.role === "match" ? "изравнява се" : "пропуснат";
+  const role = r.role === "reference" ? "reference" : r.role === "match" ? "matched" : "skipped";
   box.appendChild(el("div", "name", `${clip.name} · ${r.camera} · ${role}`));
   if (r.role === "match") {
     box.appendChild(el("div", "line", shotLine(r)));
-    const basis = Object.entries(r.basis || {}).map(([k, v]) => `${SHOT_PART_BG[k]} по ${v}${r.confidence && r.confidence[k] ? ` (${r.confidence[k]} сигурност)` : ""}`).join("; ");
-    if (basis) box.appendChild(el("div", "reason", `Мерено: ${basis}${r.overlap ? " (общи моменти с еталона)" : ""}.`));
+    const basis = Object.entries(r.basis || {}).map(([k, v]) => `${SHOT_PART_BG[k]} by ${v}${r.confidence && r.confidence[k] ? ` (${r.confidence[k]} confidence)` : ""}`).join("; ");
+    if (basis) box.appendChild(el("div", "reason", `Measured: ${basis}${r.overlap ? " (shared moments with the reference)" : ""}.`));
   }
   for (const f of r.flags || []) box.appendChild(el("div", "warn", f));
   return box;
@@ -823,13 +864,13 @@ function shotBlock(clip, r) {
 async function onShotMatchApply() {
   if (state.busy || !shotState.res) return;
   setBusy(true);
-  progress(0.5, "Изравнявам и проверявам на кадър…");
+  progress(0.5, "Matching and checking on a frame…");
   try {
     const entries = shotState.res.clips.filter((r) => r.role === "match" && (r.changed || []).length)
       .map((r) => ({ clip: shotState.clips[r.index], r }));
     const { steps, plans } = await premiereColor.applyShotMatch(shotState.project, shotState.sel.timeline, shotState.job, entries);
     const blocks = plans.map((pl) => {
-      pl.status = pl.skipped ? (/не стана/.test(pl.skipReason || "") ? "FAILED" : "BLOCKED") : pl.nothing ? "ALREADY_MATCHED"
+      pl.status = pl.skipped ? (/did not work/.test(pl.skipReason || "") ? "FAILED" : "BLOCKED") : pl.nothing ? "ALREADY_MATCHED"
         : (pl.reverted || []).length >= Object.keys(SHOT_PART_KEYS(pl)).length ? "REVERTED"
           : (pl.reverted || []).length ? "PARTLY_REVERTED" : "CORRECTED";
       engine.colorAudit({ kind: "shotmatch", clip: pl.clip.name, path: pl.clip.path, in: pl.clip.inPt, out: pl.clip.outPt,
@@ -843,9 +884,9 @@ async function onShotMatchApply() {
       return box;
     });
     const done = plans.filter((pl) => !pl.skipped && !pl.nothing).length;
-    const undo = steps === 1 ? "Един Cmd/Ctrl+Z връща всичко." : steps > 1 ? `${steps} пъти Cmd/Ctrl+Z връщат всичко.` : "";
-    finish(done ? `Изравнени: ${done} ${done === 1 ? "клип" : "клипа"} спрямо ${shotState.res.reference}. ${undo}`
-      : "Нищо не е приложено: виж причината отдолу.", done > 0, blocks);
+    const undo = steps === 1 ? "One Cmd/Ctrl+Z undoes everything." : steps > 1 ? `${steps} times Cmd/Ctrl+Z undo everything.` : "";
+    finish(done ? `Matched: ${done} ${done === 1 ? "clip" : "clips"} against ${shotState.res.reference}. ${undo}`
+      : "Nothing was applied: see the reason below.", done > 0, blocks);
     shotState.res = null;
   } catch (e) {
     finish(e.message || String(e), false);
@@ -870,16 +911,16 @@ onTap($("probe"), onProbeAsk);
 
 // ---------------------------------------------------------------- auto import
 
-const CAT = { MUSIC: "музика", SFX: "SFX", BROLL: "B-roll", IMAGES: "снимки", GRAPHICS: "графики", OTHER: "други" };
+const CAT = { MUSIC: "music", SFX: "SFX", BROLL: "B-roll", IMAGES: "images", GRAPHICS: "graphics", OTHER: "other" };
 const imp = { running: false, enabled: false, project: null };
 const short = (p) => (p || "").replace(/^.*[\\/](.*[\\/].*)$/, "…/$1");
 
 function renderImport(st, project) {
   imp.enabled = !!st.enabled;
-  $("importToggle").textContent = st.enabled ? "Спри следенето" : "Следи Downloads";
+  $("importToggle").textContent = st.enabled ? "Stop watching" : "Watch Downloads";
   $("importStatus").textContent = st.enabled
-    ? `Следя ${short(st.folder)} → ${project.name}` + (st.pending.length ? ` · чакат ${st.pending.length}` : "")
-    : st.folder ? `Изключено (беше ${short(st.folder)})` : "Изключено. Новите файлове в папката ще влизат сами в проекта.";
+    ? `Watching ${short(st.folder)} → ${project.name}` + (st.pending.length ? ` · ${st.pending.length} waiting` : "")
+    : st.folder ? `Off (was ${short(st.folder)})` : "Off. New files in the folder will go into the project by themselves.";
   const box = $("importRecent");
   box.innerHTML = "";
   for (const r of (st.recent || []).slice(0, 5)) {
@@ -921,7 +962,7 @@ async function importSwitch(folder) {
     const st = imp.enabled && !folder ? await engine.importUnbind(project.path)
       : await engine.importBind(project.path, folder);
     if (st.previous_project) {
-      finish(`Папката беше свързана с друг проект (${short(st.previous_project)}): сега е с ${project.name}.`, true);
+      finish(`The folder was tied to another project (${short(st.previous_project)}): now it is tied to ${project.name}.`, true);
     }
     renderImport(st, project);
   } catch (e) {
@@ -938,13 +979,14 @@ importLoop();
 
 onTap($("sync"), onSync);
 onTap($("audio"), () => onAudio(null));
-onTap($("subtitles"), onSubtitles);
+onTap($("subtitles"), () => onSubtitles());
+onTap($("captionApply"), onCaptionApply);
 onTap($("rough"), onRoughCut);
 onTap($("subtitleDownload"), onSubtitleDownload);
 // only the audio buttons carry data-force: "button.small" alone also caught the probe and the import
-// buttons, so they ran „Оправи звука“ too (and its result hid the probe's question)
+// buttons, so they ran Fix audio too (and its result hid the probe's question)
 for (const b of document.querySelectorAll("button.small[data-force]")) onTap(b, () => onAudio(b.getAttribute("data-force")));
-// Отказ must always work, also right after the panel changed
+// Cancel must always work, also right after the panel changed
 $("cancel").addEventListener("click", () => {
   if (state.jobId) engine.cancel(state.jobId).catch(() => {});
 });
@@ -955,7 +997,7 @@ onTap($("openPreview"), () => openTab("panePreview"));
 onTap($("audioMore"), () => {
   const open = $("audioManual").hidden;
   show("audioManual", open);
-  $("audioMore").textContent = open ? "Ръчно ▾" : "Ръчно ▸";
+  $("audioMore").textContent = open ? "Manual ▾" : "Manual ▸";
 });
 bindTips(document);
 $("app").addEventListener("scroll", hideTip);

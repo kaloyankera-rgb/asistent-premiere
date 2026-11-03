@@ -44,7 +44,7 @@ def test_status_says_what_is_missing(home):
 
 def test_a_missing_model_is_an_error_with_a_message_never_a_download(home, monkeypatch):
     monkeypatch.setattr(asr, "backend_installed", lambda: True)
-    with pytest.raises(asr.ASRError, match="още не е свален"):
+    with pytest.raises(asr.ASRError, match="not downloaded yet"):
         asr.transcribe(np.zeros(16000, dtype=np.float32))
     assert not (home / "models").exists() or not any((home / "models").rglob("model.bin"))     # nothing fetched
 
@@ -95,7 +95,7 @@ def test_read_wav_wants_16k_mono(tmp_path):
 
 def test_download_needs_the_backend_and_reports_failures(home, monkeypatch):
     monkeypatch.setattr(asr, "backend_installed", lambda: False)
-    with pytest.raises(asr.ASRError, match="пакетите"):
+    with pytest.raises(asr.ASRError, match="packages"):
         asr.download_model(lambda f, m: None, lambda: False)
 
 

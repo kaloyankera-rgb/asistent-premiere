@@ -37,7 +37,7 @@ def test_disagreeing_pairs_are_reported_not_hidden():
     rec = [1000.0, 1000.0, 2000.0, 2010.0]                       # second pair says the clocks differ by 10 s
     out = chrono.chronology(rec, ["metadata"] * 4, ["A", "B", "A", "B"],
                             [group((0, 0.0), (1, 0.0)), group((2, 0.0), (3, 0.0))])
-    assert out["note"][1] and "разминават" in out["note"][1]
+    assert out["note"][1] and "differ by" in out["note"][1]
 
 
 def test_unsynced_camera_keeps_its_clock_only_when_plausible():
@@ -45,8 +45,8 @@ def test_unsynced_camera_keeps_its_clock_only_when_plausible():
     rec = [1000.0, 1004.0, 1200.0, 1200.0 - YEARS]
     cams = ["A", "B", "C", "D"]
     out = chrono.chronology(rec, ["metadata"] * 4, cams, [group((0, 0.0), (1, 4.0))])
-    assert out["time"][2] == 1200.0 and "не е проверен" in out["note"][2]
-    assert out["time"][3] is None and "далеч" in out["note"][3]
+    assert out["time"][2] == 1200.0 and "is not checked" in out["note"][2]
+    assert out["time"][3] is None and "far from" in out["note"][3]
 
 
 def test_reference_is_a_camera_that_synced():
@@ -60,7 +60,7 @@ def test_reference_is_a_camera_that_synced():
 def test_missing_time_is_none_with_a_reason():
     out = chrono.chronology([None, 5.0], [None, "file"], ["A", "A"], [])
     assert out["time"] == [None, 5.0]
-    assert out["note"][0] == "няма време на запис" and "файла" in out["note"][1]
+    assert out["note"][0] == "no recording time" and "from the file" in out["note"][1]
 
 
 def test_probe_reads_creation_time(tmp_path):

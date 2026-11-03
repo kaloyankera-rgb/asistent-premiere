@@ -107,10 +107,10 @@ _ALLOWED_HOSTS = {f"{config.HOST}:{config.PORT}", f"localhost:{config.PORT}"}
 def _start_sync(body: dict) -> dict:
     paths = body.get("paths") or []
     if not isinstance(paths, list) or len(paths) < 2 or not all(isinstance(p, str) for p in paths):
-        raise ValueError("Избери поне два клипа с аудио.")
+        raise ValueError("Choose at least two clips with audio.")
     missing = [p for p in paths if not os.path.isfile(p)]
     if missing:
-        raise ValueError("Файлът липсва (офлайн медия?): " + ", ".join(os.path.basename(p) for p in missing))
+        raise ValueError("The file is missing (offline media?): " + ", ".join(os.path.basename(p) for p in missing))
     ref = body.get("reference")
     ref = int(ref) if isinstance(ref, int) and 0 <= ref < len(paths) else None
 
@@ -128,10 +128,10 @@ def _start_sync(body: dict) -> dict:
 def _start_groups(body: dict) -> dict:
     paths = body.get("paths") or []
     if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths) or len(set(paths)) < 2:
-        raise ValueError("Маркирай поне два различни клипа в таймлайна.")
+        raise ValueError("Select at least two different clips in the timeline.")
     missing = [p for p in paths if not os.path.isfile(p)]
     if missing:
-        raise ValueError("Файлът липсва (офлайн медия?): " + ", ".join(os.path.basename(p) for p in missing))
+        raise ValueError("The file is missing (offline media?): " + ", ".join(os.path.basename(p) for p in missing))
 
     def work(job):
         def progress(f, msg):
@@ -153,12 +153,12 @@ def _start_audio(body: dict) -> dict:
     items = body.get("items") or []
     if not isinstance(items, list) or not items or not all(isinstance(i, dict) and isinstance(i.get("path"), str)
                                                            for i in items):
-        raise ValueError("Маркирай поне един клип със звук в таймлайна.")
+        raise ValueError("Select at least one clip with sound in the timeline.")
     if body.get("force") not in ACTIONS or any(i.get("force") not in ACTIONS for i in items):
-        raise ValueError("Невалидно действие.")
+        raise ValueError("Invalid action.")
     missing = sorted({os.path.basename(i["path"]) for i in items if not os.path.isfile(i["path"])})
     if missing:
-        raise ValueError("Файлът липсва (офлайн медия?): " + ", ".join(missing))
+        raise ValueError("The file is missing (offline media?): " + ", ".join(missing))
     target = float(body.get("target", -17.0))
     ceiling = float(body.get("ceiling", -6.0))
     balance_tol = float(body.get("balance_db", 2.0))             # how far apart two speakers may be, in dB
@@ -229,11 +229,11 @@ class Handler(BaseHTTPRequestHandler):
     def _body(self) -> dict:
         n = int(self.headers.get("Content-Length") or 0)
         if n > 1_000_000:
-            raise ValueError("Заявката е твърде голяма.")
+            raise ValueError("The request is too large.")
         raw = self.rfile.read(n) if n else b"{}"
         data = json.loads(raw.decode("utf-8") or "{}")
         if not isinstance(data, dict):
-            raise ValueError("Невалидна заявка.")
+            raise ValueError("Invalid request.")
         return data
 
     def do_OPTIONS(self):
@@ -248,7 +248,7 @@ class Handler(BaseHTTPRequestHandler):
             q = parse_qs(url.query)
             project = (q.get("project") or [""])[0]
             if not project:
-                return self._send(400, {"error": "Няма проект."})
+                return self._send(400, {"error": "No project."})
             wait = float((q.get("wait") or ["0"])[0] or 0)
             if wait > 0:                       # long poll: answer as soon as a file is ready for this project
                 _store().wait_queue(project, wait)
@@ -271,7 +271,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, cmd or {})
         if url.path in ("/dev/poll", "/dev/result"):
             if not devbridge.enabled():
-                return self._send(404, {"error": "Тестовият мост е изключен."})
+                return self._send(404, {"error": "The test bridge is off."})
             q = parse_qs(url.query)
             wait = float((q.get("wait") or ["0"])[0] or 0)
             if url.path == "/dev/poll":
@@ -286,7 +286,7 @@ class Handler(BaseHTTPRequestHandler):
         m = re.fullmatch(r"/jobs/([0-9a-f]{12})", self.path)
         if m:
             job = JOBS.get(m.group(1))
-            return self._send(200, job.to_dict()) if job else self._send(404, {"error": "Няма такава задача."})
+            return self._send(200, job.to_dict()) if job else self._send(404, {"error": "No such job."})
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
@@ -314,15 +314,15 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/captions/place":
                 srt, seq = body.get("srt"), body.get("sequence")
                 if not isinstance(srt, str) or not isinstance(seq, str) or not seq:
-                    raise ValueError("Липсва файл или секвенция.")
+                    raise ValueError("A file or sequence is missing.")
                 proj = body.get("project") if isinstance(body.get("project"), str) else None
-                res = hostbridge.place_captions(srt, seq, proj, str(body.get("bin") or "Субтитри"))
+                res = hostbridge.place_captions(srt, seq, proj, str(body.get("bin") or "Subtitles"))
                 log.info("captions/place: %s", res)
                 return self._send(200, res)
             if self.path == "/audio/route":
                 seq = body.get("sequence")
                 if not isinstance(seq, str) or not seq:
-                    raise ValueError("Липсва секвенция.")
+                    raise ValueError("The sequence is missing.")
                 proj = body.get("project") if isinstance(body.get("project"), str) else None
                 res = hostbridge.route_audio(body.get("items"), seq, proj)
                 log.info("audio/route: %s", res)
@@ -332,24 +332,24 @@ class Handler(BaseHTTPRequestHandler):
             if self.path in ("/captions/record", "/captions/forget"):
                 proj, seq = body.get("project"), body.get("sequence")
                 if not isinstance(proj, str) or not isinstance(seq, str) or not seq:
-                    raise ValueError("Липсва проект или секвенция.")
+                    raise ValueError("The project or sequence is missing.")
                 if self.path == "/captions/forget":
                     captionstate.forget(proj, seq)
                 else:
                     sig = body.get("signature")
                     if not isinstance(sig, dict):
-                        raise ValueError("Липсва подпис.")
+                        raise ValueError("The signature is missing.")
                     captionstate.record(proj, seq, sig)
                 return self._send(200, {"ok": True})
             if self.path == "/host/command":
                 if not devbridge.enabled():
-                    return self._send(404, {"error": "Тестовият мост е изключен."})
+                    return self._send(404, {"error": "The test bridge is off."})
                 res = hostbridge.run(str(body.get("name") or ""), body.get("args") if isinstance(body.get("args"), dict) else {},
                                      float(body.get("wait") or 60))
                 return self._send(200, res)
             if self.path in ("/dev/command", "/dev/result"):
                 if not devbridge.enabled():
-                    return self._send(404, {"error": "Тестовият мост е изключен."})
+                    return self._send(404, {"error": "The test bridge is off."})
                 if self.path == "/dev/command":
                     cid = BRIDGE.submit(str(body.get("name") or ""), body.get("args") if isinstance(body.get("args"), dict) else {})
                     log.info("dev bridge command %s %s %s", cid, body.get("name"), body.get("args") or {})
@@ -366,7 +366,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/color":
                 items = body.get("items") or []
                 if not items or not all(isinstance(i, dict) and isinstance(i.get("path"), str) for i in items):
-                    raise ValueError("Маркирай поне един видео клип в таймлайна.")
+                    raise ValueError("Select at least one video clip in the timeline.")
 
                 def work(job):
                     def progress(f, msg):
@@ -380,7 +380,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/shotmatch":
                 items = body.get("items") or []
                 if not items or not all(isinstance(i, dict) and isinstance(i.get("path"), str) for i in items):
-                    raise ValueError("Маркирай видео клипове от поне две камери.")
+                    raise ValueError("Select video clips from at least two cameras.")
                 reference = body.get("reference")
 
                 def work(job):
@@ -395,11 +395,11 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/shotmatch/check":
                 ref = SHOT_REFS.get(str(body.get("job") or ""))
                 if not ref:
-                    raise ValueError("Няма такъв анализ за изравняване: натисни пак „Изравни камерите“.")
+                    raise ValueError("No such match analysis: press Match POVs again.")
                 before = COLOR._wait_file(str(body.get("before") or ""), 4.0)
                 after = COLOR._wait_file(str(body.get("after") or ""), 4.0)
                 if not (before and after):
-                    raise ValueError("Няма изнесени кадри за проверка.")
+                    raise ValueError("No exported frames to check.")
                 res = SHOT.check(before, after, ref)
                 log.info("shot match check %s: %s", body.get("clip"), res)
                 return self._send(200, res)
@@ -440,14 +440,14 @@ class Handler(BaseHTTPRequestHandler):
                 folder = os.path.realpath(os.path.join(config.app_dir(), "frames"))
                 want = os.path.realpath(str(body.get("path") or ""))
                 if os.path.dirname(want) != folder:
-                    raise ValueError("Кадърът трябва да е в папката frames на engine-а.")
+                    raise ValueError("The frame must be in the engine's frames folder.")
                 timeout = min(max(float(body.get("timeout") or 15), 0.5), 60)
                 return self._send(200, {"path": COLOR._wait_file(want, timeout)})
             if self.path == "/color/check":
                 before = COLOR._wait_file(str(body.get("before") or ""), 4.0)
                 after = COLOR._wait_file(str(body.get("after") or ""), 4.0)
                 if not (before and after):
-                    raise ValueError("Няма изнесени кадри за проверка.")
+                    raise ValueError("No exported frames to check.")
                 applied, fix = body.get("applied") or {}, body.get("fix") or {}
                 # clip_tolerance: the soft tolerance above the 3 % target (default 0.25 points), configurable per call
                 tol = float(body.get("clip_tolerance", COLOR.CLIP_SOFT_TOLERANCE))
@@ -471,7 +471,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/import/bind":
                 project = body.get("project")
                 if not isinstance(project, str) or not project:
-                    raise ValueError("Няма отворен проект.")
+                    raise ValueError("No project open.")
                 info = _store().bind(body.get("folder") or os.path.expanduser("~/Downloads"), project)
                 if WATCHER:
                     WATCHER.refresh()
@@ -489,7 +489,7 @@ class Handler(BaseHTTPRequestHandler):
             if m:
                 job = JOBS.get(m.group(1))
                 if not job:
-                    return self._send(404, {"error": "Няма такава задача."})
+                    return self._send(404, {"error": "No such job."})
                 job.cancel()
                 return self._send(200, job.to_dict())
             if self.path == "/log":
@@ -501,7 +501,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": str(e)})
         except Exception as e:
             log.exception("request %s failed", self.path)
-            self._send(500, {"error": f"Неочаквана грешка: {e}"})
+            self._send(500, {"error": f"Unexpected error: {e}"})
 
 
 def already_running() -> bool:

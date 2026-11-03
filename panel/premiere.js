@@ -12,7 +12,7 @@ const debug = (msg) => engine.log("info", msg);
 
 async function activeProject() {
   const project = await ppro.Project.getActiveProject();
-  if (!project) throw new UserError("Няма отворен проект в Premiere.");
+  if (!project) throw new UserError("No project is open in Premiere.");
   return project;
 }
 
@@ -21,7 +21,7 @@ function transaction(project, label, build) {
   project.lockedAccess(() => {
     ok = project.executeTransaction((compound) => build(compound), label);
   });
-  if (!ok) throw new Error(`Premiere отказа операцията: ${label}`);
+  if (!ok) throw new Error(`Premiere refused the operation: ${label}`);
 }
 
 const ms = (s) => Math.round(s * 1000);
@@ -62,9 +62,10 @@ async function frameRate(sequence) {
   return null;
 }
 
-async function readItem(ti, kind, track) {
+async function readItem(ti, kind, track, muted = false) {
   const item = { ti, kind, track, start: secs(await ti.getStartTime()), end: secs(await ti.getEndTime()),
-    selected: false, path: null, clip: null, projectItem: null, name: "", speed: 1, reversed: false };
+    selected: false, path: null, clip: null, projectItem: null, name: "", speed: 1, reversed: false,
+    unused: muted || !!(await maybe(ti, "isDisabled")) };          // on a muted track, or switched off: the editor does not use it
   item.inPt = secs(await maybe(ti, "getInPoint")) || 0;
   item.outPt = secs(await maybe(ti, "getOutPoint"));
   item.name = (await maybe(ti, "getName")) || "";
@@ -93,14 +94,20 @@ async function readItem(ti, kind, track) {
 }
 
 async function readItems(sequence) {
+  let apiNote = false;
   const counts = { video: await sequence.getVideoTrackCount(), audio: await sequence.getAudioTrackCount() };
   const items = [];
   for (const [kind, count, getTrack] of [["video", counts.video, (i) => sequence.getVideoTrack(i)],
     ["audio", counts.audio, (i) => sequence.getAudioTrack(i)]]) {
     for (let t = 0; t < count; t++) {
       const track = await getTrack(t);
+      const muted = kind === "audio" && !!(await maybe(track, "isMuted"));
       const list = (await track.getTrackItems(Constants.TrackItemType.CLIP, false)) || [];
-      for (const ti of list) items.push(await readItem(ti, kind, t));
+      if (kind === "audio" && !apiNote && list.length) {                 // the first run in a new Premiere version says whether the mute check can work
+        apiNote = true;
+        debug(`mute check: audio track isMuted ${has(track, "isMuted") ? "exists" : "MISSING"}, track item isDisabled ${has(list[0], "isDisabled") ? "exists" : "MISSING"}`);
+      }
+      for (const ti of list) items.push(await readItem(ti, kind, t, muted));
     }
   }
   return { counts, items };
@@ -109,7 +116,7 @@ async function readItems(sequence) {
 // The selected media clips of the active sequence (read only).
 async function readTimeline(project) {
   const sequence = await project.getActiveSequence();
-  if (!sequence) throw new UserError("Няма отворена секвенция.");
+  if (!sequence) throw new UserError("No sequence is open.");
   const fps = await frameRate(sequence);
   const { counts, items } = await readItems(sequence);
 
@@ -127,8 +134,8 @@ async function readTimeline(project) {
   }
   const sel = items.filter((x) => x.selected);
   debug(`selection: ${picked.length} in the list, ${sel.length} selected parts: ` +
-    sel.map((x) => `${x.kind[0].toUpperCase()}${x.track + 1} ${x.name}${x.path ? "" : " (без файл: офлайн/вложена/графика)"}` +
-      `${Math.abs(x.speed - 1) >= 0.01 ? " (скорост)" : ""}`).join(" | "));
+    sel.map((x) => `${x.kind[0].toUpperCase()}${x.track + 1} ${x.name}${x.path ? "" : " (no file: offline/nested/graphic)"}` +
+      `${Math.abs(x.speed - 1) >= 0.01 ? " (speed)" : ""}`).join(" | "));
   reportApi({ project, sequence, trackItem: items[0] && items[0].ti, tickTime: TickTime,
     editor: ppro.SequenceEditor.getEditor(sequence) });
 
@@ -137,7 +144,7 @@ async function readTimeline(project) {
   for (const it of items) {
     if (!it.selected || !it.path) continue;
     if (Math.abs(it.speed - 1) >= 0.01 || it.reversed) {
-      skipped.add(`${it.name} (променена скорост)`);
+      skipped.add(`${it.name} (changed speed)`);
       continue;
     }
     const c = clips[it.path] || (clips[it.path] = { path: it.path, name: it.name, clip: it.clip,
@@ -160,9 +167,9 @@ async function ensureBin(project, name) {
   const root = await project.getRootItem();
   let bin = await findBin(root, name);
   if (bin) return bin;
-  transaction(project, `Asistent: папка ${name}`, (c) => c.addAction(root.createBinAction(name, false)));
+  transaction(project, `Asistent: bin ${name}`, (c) => c.addAction(root.createBinAction(name, false)));
   bin = await findBin(root, name);
-  if (!bin) throw new Error(`Не успях да създам папка ${name}.`);
+  if (!bin) throw new Error(`Could not create the bin ${name}.`);
   return bin;
 }
 
@@ -190,20 +197,20 @@ async function buildSyncSequence(project, timeline, lay) {
   if (!has(project, "createSequenceFromMedia")) missing.push("createSequenceFromMedia");
   const anyEditor = ppro.SequenceEditor.getEditor(timeline.sequence);
   if (!has(anyEditor, "createInsertProjectItemAction")) missing.push("createInsertProjectItemAction");
-  if (missing.length) throw new UserError(`Тази версия на Premiere няма ${missing.join(", ")}.`);
-  if (lay.seed < 0) throw new UserError("Няма клип с картина, от който да се направи секвенцията.");
+  if (missing.length) throw new UserError(`This Premiere version has no ${missing.join(", ")}.`);
+  if (lay.seed < 0) throw new UserError("No clip with a picture to make the sequence from.");
 
   for (const p of lay.placements) {
     p.item = clipOf[p.path];
     p.projectItem = itemOf[p.path] || p.item;
-    if (!p.item) throw new Error(`Няма клип в проекта за ${p.name}.`);
+    if (!p.item) throw new Error(`No clip in the project for ${p.name}.`);
     p.srcIn = await sourceIn(p.item, p.hasVideo);
   }
   const bin = await ensureBin(project, "SYNC");
   const name = await uniqueName(project, `SYNC – ${timeline.sequence.name}`);
   const seed = lay.placements[lay.seed];
   const sequence = await project.createSequenceFromMedia(name, [seed.item], bin);
-  if (!sequence) throw new Error("Premiere не създаде секвенцията.");
+  if (!sequence) throw new Error("Premiere did not create the sequence.");
   const fps = (await frameRate(sequence)) || timeline.fps || 30;
   const editor = ppro.SequenceEditor.getEditor(sequence);
   // whole frames in Premiere's own ticks (an in-between time can be refused as an invalid parameter)
@@ -218,7 +225,7 @@ async function buildSyncSequence(project, timeline, lay) {
     const { items } = await readItems(sequence);
     const parts = items.filter((x) => x.path === seed.path);
     const lead = parts.find((x) => x.kind === "video") || parts[0];
-    transaction(project, "Asistent: синхрон", (c) => c.addAction(lead.ti.createMoveAction(at(delta))));
+    transaction(project, "Asistent: sync", (c) => c.addAction(lead.ti.createMoveAction(at(delta))));
     const rest = [];
     for (const x of parts) {
       if (x === lead) continue;
@@ -226,7 +233,7 @@ async function buildSyncSequence(project, timeline, lay) {
       if (Math.abs(now - x.start) < 0.5 / fps) rest.push(x);          // not carried along with the video
     }
     if (rest.length) {
-      transaction(project, "Asistent: синхрон (звук)", (c) => {
+      transaction(project, "Asistent: sync (audio)", (c) => {
         for (const x of rest) c.addAction(x.ti.createMoveAction(at(delta)));
       });
     }
@@ -256,8 +263,8 @@ async function buildSyncSequence(project, timeline, lay) {
     debug(`one-transaction placing failed: ${e && e.message ? e.message : e}`);
     const placed = (await readItems(sequence)).items.filter((x) => x.path && x.path !== seed.path);
     if (placed.length) {
-      throw new UserError(`Premiere прие само част от клиповете. ${name} остана непълна: изтрий я. ` +
-        "Подробности има в лога на engine-а.");
+      throw new UserError(`Premiere accepted only some of the clips. ${name} is incomplete: delete it. ` +
+        "Details are in the engine log.");
     }
   }
   for (const p of way === "done" ? [] : others) {
@@ -277,8 +284,8 @@ async function buildSyncSequence(project, timeline, lay) {
       }
     }
     if (last) {
-      throw new UserError(`Premiere не прие ${p.name} (${last.message || last}). ${name} остана непълна: ` +
-        "изтрий я. Подробности има в лога на engine-а.");
+      throw new UserError(`Premiere did not accept ${p.name} (${last.message || last}). ${name} is incomplete: ` +
+        "delete it. Details are in the engine log.");
     }
   }
 

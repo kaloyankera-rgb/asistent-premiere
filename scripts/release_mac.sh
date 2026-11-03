@@ -4,7 +4,7 @@
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 UPIA="/Library/Application Support/Adobe/Adobe Desktop Common/RemoteComponents/UPI/UnifiedPluginInstallerAgent/UnifiedPluginInstallerAgent.app/Contents/MacOS/UnifiedPluginInstallerAgent"
-[ -x "$UPIA" ] || { echo "Няма UnifiedPluginInstallerAgent (Creative Cloud): инсталирай .ccx с двоен клик."; exit 1; }
+[ -x "$UPIA" ] || { echo "No UnifiedPluginInstallerAgent (Creative Cloud): install the .ccx by double-clicking it."; exit 1; }
 
 rm -f "$REPO"/dist/*.ccx
 CCX="$("$REPO/scripts/package_ccx.sh")"
@@ -14,8 +14,8 @@ VER=$(python3 -c "import json;print(json.load(open('$REPO/panel/manifest.json'))
 "$UPIA" --remove "Asistent" >/dev/null 2>&1 || true
 "$UPIA" --install "$CCX" | tail -1
 if ! "$UPIA" --list all 2>/dev/null | grep -q "Asistent.*$VER"; then
-  echo "Adobe не отчита Asistent $VER като инсталиран."; exit 1
+  echo "Adobe does not report Asistent $VER as installed."; exit 1
 fi
 "$REPO/scripts/install_host_mac.sh"
 "$REPO/scripts/setup_mac.sh" >/dev/null
-echo "Asistent $VER е инсталиран в Premiere, engine-ът е рестартиран."
+echo "Asistent $VER is installed in Premiere, the engine was restarted."

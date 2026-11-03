@@ -26,8 +26,8 @@ test("speed, reversed, offline and empty items are skipped and named with the re
     item({ name: "ok", track: 4, start: 20, end: 30 }),
   ]);
   assert.deepStrictEqual(p.use.map((x) => x.name), ["ok"]);
-  assert.deepStrictEqual(p.skipped, ["fast (променена скорост)", "back (обърнат)", "nested (офлайн медия или вложена секвенция)",
-    "empty (без дължина)"]);
+  assert.deepStrictEqual(p.skipped, ["fast (changed speed)", "back (reversed)", "nested (offline media or nested sequence)",
+    "empty (no length)"]);
 });
 
 test("duplicates are left to the engine: every eligible item is sent, in timeline order, with its track", () => {
@@ -61,23 +61,23 @@ test("dirOf takes the folder of a project path on both systems", () => {
 test("describeResult: counts, uncertain words, skipped clips, first captions, file", () => {
   const caps = Array.from({ length: 10 }, (_, i) => ({ start: 65 + i, end: 66 + i, text: i === 0 ? "Здравейте\nприятели" : "ред", flags: i === 1 ? [{ word: "нища,", p: 0.45, at: 66.4 }] : [] }));
   const r = describeResult({ counts: { captions: 10, words: 20, flagged: 1 }, preset: "short", fps: 29.97002997, cached: false,
-    asr_seconds: 10.2, mix_seconds: 29, skipped: ["B (дублира A1)"], review: [{ at: 66.4, word: "нища,", reason: "месец в разговор за цени" }, { at: 0.3, end: 0.8, word: "", reason: "има говор без дума" }], readings: { windows: 2, seconds: 40, changed: 2, unsure: 1, changes: [{ from: "одяло,", to: "одеяло," }, { from: "одяло?", to: "одеяло?" }], commas: ["евро,"], second_opinions: [[11.9, "B"], [23.7, "A"]] },
+    asr_seconds: 10.2, mix_seconds: 29, skipped: ["B (дублира A1)"], review: [{ at: 66.4, word: "нища,", reason: "a month in a talk about prices" }, { at: 0.3, end: 0.8, word: "", reason: "speech without a word" }], readings: { windows: 2, seconds: 40, changed: 2, unsure: 1, changes: [{ from: "одяло,", to: "одеяло," }, { from: "одяло?", to: "одеяло?" }], commas: ["евро,"], second_opinions: [[11.9, "B"], [23.7, "A"]] },
     duplicates: [{ dropped: "C9013.MP4", kept: "fx39013.MP4", kept_snr_db: 45, dropped_snr_db: 20, kept_rest_seconds: 4 }], captions: caps, srt: "/p/Asistent_subtitles/x.srt" });
   assert.strictEqual(r.ok, true);
-  assert.strictEqual(r.text, "Готово: 10 реда субтитри.");
+  assert.strictEqual(r.text, "Done: 10 subtitle lines.");
   const all = r.lines.map((l) => l.text).join("\n");
-  assert.match(all, /20 думи · вид кратки \(9:16\) · 29\.97 fps · разпознаване 10\.2 s за 29 s звук/);
-  assert.match(all, /Провери 1 несигурна дума .*: 1:06\.4 „нища“ — месец в разговор за цени/);   // the word, its time and why
-  assert.match(all, /Поправени по речника .*: „одяло“ → „одеяло“\./);                       // repairs are named, once each
-  assert.match(all, /Добавена запетая .*„евро“/);
-  assert.match(all, /Чуй 1 място с говор без дума .*: 0:00\.3–0:00\.8/);
-  assert.match(all, /Втори прочит на 2 парчета .*за 1 е взет по-добрият/);
-  assert.match(all, /Времена: от Whisper, може да са неточни с до 0,3 s \(подравняването не е инсталирано\)/);
-  assert.match(all, /Пропуснат: B \(дублира A1\)/);
-  assert.match(all, /C9013\.MP4 и fx39013\.MP4 чуват едно и също: взет е fx39013\.MP4 \(по-чист звук, 45 dB срещу 20 dB; 4 s от C9013\.MP4 са запазени/);
+  assert.match(all, /20 words · style short \(9:16\) · 29\.97 fps · recognition 10\.2 s for 29 s of sound/);
+  assert.match(all, /Check 1 uncertain word .*: 1:06\.4 "нища" — a month in a talk about prices/);   // the word, its time and why
+  assert.match(all, /Corrected by the dictionary .*: "одяло" → "одеяло"\./);                       // repairs are named, once each
+  assert.match(all, /Comma added .*"евро"/);
+  assert.match(all, /Listen to 1 place with speech without a word .*: 0:00\.3–0:00\.8/);
+  assert.match(all, /A second reading of 2 pieces .*the better one was taken for 1/);
+  assert.match(all, /Timing: from Whisper, may be off by up to 0\.3 s \(the aligner is not installed\)/);
+  assert.match(all, /Skipped: B \(дублира A1\)/);
+  assert.match(all, /C9013\.MP4 and fx39013\.MP4 hear the same: fx39013\.MP4 was taken \(cleaner sound, 45 dB against 20 dB; 4 s of C9013\.MP4 are kept/);
   assert.match(all, /1:05\.0  Здравейте \/ приятели/);
   assert.match(all, /1:06\.0  ред {2}\?/);                        // the flagged caption is marked
-  assert.match(all, /още 2 реда/);
+  assert.match(all, /2 more lines/);
   assert.match(all, /\/p\/Asistent_subtitles\/x\.srt/);
 });
 
@@ -90,17 +90,17 @@ test("describeResult: says whether the times were aligned to the sound, or why n
   const base = { counts: { captions: 1, words: 3, flagged: 0 }, preset: "short", fps: 25, asr_seconds: 1, mix_seconds: 2, skipped: [],
     captions: [{ start: 0, end: 1, text: "а", flags: [] }], srt: "/x.srt" };
   const text = (r) => describeResult(r).lines.map((l) => l.text).join("\n");
-  assert.match(text({ ...base, timing: { method: "aligned", aligned: 59, weak: 6, error: null } }), /подравнени по звука \(59 думи, 6 слаби остават от Whisper\)/);
-  assert.match(text({ ...base, timing: { method: "whisper", aligned: 0, weak: 0, error: "torch missing" } }), /подравняването не успя \(torch missing\)/);
+  assert.match(text({ ...base, timing: { method: "aligned", aligned: 59, weak: 6, error: null } }), /aligned to the sound \(59 words, 6 weak ones keep Whisper's timing\)/);
+  assert.match(text({ ...base, timing: { method: "whisper", aligned: 0, weak: 0, error: "torch missing" } }), /the alignment failed \(torch missing\)/);
 });
 
 test("describeResult: corrections and an unmatched correction", () => {
   const r = describeResult({ counts: { captions: 1, words: 3, flagged: 0 }, preset: "short", fps: 25, asr_seconds: 1, mix_seconds: 2, skipped: [],
     captions: [{ start: 1, end: 2, text: "ред", flags: [] }], srt: "/p/x.srt", timing: { method: "aligned", aligned: 3, weak: 0 },
     corrections: [{ heard: "раф", said: "рафт", applied: 1 }, { heard: "нещо друго", said: "x", applied: 0 }],
-    correction_errors: ["ред 4: „х =>“ - трябва да е „чуто => казано“"] });
+    correction_errors: ["line 4: \"х =>\" - must be \"heard => said\""] });
   const all = r.lines.map((l) => l.text).join("\n");
-  assert.match(all, /Корекции \(1\): „раф“ → „рафт“; новите думи са подравнени по звука/);
-  assert.match(all, /Корекцията „нещо друго“ → „x“ не намери тези думи/);
-  assert.match(all, /Не разбирам: ред 4/);
+  assert.match(all, /Corrections \(1\): "раф" → "рафт"; the new words are aligned to the sound/);
+  assert.match(all, /The correction "нещо друго" → "x" did not find these words/);
+  assert.match(all, /Not understood: line 4/);
 });

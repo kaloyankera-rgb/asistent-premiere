@@ -32,19 +32,19 @@ const captions = [{ start: 0.0, end: 0.9 }, { start: 1.1, end: 23.7 }];
 
 test("a placement is verified by item count and by the first and last time", () => {
   assert.deepStrictEqual(problems(track({ count: 2 }), captions), []);
-  assert.deepStrictEqual(problems(null, captions), ["Premiere не добави нова писта със субтитри."]);
+  assert.deepStrictEqual(problems(null, captions), ["Premiere did not add a new subtitle track."]);
   const bad = problems(track({ count: 1, start: 2, end: 20 }), captions);
   assert.strictEqual(bad.length, 3);
-  assert.match(bad[0], /1 реда вместо 2/);
+  assert.match(bad[0], /1 lines instead of 2/);
 });
 
 test("the result box says where the captions are and what to check", () => {
   const ok = describePlacement({ status: "placed", track: track({ index: 1, count: 2 }), problems: [] }, "/a.srt");
   assert.strictEqual(ok.ok, true);
-  assert.match(ok.lines[0].text, /пистата C2: 2 реда/);
-  const warn = describePlacement({ status: "placed", track: track({ index: 1, count: 2 }), problems: ["на пистата има 1 реда вместо 2"] }, "/a.srt");
+  assert.match(ok.lines[0].text, /track C2: 2 lines/);
+  const warn = describePlacement({ status: "placed", track: track({ index: 1, count: 2 }), problems: ["the track has 1 lines instead of 2"] }, "/a.srt");
   assert.strictEqual(warn.ok, false);
-  assert.ok(warn.lines.some((l) => l.cls === "warn" && /Провери/.test(l.text)));
+  assert.ok(warn.lines.some((l) => l.cls === "warn" && /Check/.test(l.text)));
 });
 
 test("an existing Asistent track is reported with the steps, never stacked or removed", () => {
@@ -56,9 +56,16 @@ test("an existing Asistent track is reported with the steps, never stacked or re
 
 test("when the host is away or Premiere refuses, the file path is still given", () => {
   for (const status of ["nohost", "error"]) {
-    const r = describePlacement({ status, message: "причина" }, "/a.srt");
+    const r = describePlacement({ status, message: "a reason" }, "/a.srt");
     assert.strictEqual(r.ok, false);
-    assert.ok(r.lines.some((l) => /причина/.test(l.text)));
+    assert.ok(r.lines.some((l) => /a reason/.test(l.text)));
     assert.ok(r.lines.some((l) => /\/a\.srt/.test(l.text)));
   }
+});
+
+test("corrected subtitles on a new track say the old track must go", () => {
+  const r = describePlacement({ status: "placed", track: track({ index: 1, count: 2 }), problems: [], replaces: track({ index: 0, count: 2 }) }, "/a.srt", true);
+  assert.ok(r.lines.some((l) => l.cls === "warn" && /earlier subtitles are still on track C1: delete that track/.test(l.text)));
+  const plain = describePlacement({ status: "placed", track: track({ index: 0, count: 2 }), problems: [] }, "/a.srt");
+  assert.ok(!plain.lines.some((l) => /earlier subtitles/.test(l.text)));
 });
