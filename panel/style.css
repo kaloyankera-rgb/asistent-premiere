@@ -64,6 +64,8 @@ body {
 .project { flex: 1; min-width: 0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .engine { margin: 2px 0 0 16px; font-size: 11px; color: var(--text-2); }
 .detail { margin-top: 4px; font-size: 11px; line-height: 15px; color: var(--warn); }
+.update { margin-top: 6px; align-items: center; }
+.updatetext { flex: 1; min-width: 0; margin-right: 8px; font-size: 11px; line-height: 15px; color: var(--text); }
 
 /* the whole view scrolls inside #app, so a long result never needs a taller panel */
 #app { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px 12px 12px; box-sizing: border-box; }

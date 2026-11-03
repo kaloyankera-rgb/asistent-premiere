@@ -8,7 +8,7 @@ const path = require("path");
 
 const VERSION = "0.9.45";
 const ENGINE = { host: "127.0.0.1", port: 47390 };
-const LOG = path.join(os.homedir(), process.platform === "darwin" ? "Library/Application Support/Asistent" : "AppData/Roaming/Asistent", "logs", "host.log");
+const LOG = path.join(os.homedir(), process.platform === "darwin" ? "Library/Application Support/Asistent" : "AppData/Local/Asistent", "logs", "host.log");
 
 // CEP gives the extension folder as file:///Users/... (Mac) or file:///C:/... (Windows)
 function extensionRoot() {

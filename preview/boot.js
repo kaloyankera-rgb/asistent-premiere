@@ -40,6 +40,7 @@
     status: async () => engineState.status,
     log: () => {},
     subtitlesModel: async () => engineState.model,
+    updateCheck: async () => engineState.update || { current: panelVersion, latest: panelVersion, newer: false },
     subtitleSettings: async () => ({ text: engineState.notes }),
     saveSubtitleSettings: async () => ({ errors: [] }),
     importStatus: async () => engineState.import,

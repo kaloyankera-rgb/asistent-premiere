@@ -12,12 +12,16 @@ from __future__ import annotations
 import os
 import re
 import threading
+import time
 
 import numpy as np
 
 from . import config
 
 MODEL_DIR = "nllb-600m-int8"
+MODEL_REPO = "JustFrederik/nllb-200-distilled-600M-ct2-int8"     # CC-BY-NC 4.0 (LICENSES.md); the CTranslate2 int8 conversion
+MODEL_FILES = ("config.json", "model.bin", "sentencepiece.bpe.model", "shared_vocabulary.txt")
+MODEL_MB = 623
 PUNCT = (",", ".", "?", "!", ":", ";")
 PUNCT_BONUS = 0.6               # attention mass a matching punctuation cut is worth (one English word carries about 1)
 LENGTH_WEIGHT = 0.35            # per word away from the length the Bulgarian line suggests (lone "the" / "an" lines, ReShape test)
@@ -45,6 +49,41 @@ def available() -> bool:
     except ImportError:
         return False
     return True
+
+
+def _bytes_on_disk(d: str) -> int:
+    total = 0
+    for root, _, files in os.walk(d):
+        total += sum(os.path.getsize(os.path.join(root, f)) for f in files)
+    return total
+
+
+def download_model(progress, cancelled) -> dict:
+    """Download the translator into `model_dir()` (resumable). Only from the panel's own button, like the speech model."""
+    from huggingface_hub import snapshot_download
+    d = model_dir()
+    os.makedirs(d, exist_ok=True)
+    err: list = []
+
+    def run():
+        try:
+            snapshot_download(MODEL_REPO, local_dir=d, allow_patterns=list(MODEL_FILES))
+        except BaseException as e:                              # noqa: BLE001 - reported below
+            err.append(e)
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    while t.is_alive():
+        if cancelled():
+            raise InterruptedError("Cancelled: the download continues next time.")
+        mb = _bytes_on_disk(d) / 1e6
+        progress(min(mb / MODEL_MB, 0.99), f"Downloading the translator: {mb:.0f} of about {MODEL_MB} MB")
+        time.sleep(1.0)
+    if err:
+        raise RuntimeError(f"The download failed: {err[0]}")
+    if not available():
+        raise RuntimeError("The download finished, but translator files are missing.")
+    return {"translator": True}
 
 
 def _load():

@@ -19,7 +19,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `captionedit.js` (what a typed caption correction becomes: correction lines for the engine) · `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
   - `cssprobe.js` which CSS this UXP really supports (measured, run by the bridge's `css_probe`) · `devbridge.js` test bridge executor · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
 - **Asistent host** `host/` (since 0.9.45): an invisible CEP extension (`CSXS/manifest.xml`, `main.js`, `host.jsx`) installed by
-  `scripts/install_host_mac.sh` (called by `release_mac.sh`). It long-polls `GET /host/poll` and runs ExtendScript inside Premiere,
+  `engine/asistent/install.py` (called by `setup_mac.sh` / `setup_win.ps1`, so by `release_mac.sh` and by updates). It long-polls `GET /host/poll` and runs ExtendScript inside Premiere,
   `createCaptionTrack` (the subtitles' caption track), `as_graphics` (subtitle lines as After Effects template graphics,
   0.9.80, kept but not used by the panel: see DECISIONS) and the L/L R/R audio split (UXP cannot do any of these). A NEW extension needs one Premiere restart; `host.jsx` is read per
   command, so edits to it need none. Separate from Quick Search. Development: `scripts/dev_cmd.py host ping|probe|captions|eval`.
@@ -39,6 +39,14 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`)
   - `color.py` exposure/white-balance analysis, previews, render check, Lumetri calibration, probe measurement
   - `profiles.py`, `prepare.py`: Phase 5 draft, NOT wired, NOT tested
+  - `install.py` puts a release in place on Mac and Windows (files into `<app>/current`, host into the CEP folder with
+    PlayerDebugMode, fonts, panel via UnifiedPluginInstallerAgent); `updater.py` checks the GitHub releases (`latest.json`) and
+    installs the newest one from the panel's Update button (SHA-256 checked, pip only for changed requirements, engine restart)
+- **Installed layout (0.9.87)**: the engine runs from `<app>/current/engine/run_engine.py` (LaunchAgent / Windows Startup
+  shortcut), not from the repo. `scripts/release_mac.sh` copies the repo there on the development Mac; other computers get it
+  from a release zip (`scripts/build_release.py`: engine, host, scripts, fonts, requirements, `.ccx`, double-click installers)
+  and then update from the panel. A folder named in `<app>/update_source.txt` replaces GitHub for trying an update locally
+  (development only; delete the file afterwards).
 - Engine data (outside the synced vault): `~/Library/Application Support/Asistent/` (Windows
   `%LOCALAPPDATA%\Asistent\`): `venv/`, `logs/engine.log`, `cache/audio/`, `frames/`, `import.json`,
   `lumetri.json` (slider calibration, created on first verified render), `lumetri_capabilities.json` (probe),
@@ -103,8 +111,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 - Sync works from the timeline selection and builds a new `SYNC – <sequence>`; the user's sequence is read only.
 - No AI voices, no paid tools, no cloud, nothing uploaded.
 
-## Version control and documentation (GitHub, private repo)
-- The repo is `tools/asistent` (own git, branch `main`). Remote `origin` is a PRIVATE GitHub repository.
+## Version control and documentation (GitHub, public repo)
+- The repo is `tools/asistent` (own git, branch `main`). Remote `origin` is `kaloyankera-rgb/asistent-premiere`, a PUBLIC
+  GitHub repository (checked 2026-11-04; the updater needs public releases): nothing private in commits, ever.
   History is never rewritten: no force-push, no `reset --hard`, no history rewriting, no deleting branches or tags.
   Rename files with `git mv`. Never commit secrets, models, `dist/`, logs or client footage (`.gitignore` covers them).
 - Documents and what each is for: `CLAUDE.md` rules and architecture · `PROJECT_STATUS.md` what exists and what is
@@ -123,5 +132,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   commit that does not also stage `CHANGELOG.md` and `PROJECT_STATUS.md`.
 - **Pushing needs the user's explicit approval each time** (`git push origin main`, plain push only). Ask after the
   commit: "committed X, push to GitHub?". Never push on your own, never create tags or releases without being asked.
+- **Releases** (what every installed Asistent offers as an update): only when the user asks, after commit and push:
+  `scripts/publish_release.sh` (refuses an uncommitted or unpushed tree and an already published version; tag `v<version>`,
+  assets `Asistent-<version>.zip` + `latest.json`, notes from this version's CHANGELOG entry). A published version is never
+  moved or replaced: fix forward with a new version.
 - Before ending a session or when the user says "update the project state": make sure the state docs above are
   current and everything finished is committed, so a new session can continue from `PROJECT_STATUS.md` + `TODO.md`.

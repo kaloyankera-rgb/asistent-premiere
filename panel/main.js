@@ -214,11 +214,49 @@ async function refreshHeader() {
     $("project").textContent = "No project open";
   }
   if (!state.busy) for (const b of document.querySelectorAll(".btn.action, .btn.small")) enable(b, state.online);
+  if (state.online && Date.now() - (state.updateAt || 0) > UPDATE_EVERY_MS) checkUpdate(false);
   if (state.online && !state.modelShown) {                 // once per start: does the subtitle section need the install?
     state.modelShown = true;
     engine.subtitlesModel().then(renderSubtitleModel).catch(() => {
       state.modelShown = false;
     });
+  }
+}
+
+// ---------------------------------------------------------------- updates (GitHub releases, through the engine)
+
+const UPDATE_EVERY_MS = 3 * 3600 * 1000;                     // the engine itself asks GitHub at most every 6 hours
+
+async function checkUpdate(force) {
+  state.updateAt = Date.now();
+  try {
+    const u = await engine.updateCheck(force);
+    if (u.just_updated) finish(u.just_updated, true);       // the panel reloaded during the update: say it happened
+    state.update = u.newer ? u : null;
+    $("updateText").textContent = u.newer ? `Asistent ${u.latest} is available (you have ${u.current}).` : "";
+    if (u.newer && u.notes) $("updateGo").setAttribute("data-tip", `What is new: ${u.notes}`);
+    show("update", !!u.newer);
+  } catch (e) {
+    /* offline or an old engine: no update line */
+  }
+}
+
+async function onUpdate() {
+  if (state.busy || !state.update) return;
+  show("result", false);
+  setBusy(true);
+  progress(0, `Updating to ${state.update.latest}…`);
+  try {
+    const r = await engine.startUpdate();
+    const res = await runJob(r.job);                          // the new panel may load before this returns: it then says it
+    show("update", false);
+    finish(res.text, true);
+  } catch (e) {
+    finish(e.message || String(e), false);
+    engine.log("error", `update: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    state.jobId = null;
+    setBusy(false);
   }
 }
 
@@ -413,9 +451,13 @@ function renderSubtitleModel(st) {
     text = `The Bulgarian speech model (about ${gb(st.expected_bytes)} GB) is not downloaded yet. It will be saved in ${st.dir}.` +
       (st.bytes ? ` ${gb(st.bytes)} GB are already downloaded: the download continues from there.` : "");
   }
+  // the English line needs the translator: offered only where the speech model is there and the line is wanted
+  const noTranslator = st.backend && st.model && st.translator === false && $("subtitleEnglish").checked;
+  if (noTranslator) text = `The English line needs the translator (about ${st.translator_mb || 620} MB), not downloaded yet.`;
   $("subtitleModel").textContent = text;
   show("subtitleModel", !!text);
   show("subtitleAsk", st.backend && !st.model);
+  show("translatorAsk", !!noTranslator);
 }
 
 // who speaks and the corrections text are kept per project in the engine; shown again when the project changes
@@ -576,6 +618,29 @@ async function onSubtitleDownload() {
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `subtitle model: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    state.jobId = null;
+    setBusy(false);
+    engine.subtitlesModel().then(renderSubtitleModel).catch(() => {});
+  }
+}
+
+async function onTranslatorDownload() {
+  if (state.busy) return;
+  if (!state.online) {
+    finish("No connection to the engine. See README.", false);
+    return;
+  }
+  show("result", false);
+  setBusy(true);
+  progress(0, "Downloading the translator…");
+  try {
+    const r = await engine.downloadTranslator();
+    if (!r.done) await runJob(r.job);
+    finish("The translator is downloaded. Press Subtitles (Bulgarian) with English line on.", true);
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `translator: ${e && e.stack ? e.stack : e}`);
   } finally {
     state.jobId = null;
     setBusy(false);
@@ -990,6 +1055,8 @@ onTap($("subtitles"), () => onSubtitles());
 onTap($("captionApply"), onCaptionApply);
 onTap($("rough"), onRoughCut);
 onTap($("subtitleDownload"), onSubtitleDownload);
+onTap($("translatorDownload"), onTranslatorDownload);
+onTap($("updateGo"), onUpdate);
 // only the audio buttons carry data-force: ".small" alone also caught the probe and the import
 // buttons, so they ran Fix audio too (and its result hid the probe's question)
 for (const b of document.querySelectorAll(".btn.small[data-force]")) onTap(b, () => onAudio(b.getAttribute("data-force")));
@@ -1015,6 +1082,7 @@ try {
   /* no storage */
 }
 $("subtitleEnglish").addEventListener("change", () => {
+  if (state.online) engine.subtitlesModel().then(renderSubtitleModel).catch(() => {});
   try {
     localStorage.setItem("asistent.subtitleEnglish", $("subtitleEnglish").checked ? "1" : "0");
   } catch (e) {

@@ -214,3 +214,11 @@ puts them mid-frame). Premiere 26: its own text graphics do all of that but no s
 probed; Adobe says the graphics calls are for After Effects templates), and template graphics cannot be restyled together (open
 feature request). The user chose: Asistent places exact captions, the editor runs Upgrade Caption to Graphic once, Asistent moves the
 graphics. English: local NLLB-200 (user's OK to download), translated per sentence and cut to the Bulgarian clauses.
+
+## Updates through GitHub releases, installed from the panel (0.9.87, 2026-11-04)
+The user wants colleagues to stop downloading every version by hand. The repo is public, so its releases can be read without a
+login: each release carries one zip with everything and `latest.json` with the zip's SHA-256. The engine checks (a GET only, at
+most every 6 h) and installs only when the editor presses Update, because an update restarts the engine and reloads the panel
+(never in the middle of someone's work). The engine runs from a copy in the app folder, so an update never needs git or the repo.
+Not chosen: an automatic silent install (it could restart the engine during a job), a private repo with a token on every
+computer (a secret to hand out), Adobe's marketplace (review and a public listing for an internal tool).
