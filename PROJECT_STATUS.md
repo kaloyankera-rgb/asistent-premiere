@@ -16,7 +16,7 @@ renamed or the subclips deleted by hand (the clip is then split again with new s
 
 **0.9.57: balance + limiter** (user's request 2026-11-03, reference video of Dynamics on the Mix track). Engine-tested (4 new pytest on
 synthetic speakers, real Masterhaus clips) and verified in TEST.prproj by readback of the effect parameters (single clip, second
-press, four clips). NOT confirmed by eye in Premiere's Dynamics panel that the threshold reads −6 dB (the API reports the
+press, four clips). **Confirmed by the user by eye in Premiere's Dynamics panel: Limiter on, Threshold −6 dB** (the API reports the
 normalised 0.9; the −1 dB default = 0.98333 fixes the scale). The limiter is per clip, not on the Mix track (not scriptable).
 
 ## Panel layout (0.9.55, user's request 2026-11-03)
