@@ -34,7 +34,7 @@ def status() -> dict:
 
 
 NOT_RUNNING = ("The Asistent helper in Premiere is not running. Close and reopen Premiere once "
-               "(it is installed with scripts/install_host_mac.sh).")
+               "(it is installed by scripts/setup_mac.sh or setup_win.ps1).")
 
 
 def run(name: str, args: dict | None = None, wait: float = 60.0) -> dict:

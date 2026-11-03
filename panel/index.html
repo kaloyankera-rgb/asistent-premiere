@@ -16,6 +16,10 @@
     </div>
     <div id="engine" class="engine">Connecting…</div>
     <div id="detail" class="detail" hidden></div>
+    <div id="update" class="row update" hidden>
+      <span id="updateText" class="updatetext"></span>
+      <div id="updateGo" class="btn small" data-tip="Downloads the new version from GitHub, checks it and installs the panel, the engine and the host. Takes about a minute; nothing you made in Premiere is touched.">Update</div>
+    </div>
   </div>
 
   <!-- Views: the actions, the full report of the last run, the before/after pictures, the caption lines. -->
@@ -113,6 +117,7 @@
       </div>
       <div id="subtitleModel" class="warn" hidden></div>
       <div id="subtitleAsk" class="row buttons" hidden><div id="subtitleDownload" class="btn small" data-tip="Downloads the speech recognition model (about 3.1 GB). It starts only with this button.">Download the model (about 3.1 GB)</div></div>
+      <div id="translatorAsk" class="row buttons" hidden><div id="translatorDownload" class="btn small" data-tip="Downloads the English translator for the English line (about 620 MB, NLLB-200, runs on this computer). It starts only with this button.">Download the translator (about 620 MB)</div></div>
       <label for="notes" class="field">Corrections and names (one per line)</label>
       <textarea id="notes" rows="3" placeholder="раф => рафт&#10;Джи Строй"></textarea>
       <div id="notesState" class="hint" hidden></div>

@@ -11,19 +11,33 @@ It has no connection to the Quick Search extension: a different ID (`com.content
 - **The Asistent host**: an invisible helper inside Premiere for the few things UXP cannot do (the L/L and R/R audio copies, the caption track).
 - Settings, logs and the Python environment live outside the project folder: Mac `~/Library/Application Support/Asistent/`, Windows `%LOCALAPPDATA%\Asistent\`.
 
-## Installation
+## Installation (once per computer)
 
-### Mac
-1. Python 3.12 and FFmpeg are needed (`brew install python@3.12 ffmpeg`).
-2. Engine: `tools/asistent/scripts/setup_mac.sh`. It creates the Python environment and a LaunchAgent that starts the engine at every login. Run it again to update.
-3. Panel: `scripts/release_mac.sh` packs the panel, installs it with Adobe's UnifiedPluginInstallerAgent and restarts the engine, with no dialog; an open Premiere loads the new panel at once. By hand: double-click `dist/Asistent-<version>.ccx` (the `dist/` folder is not in Git; `scripts/package_ccx.sh` makes the package). Then in Premiere: `Window > UXP Plugins > Asistent`. The panel's version is shown in its title.
+Download `Asistent-<version>.zip` from the newest release on GitHub (Releases, kaloyankera-rgb/asistent-premiere), unzip it and
+double-click the installer for your system. It needs Python 3.12 and FFmpeg first:
 
-To stop the engine and remove the automatic start: `scripts/uninstall_mac.sh`.
+- **Mac**: `brew install python@3.12 ffmpeg`, then double-click `Install Asistent (Mac).command` (the first time macOS may refuse
+  a file from the internet: right-click it > Open). It creates the Python environment, puts Asistent in
+  `~/Library/Application Support/Asistent/current`, installs the host and the font, installs the panel through Adobe's own
+  installer (no dialog) and adds a LaunchAgent that starts the engine at every login.
+- **Windows**: `winget install Python.Python.3.12` and `winget install Gyan.FFmpeg` (open a new window afterwards), then
+  double-click `Install Asistent (Windows).cmd`. The same, in `%LOCALAPPDATA%\Asistent\current`, with a hidden shortcut in
+  Startup; with an NVIDIA graphics card the speech recognition runs on it.
 
-### Windows
-1. Python 3.12 (`winget install Python.Python.3.12`) and FFmpeg in PATH (`winget install Gyan.FFmpeg`) are needed.
-2. Engine: `powershell -ExecutionPolicy Bypass -File tools\asistent\scripts\setup_win.ps1`. It puts a hidden shortcut into Startup.
-3. Panel: double-click the `.ccx` file, as on Mac.
+Then restart Premiere once (it loads the host and sees the Montserrat font) and open `Window > UXP Plugins > Asistent`. The
+speech model (about 3.1 GB) and the English translator (about 620 MB) are downloaded with their own buttons in the Subtitles card.
+
+## Updates
+
+The panel asks GitHub for a newer release when it opens and every few hours. When there is one, a line at the top says
+"Asistent X is available" with an **Update** button: it downloads the release, checks its checksum, installs new Python packages
+only when they changed, replaces the engine, the host and the panel, and restarts the engine (about a minute; nothing in your
+Premiere project is touched). The panel reloads by itself. Only a first install of the host needs one Premiere restart.
+The update check is the only connection Asistent makes on its own: a download of a small file from github.com; nothing is sent.
+
+For the developer: `scripts/release_mac.sh` installs the repo on the development Mac after every change;
+`scripts/publish_release.sh` (after commit and push) publishes the version as a GitHub release, which every installed panel then
+offers. To stop the engine and remove the automatic start on a Mac: `scripts/uninstall_mac.sh`.
 
 ## Sync cameras
 

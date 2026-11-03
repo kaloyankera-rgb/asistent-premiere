@@ -5,8 +5,11 @@ another origin without a CORS preflight, which this server never approves, so a 
 drive the engine. The Host header is checked against DNS rebinding.
 
   GET  /status               engine version and busy state
-  GET  /subtitles/model      speech model status (backend installed, model present, size, device)
+  GET  /update/check?force=1 {"current", "latest", "newer", "notes"} from the GitHub releases (updater.py)
+  POST /update/install       job: download, check and install the newest release, then the engine restarts
+  GET  /subtitles/model      speech model status (backend installed, model present, size, device, "translator")
   POST /subtitles/model/download   job: download the ~3 GB model (only from the confirmed panel button)
+  POST /subtitles/translator/download   job: download the ~620 MB English translator (only from its panel button)
   POST /subtitles            {"items": [{path, start, end, at, name}], "out_dir", "name", "fps", "width", "height",
                               "preset"?: auto|short|standard|reshape, "terms"?: [...], "skipped"?: [...]} -> job: dialogue mix ->
                               Whisper -> captions -> SRT + JSON in <out_dir>/Asistent_subtitles (nothing goes to Premiere)
@@ -58,6 +61,7 @@ import os
 import re
 import socket
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
@@ -77,6 +81,8 @@ from . import devbridge
 from . import hostbridge
 from . import captionstate
 from . import subtitle_settings
+from . import translate
+from . import updater
 
 SHOT_REFS: dict = {}            # shot-match job id -> reference look (for the render check after applying)
 from .sync import sync_clips
@@ -256,7 +262,10 @@ class Handler(BaseHTTPRequestHandler):
                 _store().wait_queue(project, wait)
             return self._send(200, _import_status(project))
         if self.path == "/subtitles/model":
-            return self._send(200, asr.model_status())
+            return self._send(200, {**asr.model_status(), "translator": translate.available(),
+                                    "translator_mb": translate.MODEL_MB})
+        if url.path == "/update/check":
+            return self._send(200, updater.check(force=(parse_qs(url.query).get("force") or ["0"])[0] == "1"))
         if url.path == "/subtitles/settings":
             return self._send(200, subtitle_settings.get((parse_qs(url.query).get("project") or [""])[0]))
         if url.path == "/captions/state":
@@ -305,6 +314,24 @@ class Handler(BaseHTTPRequestHandler):
                         job.progress, job.message = f, msg
                     return asr.download_model(progress, lambda: job.cancelled)
                 return self._send(200, {"job": JOBS.submit("subtitles_model", work).id})
+            if self.path == "/subtitles/translator/download":
+                if translate.available():
+                    return self._send(200, {"done": True})
+
+                def work_tr(job):
+                    def progress(f, msg):
+                        job.progress, job.message = f, msg
+                    return translate.download_model(progress, lambda: job.cancelled)
+                return self._send(200, {"job": JOBS.submit("translator_model", work_tr).id})
+            if self.path == "/update/install":
+                if JOBS.active():
+                    return self._send(409, {"error": "Asistent is busy: update when the running task has finished."})
+
+                def work_up(job):
+                    def progress(f, msg):
+                        job.progress, job.message = f, msg
+                    return updater.install_update(progress, lambda: job.cancelled)
+                return self._send(200, {"job": JOBS.submit("update", work_up).id})
             if self.path == "/subtitles":
                 return self._send(200, _start_subtitles(body))
             if self.path == "/roughcut":
@@ -525,6 +552,11 @@ def already_running() -> bool:
 
 def main():
     log = config.setup_logging()
+    if os.environ.pop("ASISTENT_RESTART", None):       # started by an update: the old engine is letting the port go
+        for _ in range(40):
+            if not already_running():
+                break
+            time.sleep(0.5)
     if already_running():
         log.info("engine already running on %s", config.PORT)
         return 0

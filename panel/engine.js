@@ -104,6 +104,20 @@ function downloadSubtitleModel() {
   return call("POST", "/subtitles/model/download", {});
 }
 
+// the update check (GitHub releases, through the engine) and the update itself (only from the panel's Update button)
+function updateCheck(force) {
+  return call("GET", force ? "/update/check?force=1" : "/update/check");
+}
+
+function startUpdate() {
+  return call("POST", "/update/install", {});
+}
+
+// only from the panel button the user pressed knowing the size: {done: true} or {job}
+function downloadTranslator() {
+  return call("POST", "/subtitles/translator/download", {});
+}
+
 function startSubtitles(payload) {
   return call("POST", "/subtitles", payload);
 }
@@ -165,4 +179,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, devPoll, devResult, job, cancel, log };

@@ -1,21 +1,13 @@
 #!/bin/bash
-# After every change: pack the panel, install it into Premiere without any dialog (Adobe's own
-# UnifiedPluginInstallerAgent), and restart the engine. A running Premiere loads the new panel live.
+# After every change, on the development Mac: pack the panel and install everything from this repo (the files into
+# ~/Library/Application Support/Asistent/current, the host, the panel through Adobe's UnifiedPluginInstallerAgent with
+# no dialog, the engine restarted). A running Premiere loads the new panel live. Publishing for other computers is
+# scripts/publish_release.sh (only when the user asks).
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-UPIA="/Library/Application Support/Adobe/Adobe Desktop Common/RemoteComponents/UPI/UnifiedPluginInstallerAgent/UnifiedPluginInstallerAgent.app/Contents/MacOS/UnifiedPluginInstallerAgent"
-[ -x "$UPIA" ] || { echo "No UnifiedPluginInstallerAgent (Creative Cloud): install the .ccx by double-clicking it."; exit 1; }
-
 rm -f "$REPO"/dist/*.ccx
-CCX="$("$REPO/scripts/package_ccx.sh")"
+"$REPO/scripts/package_ccx.sh" >/dev/null
 VER=$(python3 -c "import json;print(json.load(open('$REPO/panel/manifest.json'))['version'])")
-
-# remove first, so an open Premiere unloads the old panel (it reports -406 but does unload), then install
-"$UPIA" --remove "Asistent" >/dev/null 2>&1 || true
-"$UPIA" --install "$CCX" | tail -1
-if ! "$UPIA" --list all 2>/dev/null | grep -q "Asistent.*$VER"; then
-  echo "Adobe does not report Asistent $VER as installed."; exit 1
-fi
-"$REPO/scripts/install_host_mac.sh"
-"$REPO/scripts/setup_mac.sh" >/dev/null
+"$REPO/scripts/setup_mac.sh" | grep -v "^Asistent engine is running" || true
+curl -s -H "X-Asistent: 1" http://127.0.0.1:47390/status | grep -q "\"version\": \"$VER\"" || { echo "The engine does not answer with $VER."; exit 1; }
 echo "Asistent $VER is installed in Premiere, the engine was restarted."

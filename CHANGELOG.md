@@ -6,6 +6,31 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.87 - Updates from the panel; Windows install brought up to date
+- **Updater** (the user, 2026-11-04: "install an updater so people don't need to download from GitHub every update"):
+  `engine/asistent/updater.py` asks the GitHub releases for `latest.json` when the panel opens and every few hours (at most every
+  6 h, only a GET to github.com). A newer version shows a line at the top of the panel with an **Update** button; the job
+  downloads `Asistent-<version>.zip`, checks its SHA-256, refuses unsafe zip paths, installs Python packages only for a changed
+  requirements file, puts the engine, host, fonts and panel in place and restarts the engine (Mac: the LaunchAgent restarts it
+  after exit 75; Windows: a detached new engine waits for the port). The panel reloads during the update and the new one says
+  "Updated to …" (`updates/last.json`, shown once). Tried end to end on this Mac with a local test release 0.9.88
+  (`<app>/update_source.txt`): engine back on 0.9.88 within a second, Adobe lists the panel 0.9.88, then reinstalled 0.9.87.
+- **Installed layout**: the engine now runs from `<app>/current` (a copy), no longer from the repo, so a computer needs only a
+  release zip. `engine/asistent/install.py` does the placing for both systems: files, the host into the CEP folder (Mac
+  `defaults`, Windows registry for PlayerDebugMode), Montserrat Bold into the user's fonts (Windows: per-user font + registry), the
+  panel through UnifiedPluginInstallerAgent (`--install` on Mac, `/install` on Windows). `scripts/install_host_mac.sh` is gone.
+- **Releases**: `scripts/build_release.py` makes `dist/Asistent-<version>.zip` (engine, host, scripts, fonts, requirements, licences,
+  README, `.ccx`, `Install Asistent (Mac).command`, `Install Asistent (Windows).cmd` at the top) and `dist/latest.json`;
+  `scripts/publish_release.sh` uploads them as release `v<version>` (only on the user's word, after commit and push).
+- **Windows**: `setup_win.ps1` now matches the Mac: installs from the folder it is in, keeps the subtitle packages current where
+  they exist, downloads the Bulgarian word list with `-Subtitles`, stops a running engine before replacing files, installs host,
+  font and panel, Startup shortcut to `current\engine`. The host's log goes to `%LOCALAPPDATA%\Asistent\logs` like the engine's.
+  Not run on Windows yet (no PowerShell on this Mac).
+- **Translator download button** in the Subtitles card (about 620 MB, NLLB-200, only from the button, like the speech model),
+  shown when English line is on and the translator is missing; `/subtitles/model` reports `translator`.
+- Tests: `tests/test_updater.py` (12: version compare, offline check, damaged download refused, unsafe paths, the whole update
+  into a private folder, requirement changes, the release zip's contents). Engine 424, panel 115, all passing.
+
 ## 0.9.86 - The ReShape style, measured on the client's own videos
 - **Measured** (the user, 2026-11-04: "we need to recreate this style for this client"): six of the client's TikTok videos and the
   Instagram reference, 625 lines, read with the Mac's own text recognition (Apple Vision), faces with YuNet, speech with Asistent's
