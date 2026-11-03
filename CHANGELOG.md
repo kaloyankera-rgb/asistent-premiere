@@ -6,6 +6,13 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.53 - SYNC: everything in recording order, also clips without a partner
+- Clips without a second POV were placed after all groups. Now groups and single clips are laid out in one list in the order they were recorded (user's example: A 10:00, A+B 10:05, A 10:15 stays in that order).
+- Recording time: the engine reads each file's `creation_time` (Sony writes the record start; equal to the XML sidecar), else the file time minus the duration (`media.probe`: `recorded`, `recorded_from`).
+- Camera clocks: `chrono.py` learns each camera's clock difference from the synced pairs (median; reported when the pairs disagree by more than 3 s) and corrects all clips of that camera, the unsynced ones too. GStroy footage: the FX30 clock is 731 days behind the FX3's; 12 pair measurements agree within 2.1 s; the 6 lone clips now sit between the groups where they were recorded.
+- Nothing is invented: a camera that never synced keeps its own clock only when it falls within 30 min of the session (reported as unchecked); a clip without any usable time keeps its place from the editor's timeline (follows its neighbour there) and is listed as „Несигурно място“ in the panel.
+- Panel: groups are listed in the order of the new sequence; a corrected camera clock is named; unsynced clips are no longer described as „сложени накрая“.
+
 ## 0.9.52 - SYNC: no markers in the new sequence
 - „Синхронизирай камерите“ no longer writes the „Група N“ / „Без синхрон“ markers into the new `SYNC – …` sequence (user, 2026-11-03: the timeline must stay clean). They were labels only; the clips are placed from the engine's offsets, so nothing about the sync changes. The group list stays in the panel's result. The user's own sequence and its markers were never touched and still are not.
 - Tests: the Bulgarian dictionary loader (`lexicon.py`) now collects the files spylls 0.1.7 leaves open; their ResourceWarning used to fail whichever test was running at that moment under `-W error` (5 random failures).

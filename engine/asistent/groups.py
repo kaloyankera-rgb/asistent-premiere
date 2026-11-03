@@ -14,7 +14,7 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
-from . import sync
+from . import chrono, sync
 from .sync import Cancelled, Clip, ProgressFn, analyze_pair, load_clip
 
 LOOP_TOL = 0.010
@@ -82,10 +82,15 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
     groups, conflicts = _build_groups(clips, folders if split_by_folder else None,
                                       [e for e in edges if e["confidence"] == "high"])
     grouped = {m["clip"] for g in groups for m in g["members"]}
+    # when each clip was recorded, on one clock for all cameras (the layout puts everything in that order)
+    when = chrono.chronology([c.info.recorded for c in clips], [c.info.recorded_from for c in clips], folders, groups)
     progress(1.0, "Готово")
     return {
         "clips": [{"path": c.info.path, "name": c.name, "duration": round(c.info.duration, 3),
-                   "fps": c.info.fps, "has_video": c.info.has_video} for c in clips],
+                   "fps": c.info.fps, "has_video": c.info.has_video,
+                   "rec_time": when["time"][i], "rec_note": when["note"][i]} for i, c in enumerate(clips)],
+        "clocks": [{**x, "name": os.path.basename(x["camera"]) or x["camera"]} for x in when["cameras"]],
+        "clock_reference": os.path.basename(when["reference"]) or when["reference"],
         "groups": groups,
         "conflicts": conflicts,
         "unsynced": [i for i in range(len(clips)) if i not in grouped],
