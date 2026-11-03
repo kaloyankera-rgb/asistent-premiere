@@ -3,8 +3,9 @@
 ## Updates and installs (0.9.87, user's request 2026-11-04)
 Updater from the GitHub releases (panel line + Update button), engine in `<app>/current`, `install.py` for Mac and Windows, release
 zip with double-click installers, translator download button. **Verified on this Mac**: an update to a local test release (0.9.88)
-installed engine, host and panel and restarted the engine within a second; the Mac is back on 0.9.87. **Not verified**: the update
-line in Premiere itself (seen in the browser preview), a real GitHub release, and everything on Windows (`setup_win.ps1`, the
+installed engine, host and panel and restarted the engine within a second; the Mac is back on 0.9.87. Release v0.9.87 is published
+on GitHub and read by the engine. **Not verified**: the update line in Premiere itself (seen in the browser preview), an update
+from a real GitHub release, and everything on Windows (`setup_win.ps1`, the
 registry entries, UPIA `/install`, the detached restart): run `Install Asistent (Windows).cmd` on the PC and one update there.
 
 Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.48 via
