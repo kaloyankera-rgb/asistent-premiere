@@ -24,6 +24,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /sync_groups          {"paths": [...]} -> {"job": id}; groups among all clips (timeline selection)
   POST /audio                {"items": [{"path", "start", "end", "force"?}], "force"?, "target"?, "ceiling"?,
                               "phrases"?: true -> Volume keyframes that even out phrases}
+  POST /audio/route          {"items": [{track, start, end, route}], "sequence", "project"?} -> through the host:
+                              L/L and R/R subclips placed and linked (host.jsx as_audio_route); {"ok", "items"}
   GET  /jobs/<id>            state, progress, message, result
   POST /jobs/<id>/cancel
   POST /log                  {"level": "info"|"error", "message": "..."} panel messages into the engine log
@@ -142,7 +144,7 @@ def _start_groups(body: dict) -> dict:
     return {"job": JOBS.submit("sync_groups", work).id}
 
 
-ACTIONS = {None, "use_left", "use_right", "split", "none"}
+ACTIONS = {None, "use_left", "use_right", "split", "split_all", "none"}
 
 
 def _start_audio(body: dict) -> dict:
@@ -300,6 +302,14 @@ class Handler(BaseHTTPRequestHandler):
                 proj = body.get("project") if isinstance(body.get("project"), str) else None
                 res = hostbridge.place_captions(srt, seq, proj, str(body.get("bin") or "Субтитри"))
                 log.info("captions/place: %s", res)
+                return self._send(200, res)
+            if self.path == "/audio/route":
+                seq = body.get("sequence")
+                if not isinstance(seq, str) or not seq:
+                    raise ValueError("Липсва секвенция.")
+                proj = body.get("project") if isinstance(body.get("project"), str) else None
+                res = hostbridge.route_audio(body.get("items"), seq, proj)
+                log.info("audio/route: %s", res)
                 return self._send(200, res)
             if self.path == "/subtitles/settings":
                 return self._send(200, subtitle_settings.put(str(body.get("project") or ""), body.get("text") or ""))

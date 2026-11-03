@@ -2,6 +2,7 @@ const engine = require("./engine.js");
 const premiere = require("./premiere.js");
 const layout = require("./layout.js");
 const premiereAudio = require("./premiere-audio.js");
+const audioplan = require("./audioplan.js");
 const PANEL_VERSION = require("./version.js");
 const premiereImport = require("./premiere-import.js");
 const premiereColor = require("./premiere-color.js");
@@ -314,12 +315,9 @@ async function onSync() {
   }
 }
 
-const ROUTE_FORCE = { LL: "use_left", RR: "use_right" };
-
 async function onAudio(force) {
   // "phrases": everything "Оправи звука" does, plus Volume keyframes that even out the phrases
   const phrases = force === "phrases";
-  if (phrases) force = null;
   if (state.busy) return;
   if (!state.online) {
     finish("Няма връзка с engine-а. Виж README.", false);
@@ -327,41 +325,30 @@ async function onAudio(force) {
   }
   show("result", false);
   setBusy(true);
-  progress(0, "Чета маркираните аудио клипове…");
+  progress(0, "Чета маркираните клипове…");
   try {
     const project = await premiere.activeProject();
     const sel = await premiereAudio.readAudioSelection(project);
-    if (!sel.items.length) throw new premiere.UserError("Маркирай в таймлайна поне един клип със звук.");
-    // "split_rl" is the same split, only the other way round on the tracks
-    const order = force === "split_rl" ? "RL" : "LR";
-    const engineForce = force === "split_rl" ? "split" : force;
-    const payload = sel.items.map((it) => ({ path: it.path, start: it.inPt, end: it.outPt,
-      force: it.route ? ROUTE_FORCE[it.route] : (engineForce || null) }));
-    engine.log("info", `audio: ${sel.items.length} clips, force ${force || "auto"}${phrases ? ", phrases" : ""}`);
-    const { job } = await engine.startAudio(payload, phrases);
+    if (!sel.items.length) throw new premiere.UserError("Маркирай в таймлайна поне един клип със звук (видеото или звука му).");
+    const work = audioplan.engineJobs(sel.items, force);
+    engine.log("info", `audio: ${sel.items.length} clips (${work.jobs.length} measured), force ${force || "auto"}`);
+    const { job } = await engine.startAudio(work.jobs, phrases);
     const result = await runJob(job);
+    const plans = sel.items.map((it, i) => ({ it, res: result.items[work.index[i]], routed: null, lines: [], problems: [] }));
+    for (const p of plans) if (p.res.error) p.problems.push(p.res.error);
 
-    progress(0.95, "Прилагам…");
-    // prepare every clip first (reads only), then apply everything as one Undo step
-    const plans = [];
-    const usedTracks = [];
-    for (let i = 0; i < sel.items.length; i++) {
-      const it = sel.items[i];
-      const res = result.items[i];
-      const plan = { it, res, actions: [], checks: [], lines: [], problems: [] };
-      if (res.error) plan.problems.push(res.error);
-      else {
-        try {
-          Object.assign(plan, await premiereAudio.prepare(sel.timeline, it, res, usedTracks, order));
-        } catch (e) {
-          plan.problems.push(e.message || String(e));
-          if (!(e instanceof premiere.UserError)) engine.log("error", `audio ${it.name}: ${e && e.stack ? e.stack : e}`);
-        }
-      }
-      plans.push(plan);
+    // the channels: the host makes the L/L and R/R copies and puts them where the clip is (ExtendScript)
+    const todo = plans.map((p) => ({ p, route: audioplan.routeFor(p.it, p.res, force) })).filter((x) => x.route);
+    if (todo.length) {
+      progress(0.9, `Разделям каналите: ${todo.length} ${todo.length === 1 ? "клип" : "клипа"}…`);
+      const answer = await engine.routeAudio({ sequence: sel.timeline.sequence.name, project: project.path,
+        items: todo.map((x) => ({ track: x.p.it.track, start: x.p.it.start, end: x.p.it.end, route: x.route })) });
+      if (!answer.ok) throw new premiere.UserError(answer.msg || "Premiere не раздели каналите.");
+      todo.forEach((x, i) => { x.p.routed = answer.items[i] || { ok: false, msg: "няма отговор" }; });
+      engine.log("info", `audio route: ${JSON.stringify(answer.items)}`);
     }
-    const ready = plans.filter((p) => !p.problems.length);
-    const { undoSteps } = await premiereAudio.applyAll(project, sel.timeline, ready);
+    progress(0.95, "Слагам силата…");
+    const { undoSteps } = await premiereAudio.applyLevels(project, sel.timeline.sequence, audioplan.levelTargets(plans));
 
     const blocks = [];
     let changed = 0;
@@ -369,20 +356,27 @@ async function onAudio(force) {
     for (const p of plans) {
       const box = el("div", "group");
       box.appendChild(el("div", "name", p.it.name));
-      for (const r of (p.res && p.res.reasons) || []) if (r) box.appendChild(el("div", "reason", r));
-      if (p.it.route) box.appendChild(el("div", "reason", "Вече има Fill ефект: само силата е сменена."));
-      for (const l of p.lines || []) box.appendChild(el("div", "line", l));
-      if (p.res && p.res.action === "ask") box.appendChild(el("div", "warn", "Не е пипано: избери с бутоните по-горе."));
-      for (const pr of p.problems || []) box.appendChild(el("div", "warn", pr));
-      if ((p.problems || []).length) failed++;
-      else if (p.res && p.res.action !== "ask" && (p.actions || []).length) changed++;
+      // a side Asistent made earlier: its analysis lines describe the pair, not this clip
+      if (p.it.side) box.appendChild(el("div", "reason", "Вече е разделен от Asistent: само силата."));
+      else if (p.it.route) box.appendChild(el("div", "reason", "Има Fill ефект отпреди: каналите не са пипани, само силата."));
+      else for (const r of (p.res && p.res.reasons) || []) if (r) box.appendChild(el("div", "reason", r));
+      const line = audioplan.routeLine(p.routed);
+      if (line) box.appendChild(el("div", p.routed.ok ? "line" : "warn", line));
+      for (const l of p.lines) box.appendChild(el("div", "line", l));
+      if (p.res && p.res.action === "ask") box.appendChild(el("div", "warn", "Не е пипано: избери ръчно (Ръчно ▸)."));
+      if (p.routed && !p.routed.ok) p.problems.push("каналите не са разделени");
+      for (const pr of p.problems) box.appendChild(el("div", "warn", pr));
+      if (p.problems.length) failed++;
+      else if (p.res && p.res.action !== "ask") changed++;
       blocks.push(box);
     }
     for (const s of sel.skipped) blocks.push(el("div", "warn", `Пропуснат: ${s}.`));
+    const split = plans.filter((p) => p.routed && p.routed.ok && p.routed.status === "done").length;
     const clips = (n) => `${n} ${n === 1 ? "клип" : "клипа"}`;
-    const undo = undoSteps === 1 ? "Един Cmd/Ctrl+Z връща всичко." : undoSteps > 1 ? `${undoSteps} пъти Cmd/Ctrl+Z връщат всичко.` : "";
-    finish(failed ? `Готово с проблеми: ${clips(changed)} оправени, ${failed} не. ${undo}`
-      : `Готово: ${changed} от ${clips(sel.items.length)}. ${undo}`, !failed, blocks);
+    const undo = [undoSteps ? "силата е една стъпка Cmd/Ctrl+Z" : "",
+      split ? "разделянето е отделни стъпки на Premiere (копията и връзката на всеки клип)" : ""].filter(Boolean).join("; ");
+    finish(`${failed ? `Готово с проблеми: ${clips(changed)} оправени, ${failed} не.` : `Готово: ${changed} от ${clips(plans.length)}.`}` +
+      `${split ? ` Разделени: ${split}.` : ""}${undo ? ` Връщане: ${undo}.` : ""}`, !failed, blocks);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `audio: ${e && e.stack ? e.stack : e}`);

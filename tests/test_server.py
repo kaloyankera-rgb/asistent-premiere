@@ -224,3 +224,13 @@ def test_subtitle_settings_are_kept_per_project_and_validated(engine, tmp_path, 
     assert call("GET", f"/subtitles/settings?{q}")[1] == {"text": "раф => рафт\nлошо =>"}
     assert call("GET", "/subtitles/settings?project=%2Fp%2FB.prproj")[1] == {"text": ""}
     assert call("POST", "/subtitles/settings", {"project": "", "text": ""})[0] == 400
+
+
+def test_audio_route_is_validated_before_it_reaches_premiere():
+    import pytest
+    from asistent import hostbridge
+    with pytest.raises(ValueError, match="Неясно"):
+        hostbridge.route_audio([{"track": 0, "start": 1.0, "end": 2.0, "route": "fill_left"}], "S", None)
+    with pytest.raises(ValueError, match="Няма клипове"):
+        hostbridge.route_audio([], "S", None)
+    assert "audio_route" in hostbridge.COMMANDS

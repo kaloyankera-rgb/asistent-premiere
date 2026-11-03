@@ -129,6 +129,11 @@ function placeCaptions(payload) {
   return call("POST", "/captions/place", payload);
 }
 
+// L/L and R/R through the clips' own channels, done by the host (ExtendScript): can take a few seconds per clip
+function routeAudio(payload) {
+  return call("POST", "/audio/route", payload);
+}
+
 function job(id) {
   return call("GET", `/jobs/${id}`);
 }
@@ -151,4 +156,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, startSubtitles, subtitleSettings, saveSubtitleSettings, captionsState, recordCaptions, placeCaptions, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, startSubtitles, subtitleSettings, saveSubtitleSettings, captionsState, recordCaptions, placeCaptions, routeAudio, devPoll, devResult, job, cancel, log };

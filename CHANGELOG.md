@@ -6,6 +6,15 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.56 - „Оправи звука“: L/L and R/R through the clips' own Audio Channels, no Fill effects
+- The one button now does what the user's reference video shows: the audio is duplicated onto the track below, the upper clip plays only the Left source channel (L/L), the lower one only the Right (R/R) (Modify Clip > Audio Channels), all linked to the video again. The Fill Left/Right effects are never added any more (a Fill that is already on a clip from earlier versions is left alone: only its level changes).
+- How (no API sets the channels of a clip on the timeline): the host (`host.jsx` `as_audio_route`, command `audio_route`, endpoint `/audio/route`) makes an audio-only subclip per media range and side in the bin „Asistent L-R“ (`createSubClip`), sets its source mapping (`getAudioChannelMapping` + `setMappingForChannel` + `setAudioChannelMapping`; `audioChannelsType` is read-only), overwrites the original audio with the L/L copy and puts the R/R copy on the nearest free track below, checks both sit exactly where the original was with the same In point, and links video + both sides (`linkSelection`). Nothing is removed or muted by script.
+- Every stereo clip is split (`split_all`; the user splits even clips the analysis calls one voice on two mics); the analysis only informs and sets the two levels, whose sum stays under −6 dB. A mono file is left alone. A selected video clip brings its own audio.
+- Second press: sides are recognised by name („C0731 L 6.37-13.78“) and in the bin, so no new copies or subclips are made; both sides are measured as a pair and get the same levels again. No free track below: refused with the instruction to add one.
+- The panel's levels are one Undo step; the splitting is separate Premiere steps (said in the result).
+- `host.jsx` now starts with a UTF-8 BOM (`$.evalFile` read it as Mac Roman and Cyrillic messages came out garbled).
+- Verified in TEST.prproj (Premiere 26.0.2) on Masterhaus clips: single clip, three clips at once (R/R copy of a clip whose A2 was taken went to a free track), repeat press (no duplicates, bin unchanged), clips placed to the tick with the same In point, 3 linked parts; the user confirmed in Modify Clip > Audio Channels: A1 L/L, A2 R/R.
+
 ## 0.9.55 - panel: sections, tooltips, report and pictures in their own views
 - Every feature is a card: title, one line saying what it does, then its buttons (СИНХРОН, ЗВУК, ЦВЯТ, СУБТИТРИ, АВТО ВНАСЯНЕ). The manual audio variants are folded under „Ръчно ▸“; nothing was removed.
 - Tooltips on every button (UXP shows nothing for `title`): shown after a short hover under the button, above it near the bottom edge, always inside the panel; hidden on leave, press or scroll. Buttons made in code get one through `button(cls, label, help, fn)` (a test checks every button in the HTML and in main.js).

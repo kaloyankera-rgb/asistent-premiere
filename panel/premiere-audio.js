@@ -1,28 +1,17 @@
-// Smart Audio Assistant in Premiere: route L/R with the Fill effects, split two lavaliers onto two
-// tracks, set the clip's Volume level. Nothing is removed and the media is never changed.
+// Smart Audio Assistant in Premiere: the clips' levels, and what the selection is. The channels (L/L, R/R) are set by
+// the host through each side's own Audio Channels (host.jsx as_audio_route), never by the Fill effects any more
+// (user, 2026-11-03); this module only recognises a Fill effect that is already on a clip (earlier versions, or by
+// hand) so such a clip keeps its routing and only gets its level. Nothing is removed and the media is never changed.
 //
-// One press of the button is as few Undo steps as Premiere allows: everything goes into one transaction,
-// except that a copy for "Раздели L/R" can only get its own effect after it exists (Premiere 26.0.2
-// clones the clip as it was BEFORE the transaction, seen 2026-11-01). So: step 1 = every effect and
-// level of every clip plus the copies; step 2 (only if something was split) = the copies' channel and level, all
-// copies together. Never more than two Cmd/Ctrl+Z, however many clips.
+// The levels of one press are one transaction, so one Undo step. The splitting is done by ExtendScript, where
+// every overwrite and link is its own step in Premiere's history.
 const ppro = require("premierepro");
 const { TickTime } = ppro;
 const P = require("./premiere.js");
-const { routeOf, RE } = require("./channels.js");
+const { routeOf } = require("./channels.js");
+const { sideOf } = require("./audioplan.js");
 
-const { UserError, transaction, maybe, debug } = P;
-
-// display names of the effects in this Premiere (asked once, logged once)
-let names = null;
-async function effectNames() {
-  if (names) return names;
-  const all = (await maybe(ppro.AudioFilterFactory, "getDisplayNames")) || [];
-  debug(`audio effects: ${all.join(" | ")}`);
-  const find = (re) => all.find((n) => re.test(n));
-  names = { LL: find(RE.fillLL), RR: find(RE.fillRR), swap: find(RE.swap) };
-  return names;
-}
+const { transaction, maybe, debug } = P;
 
 async function components(ti) {
   const chain = await maybe(ti, "getComponentChain");
@@ -37,13 +26,6 @@ async function components(ti) {
 
 async function currentRoute(ti) {
   return routeOf((await components(ti)).list.map((c) => c.name));
-}
-
-async function effect(route, ti) {
-  const n = await effectNames();
-  const name = n[route];
-  if (!name) throw new UserError(`В този Premiere няма ефект „${route === "swap" ? "Swap Channels" : "Fill"}“.`);
-  return ppro.AudioFilterFactory.createComponentByDisplayName(name, ti);
 }
 
 // Volume > Level is always in Premiere's own scale on 26.0.2 (0.1778 = 0 dB, 1.0 = +15 dB, verified).
@@ -73,20 +55,17 @@ async function readLevel(param) {
   return Number(v && v.value !== undefined ? (v.value.value ?? v.value) : NaN);
 }
 
-// nearest audio track (below first) that is empty over [start, end]; past the last one if none is
-function freeAudioTrack(items, track, start, end, count) {
-  const busy = (t) => items.some((x) => x.kind === "audio" && x.track === t && Math.min(end, x.end) - Math.max(start, x.start) > 0.0005);
-  for (let d = 1; d < count; d++) {
-    if (track + d < count && !busy(track + d)) return track + d;
-    if (track - d >= 0 && !busy(track - d)) return track - d;
-  }
-  return count;
-}
-
-// Audio clips selected in the active sequence, with the part of the media they use.
+// Audio clips selected in the active sequence, with the part of the media they use. A selected video clip brings its
+// own audio (same file, same place), so the button also works with linked selection off.
 async function readAudioSelection(project) {
   const t = await P.readTimeline(project);
   const picked = t.items.filter((x) => x.selected && x.kind === "audio" && x.path);
+  const near = (a, b) => Math.abs(a - b) < 0.002;
+  for (const v of t.items.filter((x) => x.selected && x.kind === "video" && x.path)) {
+    for (const a of t.items) {
+      if (a.kind === "audio" && a.path === v.path && near(a.start, v.start) && near(a.end, v.end) && !picked.includes(a)) picked.push(a);
+    }
+  }
   const skipped = [];
   const items = [];
   for (const x of picked) {
@@ -94,8 +73,9 @@ async function readAudioSelection(project) {
       skipped.push(`${x.name} (променена скорост)`);
       continue;
     }
-    items.push({ ...x, route: await currentRoute(x.ti) });
+    items.push({ ...x, route: await currentRoute(x.ti), side: sideOf(x.name) });
   }
+  items.sort((a, b) => a.start - b.start || a.track - b.track);
   return { timeline: t, items, skipped };
 }
 
@@ -148,127 +128,50 @@ function levelLine(who, o) {
 }
 
 /**
- * Prepare one clip: the actions (in order) and how to check them afterwards. Reads only.
- * Returns { actions: [() => Action], checks: [async () => string|null], lines: [], split?: {...} }
+ * Levels for the clips as they are on the timeline now (after the host routed): targets from
+ * audioplan.levelTargets ({plan, track, start, out, who}). Everything in one transaction (one Undo step), then
+ * checked. Problems go into plan.problems, lines into plan.lines.
  */
-async function prepare(timeline, it, res, usedTracks, order = "LR") {
-  const plan = { actions: [], checks: [], lines: [] };
-  if (res.action === "ask") return plan;
-  const out = Object.fromEntries((res.outputs || []).map((o) => [o.route, o]));
-  const label = it.name;
-
-  const setLevel = async (ti, o, who) => {
-    if (!o) return;
-    if (o.lufs === null) {
-      plan.lines.push(`${who}: ${o.note}`);
-      return;
+async function applyLevels(project, sequence, targets) {
+  const items = (await P.readItems(sequence)).items;
+  const actions = [];
+  const checks = [];
+  for (const t of targets) {
+    const ti = items.find((x) => x.kind === "audio" && x.track === t.track && Math.abs(x.start - t.start) < 0.002);
+    const p = t.plan;
+    if (!ti) {
+      p.problems.push(`${t.who}: клипът не е намерен за силата`);
+      continue;
     }
-    const lv = await levelParam(ti, who);
-    if (lv.keyframed) {
-      plan.lines.push(`${who}: вече има ключови кадри на силата: не е пипано (Cmd/Ctrl+Z и пусни пак)`);
-      return;
+    if (t.out.lufs === null) {
+      p.lines.push(`${t.who}: ${t.out.note}`);
+      continue;
     }
-    const l = levelActions(lv, o, who, it.inPt || 0);
-    plan.actions.push(...l.actions);
-    plan.checks.push(...l.checks);
-    plan.lines.push(...l.lines);
-    debug(`level ${who}: was ${lv.v0} (${lv.scale}), ${o.gain_db} dB, keyframes ${(o.keyframes || []).length}`);
-  };
-
-  if (it.route) {                        // already routed earlier (by us or by hand): only the level
-    await setLevel(it.ti, out[it.route] || out.as_is, label);
-    return plan;
+    try {
+      const lv = await levelParam(ti.ti, t.who);
+      if (lv.keyframed) {
+        p.lines.push(`${t.who}: вече има ключови кадри на силата: не е пипано (Cmd/Ctrl+Z и пусни пак)`);
+        continue;
+      }
+      const l = levelActions(lv, t.out, t.who, ti.inPt || 0);
+      actions.push(...l.actions);
+      checks.push(...l.checks.map((c) => ({ c, p })));
+      p.lines.push(...l.lines);
+      debug(`level ${t.who}: was ${lv.v0}, ${t.out.gain_db} dB, keyframes ${(t.out.keyframes || []).length}`);
+    } catch (e) {
+      p.problems.push(e.message || String(e));
+    }
   }
-  if (res.action === "use_left" || res.action === "use_right") {
-    const route = res.action === "use_left" ? "LL" : "RR";
-    const comp = await effect(route, it.ti);
-    const { chain } = await components(it.ti);
-    plan.actions.push(() => chain.createAppendComponentAction(comp));
-    plan.checks.push(async () => ((await currentRoute(it.ti)) === route ? null : `ефектът не се появи на ${label}`));
-    await setLevel(it.ti, out[route], label);
-    return plan;
-  }
-  if (res.action === "split") {
-    const items = (await P.readItems(timeline.sequence)).items;
-    const count = await timeline.sequence.getAudioTrackCount();
-    // tracks already promised to other clips of this same press count as busy
-    const taken = items.concat(usedTracks.map((u) => ({ kind: "audio", ...u })));
-    const target = freeAudioTrack(taken, it.track, it.start, it.end, count);
-    usedTracks.push({ track: target, start: it.start, end: it.end });
-    const editor = ppro.SequenceEditor.getEditor(timeline.sequence);
-    const { chain } = await components(it.ti);
-    // order "LR": this track keeps L, the copy gets R; "RL": the other way round
-    const keep = order === "RL" ? "RR" : "LL";
-    const give = keep === "LL" ? "RR" : "LL";
-    const ch = (r) => (r === "LL" ? "L" : "R");
-    const ll = await effect(keep, it.ti);
-    const lvl = await levelParam(it.ti, label);
-    if (lvl.keyframed) throw new UserError(`${label}: има ключови кадри на силата, не е разделено.`);
-    // the clone takes the clip as it is before this step: a plain copy that step 2 turns into R/R
-    plan.actions.push(() => editor.createCloneTrackItemAction(it.ti, TickTime.TIME_ZERO, 0, target - it.track, false, false));
-    plan.actions.push(() => chain.createAppendComponentAction(ll));
-    const l = levelActions(lvl, out[keep], `${ch(keep)} (A${it.track + 1})`, it.inPt || 0);
-    plan.actions.push(...l.actions);
-    plan.checks.push(...l.checks);
-    plan.lines.push(...l.lines, levelLine(`${ch(give)} (A${target + 1}, копие)`, out[give]));
-    plan.split = { it, target, count, outGive: out[give], give, label, who: `${ch(give)} (A${target + 1})` };
-    plan.checks.push(async () => ((await currentRoute(it.ti)) === keep ? null : `${label} не стана ${ch(keep)}/${ch(keep)}`));
-    return plan;
-  }
-  await setLevel(it.ti, out.as_is, label);
-  return plan;
-}
-
-/**
- * Apply all prepared clips: step 1 = everything that exists already (and the copies), step 2 = the
- * copies' R/R and level, all copies together. Returns how many Undo steps it took.
- */
-async function applyAll(project, timeline, plans) {
-  const actions = plans.flatMap((p) => p.actions);
   if (actions.length) {
-    transaction(project, "Asistent: оправи звука", (c) => {
+    transaction(project, "Asistent: сила на звука", (c) => {
       for (const make of actions) c.addAction(make());
     });
   }
-  const second = [];
-  const splits = plans.filter((p) => p.split);
-  if (splits.length) {
-    const after = (await P.readItems(timeline.sequence)).items;
-    for (const p of splits) {
-      const s = p.split;
-      const copy = after.find((x) => x.kind === "audio" && x.track === s.target && x.path === s.it.path &&
-        Math.abs(x.start - s.it.start) < 0.01);
-      if (!copy) {
-        p.problems = [s.target >= s.count
-          ? `Няма празна аудио писта до ${s.label}, а Premiere не добави нова: добави една (десен клик → Add Track) и пусни пак.`
-          : `Копието на ${s.label} не се появи на A${s.target + 1}.`];
-        continue;
-      }
-      const route = await currentRoute(copy.ti);
-      const lv = await levelParam(copy.ti, `${s.label} (копие)`);
-      const rr = route === s.give ? null : await effect(s.give, copy.ti);
-      const { chain } = await components(copy.ti);
-      if (rr) second.push(() => chain.createAppendComponentAction(rr));
-      const l = levelActions(lv, s.outGive, s.who, s.it.inPt || 0);
-      second.push(...l.actions);
-      p.checks.push(...l.checks);
-      p.checks.push(async () => ((await currentRoute(copy.ti)) === s.give ? null : `копието на ${s.label} не стана ${s.give === "LL" ? "L/L" : "R/R"}`));
-      debug(`split ${s.label}: copy on A${s.target + 1} (route before step 2: ${route})`);
-    }
-    if (second.length) {
-      transaction(project, "Asistent: оправи звука (копия R)", (c) => {
-        for (const make of second) c.addAction(make());
-      });
-    }
+  for (const { c, p } of checks) {
+    const bad = await c();
+    if (bad) p.problems.push(bad);
   }
-  for (const p of plans) {
-    p.problems = p.problems || [];
-    for (const check of p.checks) {
-      const bad = await check();
-      if (bad) p.problems.push(bad);
-    }
-  }
-  return { undoSteps: (actions.length ? 1 : 0) + (second.length ? 1 : 0) };
+  return { undoSteps: actions.length ? 1 : 0 };
 }
 
-module.exports = { readAudioSelection, prepare, applyAll };
+module.exports = { readAudioSelection, applyLevels };
