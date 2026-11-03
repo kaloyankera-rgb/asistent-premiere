@@ -49,7 +49,8 @@ Plan: `docs/SUBTITLES_PLAN.md`. Done: M0 probes (0.9.39), M1 text core (0.9.40),
 ## W. Windows and updates (0.9.87)
 1. USER / PC session: on the Windows PC unzip the release and double-click `Install Asistent (Windows).cmd`; open Premiere twice
    (host, font); check the panel and the engine; then one update from the panel once a newer release exists.
-2. The first GitHub release (`scripts/publish_release.sh`) when the user says so; afterwards every installed panel offers updates.
+2. Done 2026-11-04: release v0.9.87 published (the engine on this Mac reads it: current = latest). Later versions: commit, push,
+   `scripts/publish_release.sh` on the user's word.
 3. Windows: Shot Match / colour frames and the subtitle GPU path are still untried there (CUDA wheels in setup).
 
 ## D. Later phases
