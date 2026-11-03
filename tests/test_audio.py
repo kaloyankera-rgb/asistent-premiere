@@ -236,3 +236,20 @@ def test_near_silent_clip_is_not_pumped(voices):
     g = A.gain_for([x, x], A.TARGET_LUFS, A.PEAK_CEILING)
     noise_band = float(np.percentile(A._frames_db(x.astype(np.float64)), 10))   # in the speech band
     assert g.get("limited_by_noise") and noise_band + g["gain_db"] <= A.NOISE_MAX + 0.2
+
+
+def test_split_all_splits_every_stereo_clip_and_keeps_the_sum_under_the_ceiling(tmp_path):
+    # the user's workflow (2026-11-03): even identical channels are split on request; the analysis only informs
+    import numpy as np
+    import synth
+    from asistent.audio import analyze_item
+    s1, _ = synth.scene(20.0, seed=4)
+    x = synth.mic([(s1, 1.0)], 0.0, 15.0, seed=1)
+    stereo = synth.write_wav(tmp_path / "same.wav", [x, x])
+    r = analyze_item(stereo, force="split_all")
+    assert r["action"] == "split" and [o["route"] for o in r["outputs"]] == ["LL", "RR"]
+    assert r["reasons"][0].startswith("Разделено на L/L и R/R. За сведение: анализът вижда еднакви канали")
+    mix = sum(np.asarray(x, np.float64) * 10 ** (o["gain_db"] / 20) for o in r["outputs"])
+    assert 20 * np.log10(np.max(np.abs(mix))) <= -6.0 + 0.6        # true peak vs sample peak margin
+    mono = synth.write_wav(tmp_path / "mono.wav", [x])
+    assert analyze_item(mono, force="split_all")["action"] == "none"

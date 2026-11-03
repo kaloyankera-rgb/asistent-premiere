@@ -16,7 +16,7 @@ import time
 from . import config, devbridge
 
 HOST = devbridge.Bridge()
-COMMANDS = ("ping", "probe", "captions", "eval")
+COMMANDS = ("ping", "probe", "captions", "audio_route", "eval")
 SEEN_WITHIN = 45.0             # the host polls every <= 20 s; older than this it is not running
 _state = {"seen": 0.0, "version": None}
 
@@ -58,6 +58,21 @@ def place_captions(srt: str, sequence: str, project: str | None, bin_name: str =
     if not os.path.isfile(srt):
         raise ValueError("Файлът със субтитрите липсва: " + srt)
     return run("captions", {"srt": srt, "sequence": sequence, "project": project, "bin": bin_name})
+
+
+ROUTES = ("split", "split_rl", "use_left", "use_right")
+
+
+def route_audio(items: list, sequence: str, project: str | None) -> dict:
+    """L/L and R/R through the clips' own channels (host.jsx `as_audio_route`): items [{track, start, end, route}]."""
+    clean = []
+    for it in items if isinstance(items, list) else []:
+        if not isinstance(it, dict) or it.get("route") not in ROUTES:
+            raise ValueError("Неясно какво да се направи с клипа.")
+        clean.append({"track": int(it["track"]), "start": float(it["start"]), "end": float(it["end"]), "route": it["route"]})
+    if not clean:
+        raise ValueError("Няма клипове за разделяне.")
+    return run("audio_route", {"items": clean, "sequence": sequence, "project": project}, wait=120.0)
 
 
 def ensure_log_dir() -> None:

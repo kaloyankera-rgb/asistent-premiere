@@ -1,7 +1,7 @@
-// Asistent host: the ExtendScript (ES3) side. main.js evaluates this file for every command and calls as_run(name, args).
+﻿// Asistent host: the ExtendScript (ES3) side. main.js evaluates this file for every command and calls as_run(name, args).
 // Every function answers with a JSON string {ok, msg, ...}; nothing here throws out of as_run.
 
-var AS_HOST_VERSION = "0.9.45";
+var AS_HOST_VERSION = "0.9.56";
 
 function as_json(v) {
     if (v === null || v === undefined) return "null";
@@ -153,6 +153,145 @@ function as_captions(a) {
         tracks_before: before, tracks_after: after });
 }
 
+// ---------------------------------------------------------------- audio: L/L and R/R through the clip's channels
+// The user's workflow (reference video 2026-11-03): duplicate the audio onto the track below, then Audio Channels:
+// upper L/L, lower R/R; no Fill effects. No API sets the channels of a clip on the timeline (UXP has none;
+// ExtendScript only for a project item), so each side is an audio-only subclip of exactly the media range the clip
+// uses, with its own source mapping, put where the clips belong: the upper side overwrites the original audio,
+// the lower one goes on the nearest free track below; then everything is linked to the video again.
+// Probed in TEST.prproj 2026-11-03 (C0738): createSubClip(name, in, out, hard, takeVideo, takeAudio), mapping via
+// setMappingForChannel + setAudioChannelMapping (audioChannelsType is read-only), placement exact to the tick,
+// overwrite of the original audio without a crash, linkSelection relinks video + both sides.
+
+var AS_LR_BIN = "Asistent L-R";
+
+function as_tracks_clip(track, start, end) {
+    for (var k = 0; k < track.clips.numItems; k++) {
+        var c = track.clips[k];
+        if (Math.abs(c.start.seconds - start) < 0.002 && Math.abs(c.end.seconds - end) < 0.002) return c;
+    }
+    return null;
+}
+
+function as_in_bin(bin, item) {
+    if (!bin || !item) return null;
+    for (var i = 0; i < bin.children.numItems; i++) if (bin.children[i].nodeId === item.nodeId) return bin.children[i];
+    return null;
+}
+
+function as_busy(track, start, end) {
+    for (var k = 0; k < track.clips.numItems; k++) {
+        var c = track.clips[k];
+        if (Math.min(end, c.end.seconds) - Math.max(start, c.start.seconds) > 0.001) return true;
+    }
+    return false;
+}
+
+function as_side_clip(bin, pi, c, side) {
+    // one subclip per media range and side, reused on a second press (no duplicates in the bin)
+    var base = String(pi.name).replace(/\.[^.]*$/, "");
+    var name = base + " " + side + " " + c.inPoint.seconds.toFixed(2) + "-" + c.outPoint.seconds.toFixed(2);
+    for (var i = 0; i < bin.children.numItems; i++) if (bin.children[i].name === name) return bin.children[i];
+    var sub = pi.createSubClip(name, c.inPoint.ticks, c.outPoint.ticks, 0, 0, 1);
+    if (!sub) throw new Error("Premiere не направи копие на " + pi.name + ".");
+    sub.moveBin(bin);
+    var m = sub.getAudioChannelMapping;
+    var src = side === "L" ? 0 : 1;
+    if (!m.setMappingForChannel(0, src) || !m.setMappingForChannel(1, src) || !sub.setAudioChannelMapping(m)) {
+        throw new Error("Premiere не прие каналите " + side + "/" + side + " за " + name + ".");
+    }
+    return sub;
+}
+
+function as_deselect_all(seq) {
+    var sel = seq.getSelection();
+    for (var i = 0; i < sel.length; i++) sel[i].setSelected(false, i === sel.length - 1);
+}
+
+function as_where(c) {
+    return { track: c.parentTrackIndex, start: c.start.seconds, end: c.end.seconds, name: String(c.name) };
+}
+
+// one clip: {track, start, end, route: "split" | "split_rl" | "use_left" | "use_right"}
+function as_route_one(seq, bin, a) {
+    var track = seq.audioTracks[a.track];
+    if (!track) return { ok: false, msg: "няма аудио писта A" + (a.track + 1) };
+    var c = as_tracks_clip(track, a.start, a.end);
+    if (!c) return { ok: false, msg: "клипът не е на мястото си (преместен ли е?)" };
+    var pi = c.projectItem;
+    if (as_in_bin(bin, pi)) {
+        var mine = /\s(L|R)\s[\d.]+-[\d.]+$/.exec(String(pi.name));
+        return { ok: true, status: "already", side: mine ? mine[1] : null, upper: as_where(c) };
+    }
+    var map = pi.getAudioChannelMapping;
+    if (!map || map.audioChannelsType !== 1 || map.audioClipsNumber !== 1) {
+        return { ok: false, msg: "клипът не е един стерео клип (виж Modify > Audio Channels), не е пипан" };
+    }
+    if (track.isLocked()) return { ok: false, msg: "пистата A" + (a.track + 1) + " е заключена" };
+    var split = a.route === "split" || a.route === "split_rl";
+    var upperSide = a.route === "use_right" || a.route === "split_rl" ? "R" : "L";
+    var lowerSide = upperSide === "L" ? "R" : "L";
+    var below = -1;
+    if (split) {
+        for (var t = a.track + 1; t < seq.audioTracks.numTracks; t++) {
+            var tr = seq.audioTracks[t];
+            if (!tr.isLocked() && !as_busy(tr, a.start, a.end)) { below = t; break; }
+        }
+        if (below < 0) return { ok: false, msg: "няма свободна аудио писта под A" + (a.track + 1) + ": добави една (десен клик > Add Track) и натисни пак" };
+    }
+    // what the original audio was linked to (the video, other audio of the same clip), to link it all again
+    var keep = [], li = c.getLinkedItems();
+    for (var k = 0; li && k < li.numItems; k++) {
+        var x = li[k];
+        if (x.nodeId === c.nodeId) continue;
+        keep.push({ video: String(x.mediaType) === "Video", track: x.parentTrackIndex, start: x.start.seconds, end: x.end.seconds });
+    }
+    var up = as_side_clip(bin, pi, c, upperSide);
+    var low = split ? as_side_clip(bin, pi, c, lowerSide) : null;
+    var at = c.start.seconds, inPt = c.inPoint.seconds;
+    if (low && !seq.audioTracks[below].overwriteClip(low, at)) return { ok: false, msg: "Premiere не сложи копието на A" + (below + 1) };
+    if (!track.overwriteClip(up, at)) return { ok: false, msg: "Premiere не сложи " + upperSide + "/" + upperSide + " на A" + (a.track + 1) };
+    // check: both sides exactly where the original was, the same part of the media
+    var u = as_tracks_clip(seq.audioTracks[a.track], a.start, a.end);
+    var l = low ? as_tracks_clip(seq.audioTracks[below], a.start, a.end) : null;
+    var bad = [];
+    if (!u || u.projectItem.nodeId !== up.nodeId || Math.abs(u.inPoint.seconds - inPt) > 0.002) bad.push(upperSide);
+    if (low && (!l || l.projectItem.nodeId !== low.nodeId || Math.abs(l.inPoint.seconds - inPt) > 0.002)) bad.push(lowerSide);
+    if (bad.length) return { ok: false, msg: "проверката не мина за " + bad.join(", ") + ": провери клипа ръчно" };
+    var linked = false;
+    try {
+        as_deselect_all(seq);
+        var parts = [u];
+        if (l) parts.push(l);
+        for (var j = 0; j < keep.length; j++) {
+            var tracks = keep[j].video ? seq.videoTracks : seq.audioTracks;
+            var o = tracks[keep[j].track] ? as_tracks_clip(tracks[keep[j].track], keep[j].start, keep[j].end) : null;
+            if (o) parts.push(o);
+        }
+        for (var p = 0; p < parts.length; p++) parts[p].setSelected(true, p === parts.length - 1);
+        linked = parts.length > 1 ? !!seq.linkSelection() : false;
+        as_deselect_all(seq);
+    } catch (e) { linked = false; }
+    return { ok: true, status: "done", upperSide: upperSide, upper: as_where(u), lower: l ? as_where(l) : null,
+        lowerSide: l ? lowerSide : null, linked: linked, relinked: keep.length };
+}
+
+// args: {project, sequence, items: [...]} -> {ok, items: [result per item, in order]}
+function as_audio_route(a) {
+    if (!app.project) return as_result(false, "Няма отворен проект.");
+    var seq = app.project.activeSequence;
+    if (!seq) return as_result(false, "Няма активна секвенция.");
+    if (a.sequence && seq.name !== a.sequence) return as_result(false, "Активната секвенция е „" + seq.name + "“, а клиповете са от „" + a.sequence + "“.");
+    if (a.project && as_norm(app.project.path) !== as_norm(a.project)) return as_result(false, "Отворен е друг проект. Нищо не е пипано.");
+    var bin = as_find_bin(AS_LR_BIN, true);
+    var out = [], items = a.items || [];
+    for (var i = 0; i < items.length; i++) {
+        try { out.push(as_route_one(seq, bin, items[i])); }
+        catch (e) { out.push({ ok: false, msg: String(e.message || e) }); }
+    }
+    return as_result(true, "ok", { items: out });
+}
+
 // test bridge only (the engine forwards it only with devbridge.enabled; refused outside TEST.prproj)
 function as_eval(a) {
     if (!app.project || String(app.project.name) !== "TEST.prproj") return as_result(false, "eval само в TEST.prproj.");
@@ -165,6 +304,7 @@ function as_run(name, args) {
         if (name === "ping") return as_ping();
         if (name === "probe") return as_probe();
         if (name === "captions") return as_captions(args || {});
+        if (name === "audio_route") return as_audio_route(args || {});
         if (name === "eval") return as_eval(args || {});
         return as_result(false, "Непозната команда: " + name);
     } catch (e) {

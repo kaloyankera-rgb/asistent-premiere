@@ -369,22 +369,39 @@ def apply_keyframes(x: np.ndarray, keys: list[tuple[float, float]], offset: floa
     return x * 10 ** (np.interp(t, kt, kv) / 20)
 
 
+_KINDS = {"same_voice": "един глас от два микрофона", "one_channel": "звук само в единия канал", "dual_mono": "еднакви канали",
+          "safety": "копие за безопасност", "phase_inverted": "обърната фаза", "stereo_mic": "стерео микрофон",
+          "two_mics": "два микрофона", "uncertain": "несигурно", "silent": "без говор", "mono": "моно"}
+
+
 def analyze_item(path: str, start: float = 0.0, end: float | None = None, force: str | None = None,
                  target: float = TARGET_LUFS, ceiling: float = PEAK_CEILING, phrases: bool = False) -> dict:
     x = read_range(path, start, end)
     c = classify(x)
+    # "split_all": the user's own workflow (2026-11-03): every stereo clip becomes L/L + R/R, whatever the analysis
+    # thinks (their reference clip C0737 measures as one voice on two mics, and they split it by hand). The analysis
+    # is then only information, and the levels of the two tracks are set so their sum stays under the ceiling.
+    if force == "split_all":
+        if x.shape[0] >= 2:
+            if c["kind"] != "two_mics":
+                # the analysis' own reasons are worded as its decision ("оставен е както е"): only say what it saw
+                c["reasons"] = [f"Разделено на L/L и R/R. За сведение: анализът вижда {_KINDS.get(c['kind'], c['kind'])}."]
+            force = "split"
+        else:
+            force = None
+        split_all = True
+    else:
+        split_all = False
     action = force or c["action"]
     # splitting is only for two independent microphones: one sound on two tracks plays twice
-    refused = force == "split" and c["kind"] not in ("two_mics", "uncertain")
+    refused = force == "split" and not split_all and c["kind"] not in ("two_mics", "uncertain")
     if refused:
         action = c["action"] if c["action"] in ("use_left", "use_right") else "none"
-    if force and not refused:
+    if force and not refused and not split_all:
         chosen = {"use_left": "Само L", "use_right": "Само R", "split": "Раздели L/R", "none": "Само сила"}
         auto = {"use_left": "Само L", "use_right": "Само R", "split": "Раздели L/R", "none": "без разпределяне",
                 "ask": "да пита"}.get(c["action"], c["action"])
-        kinds = {"same_voice": "един глас от два микрофона", "one_channel": "звук само в единия канал", "dual_mono": "еднакви канали", "safety": "копие за безопасност",
-                 "phase_inverted": "обърната фаза", "stereo_mic": "стерео микрофон", "two_mics": "два микрофона",
-                 "uncertain": "несигурно", "silent": "без говор", "mono": "моно"}
+        kinds = _KINDS
         lines = [f"Избрано ръчно: {chosen.get(force, force)}."]
         if force != c["action"]:
             lines.append(f"За сведение: анализът вижда {kinds.get(c['kind'], c['kind'])} и сам би избрал {auto}.")

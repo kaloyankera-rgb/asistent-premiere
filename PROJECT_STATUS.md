@@ -1,4 +1,4 @@
-# Project status — Asistent 0.9.55 (2026-11-03)
+# Project status — Asistent 0.9.56 (2026-11-03)
 
 Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.48 via
 UnifiedPluginInstallerAgent, engine 0.9.48 as LaunchAgent `com.contentstudio.asistent` (starts at login).
@@ -6,6 +6,13 @@ UnifiedPluginInstallerAgent, engine 0.9.48 as LaunchAgent `com.contentstudio.asi
 Git: `tools/asistent` repo, last commit see `git log`. Tests: 329 pytest + 70 node, all passing at 0.9.48.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
+
+## Audio L/L + R/R (0.9.56, user's request 2026-11-03)
+The button splits every stereo clip into L/L (original place) and R/R (track below) through subclips with their own source
+channel mapping, linked to the video (see CHANGELOG). **Verified in TEST.prproj by the user** (Audio Channels dialog) and by
+readback of the timeline (placement, In points, links, repeat press without duplicates). Not tried: clips with a speed change
+(skipped by design), nested sequences, locked tracks beyond the refusal message, a project where the bin „Asistent L-R“ was
+renamed or the subclips deleted by hand (the clip is then split again with new subclips).
 
 ## Panel layout (0.9.55, user's request 2026-11-03)
 Cards per feature (title, one-line purpose, buttons), tooltips on every button, three views: Инструменти / Дневник

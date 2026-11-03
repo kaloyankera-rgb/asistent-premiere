@@ -47,14 +47,14 @@
 
     <div class="card" id="secAudio">
       <div class="title">ЗВУК</div>
-      <p class="desc">Маркирай клиповете с говор. Силата отива към −17 LUFS, пикът не минава −6 dB.</p>
-      <button id="audio" class="action" data-tip="Разпознава какво има в левия и десния канал, разпределя ги и изравнява силата на маркираните клипове.">Оправи звука</button>
+      <p class="desc">Маркирай клиповете (видеото или звука). Левият и десният канал отиват на две писти: горе L/L, отдолу R/R, свързани с картината. Силата отива към −17 LUFS, пикът не минава −6 dB.</p>
+      <button id="audio" class="action" data-tip="Всеки стерео клип: копие с L/L на мястото на звука и копие с R/R на пистата отдолу (Audio Channels, без Fill ефекти), свързани с видеото. После изравнява силата на двете. Повторно натискане не прави нови копия.">Оправи звука</button>
       <button id="audioMore" class="disclose" data-tip="Показва ръчните варианти за звука.">Ръчно ▸</button>
       <div id="audioManual" class="row buttons" hidden>
-        <button class="small" data-force="split" data-tip="Левият канал остава тук, десният отива на копие на пистата отдолу.">Раздели L/R</button>
-        <button class="small" data-force="split_rl" data-tip="Десният канал остава тук, левият отива на копие на пистата отдолу.">Раздели R/L</button>
-        <button class="small" data-force="use_left" data-tip="Ползва само левия канал в двете страни.">Само L</button>
-        <button class="small" data-force="use_right" data-tip="Ползва само десния канал в двете страни.">Само R</button>
+        <button class="small" data-force="split" data-tip="Същото като „Оправи звука“: L/L на мястото на звука, R/R на пистата отдолу.">Раздели L/R</button>
+        <button class="small" data-force="split_rl" data-tip="Като „Раздели L/R“, но обратно: R/R на мястото на звука, L/L на пистата отдолу.">Раздели R/L</button>
+        <button class="small" data-force="use_left" data-tip="Слага копие с L/L (левият канал в двете страни) на мястото на звука.">Само L</button>
+        <button class="small" data-force="use_right" data-tip="Слага копие с R/R (десният канал в двете страни) на мястото на звука.">Само R</button>
         <button class="small" data-force="none" data-tip="Не пипа каналите, само изравнява силата.">Само сила</button>
         <button class="small" data-force="phrases" data-tip="Като „Оправи звука“, плюс ключови кадри, които изравняват тихите и силните изречения.">Изравни фразите</button>
       </div>
