@@ -143,6 +143,10 @@ function describe(result, timeline, lay) {
     for (const m of g.members) {
       if (m.clip !== g.anchor) box.appendChild(el("div", "line", `${name(m.clip)}  ${signed(m.offset)} спрямо ${name(g.anchor)}`));
     }
+    // pairs that needed the scattered-window rule or the clocks say how they were decided
+    for (const x of result.accepted_notes || []) {
+      if (g.members.some((m) => m.clip === x.a)) box.appendChild(el("div", "hint", `${name(x.a)} и ${name(x.b)}: ${x.text}`));
+    }
     blocks.push(box);
   });
   const notes = [];
@@ -157,7 +161,9 @@ function describe(result, timeline, lay) {
   for (const u of (lay && lay.uncertain) || []) notes.push(`Несигурно място: ${u.name} (${u.reason}).`);
   for (const c of result.conflicts) notes.push(`Не е синхронизирано: ${c.reason}.`);
   for (const s of result.suggestions) {
-    notes.push(`Възможно, но несигурно (не е приложено): ${name(s.a)} и ${name(s.b)} ${signed(s.offset)}. Провери ръчно.`);
+    const why = (s.reasons || []).join(" ");
+    notes.push(`Възможно, но несигурно (не е приложено): ${name(s.a)} и ${name(s.b)} ${signed(s.offset)}.` +
+      `${why ? ` Причина: ${why}` : ""} Провери ръчно.`);
   }
   for (const s of timeline.skipped) notes.push(`Пропуснат: ${s}.`);
   for (const n of notes) blocks.push(el("div", "warn", n));

@@ -6,6 +6,14 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.54 - SYNC: fewer false „несигурно“, every decision explained
+- Cause found on the Masterhaus shoot (two pairs „Възможно, но несигурно“, like the user's fx39059/C9052 +2.273 s): every window found a strong, real peak, but they spread over 11-18 ms, and a window counted only within 5 ms of the line. Two POVs metres apart hear each speaker over a different path difference (1 ms = 34 cm), so speech from different places gives slightly different offsets; there is no single exact one.
+- New High rule for scattered windows (`sync.py`: `_band_cluster`, `LOOSE_BAND` 20 ms): at least 4 windows and 80 % of all (and of the informative) windows strong and inside one 20 ms band, median peak ratio >= 1.3, no second candidate, and the spread must not be a clock drift (`_drifting`: a straight line over >= 60 s stays refused). The offset is the band's median (error under 10 ms). The quick look before the full check accepts such candidates too.
+- The cameras' clocks as a second witness (`groups._clock_check`): a scattered-rule pair whose learnt-clock times disagree by > 10 s is vetoed (same line from another take); an uncertain pair (no drift, no second offset) whose recording times agree with the audio within 2 s becomes High. Raw clocks may confirm (two clips only, as in the user's case) but never veto.
+- Results: Masterhaus 7 → 10 synced pairs (fx31030/C0730 +2.208 s, fx31036/C0740 +6.952 s by the band rule, C0741/fx31037 +9.955 s by the clocks); learnt clocks agree with all 10 audio offsets within 0.8 s. GStroy 16x9 11 groups (+2 by the band rule, clock-consistent within 1.4 s like its strict pairs). GStroy 9x16 unchanged (10 groups); unrelated takes, drift and repeated sounds still never High.
+- Panel: an uncertain pair now shows its reason; an accepted pair that needed the band rule or the clocks says so under its group.
+- Premiere's own Synchronize cannot be called: neither UXP nor ExtendScript exposes it.
+
 ## 0.9.53 - SYNC: everything in recording order, also clips without a partner
 - Clips without a second POV were placed after all groups. Now groups and single clips are laid out in one list in the order they were recorded (user's example: A 10:00, A+B 10:05, A 10:15 stays in that order).
 - Recording time: the engine reads each file's `creation_time` (Sony writes the record start; equal to the XML sidecar), else the file time minus the duration (`media.probe`: `recorded`, `recorded_from`).
