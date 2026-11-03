@@ -6,6 +6,11 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.52 - SYNC: no markers in the new sequence
+- „Синхронизирай камерите“ no longer writes the „Група N“ / „Без синхрон“ markers into the new `SYNC – …` sequence (user, 2026-11-03: the timeline must stay clean). They were labels only; the clips are placed from the engine's offsets, so nothing about the sync changes. The group list stays in the panel's result. The user's own sequence and its markers were never touched and still are not.
+- Tests: the Bulgarian dictionary loader (`lexicon.py`) now collects the files spylls 0.1.7 leaves open; their ResourceWarning used to fail whichever test was running at that moment under `-W error` (5 random failures).
+- Numbering: 0.9.49-0.9.51 are skipped because a panel build labelled 0.9.51 that is not in this repository was seen on another computer; the next real version is 0.9.52 so the two can never be confused.
+
 ## 0.9.48 - subtitles: 5 times faster, numbers aligned, the Bulgarian transcription guide built in
 - Speed (C9025, 8 pieces, 49.6 s of speech: **230 s → 45 s** from a cold cache): one Whisper reading per stretch of a source file with 4 s of context around the pieces and the windows of nearby pieces merged (91 s of audio read instead of 252 s); several windows read at the same time (`asr.workers()`: 5 readings × 2 threads on the M4 Max; one reading with 10 threads was SLOWER than with 4); alignment and checking run per window in parallel; the second opinion uses a cheaper decode.
 - Words: unknown words are repaired by the smallest edit that gives exactly one dictionary word (`lexicon.repair`: reduced vowel, dropped vowel as „одяло“ → „одеяло“, two vowel edits „одялоце“ → „одеялце“, one letter „Взиваме“ → „Взимаме“ when the recording says „взимаме“ elsewhere); diminutives the dictionary lacks are accepted by their stem; „евро“ is known. Every repair is listed in the result.

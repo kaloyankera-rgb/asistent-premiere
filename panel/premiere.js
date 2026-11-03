@@ -245,20 +245,12 @@ async function buildSyncSequence(project, timeline, lay) {
     ["overwrite(clip)", (p, t) => editor.createOverwriteItemAction(p.item, t, p.track, p.track)],
   ];
   let way = null;
-  let markersDone = false;
-  // first choice: every clip and every marker in ONE transaction, so one Undo removes it all
+  // first choice: every clip in ONE transaction, so one Undo removes it all (no markers: layout.js)
   try {
-    const markers = await maybe(ppro.Markers, "getMarkers", sequence);
     transaction(project, "Asistent: SYNC", (c) => {
       for (const p of others) c.addAction(ways[0][1](p, at(p.zero + p.srcIn)));
-      if (markers) {
-        for (const m of lay.markers) {
-          c.addAction(markers.createAddMarkerAction(m.name, "Comment", at(m.time), TickTime.TIME_ZERO, m.note));
-        }
-      }
     });
     way = "done";
-    markersDone = !!markers;
     debug(`SYNC: ${others.length} clips placed in one transaction`);
   } catch (e) {
     debug(`one-transaction placing failed: ${e && e.message ? e.message : e}`);
@@ -288,17 +280,6 @@ async function buildSyncSequence(project, timeline, lay) {
       throw new UserError(`Premiere не прие ${p.name} (${last.message || last}). ${name} остана непълна: ` +
         "изтрий я. Подробности има в лога на engine-а.");
     }
-  }
-
-  if (!markersDone) try {
-    const markers = await ppro.Markers.getMarkers(sequence);
-    transaction(project, "Asistent: маркери", (c) => {
-      for (const m of lay.markers) {
-        c.addAction(markers.createAddMarkerAction(m.name, "Comment", at(m.time), TickTime.TIME_ZERO, m.note));
-      }
-    });
-  } catch (e) {
-    debug(`markers skipped: ${e && e.message ? e.message : e}`);
   }
 
   // verify: each clip must sit on its track with its media starting where the engine says

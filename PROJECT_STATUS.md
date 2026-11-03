@@ -1,7 +1,8 @@
-# Project status — Asistent 0.9.48 (2026-11-02)
+# Project status — Asistent 0.9.52 (2026-11-03)
 
 Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.48 via
 UnifiedPluginInstallerAgent, engine 0.9.48 as LaunchAgent `com.contentstudio.asistent` (starts at login).
+0.9.49-0.9.51 are skipped (a foreign build labelled 0.9.51 was seen on another computer, not in this repo).
 Git: `tools/asistent` repo, last commit see `git log`. Tests: 329 pytest + 70 node, all passing at 0.9.48.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
@@ -15,7 +16,9 @@ UXP panel + Python engine on localhost, setup/release scripts for Mac, engine au
   5 ms tolerance, drift ≤ 100 ppm only over ≥ 60 s, groups of High pairs, same-folder pairs skipped,
   parallel, audio cache. Real footage (GStroy 9x16, FX3 + FX30, 28 clips): 10 groups, 0 false, ~6.6 s.
 - Panel: timeline selection → new sequence `SYNC – <sequence>` in bin `SYNC`, one track per camera folder,
-  groups in timeline order, markers; verified in Premiere 0.3.1 (28/28 clips placed, max 8.3 ms = half frame).
+  groups in timeline order; verified in Premiere 0.3.1 (28/28 clips placed, max 8.3 ms = half frame).
+- 0.9.52: no markers are written into the SYNC sequence any more (they were labels only; the group list is in the panel).
+  Node-tested; NOT yet verified in Premiere.
 - Not done: manual sync for very short clips (< 8 s, only listed); sub-frame audio alignment.
 
 ## Phase 3 — Smart Audio (Partial verification)
