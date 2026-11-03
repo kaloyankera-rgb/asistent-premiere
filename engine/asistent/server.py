@@ -70,6 +70,7 @@ from .managed import ManagedStore
 from . import shotmatch as SHOT
 from . import asr
 from . import subtitle_job
+from . import roughcut_job
 from . import devbridge
 from . import hostbridge
 from . import captionstate
@@ -172,6 +173,17 @@ def _start_audio(body: dict) -> dict:
         return res
 
     return {"job": JOBS.submit("audio", work).id}
+
+
+def _start_roughcut(body: dict) -> dict:
+    roughcut_job.validate(body)          # fail now, with the message, not inside the job
+
+    def work(job):
+        def progress(f, msg):
+            job.progress, job.message = f, msg
+        return roughcut_job.run(body, progress, lambda: job.cancelled)
+
+    return {"job": JOBS.submit("roughcut", work).id}
 
 
 def _start_subtitles(body: dict) -> dict:
@@ -293,6 +305,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, {"job": JOBS.submit("subtitles_model", work).id})
             if self.path == "/subtitles":
                 return self._send(200, _start_subtitles(body))
+            if self.path == "/roughcut":
+                return self._send(200, _start_roughcut(body))
             if self.path == "/host/result":
                 hostbridge.HOST.result(str(body.get("id") or ""), bool(body.get("ok")), body.get("data"))
                 hostbridge.touch()

@@ -1,4 +1,4 @@
-# Project status — Asistent 0.9.57 (2026-11-03)
+# Project status — Asistent 0.9.63 (2026-11-03)
 
 Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.48 via
 UnifiedPluginInstallerAgent, engine 0.9.48 as LaunchAgent `com.contentstudio.asistent` (starts at login).
@@ -18,6 +18,18 @@ renamed or the subclips deleted by hand (the clip is then split again with new s
 synthetic speakers, real Masterhaus clips) and verified in TEST.prproj by readback of the effect parameters (single clip, second
 press, four clips). **Confirmed by the user by eye in Premiere's Dynamics panel: Limiter on, Threshold −6 dB** (the API reports the
 normalised 0.9; the −1 dB default = 0.98333 fixes the scale). The limiter is per clip, not on the Mix track (not scriptable).
+
+## Phase 8 rough cut (0.9.59, user's go-ahead 2026-11-03; plan `docs/ROUGHCUT_PLAN.md`)
+M0 probes done and verified in TEST.prproj (XML import path). 0.9.59 was pressed by the user in TEST.prproj (v1-v4): the sequences were built, four problems found and fixed in 0.9.60 (see CHANGELOG), the carry-over of effects is new and unverified. M1-M2 (speech map, pauses, EDL, XML, card) built and engine-tested,
+run on real footage by number. **NOT yet pressed in Premiere** (open TEST.prproj, select fx31028 + C0728 video and audio in
+„SYNC – C9025 (3)“, press „Груб монтаж“: expect a new sequence „ГРУБ – … v1“ in bin „Груб монтаж“, same camera offset, source
+sequence unchanged). Takes, Smart takes, review view, evaluation harness: M3-M4 not started.
+
+## Colour buttons (0.9.58, user's request 2026-11-03, TODO B7)
+Card ЦВЯТ: „Авто цвят“ (= the old „Бяло и експозиция“), „Бяло“ and „Експозиция“ (the same analysis and apply, narrowed to one
+correction), and „Изравни POV-тата“ (= Auto Shot Match, renamed). No engine change. Contrast and Saturation have no single-clip
+algorithm, so they are not separate buttons; they are matched inside „Изравни POV-тата“. Node-tested; **NOT yet tried in Premiere**
+(press each new button in TEST.prproj: Бяло and Експозиция on a clip, a second press, Авто цвят afterwards, then Match POVs).
 
 ## Panel layout (0.9.55, user's request 2026-11-03)
 Cards per feature (title, one-line purpose, buttons), tooltips on every button, three views: Инструменти / Дневник

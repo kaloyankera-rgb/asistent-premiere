@@ -4,18 +4,20 @@
 
 const ok = (level, c) => c === "high" || (level === "all" && c === "medium");
 
-function plansFor(clips, results, level) {
+// `only` narrows the same plans to one correction ("white" or "exposure") for the separate buttons; null is Auto Color
+// and gives exactly what this function gave before the buttons were split.
+function plansFor(clips, results, level, only = null) {
   const plans = [];
   clips.forEach((clip, i) => {
     const r = results[i];
     if (!r || r.error) return;
     // Lumetri units for the wanted stops (engine: the probe's Exposure curve); older engines send stops only
     const units = r.exposure.units ?? r.exposure.stops;
-    const exposure = r.exposure.stops && ok(level, r.exposure.confidence) ? units : null;
-    const wb = !r.white.balanced && ok(level, r.white.confidence);
+    const exposure = only !== "white" && r.exposure.stops && ok(level, r.exposure.confidence) ? units : null;
+    const wb = only !== "exposure" && !r.white.balanced && ok(level, r.white.confidence);
     const left = [];
-    if (level === "sure" && r.exposure.stops && r.exposure.confidence === "medium") left.push("експозицията");
-    if (level === "sure" && !r.white.balanced && r.white.confidence === "medium") left.push("бялото");
+    if (level === "sure" && only !== "white" && r.exposure.stops && r.exposure.confidence === "medium") left.push("експозицията");
+    if (level === "sure" && only !== "exposure" && !r.white.balanced && r.white.confidence === "medium") left.push("бялото");
     if (exposure || wb) plans.push({ clip, res: r, exposure, wb, left });
   });
   return plans;

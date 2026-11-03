@@ -572,4 +572,77 @@ async function devChain(clip) {
   return out;
 }
 
-module.exports = { readVideoSelection, apply, exportFrame, timelineFrames, lumetriState, applyShotMatch, devWrite, devChain };
+// ---------------------------------------------------------------- rough cut: carry a clip's colour to its new pieces
+
+const KNOWN_VIDEO = /^(lumetri color|motion|opacity)$/i;
+
+// The Lumetri values Asistent handles on a clip (any Lumetri, its own or a hand grade: the five Basic Correction values only),
+// whether the correction is Asistent's own, and the names of the other effects (not carried). null = no Lumetri and no effects.
+async function readLumetri(clip) {
+  const chain = await maybe(clip.ti, "getComponentChain");
+  if (!chain) return null;
+  const count = await chain.getComponentCount();
+  const out = { values: null, owned: false, others: [] };
+  for (let i = 0; i < count; i++) {
+    const comp = await chain.getComponentAtIndex(i);
+    const match = (await maybe(comp, "getMatchName")) || "";
+    const name = (await maybe(comp, "getDisplayName")) || "";
+    if (!/lumetri/i.test(match)) {
+      if (!KNOWN_VIDEO.test(name)) out.others.push(name || match);
+      continue;
+    }
+    if (out.values) {
+      out.others.push("втори Lumetri");
+      continue;
+    }
+    const ps = await params(comp);
+    const values = {};
+    for (const k of Object.keys(DEFAULTS)) values[k] = ps[k] ? await value(ps[k]) : DEFAULTS[k];
+    if (Object.keys(values).some((k) => Math.abs(values[k] - DEFAULTS[k]) > 1e-6)) {
+      out.values = values;
+      const own = await engine.managedCheck(clipKey(clip), await snapshot(comp)).catch(() => null);
+      out.owned = !!(own && own.owned);
+    }
+  }
+  return out.values || out.others.length ? out : null;
+}
+
+// Put those values on the new pieces: a new Lumetri (one step), then the values (one step). A piece of a clip whose
+// correction was Asistent's own is recorded as Asistent's own again, so the colour buttons keep updating it.
+async function copyLumetri(project, pairs) {
+  const done = [];
+  const fresh = [];
+  for (const pr of pairs) {
+    try {
+      const t = await target(pr.clip);
+      if (t.skip || !t.isNew) {
+        done.push({ pr, problem: t.skip || "на новото парче вече има Lumetri" });
+        continue;
+      }
+      fresh.push({ pr, t });
+    } catch (e) {
+      done.push({ pr, problem: e && e.message ? e.message : String(e) });
+    }
+  }
+  if (fresh.length) {
+    transaction(project, "Asistent: Lumetri на грубия монтаж", (c) => {
+      for (const { t } of fresh) c.addAction(t.chain.createAppendComponentAction(t.comp));
+    });
+    for (const f of fresh) await attached(f.t);
+    transaction(project, "Asistent: цвят на грубия монтаж", (c) => {
+      for (const { pr, t } of fresh) {
+        const values = {};
+        for (const k of Object.keys(pr.values)) if (Math.abs(pr.values[k] - DEFAULTS[k]) > 1e-6) values[k] = pr.values[k];
+        pr.written = values;
+        for (const make of setActions(t, values)) c.addAction(make());
+      }
+    });
+    for (const { pr, t } of fresh) {
+      if (pr.owned) await remember({ clip: pr.clip, t, final: pr.written, values: pr.written });
+      done.push({ pr });
+    }
+  }
+  return done;
+}
+
+module.exports = { readVideoSelection, apply, exportFrame, timelineFrames, lumetriState, applyShotMatch, readLumetri, copyLumetri, devWrite, devChain };

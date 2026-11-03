@@ -30,7 +30,7 @@ Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 6. **Managed correction ownership: built in 0.9.24** (fingerprints in `managed.json`). Confirm in Premiere:
    „Приложи сигурните“ (white only) → „Цвят“ → „Приложи и средните“ adds the exposure to the same Lumetri;
    touching any Lumetri slider by hand → the next apply leaves the clip alone.
-7. **Split operations into independent buttons**: White Balance, Exposure (exists combined), then Contrast and
+7. **Split operations into independent buttons** (0.9.58: Бяло, Експозиция, Авто цвят and „Изравни POV-тата“ done and node-tested, to be tried in TEST.prproj; Contrast/Saturation stay inside Shot Match, no single-clip algorithm exists): White Balance, Exposure (exists combined), then Contrast and
    Saturation (only if the probe shows them writable and measurable), Skin Tones (global only unless local
    tools exist → PARTIAL/BLOCKED), Shot Match (same scene: groups from sync or the selection; match measured
    differences, never copy values), Auto Color (runs only justified modules in the spec order).
@@ -48,8 +48,11 @@ Plan: `docs/SUBTITLES_PLAN.md`. Done: M0 probes (0.9.39), M1 text core (0.9.40),
 
 ## D. Later phases
 5 Client profiles + Prepare Project (in the office; draft in `profiles.py`/`prepare.py`; Basecamp paste),
-7 Bulgarian subtitles, 8 rough-cut markers + export QA, 9 Windows (run `setup_win.ps1`, silent install with
+7 Bulgarian subtitles, 8 AI Auto Rough Cut (plan: `docs/ROUGHCUT_PLAN.md`, next step M0 = probes in TEST.prproj: XML import from code, trimming, markers; `rapidfuzz` needs the user's OK) + export QA, 9 Windows (run `setup_win.ps1`, silent install with
 UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips, sub-frame audio alignment.
+
+## P8. Rough cut (plan `docs/ROUGHCUT_PLAN.md`)
+Done: M0 probes, M1 speech map, M2 Safe/Smart pauses (0.9.59). Next: (1) USER: press „Груб монтаж“ in TEST.prproj and judge the cuts by ear/eye; (2) M3 takes (`takes.py`, `rapidfuzz` needs the user's OK; difflib first) + the „Преглед“ view; (3) M4 `takescore.py` and Smart takes, `scripts/eval_roughcut.py` against the user's own rough cut XML; (4) M5/M6 optional items.
 
 ## T. Housekeeping (documentation)
 T1. Refresh `BUGS.md`: last fully reviewed at 0.9.18; fold in findings from 0.9.19-0.9.41 (see `PROJECT_STATUS.md`, `PROGRESS.md`) and drop fixed items.

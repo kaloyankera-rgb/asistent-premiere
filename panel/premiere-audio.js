@@ -145,6 +145,7 @@ async function applyLevels(project, sequence, targets) {
       continue;
     }
     try {
+      if (t.noLimiter) throw Object.assign(new Error("skip"), { skip: true });
       // the limiter (Dynamics > Limiter -6 dB): appended in the same step as the levels, switched on in the next
       // (a new effect has no parameters before it is applied); an existing Dynamics is reused, never doubled
       const dyn = await dynamicsOf(ti.ti);
@@ -162,7 +163,7 @@ async function applyLevels(project, sequence, targets) {
         p.lines.push(`${t.who}: лимитерът не е пипан: ${lim.why}.`);
       }
     } catch (e) {
-      p.problems.push(`${t.who}: лимитер: ${e.message || e}`);
+      if (!e.skip) p.problems.push(`${t.who}: лимитер: ${e.message || e}`);
     }
     if (t.out.lufs === null) {
       p.lines.push(`${t.who}: ${t.out.note}`);
@@ -194,6 +195,30 @@ async function applyLevels(project, sequence, targets) {
   }
   const switched = await switchLimiterOn(project, limit);
   return { undoSteps: (actions.length ? 1 : 0) + (switched ? 1 : 0) };
+}
+
+// What a rough cut must carry over from an audio clip (docs/ROUGHCUT_PLAN.md: a new sequence has no effects): the Volume
+// level in dB (null at 0 dB), whether the level is keyframed (not carried), whether Asistent's limiter (Dynamics, Limiter
+// −6 dB) is on, and the names of the other effects (said as not carried). Read only.
+const KNOWN_AUDIO = /^(volume|channel volume|dynamics|panner|mute)$/i;
+async function readEffects(ti) {
+  const out = { gain_db: null, keyframed: false, limiter: false, others: [] };
+  try {
+    const lv = await levelParam(ti, "клипа");
+    out.keyframed = lv.keyframed;
+    if (!lv.keyframed && Number.isFinite(lv.v0) && lv.v0 > 0) {
+      const db = Math.round((20 * Math.log10(lv.v0) + LEVEL_MAX_DB) * 100) / 100;
+      out.gain_db = Math.abs(db) < 0.05 ? null : db;
+    }
+  } catch (e) {
+    /* no Volume: nothing to carry */
+  }
+  const dyn = await dynamicsOf(ti);
+  out.limiter = dyn.length === 1 && limiterState(dyn.map((d) => ({ params: d.values }))).state === "ok";
+  for (const c of (await components(ti)).list) {
+    if (!KNOWN_AUDIO.test(c.name) && !/^fill (left|right)/i.test(c.name)) out.others.push(c.name);
+  }
+  return out;
 }
 
 async function createEffect(name, ti) {
@@ -255,6 +280,16 @@ async function switchLimiterOn(project, limit) {
   return work.length > 0;
 }
 
+// the clip's Volume level in dB as it is now (0 for an untouched clip), or null
+async function readLevelDb(ti) {
+  try {
+    const lv = await levelParam(ti, "клипа");
+    return Number.isFinite(lv.v0) && lv.v0 > 0 ? Math.round((20 * Math.log10(lv.v0) + LEVEL_MAX_DB) * 100) / 100 : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // every effect of an audio clip with all its parameters, read only (development: how Premiere names them)
 async function dumpChain(x) {
   const { list } = await components(x.ti);
@@ -296,4 +331,4 @@ async function addEffectProbe(project, x, name) {
   await step("append", () => transaction(project, `Asistent: проба ${name}`, (c) => c.addAction(chain.createAppendComponentAction(comp))));
 }
 
-module.exports = { readAudioSelection, applyLevels, dumpChain, addEffectProbe };
+module.exports = { readAudioSelection, applyLevels, readEffects, readLevelDb, dumpChain, addEffectProbe };

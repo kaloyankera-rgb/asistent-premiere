@@ -14,6 +14,8 @@ const premiereSubtitles = require("./premiere-subtitles.js");
 const premiereCaptions = require("./premiere-captions.js");
 const { describeResult } = require("./subtitleplan.js");
 const { describePlacement } = require("./captionplan.js");
+const premiereRough = require("./premiere-roughcut.js");
+const roughcutplan = require("./roughcutplan.js");
 
 const $ = (id) => document.getElementById(id);
 const state = { online: false, busy: false, jobId: null, settleUntil: 0 };
@@ -475,6 +477,38 @@ async function onSubtitles() {
   }
 }
 
+// ---------------------------------------------------------------- rough cut (Phase 8 M2)
+
+// One press: the engine finds the pauses and writes an XML, Premiere imports it as a NEW sequence (the source sequence
+// is only read), and the new sequence is checked against the engine's list before it is opened.
+async function onRoughCut() {
+  if (state.busy) return;
+  if (!state.online) {
+    finish("Няма връзка с engine-а. Виж README.", false);
+    return;
+  }
+  show("result", false);
+  setBusy(true);
+  progress(0, "Чета маркираните клипове…");
+  try {
+    const project = await premiere.activeProject();
+    const opts = { mode: $("roughMode").value, tempo: $("roughTempo").value, markers: $("roughMarkers").checked };
+    const { payload, meta } = await premiereRough.readInput(project, opts);
+    const { job } = await engine.startRoughcut(payload);
+    const result = await runJob(job);
+    progress(0.92, "Внасям новата секвенция…");
+    const placed = await premiereRough.place(project, result, meta);
+    const out = roughcutplan.describeResult(result, placed);
+    finish(out.text, !placed.problems.length, out.lines.map((l) => el("div", l.cls, l.text)));
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `roughcut: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    state.jobId = null;
+    setBusy(false);
+  }
+}
+
 // The user pressed a button that names the size: this is the confirmation (SUBTITLES_PLAN.md, downloads).
 async function onSubtitleDownload() {
   if (state.busy) return;
@@ -503,7 +537,8 @@ async function onSubtitleDownload() {
 // ---------------------------------------------------------------- colour
 
 const CONF = { high: "висока", medium: "средна", low: "ниска" };
-const colorState = { project: null, sel: null, results: null };
+// part: null is Auto Color (white and exposure), "white" / "exposure" the separate buttons (same analysis, same apply)
+const colorState = { project: null, sel: null, results: null, part: null };
 
 function colorBlock(clip, r) {
   const box = el("div", "group");
@@ -513,19 +548,20 @@ function colorBlock(clip, r) {
     return box;
   }
   if (r.measured_on === "timeline") box.appendChild(el("div", "reason", `Мерено на таймлайна (${r.frames} кадъра).`));
-  for (const line of colorLines(r)) box.appendChild(el("div", "line", line));
+  for (const line of colorLines(r, colorState.part)) box.appendChild(el("div", "line", line));
   for (const x of r.reasons || []) box.appendChild(el("div", "reason", x));
   for (const x of r.warnings || []) box.appendChild(el("div", "warn", x));
   return box;
 }
 
-function colorLines(r) {
+function colorLines(r, part = null) {
   const e = r.exposure;
   // stops are what the picture needs; units are what goes into Lumetri (they differ above the shadows)
   const units = e.units !== undefined && e.units !== null && e.units !== e.stops ? ` = Exposure ${e.units > 0 ? "+" : ""}${e.units} в Lumetri` : "";
   const w = r.white;
-  return [e.stops ? `Експозиция ${e.stops > 0 ? "+" : ""}${e.stops} стопа${units} (${CONF[e.confidence]} сигурност)` : "Експозиция: без промяна",
-    w.balanced ? `Бяло: наред (${CONF[w.confidence]})` : `Бяло: корекция (${CONF[w.confidence]} сигурност)`];
+  const lines = { exposure: e.stops ? `Експозиция ${e.stops > 0 ? "+" : ""}${e.stops} стопа${units} (${CONF[e.confidence]} сигурност)` : "Експозиция: без промяна",
+    white: w.balanced ? `Бяло: наред (${CONF[w.confidence]})` : `Бяло: корекция (${CONF[w.confidence]} сигурност)` };
+  return [part !== "white" ? lines.exposure : null, part !== "exposure" ? lines.white : null].filter(Boolean);
 }
 
 // one clip in „Преди / след“: its name, the two pictures and what would change
@@ -545,10 +581,10 @@ function previewBlock(name, preview, caption, lines) {
 }
 
 function colorPlans(level) {
-  return plansFor(colorState.sel.clips, colorState.results, level);
+  return plansFor(colorState.sel.clips, colorState.results, level, colorState.part);
 }
 
-async function onColor() {
+async function onColor(part = null) {
   if (state.busy) return;
   if (!state.online) return finish("Няма връзка с engine-а. Виж README.", false);
   show("result", false);
@@ -568,10 +604,10 @@ async function onColor() {
     }
     const { job } = await engine.startColor(items);
     const result = await runJob(job);
-    Object.assign(colorState, { project, sel, results: result.items });
+    Object.assign(colorState, { project, sel, results: result.items, part });
     const blocks = sel.clips.map((c, i) => colorBlock(c, result.items[i]));
     const previews = sel.clips.map((c, i) => [c, result.items[i]]).filter(([, r]) => !r.error && r.preview && r.preview.before)
-      .map(([c, r]) => previewBlock(c.name, r.preview, "преди · след (приблизително)", colorLines(r)));
+      .map(([c, r]) => previewBlock(c.name, r.preview, "преди · след (приблизително)", colorLines(r, part)));
     // buttons by what they apply: „и средните“ appears whenever it adds a correction „сигурните“ leaves out
     const sure = colorPlans("sure").length;
     const all = colorPlans("all").length;
@@ -599,7 +635,7 @@ function audit(pl, level) {
   const chk = (c) => (c ? { new_clipping: c.new_clipping, clipping_status: c.clipping_status, exposure_before: c.exposure_before,
     exposure_after: c.exposure_after, cast_before: c.cast_before, cast_after: c.cast_after, gates: c.gates } : null);
   engine.colorAudit({
-    clip: pl.clip.name, path: pl.clip.path, in: pl.clip.inPt, out: pl.clip.outPt, button: level, status: pl.status,
+    clip: pl.clip.name, path: pl.clip.path, in: pl.clip.inPt, out: pl.clip.outPt, button: level, part: colorState.part, status: pl.status,
     measured_on: pl.res.measured_on, suggestion: { stops: pl.res.exposure.stops, units: pl.res.exposure.units,
       exposure_confidence: pl.res.exposure.confidence, white: pl.res.white },
     asistent_lumetri: !!(pl.t && pl.t.owned), before: pl.t ? pl.t.current : null, written: pl.values || null,
@@ -623,7 +659,7 @@ async function onColorApply(level) {
       for (const l of pl.lines || []) box.appendChild(el("div", "line", l));
       if (pl.left && pl.left.length && !pl.skipped) {
         box.appendChild(el("div", "warn", `Не е приложено (средна сигурност): ${pl.left.join(" и ")}. ` +
-          "За да влезе и то: натисни „Цвят“ и „Приложи и средните“ (добавя се към тази поправка)."));
+          "За да влезе и то: натисни пак същия бутон и „Приложи и средните“ (добавя се към тази поправка)."));
       }
       return box;
     });
@@ -827,7 +863,9 @@ function SHOT_PART_KEYS(pl) {
 }
 
 onTap($("shotmatch"), () => onShotMatch(null));
-onTap($("color"), onColor);
+onTap($("color"), () => onColor(null));
+onTap($("colorWhite"), () => onColor("white"));
+onTap($("colorExposure"), () => onColor("exposure"));
 onTap($("probe"), onProbeAsk);
 
 // ---------------------------------------------------------------- auto import
@@ -901,6 +939,7 @@ importLoop();
 onTap($("sync"), onSync);
 onTap($("audio"), () => onAudio(null));
 onTap($("subtitles"), onSubtitles);
+onTap($("rough"), onRoughCut);
 onTap($("subtitleDownload"), onSubtitleDownload);
 // only the audio buttons carry data-force: "button.small" alone also caught the probe and the import
 // buttons, so they ran „Оправи звука“ too (and its result hid the probe's question)
