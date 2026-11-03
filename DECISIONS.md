@@ -188,3 +188,29 @@ The user pressed Внимателно on three takes of one line and expected tw
 
 ## 2026-11-03: the tool is in English
 The user asked for the whole tool in English, replacing Bulgarian (no language switch), with English names for what Asistent creates in Premiere. The rule "panel texts in Bulgarian" in CLAUDE.md is replaced. Bulgarian stays only where it is data about Bulgarian speech or folder names, not text for the user to read.
+
+## 2026-11-03: the panel's new look stays plain HTML/CSS/JS, no UI library
+The user asked for a premium, compact look and named shadcn/ui, Spectrum Web Components, Magic UI, React Bits, Adobe's Premiere samples and Playwright. Checked: shadcn, Magic UI and React Bits need React, Tailwind, Radix or framer-motion/WebGL, none of which runs in UXP; they are design references only. Spectrum Web Components run in UXP only with `enableSWCSupport`, the `@swc-uxp-wrappers` packages and a bundler, a developer reported them not rendering in Premiere 25.6.4, and swapping `<button>` for `<sp-button>` would change what `onTap`, `setBusy`, the test bridge and the wiring tests depend on. So the look is made with design tokens over the existing native elements, Spectrum's sizes as the reference, and Playwright only as a development tool for screenshots of a browser preview (Chrome is not UXP: Premiere stays the final check). CSS is limited to what the panel already proved in Premiere until `css_probe` measures more.
+
+## 2026-11-03: Asistent draws its own buttons (div.btn)
+The CSS probe showed that Premiere 26.0.2 draws every `<button>` with its own grey face whatever the CSS says. Of three ways (own buttons with the panel's colours; Spectrum's `sp-button` with Premiere's slightly brighter blue; keep the grey buttons) the user chose own buttons. They are `div`s with class `btn`; `enable(b, on)` is the only way to switch one on or off (the `disabled` property for `onTap` and the bridge, the attribute for the look). New buttons in code go through `button()`; never add a `<button>` element.
+
+## 2026-11-04: subtitles are text graphics from Asistent's own After Effects template
+The user asked for subtitles as graphics instead of an SRT and chose editable text graphics with static lines (over a styled caption
+track or rendered images). Premiere-made templates expose their text to scripts only as binary, and FFmpeg here cannot draw text, so
+Asistent builds its own .mogrt in After Effects (scripted, once) with one exposed "Text" field, and the host places one per line with
+`importMGT` on a new top track. The .srt is still written; the caption-track code stays for placing an SRT by hand.
+
+## 2026-11-04: subtitles stay captions after all (restyle all at once)
+Right after 0.9.80 the user said the point is to select all subtitles and change font, shadow and everything in the Properties panel.
+Premiere edits many clips together only for its own captions and its own text graphics; a template from After Effects shows only
+its exposed fields, and no script can create Premiere's own text graphics with words in them (no command for "Upgrade Caption to
+Graphic" either). Captions do exactly what the user asked (all selected -> Properties; Track Style to keep a look), so the panel
+places a caption track again; the template graphics code stays for designed templates later.
+
+## 2026-11-04: reference-style subtitles: captions, the editor's one click, then Asistent moves lines off faces
+The user needs exact words, every line its own layer, all restyled at once in Properties, and lines moved off faces (the reference
+puts them mid-frame). Premiere 26: its own text graphics do all of that but no script can put words into them (UXP and ExtendScript
+probed; Adobe says the graphics calls are for After Effects templates), and template graphics cannot be restyled together (open
+feature request). The user chose: Asistent places exact captions, the editor runs Upgrade Caption to Graphic once, Asistent moves the
+graphics. English: local NLLB-200 (user's OK to download), translated per sentence and cut to the Bulgarian clauses.

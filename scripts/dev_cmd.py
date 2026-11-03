@@ -6,7 +6,7 @@
   dev_cmd.py click "Auto color"                       press a panel button by its label
   dev_cmd.py fill '{"id": "notes", "value": "раф => рафт"}'   fill the corrections box
   dev_cmd.py wait_idle [seconds]                     wait until the panel is not busy, print its answer
-  dev_cmd.py select '{"names": ["fx39026"]}'         select clips on the timeline (API unverified)
+  dev_cmd.py select '{"kind": "any"}'               select clips on the timeline (kind video|audio|any, names, track, from, to)
   dev_cmd.py frame '{"seconds": 12.5, "name": "a"}'  export a sequence frame into the engine's frames folder
   dev_cmd.py lumetri '{"names": ["fx39026"]}'        what Lumetri holds on those clips
   dev_cmd.py set_lumetri '{"names": ["fx39026"], "from": 126, "to": 127, "values": {"exposure": 3}}'   ONE clip, one Undo step
@@ -19,8 +19,9 @@
   dev_cmd.py host captions '{"srt": "/abs/a.srt", "sequence": "name"}'   put an SRT on a caption track (what the panel does)
   dev_cmd.py host eval '{"code": "app.project.name"}'   ExtendScript expression, TEST.prproj only
   dev_cmd.py host_status                             is the host polling the engine?
+  dev_cmd.py css_probe                               which CSS this UXP really supports (panel redesign)
 
-Any other name is sent as a command as it is. The panel refuses everything but `ping` outside TEST.prproj.
+Any other name is sent as a command as it is. The panel refuses everything but `ping` outside TEST.prproj and NEW TEST.prproj.
 """
 import json
 import os

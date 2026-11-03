@@ -1,4 +1,4 @@
-# Project status — Asistent 0.9.67 (2026-11-03)
+# Project status — Asistent 0.9.85 (2026-11-03)
 
 Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.48 via
 UnifiedPluginInstallerAgent, engine 0.9.48 as LaunchAgent `com.contentstudio.asistent` (starts at login).
@@ -18,6 +18,25 @@ renamed or the subclips deleted by hand (the clip is then split again with new s
 synthetic speakers, real Masterhaus clips) and verified in TEST.prproj by readback of the effect parameters (single clip, second
 press, four clips). **Confirmed by the user by eye in Premiere's Dynamics panel: Limiter on, Threshold −6 dB** (the API reports the
 normalised 0.9; the −1 dB default = 0.98333 fixes the scale). The limiter is per clip, not on the Mix track (not scriptable).
+
+## Subtitles in the reference style (R, started 2026-11-04, in progress, nothing built into the panel yet)
+Spec from the user's references in `docs/SUBTITLE_STYLE.md`; translator and font installed. 0.9.85: English line (translate.py, second
+caption track, same times), engine-tested on the ReShape reference and placed in NEW TEST; button not pressed by the user yet. Next: TODO "R".
+Bridge probes added (test projects only): `graphic_text` (UXP cannot read or write a Premiere text graphic's text), `graphic_move`
+(moving a graphic in one Undo step works).
+
+## Subtitles: caption track again (0.9.81, 2026-11-04, uncommitted)
+0.9.80 placed every line as a text graphic from Asistent's After Effects template (verified in NEW TEST: 25 lines in 2.0 s, identical);
+0.9.81 goes back to the caption track because the user must restyle all lines at once in Properties, which only Premiere's captions
+and own text graphics allow (DECISIONS). Caption placement checked in NEW TEST through the engine (25 items). Button not pressed yet.
+
+## Speed with many clips (0.9.73-0.9.79, 2026-11-03/04, uncommitted)
+Every change compared against the HEAD code on real footage: identical results. Measured in NEW TEST.prproj through the bridge
+(24 clips): Auto color 23 s for the whole press (frames batched, one skipped export retried), Sync cameras 6.7 s (was 11.2 s);
+rough cut replay 12.1 -> 2.8 s (not pressed in Premiere: the bridge selection failed in the SYNC sequence). Open: TODO "P".
+
+## Panel redesign (0.9.68-0.9.72; 0.9.72: own buttons (div.btn) after the CSS probe in Premiere, bridge presses verified; 0.9.69-0.9.70 fix what the user's first look in Premiere showed, user's request and approved plan 2026-11-03)
+New layout (answer at the bottom, compact feature cards with ⓘ, Developer card), colour tokens, unified buttons, inline SVG icons, CSS probe, browser preview with screenshots (see CHANGELOG). Checked in the browser preview at 240/300/420 px in ten states; installed in Premiere and the panel loads and answers the bridge (so `main.js` runs to the end with the new markup). **Not yet looked at in Premiere by the user**, and `css_probe` not yet run there (needs TEST.prproj open): open the panel, check every card, the ⓘ toggles, the Developer card, a run's answer at the bottom and Hide, and the icons.
 
 ## 0.9.67 (user's requests 2026-11-03: fix the bugs, correct words in the subtitles, a click-to-edit caption list)
 Captions tab with one editable field per subtitle line (see CHANGELOG), muted/disabled audio left out of the rough cut, rotated files described upright in the rough-cut XML. All engine- and node-tested; **none of it seen in Premiere**: press Subtitles on a clip, open Captions, fix a word, Apply and rebuild; mute the camera-microphone track and press Rough cut; run the rough cut on the vertical Sony clips.

@@ -133,6 +133,11 @@ function placeCaptions(payload) {
   return call("POST", "/captions/place", payload);
 }
 
+// every subtitle line as a text graphic on a new video track (the user's choice 2026-11-04)
+function placeGraphics(payload) {
+  return call("POST", "/captions/graphics", payload);
+}
+
 // L/L and R/R through the clips' own channels, done by the host (ExtendScript): can take a few seconds per clip
 function routeAudio(payload) {
   return call("POST", "/audio/route", payload);
@@ -160,4 +165,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, captionsState, recordCaptions, placeCaptions, routeAudio, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, devPoll, devResult, job, cancel, log };

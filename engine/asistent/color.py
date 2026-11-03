@@ -85,6 +85,21 @@ def _display_size(path: str, info) -> tuple[int, int]:
     return (h, w) if abs(rot) % 180 == 90 else (w, h)
 
 
+FRAME_READERS = 6
+_RANGES: dict = {}
+
+
+def _color_range(path: str) -> str:
+    """"pc" or "tv" from FFprobe, once per file version (it was asked again for every read)."""
+    st = os.stat(path)
+    key = (os.path.abspath(path), st.st_size, st.st_mtime_ns)
+    if key not in _RANGES:
+        p = _run([_tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=color_range",
+                  "-of", "default=nk=1:nw=1", path])
+        _RANGES[key] = "pc" if p.stdout.decode(errors="replace").strip() == "pc" else "tv"
+    return _RANGES[key]
+
+
 def read_frames(path: str, n: int = 6, width: int = 480, start: float = 0.0, end: float | None = None,
                 times: list[float] | None = None) -> list[np.ndarray]:
     """n frames spread over [start, end) of the media as encoded R'G'B' floats (full range), or the frames at
@@ -100,18 +115,27 @@ def read_frames(path: str, n: int = 6, width: int = 480, start: float = 0.0, end
     else:
         w, h = int(round(width * dw / dh / 2) * 2), width
     width = w
-    p = _run([_tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=color_range",
-              "-of", "default=nk=1:nw=1", path])
-    rng = "pc" if p.stdout.decode(errors="replace").strip() == "pc" else "tv"
-    frames = []
+    rng = _color_range(path)
     moments = list(times) if times else [start + dur * (0.05 + 0.9 * (i + 0.5) / n) for i in range(n)]
-    for t in moments:
+
+    def grab(t):
         p = _run([_tool("ffmpeg"), "-v", "error", "-nostdin", "-ss", f"{t:.3f}", "-i", path, "-frames:v", "1",
                   "-vf", f"scale={width}:{h}:flags=area:in_color_matrix=bt709:in_range={rng}:out_range=pc,format=rgb48le",
                   "-f", "rawvideo", "-"])
         data = np.frombuffer(p.stdout, dtype="<u2")
         if p.returncode == 0 and data.size == width * h * 3:
-            frames.append(data.reshape(h, width, 3).astype(np.float64) / 65535.0)
+            return data.reshape(h, width, 3).astype(np.float64) / 65535.0
+        return None
+
+    # each moment is its own FFmpeg seek and decode: side by side, in the moments' order (2026-11-03, speed: 4.8 -> 2.0 s
+    # for six 4K frames, the same frames bit for bit)
+    if len(moments) > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(len(moments), FRAME_READERS), thread_name_prefix="frame") as pool:
+            got = list(pool.map(grab, moments))
+    else:
+        got = [grab(t) for t in moments]
+    frames = [f for f in got if f is not None]
     if not frames:
         raise MediaError(f"Cannot read frames from {os.path.basename(path)}.")
     return frames

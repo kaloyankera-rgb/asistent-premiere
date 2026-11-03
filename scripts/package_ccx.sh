@@ -8,5 +8,5 @@ mkdir -p "$REPO/dist"
 printf '// written by scripts/package_ccx.sh\nmodule.exports = "%s";\n' "$VER" > "$REPO/panel/version.js"
 OUT="$REPO/dist/Asistent-$VER.ccx"
 rm -f "$OUT"
-(cd "$REPO/panel" && zip -q -r -X "$OUT" manifest.json index.html style.css main.js engine.js premiere.js layout.js premiere-audio.js audioplan.js channels.js premiere-import.js premiere-color.js premiere-probe.js moments.js colorplans.js subtitleplan.js captionedit.js premiere-subtitles.js captionplan.js premiere-captions.js roughcutplan.js premiere-roughcut.js devbridge.js version.js icons)
+(cd "$REPO/panel" && zip -q -r -X "$OUT" manifest.json index.html style.css main.js engine.js premiere.js layout.js premiere-audio.js audioplan.js channels.js premiere-import.js premiere-color.js premiere-probe.js moments.js colorplans.js subtitleplan.js captionedit.js cssprobe.js premiere-subtitles.js captionplan.js premiere-captions.js roughcutplan.js premiere-roughcut.js devbridge.js version.js icons)
 echo "$OUT"

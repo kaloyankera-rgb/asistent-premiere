@@ -16,7 +16,7 @@ import time
 from . import config, devbridge
 
 HOST = devbridge.Bridge()
-COMMANDS = ("ping", "probe", "captions", "audio_route", "eval")
+COMMANDS = ("ping", "probe", "captions", "graphics", "audio_route", "eval")
 SEEN_WITHIN = 45.0             # the host polls every <= 20 s; older than this it is not running
 _state = {"seen": 0.0, "version": None}
 
@@ -38,7 +38,7 @@ NOT_RUNNING = ("The Asistent helper in Premiere is not running. Close and reopen
 
 
 def run(name: str, args: dict | None = None, wait: float = 60.0) -> dict:
-    """One command to the host -> its answer {ok, msg, ...}; raises ValueError with a Bulgarian message."""
+    """One command to the host -> its answer {ok, msg, ...}; raises ValueError with the message for the editor."""
     if name not in COMMANDS:
         raise ValueError("Unknown command to Premiere.")
     if name == "eval" and not devbridge.enabled():
@@ -58,6 +58,56 @@ def place_captions(srt: str, sequence: str, project: str | None, bin_name: str =
     if not os.path.isfile(srt):
         raise ValueError("The subtitle file is missing: " + srt)
     return run("captions", {"srt": srt, "sequence": sequence, "project": project, "bin": bin_name})
+
+
+# Subtitles as text graphics (the user's choice 2026-11-04): Asistent's own After Effects templates, one per subtitle
+# preset, built once by scripts/caption_template.sh into <app>/templates (After Effects writes "<name>.mogrt/<name>.mogrt").
+TEMPLATES = {"short": ("Asistent Subtitle 9x16", 1080, 1920), "standard": ("Asistent Subtitle 16x9", 1920, 1080)}
+
+
+def template_path(preset: str) -> str | None:
+    name = TEMPLATES.get(preset, TEMPLATES["standard"])[0]
+    folder = os.path.join(config.app_dir(), "templates")
+    for path in (os.path.join(folder, name + ".mogrt", name + ".mogrt"), os.path.join(folder, name + ".mogrt")):
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def build_templates() -> str | None:
+    """After Effects builds both templates (about a minute, it opens After Effects); -> an error text or None."""
+    import subprocess
+    script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "scripts", "caption_template.sh")
+    try:
+        p = subprocess.run(["/bin/bash", script], capture_output=True, text=True, timeout=300)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return f"After Effects did not build the subtitle template: {e}"
+    if p.returncode != 0 or '"ok":true' not in p.stdout:
+        return "After Effects did not build the subtitle template: " + (p.stderr.strip() or p.stdout.strip())[:300]
+    return None
+
+
+def place_graphics(captions: list, preset: str, sequence: str, project: str | None) -> dict:
+    """Every subtitle line as a text graphic on a new video track (host.jsx `as_graphics`)."""
+    lines = []
+    for c in captions if isinstance(captions, list) else []:
+        if not isinstance(c, dict) or not isinstance(c.get("text"), str):
+            raise ValueError("Invalid subtitle line.")
+        start, end = float(c["start"]), float(c["end"])
+        if end <= start:
+            raise ValueError("Invalid subtitle line.")
+        lines.append({"start": start, "end": end, "text": c["text"]})
+    if not lines:
+        raise ValueError("No subtitle lines to place.")
+    path = template_path(preset)
+    if not path:
+        err = build_templates()
+        path = template_path(preset)
+        if not path:
+            raise ValueError(err or "The subtitle template is missing.")
+    name, w, h = TEMPLATES.get(preset, TEMPLATES["standard"])
+    return run("graphics", {"captions": lines, "template": path, "width": w, "height": h, "sequence": sequence,
+                            "project": project, "track_name": "Asistent subtitles"}, wait=60.0 + 1.5 * len(lines))
 
 
 ROUTES = ("split", "split_rl", "use_left", "use_right")

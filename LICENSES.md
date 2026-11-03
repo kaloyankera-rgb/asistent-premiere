@@ -9,6 +9,9 @@
 | YuNet `face_detection_yunet_2023mar.onnx` | MIT (OpenCV Zoo, from libfacedetection by Shiqi Yu) | 233 KB model bundled in `engine/asistent/models/` (sha256 8f2383e4…2fa4); finds faces so Shot Match measures skin only on faces |
 | faster-whisper, CTranslate2 | MIT | optional (`requirements-asr.txt`): speech recognition for subtitles (Phase 7) |
 | Whisper large-v3 weights (OpenAI), CTranslate2 conversion `Systran/faster-whisper-large-v3` | MIT | ~3 GB model, downloaded from the panel after the user confirms; stored in `<app folder>/models/whisper` |
+| NLLB-200 distilled 600M (Meta), CTranslate2 int8 conversion `JustFrederik/nllb-200-distilled-600M-ct2-int8` | CC-BY-NC 4.0 (non-commercial, like the aligner) | 623 MB model in `<app folder>/models/nllb-600m-int8`, downloaded 2026-11-04 with the user's OK; Bulgarian -> English for the English subtitle line |
+| sentencepiece | Apache-2.0 | optional (`requirements-asr.txt`): tokenizer of the translator |
+| Montserrat (Julieta Ulanovsky) | SIL Open Font License 1.1 | Bold, SemiBold, ExtraBold installed in the user's Fonts folder 2026-11-04 (user's OK): the Bulgarian subtitle line of the reference style |
 | huggingface_hub, tokenizers | Apache-2.0 | optional: model download and text tokens |
 | onnxruntime | MIT | optional: voice activity detection used by faster-whisper |
 | PyAV | BSD-3-Clause (bundles LGPL FFmpeg libraries) | optional: dependency of faster-whisper |

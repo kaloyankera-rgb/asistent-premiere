@@ -1,7 +1,7 @@
 ﻿// Asistent host: the ExtendScript (ES3) side. main.js evaluates this file for every command and calls as_run(name, args).
 // Every function answers with a JSON string {ok, msg, ...}; nothing here throws out of as_run.
 
-var AS_HOST_VERSION = "0.9.67";
+var AS_HOST_VERSION = "0.9.85";
 
 function as_json(v) {
     if (v === null || v === undefined) return "null";
@@ -153,6 +153,62 @@ function as_captions(a) {
         tracks_before: before, tracks_after: after });
 }
 
+// ---------------------------------------------------------------- subtitles as text graphics
+// The user's choice (2026-11-04): every subtitle line is an editable text graphic on a new video track, not a caption.
+// Asistent's own template (scripts/caption_template.jsx, built once in After Effects) exposes one field, "Text";
+// Premiere-made templates hide their text from scripts (probed: Source Text reads as binary). Probed in NEW TEST
+// 2026-11-04: importMGT 0.6 s a line, setValue of the text 3 ms, `end` can be set; QE addTracks adds the track.
+// The template is placed at its own size, so it is scaled to the sequence (2160x3840 needs 200 %).
+function as_graphics(a) {
+    if (!app.project) return as_result(false, "No project open.");
+    var seq = app.project.activeSequence;
+    if (!seq) return as_result(false, "No active sequence.");
+    if (a.sequence && seq.name !== a.sequence) {
+        return as_result(false, "The active sequence is \"" + seq.name + "\", but the subtitles are for \"" + a.sequence + "\". Go back to it and try again.");
+    }
+    if (a.project && as_norm(app.project.path) !== as_norm(a.project)) {
+        return as_result(false, "Another project is open. Nothing was touched.");
+    }
+    if (!new File(a.template).exists) return as_result(false, "The subtitle template is missing: " + a.template);
+    var caps = a.captions || [];
+    if (!caps.length) return as_result(false, "No subtitle lines to place.");
+    if (seq.importMGT === undefined) return as_result(false, "This Premiere version cannot place graphics by script.");
+    var t0 = new Date().getTime();
+    // a new track on top, so nothing of the editor's is covered or overwritten
+    app.enableQE();
+    qe.project.getActiveSequence().addTracks(1, seq.videoTracks.numTracks, 0);
+    var vi = seq.videoTracks.numTracks - 1;
+    try { seq.videoTracks[vi].name = a.track_name || "Asistent subtitles"; } catch (e0) {}
+    var scale = 100 * Math.min(Number(seq.frameSizeHorizontal) / a.width, Number(seq.frameSizeVertical) / a.height);
+    var placed = 0, failed = [];
+    for (var i = 0; i < caps.length; i++) {
+        var at = new Time();
+        at.seconds = caps[i].start;
+        var ti = seq.importMGT(a.template, at.ticks, vi, 0);
+        if (!ti) { failed.push(i + 1); continue; }
+        var end = new Time();
+        end.seconds = caps[i].end;
+        ti.end = end;                          // trimmed at once, so the next line's place is free
+        var mgt = ti.getMGTComponent();
+        var field = mgt ? mgt.properties.getParamForDisplayName("Text") : null;
+        if (!field) { failed.push(i + 1); continue; }
+        var v = JSON.parse(field.getValue());
+        v.textEditValue = String(caps[i].text).replace(/\n/g, "\r");      // After Effects text breaks lines on \r
+        field.setValue(JSON.stringify(v), true);
+        if (Math.abs(scale - 100) > 0.01) {
+            for (var c = 0; c < ti.components.numItems; c++) {
+                if (ti.components[c].matchName === "AE.ADBE Motion") {
+                    var sc = ti.components[c].properties.getParamForDisplayName("Scale");
+                    if (sc) sc.setValue(scale, true);
+                }
+            }
+        }
+        placed++;
+    }
+    return as_result(failed.length === 0, failed.length ? "Some lines were not placed: " + failed.join(", ") : "ok",
+        { track: vi, placed: placed, failed: failed, scale: Math.round(scale * 100) / 100, ms: new Date().getTime() - t0 });
+}
+
 // ---------------------------------------------------------------- audio: L/L and R/R through the clip's channels
 // The user's workflow (reference video 2026-11-03): duplicate the audio onto the track below, then Audio Channels:
 // upper L/L, lower R/R; no Fill effects. No API sets the channels of a clip on the timeline (UXP has none;
@@ -295,7 +351,7 @@ function as_audio_route(a) {
 
 // test bridge only (the engine forwards it only with devbridge.enabled; refused outside TEST.prproj)
 function as_eval(a) {
-    if (!app.project || String(app.project.name) !== "TEST.prproj") return as_result(false, "eval only in TEST.prproj.");
+    if (!app.project || !/^(NEW )?TEST\.prproj$/.test(String(app.project.name))) return as_result(false, "eval only in TEST.prproj or NEW TEST.prproj.");
     var out = eval(String(a.code));
     return as_result(true, "ok", { value: (out === undefined ? null : (typeof out === "object" ? as_json(out) : String(out))) });
 }
@@ -305,6 +361,7 @@ function as_run(name, args) {
         if (name === "ping") return as_ping();
         if (name === "probe") return as_probe();
         if (name === "captions") return as_captions(args || {});
+        if (name === "graphics") return as_graphics(args || {});
         if (name === "audio_route") return as_audio_route(args || {});
         if (name === "eval") return as_eval(args || {});
         return as_result(false, "Unknown command: " + name);

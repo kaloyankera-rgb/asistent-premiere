@@ -34,6 +34,9 @@ function problems(track, captions) {
   return out;
 }
 
+// a track's name on the timeline: V3 for the graphics' video track, C2 for a caption track
+const label = (t) => t.label || `C${t.index + 1}`;
+
 function clock(t) {
   const m = Math.floor(t / 60);
   const s = t - m * 60;
@@ -44,17 +47,20 @@ function clock(t) {
 function describePlacement(p, srt, again) {
   const file = { cls: "hint", text: `File: ${srt}` };
   if (p.status === "placed") {
-    const lines = [{ cls: "line", text: `The subtitles are on track C${p.track.index + 1}: ${p.track.count} lines, ${clock(p.track.start)} to ${clock(p.track.end)}.` }];
+    const lines = [{ cls: "line", text: `The subtitles are ${p.graphics ? "text graphics" : "captions"} on track ${label(p.track)}: ${p.track.count} lines, ${clock(p.track.start)} to ${clock(p.track.end)}.` }];
+    if (p.english) lines.push({ cls: "line", text: `The English line is on track ${label(p.english)}: ${p.english.count} lines at the same times.` });
     for (const x of p.problems || []) lines.push({ cls: "warn", text: `Check: ${x}.` });
-    if (p.replaces) lines.push({ cls: "warn", text: `The earlier subtitles are still on track C${p.replaces.index + 1}: delete that track (right-click C${p.replaces.index + 1} > Delete Track), or the two sets show on top of each other.` });
-    lines.push({ cls: "hint", text: "Change the style in Essential Graphics. The file is also in the bin \"Subtitles\"." });
+    if (p.replaces) lines.push({ cls: "warn", text: `The earlier subtitles are still on track ${label(p.replaces)}: delete that track (right-click ${label(p.replaces)} > Delete Track), or the two sets show on top of each other.` });
+    lines.push({ cls: "hint", text: p.graphics ? "Retype, move or restyle any line in Essential Graphics. Undo: delete the track (each line was its own step)."
+      : "To restyle all of them: select every caption on the track and change font, size, outline or shadow in the Properties panel; " +
+        "save it as a Track Style to reuse it. The file is also in the bin \"Subtitles\"." });
     lines.push(file);
     return { ok: !(p.problems || []).length, text: "The subtitles are on the timeline.", lines };
   }
   if (p.status === "exists") {
     return { ok: false, text: "This sequence already has subtitles from Asistent.", lines: [
-      { cls: "warn", text: `Track C${p.track.index + 1} holds the subtitles from the previous press (${p.track.count} lines). Not putting a second set over them.` },
-      { cls: "line", text: "For new subtitles: delete that track (right-click C" + (p.track.index + 1) + " > Delete Track) and press the button again." },
+      { cls: "warn", text: `Track ${label(p.track)} holds the subtitles from the previous press (${p.track.count} lines). Not putting a second set over them.` },
+      { cls: "line", text: `For new subtitles: delete that track (right-click ${label(p.track)} > Delete Track) and press the button again.` },
       { cls: "hint", text: `The new file is ready if you want it by hand: ${srt}` } ] };
   }
   if (p.status === "nohost") {

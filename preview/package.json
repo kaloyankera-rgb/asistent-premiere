@@ -1,0 +1,11 @@
+{
+  "name": "asistent-preview",
+  "private": true,
+  "description": "Development only: the Asistent panel in a browser with fake Premiere and engine, and screenshots for visual QA. Never packed into the .ccx.",
+  "scripts": {
+    "shots": "node shoot.js"
+  },
+  "devDependencies": {
+    "playwright-core": "1.55.0"
+  }
+}

@@ -51,6 +51,44 @@ Plan: `docs/SUBTITLES_PLAN.md`. Done: M0 probes (0.9.39), M1 text core (0.9.40),
 7 Bulgarian subtitles, 8 AI Auto Rough Cut (plan: `docs/ROUGHCUT_PLAN.md`, next step M0 = probes in TEST.prproj: XML import from code, trimming, markers; `rapidfuzz` needs the user's OK) + export QA, 9 Windows (run `setup_win.ps1`, silent install with
 UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips, sub-frame audio alignment.
 
+## R. Subtitles in the reference style (ReShape; started 2026-11-04, the user's current priority)
+Spec: `docs/SUBTITLE_STYLE.md` (two layers: Bulgarian chunks word by word in Montserrat Bold with a soft shadow at ~48 % height; English
+phrase line under it, Arial-like bold on a ~60 % maroon rounded box; 1-2 frame fade-in). User decisions so far: Premiere's own text
+graphics (captions -> the editor's one right-click "Upgrade Caption to Graphic" -> Asistent's "Move off faces"); English that matches the
+Bulgarian words and still makes sense; local translator NLLB-200 600M (downloaded, 623 MB, `<app>/models/nllb-600m-int8`); Montserrat
+installed. Probed: UXP moves a graphic with `createKeyframe(new ppro.PointF(x, y))` in one Undo step (bridge `graphic_move`).
+Done as prototypes (scratchpad, not in the engine yet): sentence translation (good English; one sentence per call, NLLB drops the
+first of two), clause lines split by punctuation, attention-based cut for long clauses (offset 0 is right; cuts without punctuation
+can land one word off). Tried on the ReShape reference audio: 69 chunks / 175 words; recognition errors the user must correct first
+("хирурги" for "хирурзи", "баласките", "везя"), and they carry into the English ("везя" -> "weight").
+Done in 0.9.85: English line, one per Bulgarian line with the same times (user's rule), translate.py, second caption track, checkbox.
+USER: press Subtitles with "English line" on (NEW TEST); judge the English cuts; restart Premiere once so it sees Montserrat.
+Open: Arial Pro Heavy (the user's English font) is not on this Mac (Arial Black / Arial Bold are): the user to install it or choose.
+Next:
+1. English lines editable in the Captions tab (now: fix them in Premiere after Upgrade; a rebuild makes them again).
+4. Shorter Bulgarian chunks like the reference (1-2 words, ~12 chars) as a preset.
+5. "Move off faces" button: selected subtitle graphics (after Upgrade), faces under each line (engine YuNet on the visible clip's
+   frames), a Bulgarian line and its English line move together, nearest free height, one Undo step (UXP PointF).
+6. Optional: the 1-2 frame fade-in (UXP `createAddVideoTransitionAction` exists).
+
+## G. Subtitles: captions, restyled together (0.9.81)
+USER: in NEW TEST select audio clips, press Subtitles; then select all captions on the new caption track and change font, outline,
+shadow in Properties (open Properties first, then select; select only captions); save a Track Style. Say if anything cannot be changed
+for all of them at once. The After Effects graphics (0.9.80) stay available if designed templates are wanted later.
+
+## P. Speed with many clips (0.9.73-0.9.79, done; measured in NEW TEST 2026-11-04)
+Done, results identical to the old code: sync FFT reuse, probe cache, parallel dialogue reading, batched colour frames with a retry,
+parallel colour frame reading. Measured: Sync 11.2 -> 6.7 s, Rough cut replay 12.1 -> 2.8 s, Auto color 24 clips 23 s for the press.
+Left, each needs the user's decision:
+1. Subtitles (first run) is Whisper on the CPU (~2.4x faster than real time; repeat runs ~5 s from the cache). Faster means recognition on
+   the Mac's GPU (e.g. an MLX build of Whisper): a new engine and a model download, needs the user's OK, and the words must be compared.
+2. Sync below ~7 s: a process pool (threads stop helping after 4); the prepared clips would have to be shared between processes.
+3. Bridge `select` in the SYNC sequence: after an attempt with linked video+audio it selected nothing (worked 3 times before in the
+   first sequence). Until found, a rough cut press in Premiere needs the user to select the clips.
+
+## U. Panel redesign (0.9.68)
+0.9.72: own buttons (div.btn), probe done. USER: send a screenshot of 0.9.72+ (main buttons blue, line icons, tabs as text); then commit the redesign. Older note: open the panel (any project is fine for looking): the cards, the ⓘ toggles, Developer, a run's answer at the bottom and Hide, the icons (an empty square means UXP does not draw inline SVG). Then, with TEST.prproj open: `python3 scripts/dev_cmd.py css_probe`; if inline SVG is missing switch the icons to PNG; if `gap`/transitions work, they may replace the margins and add 120 ms colour fades (only on approval). Say anything that looks worse than before.
+
 ## S. Subtitles editor (0.9.67)
 USER: press Subtitles on a clip, open the Captions tab, correct a word and press Apply and rebuild; check the new track and that the old one has to be deleted by hand. Say if a faster way to replace the old track is wanted. Optional: a Bulgarian fine-tuned Whisper (3 GB download, needs the user's OK).
 

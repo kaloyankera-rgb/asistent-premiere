@@ -23,7 +23,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
-from . import agreement, align, asr, config, consensus, corrections, dialoguemix, lexicon, subtitles, suspects
+from . import agreement, align, asr, config, consensus, corrections, dialoguemix, lexicon, subtitles, suspects, translate
 from .dialoguemix import ASR_SR, build_mix, read_segment
 from .sync import Cancelled
 
@@ -94,7 +94,8 @@ def validate(body: dict) -> dict:
         raise ValueError("Invalid pronunciation dictionary.")
     return {"items": clean, "spoken": spoken, "preset": preset, "fps": _num(25.0 if body.get("fps") is None else body.get("fps"), "frames per second", 1.0),
             "width": body.get("width"), "height": body.get("height"), "out_dir": out_dir,
-            "name": str(body.get("name") or "sequence"), "terms": terms, "skipped": skipped, "text": text}
+            "name": str(body.get("name") or "sequence"), "terms": terms, "skipped": skipped, "text": text,
+            "english": bool(body.get("english"))}
 
 
 def _words_key(audio, prompt: str) -> str:
@@ -395,11 +396,22 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     os.makedirs(folder, exist_ok=True)
     stem = os.path.join(folder, _file_stem(p["name"]))
     subtitles.write_srt(captions, stem + ".srt")
+    # the English line (the user's reference style): one per Bulgarian line, the same times, translated sentence by sentence
+    english, english_note = None, None
+    if p["english"]:
+        if translate.available():
+            progress(0.97, "Translating into English…")
+            english = translate.english_lines([c["text"] for c in captions])
+            subtitles.write_srt([{**c, "text": e} for c, e in zip(captions, english)], stem + ".en.srt")
+        else:
+            english_note = "The English line needs the translator (models/nllb-600m-int8 and the sentencepiece package): see README."
     flagged = sum(len(c["flags"]) for c in captions)
     timing = "aligned" if aligned else "whisper"
     result = {
         "srt": stem + ".srt", "json": stem + ".json", "preset": preset, "fps": subtitles.exact_fps(p["fps"]),
-        "captions": [{"start": c["start"], "end": c["end"], "text": c["text"], "flags": c["flags"]} for c in captions],
+        "captions": [{"start": c["start"], "end": c["end"], "text": c["text"], "flags": c["flags"],
+                      **({"en": english[i]} if english else {})} for i, c in enumerate(captions)],
+        "srt_en": stem + ".en.srt" if english else None, "english_note": english_note,
         "counts": {"captions": len(captions), "words": len(words), "flagged": flagged, "pieces": len(segments)},
         "timing": {"method": timing, "aligned": aligned, "weak": weak, "error": align_error},
         "corrections": [{"heard": a, "said": b, "applied": n} for (a, b), n in zip(parsed["pairs"], applied)],
