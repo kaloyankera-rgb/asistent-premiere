@@ -51,8 +51,14 @@ Plan: `docs/SUBTITLES_PLAN.md`. Done: M0 probes (0.9.39), M1 text core (0.9.40),
 7 Bulgarian subtitles, 8 AI Auto Rough Cut (plan: `docs/ROUGHCUT_PLAN.md`, next step M0 = probes in TEST.prproj: XML import from code, trimming, markers; `rapidfuzz` needs the user's OK) + export QA, 9 Windows (run `setup_win.ps1`, silent install with
 UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips, sub-frame audio alignment.
 
+## S. Subtitles editor (0.9.67)
+USER: press Subtitles on a clip, open the Captions tab, correct a word and press Apply and rebuild; check the new track and that the old one has to be deleted by hand. Say if a faster way to replace the old track is wanted. Optional: a Bulgarian fine-tuned Whisper (3 GB download, needs the user's OK).
+
+## L. English UI (0.9.66)
+USER: open the panel and check every text reads well in English; report anything still Bulgarian or unclear.
+
 ## P8. Rough cut (plan `docs/ROUGHCUT_PLAN.md`)
-Done: M0 probes, M1 speech map, M2 Safe/Smart pauses (0.9.59). Next: (1) USER: press „Груб монтаж“ in TEST.prproj and judge the cuts by ear/eye; (2) M3 takes (`takes.py`, `rapidfuzz` needs the user's OK; difflib first) + the „Преглед“ view; (3) M4 `takescore.py` and Smart takes, `scripts/eval_roughcut.py` against the user's own rough cut XML; (4) M5/M6 optional items.
+Done: M0 probes, M1 speech map, M2 Safe/Smart pauses (0.9.59-0.9.63), M3 takes found (0.9.64) and cut (0.9.65). Next: (1) the rotation bug (BUGS.md): open TEST.prproj and import the three probe XMLs (A as now, B upright size, C no size) through `dev_cmd.py host eval`, read each new master clip's frame size, fix `xmeml.py`; (2) USER: press „Груб монтаж“ on the repeated-takes clips again (0.9.65) and check which take stayed; tell which effect of „Оправи звука“ is missing; (3) the quiet-audio-track problem (BUGS.md), left for later by the user; (4) the „Преглед“ view (pick another take, keep or cut) and a rebuild as vN+1; (5) M4 `takescore.py` and `scripts/eval_roughcut.py` against a rough cut the user made by hand (needs one XML); (6) M5/M6 optional items; `rapidfuzz` only if difflib misses real repeats.
 
 ## T. Housekeeping (documentation)
 T1. Refresh `BUGS.md`: last fully reviewed at 0.9.18; fold in findings from 0.9.19-0.9.41 (see `PROJECT_STATUS.md`, `PROGRESS.md`) and drop fixed items.

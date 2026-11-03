@@ -1,4 +1,4 @@
-// „ГРУБ МОНТАЖ“: reads the selected items (read only), then imports the engine's XML as ONE NEW sequence and checks it.
+// ROUGH CUT: reads the selected items (read only), then imports the engine's XML as ONE NEW sequence and checks it.
 // Nothing in the source sequence is changed or removed (removing track items through UXP crashed Premiere 26.0.2).
 // Why XML: probed in TEST.prproj, UXP importFiles makes the sequence without a dialog, frame exact and linked
 // (docs/ROUGHCUT_PLAN.md, M0 results).
@@ -24,11 +24,11 @@ async function frameSize(sequence) {
 async function readInput(project, opts) {
   const t = await P.readTimeline(project);
   const plan = planRoughCut(t.items);
-  if (!plan.selected) throw new P.UserError("Маркирай в таймлайна клиповете за грубия монтаж: камерите и микрофоните с говор.");
-  if (!plan.dialogue.length) throw new P.UserError(`Маркирай и аудио клипа с говор: по звука се намират паузите. ${plan.skipped.join("; ")}`);
-  if (!plan.layout.length) throw new P.UserError(`Няма подходящ клип. ${plan.skipped.join("; ")}`);
+  if (!plan.selected) throw new P.UserError("Select the clips for the rough cut in the timeline: the cameras and the microphones with speech.");
+  if (!plan.dialogue.length) throw new P.UserError(`Select the audio clip with speech too: the pauses are found from the sound. ${plan.skipped.join("; ")}`);
+  if (!plan.layout.length) throw new P.UserError(`No suitable clip. ${plan.skipped.join("; ")}`);
   const folder = dirOf(project.path);
-  if (!folder) throw new P.UserError("Запази проекта (Cmd/Ctrl+S): файловете на грубия монтаж отиват в папката му.");
+  if (!folder) throw new P.UserError("Save the project (Cmd/Ctrl+S): the rough cut files go into its folder.");
   const size = await frameSize(t.sequence);
   // what the new pieces must carry over: an Asistent split clip's channel (L/L, R/R) and the level go into the XML; the
   // limiter and the colour are put on the new pieces after the import (carry below)
@@ -51,7 +51,7 @@ async function readInput(project, opts) {
     }
     meta.push(m);
   }
-  const payload = { items: plan.dialogue, layout: plan.layout, out_dir: folder, name: t.sequence.name || "секвенция", fps: t.fps || 25,
+  const payload = { items: plan.dialogue, layout: plan.layout, out_dir: folder, name: t.sequence.name || "sequence", fps: t.fps || 25,
     width: size && size.width, height: size && size.height, mode: opts.mode, tempo: opts.tempo, markers: !!opts.markers, skipped: plan.skipped };
   engine.log("info", `roughcut: ${plan.layout.length} items (${plan.layout.map((x) => `${x.kind[0].toUpperCase()}${x.track + 1} ${x.name}`).join(" | ")}), ` +
     `${plan.dialogue.length} for the sound, ${plan.skipped.length} skipped, ${t.fps} fps, ${opts.mode}/${opts.tempo}`);
@@ -63,19 +63,19 @@ async function findSequence(project, name) {
   return null;
 }
 
-/** Import the XML into the bin „Груб монтаж“, find the new sequence, check it against the engine's EDL, carry the effects
+/** Import the XML into the bin "Rough cut", find the new sequence, check it against the engine's EDL, carry the effects
  *  over, open it. -> { problems: [text], notes: [{cls, text}] } */
 async function place(project, result, meta) {
-  const bin = await P.ensureBin(project, "Груб монтаж");
+  const bin = await P.ensureBin(project, "Rough cut");
   const target = ppro.ProjectItem.cast(bin) || bin;
   const accepted = await project.importFiles([result.xml], true, target, false);
-  if (accepted === false) return { problems: ["Premiere не прие XML файла. Той е в папката Asistent_roughcut: File > Import."], notes: [] };
+  if (accepted === false) return { problems: ["Premiere did not accept the XML file. It is in the Asistent_roughcut folder: File > Import."], notes: [] };
   let sequence = null;
   for (let i = 0; i < 20 && !sequence; i++) {
     sequence = await findSequence(project, result.name);
     if (!sequence) await new Promise((r) => setTimeout(r, 250));
   }
-  if (!sequence) return { problems: [`Секвенцията „${result.name}“ не се появи в проекта. XML е в папката Asistent_roughcut: File > Import.`], notes: [] };
+  if (!sequence) return { problems: [`The sequence "${result.name}" did not appear in the project. The XML is in the Asistent_roughcut folder: File > Import.`], notes: [] };
   const { items } = await P.readItems(sequence);
   const got = { video: {}, audio: {}, end: 0 };
   for (const it of items) {
@@ -90,7 +90,7 @@ async function place(project, result, meta) {
     notes.push(...(await carry(project, sequence, result, meta || [])));
   } catch (e) {
     P.debug(`roughcut carry failed: ${e && e.stack ? e.stack : e}`);
-    problems.push(`Ефектите не се пренесоха напълно: ${e && e.message ? e.message : e}`);
+    problems.push(`The effects were not fully carried over: ${e && e.message ? e.message : e}`);
   }
   await P.maybe(project, "openSequence", sequence);
   return { problems, notes };
@@ -134,7 +134,7 @@ async function carry(project, sequence, result, meta) {
   let coloured = 0;
   if (pairs.length) {
     for (const d of await premiereColor.copyLumetri(project, pairs)) {
-      if (d.problem) notes.push({ cls: "warn", text: `Цвят: ${d.problem}` });
+      if (d.problem) notes.push({ cls: "warn", text: `Color: ${d.problem}` });
       else coloured++;
     }
   }
@@ -144,13 +144,13 @@ async function carry(project, sequence, result, meta) {
     if (m.limiter) has.audio = true;
     if (m.gain_db !== null) has.gain = true;
   }
-  if (has.audio || has.gain) said.push(`звук: ${has.gain ? "сила" : ""}${has.gain && has.audio ? ", " : ""}${has.audio ? `лимитер −6 dB (${limited} парчета)` : ""}${levelFixed ? `; силата е сложена наново на ${levelFixed}` : ""}`);
-  if (coloured) said.push(`цвят: Lumetri на ${coloured} парчета`);
-  if (said.length) notes.push({ cls: "line", text: `Пренесено от старите клипове: ${said.join("; ")}.` });
+  if (has.audio || has.gain) said.push(`audio: ${has.gain ? "level" : ""}${has.gain && has.audio ? ", " : ""}${has.audio ? `limiter −6 dB (${limited} pieces)` : ""}${levelFixed ? `; the level was set again on ${levelFixed}` : ""}`);
+  if (coloured) said.push(`color: Lumetri on ${coloured} pieces`);
+  if (said.length) notes.push({ cls: "line", text: `Carried over from the old clips: ${said.join("; ")}.` });
   const others = [...new Set(meta.flatMap((m) => m.others || []))];
-  if (others.length) notes.push({ cls: "warn", text: `Не са пренесени (няма как през XML): ${others.join(", ")}.` });
-  if (meta.some((m) => m.keyframed)) notes.push({ cls: "warn", text: "Ключовите кадри на силата („Изравни фразите“) не са пренесени: сложи ги наново върху новата секвенция." });
-  if (meta.some((m) => m.lum && !m.lum.owned)) notes.push({ cls: "warn", text: "Има клип с ръчен Lumetri: пренесени са само Exposure, Temperature, Tint, Contrast и Saturation; другите настройки не." });
+  if (others.length) notes.push({ cls: "warn", text: `Not carried over (not possible through XML): ${others.join(", ")}.` });
+  if (meta.some((m) => m.keyframed)) notes.push({ cls: "warn", text: "The level keyframes (Even out phrases) were not carried over: apply them again on the new sequence." });
+  if (meta.some((m) => m.lum && !m.lum.owned)) notes.push({ cls: "warn", text: "A clip has a manual Lumetri grade: only Exposure, Temperature, Tint, Contrast and Saturation were carried over; the other settings were not." });
   return notes;
 }
 

@@ -14,7 +14,7 @@ for v in 10 11 12 13; do
   [ "$(defaults read com.adobe.CSXS.$v PlayerDebugMode 2>/dev/null || echo 0)" = "1" ] || defaults write com.adobe.CSXS.$v PlayerDebugMode 1
 done
 if [ "$NEW" = "1" ]; then
-  echo "Asistent host е инсталиран. Затвори и отвори Premiere веднъж, за да го зареди."
+  echo "Asistent host is installed. Close and reopen Premiere once to load it."
 else
-  echo "Asistent host е обновен."
+  echo "Asistent host is updated."
 fi

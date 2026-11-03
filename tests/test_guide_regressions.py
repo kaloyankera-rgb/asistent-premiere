@@ -51,7 +51,7 @@ def test_одялоците_has_no_confident_repair_so_it_stays_and_is_marked():
 def test_a_month_in_a_conversation_about_prices_is_flagged_not_rewritten():     # 00:20.320
     words = W("Как", "така", "500", "евро", "за", "одеяло?", "Само", "2", "септември", "взимаме", "го.")
     found = suspects.find(words)
-    assert [(f["word"], f["reason"]) for f in found] == [("септември", "месец в разговор за цени")]
+    assert [(f["word"], f["reason"]) for f in found] == [("септември", "a month in a talk about prices")]
     assert texts(words)[8] == "септември"                                        # the finder never edits
     assert suspects.find(W("Срещата", "е", "на", "2", "септември", "и", "струва", "50", "евро.")) == []     # a real date after „на“
 

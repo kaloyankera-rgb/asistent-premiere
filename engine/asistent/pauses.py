@@ -12,9 +12,9 @@ from .speechmap import HOP_S, LOW, SILENT, VOICED, WORD, coverage, runs
 
 # (kept after a sentence, kept inside a sentence) in seconds
 TEMPO = {"calm": (0.45, 0.30), "normal": (0.35, 0.22), "tight": (0.25, 0.12)}
-TEMPO_BG = {"calm": "спокойно", "normal": "нормално", "tight": "стегнато"}
-SAFE_MIN = {"calm": 2.0, "normal": 1.5, "tight": 1.2}     # Внимателно touches only pauses longer than this (the long dead stretches)
-SMART_SLACK = 0.10                                         # Умно shortens a pause that exceeds its budget by this
+TEMPO_LABEL = {"calm": "calm", "normal": "normal", "tight": "tight"}
+SAFE_MIN = {"calm": 2.0, "normal": 1.5, "tight": 1.2}     # Safe touches only pauses longer than this (the long dead stretches)
+SMART_SLACK = 0.10                                         # Smart shortens a pause that exceeds its budget by this
 LEAD_IN, TAIL_OUT = 0.15, 0.80                             # kept before the first word of a clip / after its last word (the picture breathes)
 MIN_CUT = {"safe": 0.5, "smart": 0.25}                      # a pause cut shorter than this is not worth an edit
 MIN_SHOT = 1.5                                             # a kept piece shorter than this between two cuts is a jump cut for nothing: the smaller cut is not made
@@ -147,6 +147,36 @@ def plan(sm: dict, words: list[dict], fps: float, mode: str = "safe", tempo: str
             voiced.append((origin + v0 * HOP_S, origin + v1 * HOP_S))
     return {"cuts": cuts, "gaps": gaps, "voiced": voiced, "hole_speech_s": round(holes_kept, 2),
             "no_sound_s": round(sum(b - a for a, b in no_sound), 2), "empty_s": round(sum(b - a for a, b in empty), 2)}
+
+
+def take_edges(a: float, b: float, sm: dict, words: list[dict]) -> tuple[float, float] | None:
+    """Where the cut for a repeated take lands. It starts where the sound before the first losing take begins: its first
+    word (Whisper's start can be late by up to 0.3 s) and the breath or rustle right before it (LOW frames: kept, they
+    were a 0.8 s flash before the cut in the user's 2026-11-03 test), never before the end of the word said before it. It
+    stops LEAD_IN before the sound the winning take begins with. Unlike a pause cut it does cut speech: that is its job.
+    -> (start, end) or None (too short)."""
+    labels, origin = sm["labels"], sm["origin"]
+
+    def frame(t):
+        return min(max(int(round((t - origin) / HOP_S)), 0), len(labels))
+
+    before = max((w["end"] for w in words if w["end"] <= a + 1e-6), default=origin)
+    i, stop = frame(a), frame(before + 0.05)
+    while i > stop and labels[i - 1] >= LOW:
+        i -= 1
+    start = max(origin + i * HOP_S - 0.02, before + 0.05)
+    j = frame(b)
+    lim = max(j - int(round(0.3 / HOP_S)), 0)
+    while j > lim and labels[j - 1] >= VOICED:
+        j -= 1
+    end = origin + j * HOP_S - LEAD_IN
+    return (start, end) if end - start >= MIN_CUT["smart"] else None
+
+
+def with_takes(cuts: list[tuple[float, float]], take_cuts: list[tuple[float, float]], sm: dict) -> list[tuple[float, float]]:
+    """The pause cuts and the cuts for repeated takes as one list: overlapping ones joined, and a piece of breath or
+    silence shorter than MIN_KEEP left between two of them goes too."""
+    return _merge_slivers(_union(list(cuts) + list(take_cuts), gap=0.07), sm["labels"], sm["origin"])
 
 
 def _no_jump_cuts(spans: list[tuple[float, float]], exact: list[tuple[float, float]]) -> list[tuple[float, float]]:

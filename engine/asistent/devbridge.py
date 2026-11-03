@@ -32,7 +32,7 @@ class Bridge:
 
     def submit(self, name: str, args: dict | None = None) -> str:
         if not isinstance(name, str) or not name or len(name) > 40:
-            raise ValueError("Невалидна команда.")
+            raise ValueError("Invalid command.")
         cid = uuid.uuid4().hex[:12]
         with self._cv:
             self._queue.append({"id": cid, "name": name, "args": args or {}})

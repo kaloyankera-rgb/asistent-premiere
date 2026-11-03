@@ -25,20 +25,20 @@ async function readTracks(sequence) {
 }
 
 /** result: the engine's /subtitles result. -> { status, ... } for captionplan.describePlacement */
-async function place(project, sequence, result) {
+async function place(project, sequence, result, opts = {}) {
   const name = sequence.name || "";
   const before = await readTracks(sequence);
   const sig = await engine.captionsState(project.path, name);
   const own = plan.findOwn(sig, before);
-  if (own) return { status: "exists", track: own };
+  if (own && !opts.again) return { status: "exists", track: own };       // "again": the user corrected words, the new set goes on a new track
   let answer;
   try {
     answer = await engine.placeCaptions({ srt: result.srt, sequence: name, project: project.path });
   } catch (e) {
     const message = (e && e.message) || String(e);
-    return { status: /не работи/.test(message) ? "nohost" : "error", message };
+    return { status: /not running/.test(message) ? "nohost" : "error", message };
   }
-  if (!answer.ok) return { status: "error", message: answer.msg || "Premiere отказа." };
+  if (!answer.ok) return { status: "error", message: answer.msg || "Premiere refused." };
   const after = await readTracks(sequence);
   const track = plan.addedTrack(before, after);
   const problems = plan.problems(track, result.captions);
@@ -46,7 +46,7 @@ async function place(project, sequence, result) {
     await engine.recordCaptions(project.path, name, { index: track.index, count: track.count, first: track.start, last: track.end, srt: result.srt });
   }
   engine.log("info", `captions: placed on C${track ? track.index + 1 : "?"}, ${track ? track.count : 0} items, problems: ${problems.join("; ") || "none"}`);
-  return track ? { status: "placed", track, problems } : { status: "error", message: problems[0] };
+  return track ? { status: "placed", track, problems, replaces: own || null } : { status: "error", message: problems[0] };
 }
 
 module.exports = { readTracks, place };

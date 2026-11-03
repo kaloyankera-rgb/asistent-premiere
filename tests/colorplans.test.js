@@ -15,10 +15,10 @@ test("fx39024: high white + medium exposure shows both buttons (counted per corr
   const all = plansFor(clips, results, "all");
   assert.strictEqual(sure.length, 1);
   assert.strictEqual(all.length, 1);                              // same number of clips …
-  assert.ok(corrections(all) > corrections(sure));                // … but „и средните“ adds the exposure
+  assert.ok(corrections(all) > corrections(sure));                // … but "the medium ones too" adds the exposure
   assert.strictEqual(sure[0].exposure, null);
   assert.strictEqual(all[0].exposure, 2.1);                       // Lumetri units, not stops
-  assert.deepStrictEqual(sure[0].left, ["експозицията"]);         // and „сигурните“ says what it left out
+  assert.deepStrictEqual(sure[0].left, ["the exposure"]);         // and "the sure ones" says what it left out
 });
 
 test("everything high: one button, nothing left out", () => {
@@ -87,8 +87,8 @@ test("the limits are the render check's, used by the refine step too", () => {
 const { statusOf, STATUS_BG } = require("../panel/colorplans.js");
 
 test("statuses per clip", () => {
-  assert.strictEqual(statusOf({ skipped: true, skipReason: "вече има Lumetri с промени (tint), които не са от Асистент" }), "BLOCKED");
-  assert.strictEqual(statusOf({ skipped: true, skipReason: "не стана за този клип (x); другите продължават" }), "FAILED");
+  assert.strictEqual(statusOf({ skipped: true, skipReason: "already has a Lumetri with changes (tint) that are not from Asistent" }), "BLOCKED");
+  assert.strictEqual(statusOf({ skipped: true, skipReason: "did not work for this clip (x); the others go on" }), "FAILED");
   assert.strictEqual(statusOf({ nothing: true }), "ALREADY_BALANCED");
   const both = { applied: { exposure: 1, temperature: -5, tint: 2 } };
   assert.strictEqual(statusOf({ ...both, reverted: ["white", "exposure"] }), "REVERTED");
@@ -103,7 +103,7 @@ test("statuses per clip", () => {
 test("a revert is driven by the final check and costs one Undo step for all clips", () => {
   const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "panel", "premiere-color.js"), "utf8");
   assert.match(src, /steps \+= await revertWorse\(project, prepared\)/);
-  assert.match(src, /transaction\(project, "Asistent: върни влошеното"/);
+  assert.match(src, /transaction\(project, "Asistent: revert what got worse"/);
 });
 
 // ---- the separate buttons (0.9.58): the same plans narrowed to one correction; Auto Color is unchanged
@@ -119,8 +119,8 @@ function plansBefore(clips, results, level) {
     const exposure = r.exposure.stops && ok(r.exposure.confidence) ? units : null;
     const wb = !r.white.balanced && ok(r.white.confidence);
     const left = [];
-    if (level === "sure" && r.exposure.stops && r.exposure.confidence === "medium") left.push("експозицията");
-    if (level === "sure" && !r.white.balanced && r.white.confidence === "medium") left.push("бялото");
+    if (level === "sure" && r.exposure.stops && r.exposure.confidence === "medium") left.push("the exposure");
+    if (level === "sure" && !r.white.balanced && r.white.confidence === "medium") left.push("the white balance");
     if (exposure || wb) plans.push({ clip, res: r, exposure, wb, left });
   });
   return plans;
@@ -137,7 +137,7 @@ test("Auto Color (no part) gives exactly the plans the single button gave before
   }
 });
 
-test("Бяло alone plans only the white; Експозиция alone plans only the exposure", () => {
+test("White balance alone plans only the white; Exposure alone plans only the exposure", () => {
   const clips = [{ name: "fx39024.MP4" }];
   const results = [res(2, "high", false, "high")];
   const white = plansFor(clips, results, "sure", "white");
@@ -162,5 +162,5 @@ test("a medium correction of the other part is not reported as left out", () => 
   const results = [res(2, "medium", false, "high")];               // exposure medium, white high
   assert.deepStrictEqual(plansFor([{}], results, "sure", "white")[0].left, []);
   assert.strictEqual(plansFor([{}], results, "sure", "exposure").length, 0);
-  assert.deepStrictEqual(plansFor([{}], results, "sure")[0].left, ["експозицията"]);
+  assert.deepStrictEqual(plansFor([{}], results, "sure")[0].left, ["the exposure"]);
 });

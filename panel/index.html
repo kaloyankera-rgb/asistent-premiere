@@ -9,114 +9,124 @@
   <header>
     <div class="row">
       <span id="dot" class="dot off"></span>
-      <span id="engine">Свързване…</span>
+      <span id="engine">Connecting…</span>
     </div>
     <div id="detail" class="muted small" hidden></div>
-    <div id="project" class="muted">Няма отворен проект</div>
+    <div id="project" class="muted">No project open</div>
   </header>
 
   <!-- Three views (2026-11-03): the actions, the full report of the last run, the before/after pictures.
        The report and the pictures used to open above the buttons and push them out of view. -->
   <nav class="tabs">
-    <button id="tabTools" class="tab on" data-tab="paneTools" data-tip="Бутоните на Asistent.">Инструменти</button>
-    <button id="tabLog" class="tab" data-tab="paneLog" data-tip="Пълният отчет на последната операция и по-ранните резултати.">Дневник<span id="logBadge" class="count" hidden></span></button>
-    <button id="tabPreview" class="tab" data-tab="panePreview" data-tip="Кадрите преди и след на последното предложение за цвят." hidden>Преди / след</button>
+    <button id="tabTools" class="tab on" data-tab="paneTools" data-tip="Asistent's buttons.">Tools</button>
+    <button id="tabLog" class="tab" data-tab="paneLog" data-tip="The full report of the last operation and earlier results.">Log<span id="logBadge" class="count" hidden></span></button>
+    <button id="tabPreview" class="tab" data-tab="panePreview" data-tip="Before and after frames of the last color proposal." hidden>Before / after</button>
+    <button id="tabCaptions" class="tab" data-tab="paneCaptions" data-tip="The lines of the last subtitles: type a wrong word right and rebuild." hidden>Captions</button>
   </nav>
 
   <div id="paneTools" class="pane">
     <section id="work" hidden>
       <div id="message"></div>
       <div class="bar"><div id="fill"></div></div>
-      <button id="cancel" class="secondary" data-tip="Спира текущата операция. Нищо недовършено не се прилага.">Отказ</button>
+      <button id="cancel" class="secondary" data-tip="Stops the current operation. Nothing unfinished is applied.">Cancel</button>
     </section>
 
     <section id="result" hidden>
       <div id="summary"></div>
       <div id="actions" class="row buttons"></div>
       <div class="row links">
-        <button id="openLog" class="link" data-tip="Отваря пълния отчет в „Дневник“.">Подробности</button>
-        <button id="openPreview" class="link" data-tip="Отваря кадрите преди и след." hidden>Преди / след</button>
+        <button id="openLog" class="link" data-tip="Opens the full report in Log.">Details</button>
+        <button id="openPreview" class="link" data-tip="Opens the before and after frames." hidden>Before / after</button>
       </div>
     </section>
 
     <div class="card" id="secSync">
-      <div class="title">СИНХРОН</div>
-      <p class="desc">Подрежда камерите по общия им звук в нова секвенция SYNC, по време на запис. Твоята секвенция не се пипа.</p>
-      <button id="sync" class="action" data-tip="Маркирай клиповете в таймлайна (може всички) и натисни. Прави нова секвенция SYNC с всяка камера на своя писта; клиповете без двойка стоят на мястото си по време.">Синхронизирай камерите</button>
+      <div class="title">SYNC</div>
+      <p class="desc">Lines up the cameras by their shared sound in a new SYNC sequence, in recording order. Your sequence is not touched.</p>
+      <button id="sync" class="action" data-tip="Select the clips in the timeline (all of them is fine) and press. Makes a new SYNC sequence with each camera on its own track; clips without a pair stay in their place in time.">Sync cameras</button>
     </div>
 
     <div class="card" id="secRough">
-      <div class="title">ГРУБ МОНТАЖ</div>
-      <p class="desc">Маркирай камерите и микрофоните с говор. Паузите се изрязват в нова секвенция, оригиналът не се пипа. Пусни го преди цвета и звука: ефектите не се пренасят.</p>
-      <button id="rough" class="action" data-tip="Намира паузите по думите, силата на звука и Silero и прави нова секвенция „ГРУБ“ със същите рязания на всички маркирани камери и микрофони (синхронът остава). Всяко натискане е нова версия; оригиналът и старите версии не се пипат.">Груб монтаж</button>
+      <div class="title">ROUGH CUT</div>
+      <p class="desc">Select the cameras and the microphones with speech. Pauses and repeated takes are cut in a new sequence; the original is not touched. Audio you do not use (a quiet camera microphone): mute its track first, it is then left out.</p>
+      <button id="rough" class="action" data-tip="Finds the pauses from the words, the sound level and Silero, and the repeated takes from the words, then makes a new ROUGH sequence with the same cuts on every selected camera and microphone (sync is kept). Each press is a new version; the original and older versions are not touched.">Rough cut</button>
       <div class="row buttons">
-        <label for="roughMode" class="muted" data-tip="Внимателно: изрязва само дълги паузи, които със сигурност са тишина. Умно: скъсява всяка пауза до мярката на темпото. Повторените дублове още не се търсят.">Режим</label>
-        <select id="roughMode"><option value="safe">Внимателно</option><option value="smart">Умно</option></select>
-        <label for="roughTempo" class="muted" data-tip="Колко пауза остава между изреченията и в тях: спокойно 0,45 / 0,30 s, нормално 0,35 / 0,22 s, стегнато 0,25 / 0,12 s.">Темпо</label>
-        <select id="roughTempo"><option value="calm">Спокойно</option><option value="normal" selected>Нормално</option><option value="tight">Стегнато</option></select>
+        <label for="roughMode" class="muted" data-tip="Safe: cuts only long pauses that are surely silence, and repeated takes (the last full take stays). Smart: also shortens every pause to the tempo and cuts a start repeated inside a sentence.">Mode</label>
+        <select id="roughMode"><option value="safe">Safe</option><option value="smart">Smart</option></select>
+        <label for="roughTempo" class="muted" data-tip="How much pause stays between sentences and inside them: calm 0.45 / 0.30 s, normal 0.35 / 0.22 s, tight 0.25 / 0.12 s.">Tempo</label>
+        <select id="roughTempo"><option value="calm">Calm</option><option value="normal" selected>Normal</option><option value="tight">Tight</option></select>
       </div>
       <div class="row buttons">
         <input type="checkbox" id="roughMarkers" />
-        <label for="roughMarkers" class="muted" data-tip="Слага маркер в новата секвенция на всяко място за преглед (говор без разпозната дума). По подразбиране е изключено.">Маркери за прегледа</label>
+        <label for="roughMarkers" class="muted" data-tip="Puts a marker in the new sequence at every place to review (repeated takes, speech without a recognised word). Off by default.">Review markers</label>
       </div>
     </div>
 
     <div class="card" id="secAudio">
-      <div class="title">ЗВУК</div>
-      <p class="desc">Маркирай клиповете (видеото или звука). Левият и десният канал отиват на две писти: горе L/L, отдолу R/R, свързани с картината. Силата отива към −17 LUFS, пикът не минава −6 dB.</p>
-      <button id="audio" class="action" data-tip="Всеки стерео клип: копие с L/L на мястото на звука и копие с R/R на пистата отдолу (Audio Channels, без Fill ефекти), свързани с видеото. После изравнява силата на двете. Повторно натискане не прави нови копия.">Оправи звука</button>
-      <button id="audioMore" class="disclose" data-tip="Показва ръчните варианти за звука.">Ръчно ▸</button>
+      <div class="title">AUDIO</div>
+      <p class="desc">Select the clips (video or audio). The left and right channels go on two tracks: L/L above, R/R below, linked to the picture. Loudness goes to −17 LUFS, the peak stays under −6 dB.</p>
+      <button id="audio" class="action" data-tip="Each stereo clip: a copy with L/L in place of the audio and a copy with R/R on the track below (Audio Channels, no Fill effects), linked to the video. Then evens out the level of both. A second press makes no new copies.">Fix audio</button>
+      <button id="audioMore" class="disclose" data-tip="Shows the manual audio options.">Manual ▸</button>
       <div id="audioManual" class="row buttons" hidden>
-        <button class="small" data-force="split" data-tip="Същото като „Оправи звука“: L/L на мястото на звука, R/R на пистата отдолу.">Раздели L/R</button>
-        <button class="small" data-force="split_rl" data-tip="Като „Раздели L/R“, но обратно: R/R на мястото на звука, L/L на пистата отдолу.">Раздели R/L</button>
-        <button class="small" data-force="use_left" data-tip="Слага копие с L/L (левият канал в двете страни) на мястото на звука.">Само L</button>
-        <button class="small" data-force="use_right" data-tip="Слага копие с R/R (десният канал в двете страни) на мястото на звука.">Само R</button>
-        <button class="small" data-force="none" data-tip="Не пипа каналите, само изравнява силата.">Само сила</button>
-        <button class="small" data-force="phrases" data-tip="Като „Оправи звука“, плюс ключови кадри, които изравняват тихите и силните изречения.">Изравни фразите</button>
+        <button class="small" data-force="split" data-tip="The same as Fix audio: L/L in place of the audio, R/R on the track below.">Split L/R</button>
+        <button class="small" data-force="split_rl" data-tip="Like Split L/R, but the other way round: R/R in place of the audio, L/L on the track below.">Split R/L</button>
+        <button class="small" data-force="use_left" data-tip="Puts a copy with L/L (the left channel on both sides) in place of the audio.">L only</button>
+        <button class="small" data-force="use_right" data-tip="Puts a copy with R/R (the right channel on both sides) in place of the audio.">R only</button>
+        <button class="small" data-force="none" data-tip="Leaves the channels alone and only evens out the level.">Level only</button>
+        <button class="small" data-force="phrases" data-tip="Like Fix audio, plus keyframes that even out quiet and loud sentences.">Even out phrases</button>
       </div>
     </div>
 
     <div class="card" id="secColor">
-      <div class="title">ЦВЯТ</div>
-      <p class="desc">Маркирай видео клиповете. Първо показва предложение с преди и след; Lumetri се пипа чак след „Приложи“. „Изравни POV-тата“ е за след поправките: клипове от две камери.</p>
-      <button id="color" class="action" data-tip="Мери бялото и експозицията на маркираните клипове и предлага и двете корекции заедно. Нищо не се прилага без „Приложи“.">Авто цвят</button>
+      <div class="title">COLOR</div>
+      <p class="desc">Select the video clips. A proposal with before and after comes first; Lumetri is touched only after Apply. Match POVs is for after the corrections: clips from two cameras.</p>
+      <button id="color" class="action" data-tip="Measures the white balance and exposure of the selected clips and proposes both corrections together. Nothing is applied without Apply.">Auto color</button>
       <div class="row buttons">
-        <button id="colorWhite" class="small" data-tip="Същото измерване като „Авто цвят“, но предлага само бялото (Temperature и Tint). Нищо не се прилага без „Приложи“.">Бяло</button>
-        <button id="colorExposure" class="small" data-tip="Същото измерване като „Авто цвят“, но предлага само яркостта (Exposure). Нищо не се прилага без „Приложи“.">Експозиция</button>
-        <button id="shotmatch" class="small" data-tip="Маркирай клипове от две камери, вече поправени. Изравнява яркостта, бялото, контраста и наситеността на другите камери към една еталонна (по лицата и неутралните повърхности), върху направените корекции. Първо показва предложение; еталонът може да се смени.">Изравни POV-тата</button>
-        <button id="probe" class="small" data-tip="Проверява как Lumetri в този Premiere реагира на стойностите. Само в тестовия проект.">Проба на Lumetri (тестов проект)</button>
+        <button id="colorWhite" class="small" data-tip="The same measurement as Auto color, but proposes only the white balance (Temperature and Tint). Nothing is applied without Apply.">White balance</button>
+        <button id="colorExposure" class="small" data-tip="The same measurement as Auto color, but proposes only the brightness (Exposure). Nothing is applied without Apply.">Exposure</button>
+        <button id="shotmatch" class="small" data-tip="Select clips from two cameras that are already corrected. Matches the brightness, white balance, contrast and saturation of the other cameras to one reference camera (by the faces and neutral surfaces), on top of the corrections made. A proposal comes first; the reference can be changed.">Match POVs</button>
+        <button id="probe" class="small" data-tip="Checks how Lumetri in this Premiere responds to the values. Test project only.">Lumetri probe (test project)</button>
       </div>
     </div>
 
     <div class="card" id="secSubtitles">
-      <div class="title">СУБТИТРИ</div>
-      <p class="desc">Маркирай аудио клиповете с говор. Разпознава се само на този компютър; .srt отива в папката на проекта и на нова caption писта.</p>
-      <button id="subtitles" class="action" data-tip="Разпознава българския говор в маркираните клипове, прави .srt (папка Asistent_subtitles) и го слага на нова caption писта на активната секвенция.">Субтитри (български)</button>
-      <label for="notes" class="muted">Корекции и имена (по един на ред)</label>
+      <div class="title">SUBTITLES</div>
+      <p class="desc">Select the audio clips with speech. Recognition runs only on this computer; the .srt goes into the project folder and onto a new caption track.</p>
+      <button id="subtitles" class="action" data-tip="Recognises the Bulgarian speech in the selected clips, makes an .srt (folder Asistent_subtitles) and puts it on a new caption track of the active sequence.">Subtitles (Bulgarian)</button>
+      <label for="notes" class="muted">Corrections and names (one per line)</label>
       <textarea id="notes" rows="3" placeholder="раф => рафт&#10;Джи Строй"></textarea>
       <div id="notesState" class="hint" hidden></div>
       <div id="subtitleModel" class="warn" hidden></div>
-      <div id="subtitleAsk" class="row buttons" hidden><button id="subtitleDownload" class="small" data-tip="Сваля модела за разпознаване на говор (около 3,1 GB). Тръгва само с този бутон.">Свали модела (около 3,1 GB)</button></div>
+      <div id="subtitleAsk" class="row buttons" hidden><button id="subtitleDownload" class="small" data-tip="Downloads the speech recognition model (about 3.1 GB). It starts only with this button.">Download the model (about 3.1 GB)</button></div>
     </div>
 
     <div class="card" id="secImport">
-      <div class="title">АВТО ВНАСЯНЕ</div>
-      <p class="desc">Следи папка и внася новите файлове в проекта, подредени по вид.</p>
-      <div id="importStatus" class="muted">Изключено</div>
+      <div class="title">AUTO IMPORT</div>
+      <p class="desc">Watches a folder and imports new files into the project, sorted by type.</p>
+      <div id="importStatus" class="muted">Off</div>
       <div class="row buttons">
-        <button id="importToggle" class="small" data-tip="Включва или изключва следенето на Downloads за нови файлове.">Следи Downloads</button>
-        <button id="importFolder" class="small" data-tip="Избира друга папка за следене вместо Downloads.">Друга папка…</button>
+        <button id="importToggle" class="small" data-tip="Turns watching Downloads for new files on or off.">Watch Downloads</button>
+        <button id="importFolder" class="small" data-tip="Picks another folder to watch instead of Downloads.">Other folder…</button>
       </div>
       <div id="importRecent"></div>
     </div>
   </div>
 
   <div id="paneLog" class="pane" hidden>
-    <div class="title">ПОСЛЕДНА ОПЕРАЦИЯ</div>
-    <div id="logSummary" class="muted">Още няма.</div>
+    <div class="title">LAST OPERATION</div>
+    <div id="logSummary" class="muted">None yet.</div>
     <div id="details"></div>
-    <div class="title spaced">ПО-РАНО</div>
-    <div id="history" class="muted">Още няма.</div>
+    <div class="title spaced">EARLIER</div>
+    <div id="history" class="muted">None yet.</div>
+  </div>
+
+  <div id="paneCaptions" class="pane" hidden>
+    <p class="desc">Type a wrong word right, then press Apply. The corrected words are timed by the sound again, and the corrections are remembered for this project (they are added to the box in SUBTITLES).</p>
+    <div id="captionEditActions" class="row buttons">
+      <button id="captionApply" class="action" data-tip="Adds what you changed to the corrections, rebuilds the subtitles (the speech is not recognised again, so it takes seconds) and puts them on a new caption track. Delete the old caption track afterwards.">Apply and rebuild</button>
+    </div>
+    <div id="captionEditState" class="muted"></div>
+    <div id="captionList"></div>
   </div>
 
   <div id="panePreview" class="pane" hidden>

@@ -67,7 +67,7 @@ def read_wav(path: str) -> np.ndarray:
     """16 kHz mono wav from ffmpeg -> float32 in -1..1."""
     with wave.open(path, "rb") as w:
         if w.getframerate() != 16000 or w.getnchannels() != 1:
-            raise ASRError("Звукът за разпознаване трябва да е 16 kHz, моно.")
+            raise ASRError("The sound for recognition must be 16 kHz mono.")
         return np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
 
 
@@ -118,10 +118,10 @@ def workers() -> int:
 
 def _load():
     if not backend_installed():
-        raise ASRError("Липсват пакетите за разпознаване на реч (faster-whisper). Инсталират се от панела или със "
+        raise ASRError("The speech recognition packages (faster-whisper) are missing. They are installed from the panel or with "
                        "setup_mac.sh --subtitles.")
     if not model_present():
-        raise ASRError("Моделът за разпознаване (large-v3, около 3 GB) още не е свален. Свали го от панела.")
+        raise ASRError("The recognition model (large-v3, about 3 GB) is not downloaded yet. Download it from the panel.")
     with _lock:
         if _state["model"] is not None:
             return _state["model"]
@@ -162,7 +162,7 @@ def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[
     progress = progress or (lambda f, m: None)
     cancelled = cancelled or (lambda: False)
     duration = max(len(audio) / 16000.0, 0.001)
-    progress(0.0, "Зареждам модела…")
+    progress(0.0, "Loading the model…")
     model = _load()
     if cancelled():
         raise Cancelled()
@@ -176,7 +176,7 @@ def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[
             if w.word.strip():
                 words.append({"word": w.word.strip(), "start": round(float(w.start), 3), "end": round(float(w.end), 3),
                               "p": round(float(w.probability), 2)})
-        progress(min(seg.end / duration, 1.0), "Разпознавам речта…")
+        progress(min(seg.end / duration, 1.0), "Recognising the speech…")
     _state["last"] = time.time()
     _schedule_free()
     return words
@@ -186,7 +186,7 @@ def download_model(progress: Callable[[float, str], None], cancelled: Callable[[
     """Download the model into `model_dir()` (resumable: a cancelled or broken download continues next time).
     Only ever called from the user's confirmed panel button; progress follows the bytes on disk."""
     if not backend_installed():
-        raise ASRError("Първо трябва да са инсталирани пакетите за разпознаване на реч (faster-whisper).")
+        raise ASRError("The speech recognition packages (faster-whisper) must be installed first.")
     from huggingface_hub import snapshot_download
     d = model_dir()
     os.makedirs(d, exist_ok=True)
@@ -204,11 +204,11 @@ def download_model(progress: Callable[[float, str], None], cancelled: Callable[[
         if cancelled():
             raise Cancelled()                                   # the part file stays and resumes later
         have = model_status()["bytes"]
-        progress(min(have / MODEL_BYTES, 0.99), f"Свалям модела: {have / 1e9:.1f} от около {MODEL_BYTES / 1e9:.1f} GB")
+        progress(min(have / MODEL_BYTES, 0.99), f"Downloading the model: {have / 1e9:.1f} of about {MODEL_BYTES / 1e9:.1f} GB")
         time.sleep(1.0)
     if err:
-        raise ASRError(f"Свалянето не стана: {err[0]}")
+        raise ASRError(f"The download failed: {err[0]}")
     if not model_present():
-        raise ASRError("Свалянето приключи, но липсват файлове на модела.")
+        raise ASRError("The download finished, but model files are missing.")
     log.info("whisper model downloaded to %s", d)
     return model_status()

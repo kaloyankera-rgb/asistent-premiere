@@ -94,7 +94,7 @@ def align_words(audio: np.ndarray, words: list[dict], spoken: dict | None = None
     if not words:
         return words, {"aligned": 0, "weak": 0}
     if not available():
-        return words, {"error": "подравняването не е инсталирано"}
+        return words, {"error": "the aligner is not installed"}
     worker = os.path.join(os.path.dirname(os.path.abspath(__file__)), "align_worker.py")
     with tempfile.TemporaryDirectory(prefix="asistent-align-") as d:
         np.save(os.path.join(d, "audio.npy"), audio.astype(np.float32))

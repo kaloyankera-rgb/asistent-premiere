@@ -18,7 +18,7 @@ async function lumetriMatch() {
   const all = (await maybe(ppro.VideoFilterFactory, "getMatchNames")) || [];
   lumetri = all.find((n) => /lumetri/i.test(n)) || null;
   debug(`video effects with lumetri: ${all.filter((n) => /lumetri|color/i.test(n)).join(" | ")}`);
-  if (!lumetri) throw new UserError("Не намирам Lumetri Color в този Premiere.");
+  if (!lumetri) throw new UserError("Cannot find Lumetri Color in this Premiere.");
   return lumetri;
 }
 
@@ -84,7 +84,7 @@ function clipKey(clip) {
 // with any other changes is someone's grade and is never touched.
 async function target(clip) {
   const chain = await maybe(clip.ti, "getComponentChain");
-  if (!chain) throw new Error(`Няма ефекти на ${clip.name}.`);
+  if (!chain) throw new Error(`${clip.name} has no effects.`);
   const count = await chain.getComponentCount();
   for (let i = 0; i < count; i++) {
     const comp = await chain.getComponentAtIndex(i);
@@ -98,7 +98,7 @@ async function target(clip) {
     const own = await engine.managedCheck(clipKey(clip), await snapshot(comp)).catch(() => null);
     debug(`color target ${clip.name}: Lumetri with ${used.join(", ")}, Asistent's own: ${!!(own && own.owned)}`);
     if (own && own.owned) return { chain, comp, ps, isNew: false, current, owned: true };
-    return { skip: `вече има Lumetri с промени (${used.join(", ")}), които не са от Асистент или са пипани на ръка: не е пипано`,
+    return { skip: `already has a Lumetri with changes (${used.join(", ")}) that are not from Asistent or were changed by hand: not touched`,
       current };
   }
   const comp = await ppro.VideoFilterFactory.createComponent(await lumetriMatch());
@@ -132,7 +132,7 @@ async function applyShotMatch(project, timeline, jobId, entries) {
     try {
       t = await target(e.clip);
     } catch (err) {
-      t = { skip: `не стана за този клип (${err && err.message ? err.message : err}); другите продължават` };
+      t = { skip: `did not work for this clip (${err && err.message ? err.message : err}); the others go on` };
     }
     if (t.skip) {
       Object.assign(pl, { skipped: true, skipReason: t.skip });
@@ -143,7 +143,7 @@ async function applyShotMatch(project, timeline, jobId, entries) {
     for (const k of e.r.changed || []) values[k] = e.r.proposal[k];
     if (!Object.keys(values).length) {
       pl.nothing = true;
-      pl.lines.push("вече съвпада с еталона: нищо за прилагане");
+      pl.lines.push("already matches the reference: nothing to apply");
       continue;
     }
     Object.assign(pl, { t, values, applied: values, moment: analysisMoments(timeline, e.clip)[0] ?? null });
@@ -166,15 +166,15 @@ async function applyShotMatch(project, timeline, jobId, entries) {
   }
   for (const pl of prepared) {
     const miss = Object.keys(pl.values).filter((k) => !pl.t.ps[k]);
-    if (miss.length) pl.lines.push(`липсва параметър в Lumetri: ${miss.join(", ")}`);
+    if (miss.length) pl.lines.push(`a Lumetri parameter is missing: ${miss.join(", ")}`);
   }
-  transaction(project, "Asistent: изравни камерите", (c) => {
+  transaction(project, "Asistent: match cameras", (c) => {
     for (const pl of prepared) for (const make of setActions(pl.t, pl.values)) c.addAction(make());
   });
   steps++;
   for (const pl of prepared) {
-    if (pl.t.owned) pl.lines.push("обновена е предишната поправка на Асистент");
-    pl.lines.push(Object.entries(pl.values).map(([k, v]) => `${NAMES[k]} ${v}${pl.t.current[k] !== DEFAULTS[k] ? ` (беше ${pl.t.current[k]})` : ""}`).join(" · "));
+    if (pl.t.owned) pl.lines.push("Asistent's earlier correction was updated");
+    pl.lines.push(Object.entries(pl.values).map(([k, v]) => `${NAMES[k]} ${v}${pl.t.current[k] !== DEFAULTS[k] ? ` (was ${pl.t.current[k]})` : ""}`).join(" · "));
     pl.final = { ...pl.values };
     await remember(pl);
   }
@@ -183,8 +183,8 @@ async function applyShotMatch(project, timeline, jobId, entries) {
   for (const [i, pl] of prepared.entries()) {
     pl.reverted = [];
     if (!pl.before) {
-      pl.lines.push(pl.moment === null ? "проверено само по модела: клипът е покрит от друг слой навсякъде"
-        : "без проверка на кадър (кадърът не се изнесе)");
+      pl.lines.push(pl.moment === null ? "checked by the model only: the clip is covered by another layer everywhere"
+        : "no check on a frame (the frame was not exported)");
       continue;
     }
     const after = await exportFrame(timeline.sequence, pl.moment, `match_after_${i}.png`, dir);
@@ -194,7 +194,7 @@ async function applyShotMatch(project, timeline, jobId, entries) {
       if (!chk) await new Promise((r) => setTimeout(r, 300));
     }
     if (!chk) {
-      pl.lines.push("проверката не успя");
+      pl.lines.push("the check failed");
       continue;
     }
     debug(`shot match check ${pl.clip.name}: ${JSON.stringify(chk)}`);
@@ -205,15 +205,15 @@ async function applyShotMatch(project, timeline, jobId, entries) {
       acts.push(...setActions(pl.t, back));
       pl.final = { ...pl.final, ...back };
       pl.reverted = (chk.revert || []).filter((part) => SHOT_PARTS[part].some((k) => k in back));
-      pl.lines.push(`върнато както беше (изравняването стана по-лошо): ${pl.reverted.map((p) => PART_BG[p]).join(", ")}`);
+      pl.lines.push(`reverted to how it was (the match made it worse): ${pl.reverted.map((p) => PART_BG[p]).join(", ")}`);
     } else {
-      pl.lines.push(chk.summary || "проверено на кадър: по-близо до еталона или същото");
+      pl.lines.push(chk.summary || "checked on a frame: closer to the reference or the same");
     }
     // which measurements the check could rely on and which it skipped (engine 0.9.30+), never hidden
-    for (const l of chk.report || []) pl.lines.push(`проверка: ${l}`);
+    for (const l of chk.report || []) pl.lines.push(`check: ${l}`);
   }
   if (acts.length) {
-    transaction(project, "Asistent: върни влошеното", (c) => {
+    transaction(project, "Asistent: revert what got worse", (c) => {
       for (const make of acts) c.addAction(make());
     });
     steps++;
@@ -223,7 +223,7 @@ async function applyShotMatch(project, timeline, jobId, entries) {
 }
 
 const NAMES = { exposure: "Exposure", temperature: "Temperature", tint: "Tint", contrast: "Contrast", saturation: "Saturation" };
-const PART_BG = { white: "бялото", exposure: "яркостта", saturation: "наситеността", contrast: "контрастът" };
+const PART_BG = { white: "white balance", exposure: "brightness", saturation: "saturation", contrast: "contrast" };
 
 // remember the Lumetri as Asistent left it, so a later press may update it (and only it)
 async function remember(pl) {
@@ -246,7 +246,7 @@ async function attached(t) {
       return t;
     }
   }
-  throw new Error("Lumetri не се появи на клипа.");
+  throw new Error("Lumetri did not appear on the clip.");
 }
 
 function setActions(t, values) {
@@ -281,7 +281,7 @@ async function exportFrame(sequence, seconds, name, dir, onError, long = 480) {
   const unique = `${Date.now().toString(36)}_${++exportCount}_${name}`;
   try {
     const ok = await ppro.Exporter.exportSequenceFrame(sequence, TickTime.createWithSeconds(seconds), unique, dir, w, h);
-    if (ok === false) throw new Error("exportSequenceFrame върна false");
+    if (ok === false) throw new Error("exportSequenceFrame returned false");
   } catch (e) {
     const msg = e && e.message ? e.message : String(e);
     debug(`exportSequenceFrame failed: ${msg}`);
@@ -291,7 +291,7 @@ async function exportFrame(sequence, seconds, name, dir, onError, long = 480) {
   const got = await engine.waitFrame(`${dir}/${unique}`).catch(() => null);
   if (!got || !got.path) {
     debug(`frame ${unique}: not written within the wait`);
-    if (onError) onError("Premiere не записа кадъра навреме");
+    if (onError) onError("Premiere did not write the frame in time");
     return null;
   }
   return got.path;
@@ -340,15 +340,15 @@ async function apply(project, timeline, plans) {
       if (!t.skip && t.owned && (t.current.exposure || 0) > 0 && unseen.has(clipKey(pl.clip))) {
         // the render check could not see the last correction on this clip (identical frames): stacking another one
         // on a measurement that does not show it doubled Exposure 2.15 → 4.3 (fx39026, 2026-11-01)
-        t = { skip: "предишната корекция не се вижда на таймлайна (кадърът не се променя): не добавям още. "
-          + "Виж дали клипът не е под друг слой, после натисни пак." };
+        t = { skip: "the earlier correction does not show on the timeline (the frame does not change): adding nothing more. "
+          + "Check whether the clip is under another layer, then press again." };
         unseen.delete(clipKey(pl.clip));
       }
       // hysteresis: on Asistent's own Lumetri a white the render check calls neutral stays as it is
       pl.keptWhite = !t.skip && t.owned && pl.wb && whiteWithinCheck(pl.res.white);
       if (!t.skip && pl.wb && !pl.keptWhite) sliders = await engine.colorSliders(pl.res.white.fix_temp, pl.res.white.fix_tint);
     } catch (e) {
-      t = { skip: `не стана за този клип (${e && e.message ? e.message : e}); другите продължават` };
+      t = { skip: `did not work for this clip (${e && e.message ? e.message : e}); the others go on` };
     }
     if (t.skip) {
       pl.lines = [t.skip];
@@ -361,7 +361,7 @@ async function apply(project, timeline, plans) {
     pl.applied = applied;
     if (!Object.keys(values).length) {
       pl.nothing = true;
-      pl.lines = [pl.keptWhite ? "бялото вече е неутрално (в границата на проверката): нищо за прилагане" : "нищо за прилагане"];
+      pl.lines = [pl.keptWhite ? "the white balance is already neutral (within the check's limit): nothing to apply" : "nothing to apply"];
       continue;
     }
     pl.t = t;
@@ -389,39 +389,39 @@ async function apply(project, timeline, plans) {
   }
   const missing = prepared.filter((pl) => Object.keys(pl.values).some((k) => !pl.t.ps[k]));
   for (const pl of missing) {
-    pl.lines.push(`липсва параметър в Lumetri: ${Object.keys(pl.values).filter((k) => !pl.t.ps[k]).join(", ")}`);
+    pl.lines.push(`a Lumetri parameter is missing: ${Object.keys(pl.values).filter((k) => !pl.t.ps[k]).join(", ")}`);
   }
-  transaction(project, "Asistent: поправи цвета", (c) => {
+  transaction(project, "Asistent: correct color", (c) => {
     for (const pl of prepared) for (const make of setActions(pl.t, pl.values)) c.addAction(make());
   });
   steps++;
   for (const pl of prepared) {
     const v = pl.values;
-    const was = (k) => (pl.t.owned && pl.t.current[k] ? ` (беше ${pl.t.current[k]})` : "");
-    if (pl.t.owned) pl.lines.push("обновена е предишната поправка на Асистент");
+    const was = (k) => (pl.t.owned && pl.t.current[k] ? ` (was ${pl.t.current[k]})` : "");
+    if (pl.t.owned) pl.lines.push("Asistent's earlier correction was updated");
     pl.lines.push([v.exposure !== undefined ? `Exposure ${v.exposure > 0 ? "+" : ""}${v.exposure}${was("exposure")}` : null,
       v.temperature !== undefined ? `Temperature ${v.temperature}${was("temperature")}` : null,
       v.tint !== undefined ? `Tint ${v.tint}${was("tint")}` : null].filter(Boolean).join(" · "));
-    if (pl.keptWhite) pl.lines.push("бялото е оставено: вече е неутрално в границата на проверката");
+    if (pl.keptWhite) pl.lines.push("white balance left alone: already neutral within the check's limit");
     pl.final = { ...pl.values };
     await remember(pl);                    // this state is Asistent's (also if the step back is undone later)
   }
 
   // check on Premiere's own render; correct once if the slider guess was off or highlights burnt
   if (!dir || !has(ppro.Exporter, "exportSequenceFrame")) {
-    for (const pl of prepared) pl.lines.push("без проверка на кадър (тази версия на Premiere не изнася кадри)");
+    for (const pl of prepared) pl.lines.push("no check on a frame (this Premiere version does not export frames)");
     return { steps };
   }
   const second = [];
   for (const [i, pl] of prepared.entries()) {
     if (!pl.before) {
-      pl.lines.push("без проверка: върху клипа има друг слой или кадърът не се изнесе");
+      pl.lines.push("no check: another layer is over the clip or the frame was not exported");
       continue;
     }
     const after = await exportFrame(timeline.sequence, pl.mid, `after_${i}.png`, dir);
     const chk = after && (await checkWithRetry(pl.before, after, pl.applied, pl.res.white));
     if (!chk) {
-      pl.lines.push("проверката не успя");
+      pl.lines.push("the check failed");
       continue;
     }
     debug(`color check ${pl.clip.name}: ${JSON.stringify(chk)}`);
@@ -433,7 +433,7 @@ async function apply(project, timeline, plans) {
       // as far back as the clipping needs (engine, from the frames and the probe curve); older engines: 0.5
       const back = chk.pullback_units || 0.5;
       fixValues.exposure = Math.max(0, Math.round((pl.values.exposure - back) * 100) / 100);
-      pl.lines.push(`изгоряха ${(chk.new_clipping * 100).toFixed(1)}%: експозицията свалена с ${back} на ${fixValues.exposure}`);
+      pl.lines.push(`${(chk.new_clipping * 100).toFixed(1)}% clipped: exposure lowered by ${back} to ${fixValues.exposure}`);
     }
     const offWhite = pl.wb && !pl.keptWhite && chk.residual && (Math.abs(chk.residual[0]) > WHITE_OK.temp ||
       Math.abs(chk.residual[1]) > WHITE_OK.tint);
@@ -446,21 +446,21 @@ async function apply(project, timeline, plans) {
       if (Math.abs(temp - pl.values.temperature) >= 0.5 || Math.abs(tint - pl.values.tint) >= 0.5) {
         fixValues.temperature = temp;
         fixValues.tint = tint;
-        pl.lines.push(`бялото доуточнено: Temperature ${temp}, Tint ${tint}`);
+        pl.lines.push(`white balance refined: Temperature ${temp}, Tint ${tint}`);
       } else {
-        pl.lines.push("бялото: близо до неутрално, по-нататъшно уточнение не би променило нищо");
+        pl.lines.push("white balance: close to neutral, refining further would change nothing");
       }
     } else if (pl.wb && !pl.keptWhite && chk.residual) {
-      pl.lines.push("проверено на кадър: бялото е неутрално");
+      pl.lines.push("checked on a frame: the white balance is neutral");
     }
     // a step back or a refined white is measured once more (the re-check); otherwise this check is final
     pl.recheck = Object.keys(fixValues).length > 0;
-    if (!pl.recheck && chk.clipping_status) pl.lines.push(`резултат: ${finalLine(chk)}`);   // always one result line
+    if (!pl.recheck && chk.clipping_status) pl.lines.push(`result: ${finalLine(chk)}`);   // always one result line
     if (pl.recheck) second.push(...setActions(pl.t, fixValues));
     pl.final = { ...pl.values, ...fixValues };
   }
   if (second.length) {
-    transaction(project, "Asistent: поправи цвета (уточнение)", (c) => {
+    transaction(project, "Asistent: correct color (refinement)", (c) => {
       for (const make of second) c.addAction(make());
     });
     steps++;
@@ -472,13 +472,13 @@ async function apply(project, timeline, plans) {
     const after2 = await exportFrame(timeline.sequence, pl.mid, `after2_${i}.png`, dir);
     const chk2 = after2 && (await checkWithRetry(pl.before, after2, sinceBefore(pl), pl.res.white, true));
     if (!chk2) {
-      pl.lines.push("след уточнението: проверката не успя");
+      pl.lines.push("after the refinement: the check failed");
       pl.finalChk = null;
       continue;
     }
     debug(`color recheck ${pl.clip.name}: ${JSON.stringify(chk2)}`);
     pl.finalChk = chk2;
-    pl.lines.push(`след ${pl.final.exposure !== pl.values.exposure ? "свалянето" : "уточнението"}: ${finalLine(chk2)}`);
+    pl.lines.push(`after the ${pl.final.exposure !== pl.values.exposure ? "lowering" : "refinement"}: ${finalLine(chk2)}`);
   }
   steps += await revertWorse(project, prepared);
   return { steps };
@@ -507,11 +507,11 @@ async function revertWorse(project, prepared) {
     acts.push(...setActions(pl.t, back));
     pl.final = { ...pl.final, ...back };
     pl.reverted = g.revert;
-    const why = { white: "бялото стана по-далеч от неутрално", exposure: "яркостта отиде по-далеч от целта" };
-    pl.lines.push(`върнато както беше: ${g.revert.map((p) => why[p]).join("; ")}`);
+    const why = { white: "the white balance moved further from neutral", exposure: "the brightness moved further from the target" };
+    pl.lines.push(`reverted to how it was: ${g.revert.map((p) => why[p]).join("; ")}`);
   }
   if (!acts.length) return 0;
-  transaction(project, "Asistent: върни влошеното", (c) => {
+  transaction(project, "Asistent: revert what got worse", (c) => {
     for (const make of acts) c.addAction(make());
   });
   for (const pl of prepared) if (pl.reverted.length) await remember(pl);
@@ -523,31 +523,31 @@ async function revertWorse(project, prepared) {
 // It only reports: no status ever triggers another correction.
 function finalLine(chk) {
   const pct = `${(chk.new_clipping * 100).toFixed(2)}%`;
-  const msg = chk.clipping_message_bg || (chk.new_clipping > 0.03 ? `изгорели ${pct}` : `изгорели ${pct}, в границата`);
+  const msg = chk.clipping_message || (chk.new_clipping > 0.03 ? `clipped ${pct}` : `clipped ${pct}, within the limit`);
   const stops = chk.exposure_after;
-  if (typeof stops !== "number" || /Кожата е запазена/.test(msg)) return msg;
-  if (Math.abs(stops) < 0.2) return `${msg} Яркостта е в целта.`;
-  return `${msg} Яркостта е ${Math.abs(stops).toFixed(1)} стопа ${stops > 0 ? "под" : "над"} целта.`;
+  if (typeof stops !== "number" || /Skin exposure is preserved/.test(msg)) return msg;
+  if (Math.abs(stops) < 0.2) return `${msg} The brightness is on target.`;
+  return `${msg} The brightness is ${Math.abs(stops).toFixed(1)} stops ${stops > 0 ? "under" : "over"} the target.`;
 }
 
 // Test bridge only (devbridge.js, TEST.prproj): write values into the clip's EXISTING Lumetri, whoever's it is, in one
 // Undo step, and read back what it holds. Never creates a Lumetri.
 async function devWrite(project, clip, values) {
   const chain = await maybe(clip.ti, "getComponentChain");
-  if (!chain) throw new Error(`Няма ефекти на ${clip.name}.`);
+  if (!chain) throw new Error(`${clip.name} has no effects.`);
   const count = await chain.getComponentCount();
   for (let i = 0; i < count; i++) {
     const comp = await chain.getComponentAtIndex(i);
     if (!/lumetri/i.test((await maybe(comp, "getMatchName")) || "")) continue;
     const t = { chain, comp, ps: await params(comp) };
-    transaction(project, "Asistent: тест на Lumetri", (c) => {
+    transaction(project, "Asistent: Lumetri test", (c) => {
       for (const make of setActions(t, values)) c.addAction(make());
     });
     const now = {};
     for (const k of Object.keys(DEFAULTS)) now[k] = t.ps[k] ? await value(t.ps[k]) : DEFAULTS[k];
     return now;
   }
-  throw new Error(`${clip.name} няма Lumetri: тестът не създава нов.`);
+  throw new Error(`${clip.name} has no Lumetri: the test does not create one.`);
 }
 
 // Test bridge only: every effect on the clip in chain order (match name, name, enabled) and the Lumetri values of each
@@ -592,7 +592,7 @@ async function readLumetri(clip) {
       continue;
     }
     if (out.values) {
-      out.others.push("втори Lumetri");
+      out.others.push("a second Lumetri");
       continue;
     }
     const ps = await params(comp);
@@ -616,7 +616,7 @@ async function copyLumetri(project, pairs) {
     try {
       const t = await target(pr.clip);
       if (t.skip || !t.isNew) {
-        done.push({ pr, problem: t.skip || "на новото парче вече има Lumetri" });
+        done.push({ pr, problem: t.skip || "the new piece already has a Lumetri" });
         continue;
       }
       fresh.push({ pr, t });
@@ -625,11 +625,11 @@ async function copyLumetri(project, pairs) {
     }
   }
   if (fresh.length) {
-    transaction(project, "Asistent: Lumetri на грубия монтаж", (c) => {
+    transaction(project, "Asistent: Lumetri on the rough cut", (c) => {
       for (const { t } of fresh) c.addAction(t.chain.createAppendComponentAction(t.comp));
     });
     for (const f of fresh) await attached(f.t);
-    transaction(project, "Asistent: цвят на грубия монтаж", (c) => {
+    transaction(project, "Asistent: color on the rough cut", (c) => {
       for (const { pr, t } of fresh) {
         const values = {};
         for (const k of Object.keys(pr.values)) if (Math.abs(pr.values[k] - DEFAULTS[k]) > 1e-6) values[k] = pr.values[k];

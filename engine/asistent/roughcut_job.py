@@ -1,8 +1,8 @@
 """The `/roughcut` job (Phase 8 M2): selected dialogue -> a new rough-cut sequence as FCP7 XML + a report on disk.
 
-Safe Cut ("Внимателно") takes out only pauses that are certainly silence and keeps everything else; Smart Cut
-("Умно") shortens every pause to its budget. Repeated takes and false starts (plan §6-7) are not in yet: nothing is
-removed for being a repeat. The source sequence is never touched: the panel imports the XML as a new sequence.
+Safe Cut takes out only pauses that are certainly silence; Smart Cut shortens every pause to its budget. Both cut a
+plain repeated take (takes.py: the last full take stays). The source sequence is never touched: the panel imports the
+XML as a new sequence.
 
 Nothing here talks to Premiere. Words come from the same Whisper readings as the subtitles (cached by their audio, so a
 second run with another mode or tempo costs seconds); without the speech model the pauses are cut from the energy and
@@ -19,12 +19,12 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
-from . import asr, edl, pauses, speechmap, subtitles, vad, xmeml
+from . import asr, edl, pauses, speechmap, subtitles, takes, vad, xmeml
 from .dialoguemix import ASR_SR, build_mix
 from .subtitle_job import _inside, _same_word, plan_windows, read_window
 
 log = logging.getLogger("asistent")
-MODES = {"safe": "внимателно", "smart": "умно"}
+MODES = {"safe": "safe", "smart": "smart"}
 MIN_PIECE_FRAMES = 2
 
 
@@ -32,66 +32,66 @@ def _num(v, what: str, lo: float = 0.0) -> float:
     try:
         f = float(v)
     except (TypeError, ValueError):
-        raise ValueError(f"Невалидна стойност: {what}.")
+        raise ValueError(f"Invalid value: {what}.")
     if not f >= lo:
-        raise ValueError(f"Невалидна стойност: {what}.")
+        raise ValueError(f"Invalid value: {what}.")
     return f
 
 
 def validate(body: dict) -> dict:
     items = body.get("items")
     if not isinstance(items, list) or not items:
-        raise ValueError("Маркирай в таймлайна клиповете с говор (камерите и микрофоните).")
+        raise ValueError("Select the clips with speech in the timeline (the cameras and the microphones).")
     dialogue = []
     for it in items:
         if not isinstance(it, dict) or not isinstance(it.get("path"), str):
-            raise ValueError("Невалиден клип в заявката.")
+            raise ValueError("Invalid clip in the request.")
         if not os.path.isfile(it["path"]):
-            raise ValueError("Файлът липсва (офлайн медия?): " + os.path.basename(it["path"]))
-        start, end = _num(it.get("start"), "начало"), _num(it.get("end"), "край")
+            raise ValueError("The file is missing (offline media?): " + os.path.basename(it["path"]))
+        start, end = _num(it.get("start"), "start"), _num(it.get("end"), "end")
         if end <= start:
-            raise ValueError("Невалиден клип в заявката.")
-        dialogue.append({"path": it["path"], "start": start, "end": end, "at": _num(it.get("at"), "позиция"),
-                         "name": str(it.get("name") or os.path.basename(it["path"])), "track": int(_num(it.get("track", 0), "писта"))})
+            raise ValueError("Invalid clip in the request.")
+        dialogue.append({"path": it["path"], "start": start, "end": end, "at": _num(it.get("at"), "position"),
+                         "name": str(it.get("name") or os.path.basename(it["path"])), "track": int(_num(it.get("track", 0), "track"))})
     layout = body.get("layout")
     if not isinstance(layout, list) or not layout:
-        raise ValueError("Маркирай в таймлайна клиповете, които да се изрежат.")
+        raise ValueError("Select the clips to cut in the timeline.")
     lay = []
     for it in layout:
         if not isinstance(it, dict) or it.get("kind") not in ("video", "audio") or not isinstance(it.get("path"), str):
-            raise ValueError("Невалиден клип в заявката.")
+            raise ValueError("Invalid clip in the request.")
         if not os.path.isfile(it["path"]):
-            raise ValueError("Файлът липсва (офлайн медия?): " + os.path.basename(it["path"]))
-        s, e = _num(it.get("start"), "начало"), _num(it.get("end"), "край")
+            raise ValueError("The file is missing (offline media?): " + os.path.basename(it["path"]))
+        s, e = _num(it.get("start"), "start"), _num(it.get("end"), "end")
         if e <= s:
-            raise ValueError("Невалиден клип в заявката.")
+            raise ValueError("Invalid clip in the request.")
         ch = int(it.get("channel") or 0)
         if ch not in (0, 1, 2):
-            raise ValueError("Невалиден канал в заявката.")
+            raise ValueError("Invalid channel in the request.")
         try:
             gain = None if it.get("gain_db") is None else float(it["gain_db"])
         except (TypeError, ValueError):
-            raise ValueError("Невалидна сила в заявката.")
-        lay.append({"kind": it["kind"], "track": int(_num(it.get("track", 0), "писта")), "path": it["path"], "start": s, "end": e,
-                    "inPt": _num(it.get("inPt", 0), "вход"), "name": str(it.get("name") or os.path.basename(it["path"])),
+            raise ValueError("Invalid level in the request.")
+        lay.append({"kind": it["kind"], "track": int(_num(it.get("track", 0), "track")), "path": it["path"], "start": s, "end": e,
+                    "inPt": _num(it.get("inPt", 0), "in point"), "name": str(it.get("name") or os.path.basename(it["path"])),
                     "channel": ch, "gain_db": gain})
     mode, tempo = body.get("mode", "safe"), body.get("tempo", "normal")
     if mode not in MODES or tempo not in pauses.TEMPO:
-        raise ValueError("Невалиден режим или темпо.")
+        raise ValueError("Invalid mode or tempo.")
     out_dir = body.get("out_dir")
     if not isinstance(out_dir, str) or not os.path.isdir(out_dir):
-        raise ValueError("Папката на проекта не е намерена: запази проекта и опитай пак.")
+        raise ValueError("The project folder was not found: save the project and try again.")
     return {"dialogue": dialogue, "layout": lay, "mode": mode, "tempo": tempo, "out_dir": out_dir,
-            "fps": subtitles.exact_fps(_num(25.0 if body.get("fps") is None else body.get("fps"), "кадри в секунда", 1.0)),
-            "width": int(_num(body.get("width") or 1920, "ширина", 1)), "height": int(_num(body.get("height") or 1080, "височина", 1)),
-            "name": str(body.get("name") or "секвенция"), "markers": bool(body.get("markers")), "skipped": body.get("skipped") or []}
+            "fps": subtitles.exact_fps(_num(25.0 if body.get("fps") is None else body.get("fps"), "frames per second", 1.0)),
+            "width": int(_num(body.get("width") or 1920, "width", 1)), "height": int(_num(body.get("height") or 1080, "height", 1)),
+            "name": str(body.get("name") or "sequence"), "markers": bool(body.get("markers")), "skipped": body.get("skipped") or []}
 
 
 def _words(segments: list[dict], progress, cancelled) -> tuple[list[dict], dict]:
     """Whisper words of the pieces in SEQUENCE seconds (verbatim, no spelling work: the cut needs where speech is, not how it
     is spelled) and a note on how they were made."""
     if not (asr.backend_installed() and asr.model_present()):
-        return [], {"asr": False, "note": "Няма модел за реч: паузите са намерени само по силата на звука и Silero."}
+        return [], {"asr": False, "note": "No speech model: the pauses were found only by the sound level and Silero."}
     wins = plan_windows(segments)
     total = sum(w["b"] - w["a"] for w in wins) or 1.0
     shares = [(w["b"] - w["a"]) / total for w in wins]
@@ -144,10 +144,10 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     p = validate(body)
     t0 = time.time()
     fps = p["fps"]
-    progress(0.0, "Чета звука…")
+    progress(0.0, "Reading the sound…")
     mix = build_mix(p["dialogue"], lambda f, m: progress(0.1 * f, m), cancelled)
     words, how = _words(mix["segments"], lambda f, m: progress(0.1 + 0.6 * f, m), cancelled)
-    progress(0.72, "Търся паузите…")
+    progress(0.72, "Finding the pauses…")
     t_start = round(min(i["start"] for i in p["layout"]) * fps) / fps
     t_end = round(max(i["end"] for i in p["layout"]) * fps) / fps
     # the map spans the WHOLE selection, not only the sound: time with no selected sound is silence to the map
@@ -163,7 +163,16 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     for i in p["layout"]:
         by_track.setdefault((i["kind"], i["track"]), []).append((i["start"], i["end"]))
     plan = pauses.plan(sm, words, fps, p["mode"], p["tempo"], sound, present, by_track)
-    cuts = pauses.snap(plan["cuts"], fps)                       # onto the frame grid (the empty time between clips is already exact)
+    # repeated takes: a plain repeat goes in both modes (from the first take to the winner), a start repeated inside a
+    # sentence only in Smart; a group said differently is only listed
+    found = takes.find(words)
+    take_cuts = []
+    for g in found:
+        wanted = g["cut"] if p["mode"] == "smart" or g["kind"] != "restart" else []
+        edges = [e for e in (pauses.take_edges(a, b, sm, words) for a, b in wanted) if e]
+        g["applied"], g["cut_s"] = bool(edges), round(sum(b - a for a, b in edges), 2)
+        take_cuts += edges
+    cuts = pauses.snap(pauses.with_takes(plan["cuts"], take_cuts, sm) if take_cuts else plan["cuts"], fps)   # onto the frame grid
     kept = edl.kept_ranges(t_start, t_end, cuts)
     pieces = [x for x in edl.pieces(p["layout"], kept, fps) if x["end"] - x["start"] >= MIN_PIECE_FRAMES]
     pieces, flashes = edl.drop_flashes(pieces)
@@ -171,26 +180,40 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
 
     folder = os.path.join(p["out_dir"], "Asistent_roughcut")
     os.makedirs(folder, exist_ok=True)
-    stem = f"ГРУБ – {p['name']} ({MODES[p['mode']]})"
+    stem = f"ROUGH – {p['name']} ({MODES[p['mode']]})"
     ver = _version(folder, stem)
     seq_name = f"{stem} v{ver}"
     marks = []
+    plan["voiced"] = [(a, b) for a, b in plan["voiced"] if not any(x <= a and b <= y for x, y in cuts)]
     if p["markers"]:
         for a, b in plan["voiced"]:                               # where each listed stretch lands in the output
-            marks.append({"frame": edl.output_frame(kept, fps, a), "name": "Преглед",
-                          "comment": f"говор без дума, {b - a:.1f} s (смях, реакция или дума, която липсва)"})
-    progress(0.85, "Сглобявам секвенцията…")
+            marks.append({"frame": edl.output_frame(kept, fps, a), "name": "Review",
+                          "comment": f"speech without a word, {b - a:.1f} s (laughter, a reaction or a missed word)"})
+    for g in found:
+        for t in g["takes"]:
+            t["start"], t["end"] = round(t["start"], 2), round(t["end"], 2)
+        g["cut"] = [[round(a, 2), round(b, 2)] for a, b in g["cut"]]
+        g["out_at"] = round(edl.output_frame(kept, fps, g["takes"][g["recommended"] if g["applied"] else 0]["start"]) / fps, 2)
+        if p["markers"]:
+            n = len(g["takes"])
+            marks.append({"frame": round(g["out_at"] * fps), "name": "Review",
+                          "comment": f"{g['kind_label']} ×{n}: " + (f"kept #{g['recommended'] + 1}, the others were cut" if g["applied"] else
+                                                                f"best is #{g['recommended'] + 1}" + ("" if g["safe"] else "; said differently, review"))})
+    progress(0.85, "Building the sequence…")
     xml_path = os.path.join(folder, seq_name + ".xml")
     layout_check = xmeml.write(xml_path, seq_name, fps, p["width"], p["height"], pieces, marks)
-    review = [{"at": round(a, 2), "end": round(b, 2), "kind": "voiced", "text": "Говор без разпозната дума (смях, реакция или пропусната дума): оставен."}
+    review = [{"at": round(a, 2), "end": round(b, 2), "kind": "voiced", "text": "Speech without a recognised word (laughter, a reaction or a missed word): kept."}
               for a, b in plan["voiced"]]
     saved = sum(b - a for a, b in cuts)
     result = {
-        "xml": xml_path, "json": os.path.join(folder, seq_name + ".json"), "name": seq_name, "mode": p["mode"], "tempo": p["tempo"], "tempo_bg": pauses.TEMPO_BG[p["tempo"]],
+        "xml": xml_path, "json": os.path.join(folder, seq_name + ".json"), "name": seq_name, "mode": p["mode"], "tempo": p["tempo"], "tempo_label": pauses.TEMPO_LABEL[p["tempo"]],
         "before_s": round(before, 2), "after_s": round(after, 2), "saved_s": round(saved, 2),
+        "takes_cut_s": round(sum(g["cut_s"] for g in found), 2),
         "flashes_dropped": flashes, "hole_speech_s": plan["hole_speech_s"], "no_sound_s": plan["no_sound_s"], "empty_s": plan["empty_s"],
         "pieces": [{"kind": x["kind"], "track": x["track"], "item": x["item"], "start": x["start"], "end": x["end"]} for x in pieces],
-        "counts": {"pauses_seen": plan["gaps"], "cuts": len(cuts), "kept_ranges": len(kept), "pieces": len(pieces), "review": len(review)},
+        "counts": {"pauses_seen": plan["gaps"], "cuts": len(cuts), "kept_ranges": len(kept), "pieces": len(pieces), "review": len(review), "takes": len(found),
+                   "takes_cut": sum(1 for g in found if g["applied"])},
+        "takes": found,
         "cuts": [{"start": round(a, 3), "end": round(b, 3)} for a, b in cuts], "review": review,
         "check": {"frames": layout_check["frames"], "video": layout_check["video"], "audio": layout_check["audio"], "fps": fps},
         "speech": {**how, "words": len(words), "vad": sm["vad"], "thresholds": {k: round(v, 6) for k, v in sm["thr"].items()}},
@@ -200,5 +223,5 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         json.dump({**result, "words": words, "items": p["layout"]}, f, ensure_ascii=False, indent=1)
     log.info("roughcut: %s %s/%s %.1f -> %.1f s (%d cuts, %d review) words=%d asr=%s vad=%s in %.1f s", seq_name, p["mode"], p["tempo"],
              before, after, len(cuts), len(review), len(words), how.get("asr"), sm["vad"], time.time() - t0)
-    progress(1.0, "Готово")
+    progress(1.0, "Done")
     return result

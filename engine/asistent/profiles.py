@@ -137,7 +137,7 @@ def load(client: str) -> dict:
 
 def save(client: str, prof: dict) -> dict:
     if not client or not isinstance(prof, dict):
-        raise ValueError("Няма клиент или профил.")
+        raise ValueError("No client or profile.")
     data = {k: v for k, v in prof.items() if k not in ("saved",)}
     data["client"] = client
     os.makedirs(PROFILES_DIR, exist_ok=True)

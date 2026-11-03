@@ -2,7 +2,7 @@
 
 The panel sends the eligible audio items as `{"path", "start", "end", "at", "name", "track"}`: media in/out seconds,
 the sequence second where the item starts and its audio track. Here every item is read, its channels are reduced to
-one using the same classification as „Оправи звука“ (a one-sided clip uses its sound side, two microphones are
+one using the same classification as Fix audio (a one-sided clip uses its sound side, two microphones are
 summed, anything else is averaged) and placed at its sequence time. Source files are only read.
 
 Duplicates: several cameras and microphones hear the same speech. Recognising the noisiest copy gives wrong words
@@ -132,10 +132,10 @@ def build_mix(items: list[dict], progress: Callable[[float, str], None] | None =
         if cancelled():
             raise Cancelled()
         name = it.get("name") or it["path"]
-        progress(i / max(len(items), 1), f"Чета звука: {name}")
+        progress(i / max(len(items), 1), f"Reading the sound: {name}")
         x = audio.read_range(it["path"], float(it["start"]), float(it["end"]))
         if x.shape[1] == 0:
-            notes.append({"name": name, "kind": "empty", "note": "без звук в избраната част"})
+            notes.append({"name": name, "kind": "empty", "note": "no sound in the selected part"})
             continue
         c = audio.classify(x)
         y = signal.resample_poly(mono_for_asr(x, c), 1, _DECIM).astype(np.float32)
@@ -144,7 +144,7 @@ def build_mix(items: list[dict], progress: Callable[[float, str], None] | None =
                       "dur": len(y) / ASR_SR,
                       "track": int(it.get("track", 0)), "q": quality(env), "kind": c["kind"], "action": c["action"]})
     if not parts:
-        raise ValueError("В маркираните клипове няма звук за разпознаване.")
+        raise ValueError("The selected clips have no sound to recognise.")
 
     duplicates: list[dict] = []
     keep: list[tuple[float, np.ndarray]] = []            # (sequence start, samples) of everything that is used

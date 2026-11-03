@@ -12,7 +12,7 @@ test("selected video and audio items with a file are cut; the rest is named, not
   assert.strictEqual(p.layout.length, 2);
   assert.strictEqual(p.selected, 5);
   assert.strictEqual(p.skipped.length, 3);
-  assert.ok(p.skipped.some((s) => /променена скорост/.test(s)) && p.skipped.some((s) => /обърнат/.test(s)) && p.skipped.some((s) => /офлайн/.test(s)));
+  assert.ok(p.skipped.some((s) => /changed speed/.test(s)) && p.skipped.some((s) => /reversed/.test(s)) && p.skipped.some((s) => /offline/.test(s)));
 });
 
 test("the sound for the pauses comes from the selected audio items only", () => {
@@ -26,24 +26,53 @@ test("the layout keeps the media In point so every piece can be cut from the rig
   assert.deepStrictEqual(p.layout[0], { kind: "video", track: 0, path: "/m/a.mp4", start: 4, end: 9, inPt: 12.5, name: "a" });
 });
 
+test("audio on a muted track or switched off is left out of the layout and the speech, and said once per track", () => {
+  const mic = { kind: "audio", track: 1, path: "/m/lav.mp4", start: 0, end: 10, inPt: 0, name: "lav", speed: 1, selected: true };
+  const scratch = (k) => ({ kind: "audio", track: 0, path: "/m/cam.mp4", start: k * 10, end: k * 10 + 10, inPt: 0, name: `cam${k}`, speed: 1, selected: true, unused: true });
+  const p = planRoughCut([item({}), mic, scratch(0), scratch(1)]);
+  assert.deepStrictEqual(p.layout.map((x) => x.name), ["a", "lav"]);
+  assert.deepStrictEqual(p.dialogue.map((x) => x.name), ["lav"]);
+  assert.deepStrictEqual(p.skipped, ["A1: 2 audio clips on a muted track or switched off, not used"]);
+  assert.strictEqual(planRoughCut([item({}), { ...mic, unused: false }]).skipped.length, 0);
+});
+
 test("verify: pieces per track and the length must match what the engine wrote", () => {
   const want = { video: { 1: 3, 2: 3 }, audio: { 1: 3 }, frames: 300, fps: 30 };
   assert.deepStrictEqual(verify(want, { video: { 1: 3, 2: 3 }, audio: { 1: 3 }, end: 10 }), []);
   const bad = verify(want, { video: { 1: 3, 2: 2 }, audio: {}, end: 12 });
   assert.strictEqual(bad.length, 3);
-  assert.match(bad.join(" "), /Видео писта 2: в секвенцията има 2 части, а трябваше 3/);
+  assert.match(bad.join(" "), /Video track 2: the sequence has 2 pieces, it should have 3/);
 });
 
 test("the summary says how much was taken out and what was not done", () => {
-  const r = { name: "ГРУБ – x (внимателно) v1", mode: "safe", tempo: "normal", tempo_bg: "нормално", before_s: 690, after_s: 408, saved_s: 282,
-    counts: { cuts: 58, pauses_seen: 80 }, speech: { asr: true, words: 900, vad: true }, review: [{ at: 75, text: "Говор без дума" }], skipped: ["x (обърнат)"] };
+  const r = { name: "ROUGH – x (safe) v1", mode: "safe", tempo: "normal", tempo_label: "normal", before_s: 690, after_s: 408, saved_s: 282,
+    counts: { cuts: 58, pauses_seen: 80 }, speech: { asr: true, words: 900, vad: true }, review: [{ at: 75, text: "Speech without a word" }], skipped: ["x (reversed)"] };
   const out = describeResult(r, { problems: [] });
   assert.match(out.text, /11:30 → 6:48 \(−41 %\)/);
-  assert.ok(out.lines.some((l) => /58 рязания от 80 паузи/.test(l.text)));
-  assert.ok(out.lines.some((l) => /Дублите и сбърканите начала още не се търсят/.test(l.text)));
+  assert.ok(out.lines.some((l) => /58 cuts from 80 pauses/.test(l.text)));
+  assert.ok(out.lines.some((l) => /Found no repeated takes or false starts/.test(l.text)));
   assert.ok(out.lines.some((l) => l.cls === "warn" && /1:15/.test(l.text)));
-  const noModel = describeResult({ ...r, speech: { asr: false, note: "Няма модел за реч" } }, { problems: ["Видео писта 1: ..."] });
-  assert.ok(noModel.lines.some((l) => /Няма модел за реч/.test(l.text)) && noModel.lines.some((l) => /Видео писта 1/.test(l.text)));
+  const noModel = describeResult({ ...r, speech: { asr: false, note: "No speech model" } }, { problems: ["Video track 1: ..."] });
+  assert.ok(noModel.lines.some((l) => /No speech model/.test(l.text)) && noModel.lines.some((l) => /Video track 1/.test(l.text)));
+});
+
+test("repeated takes: what went, what waits for a look, what only Smart takes", () => {
+  const take = (start, text) => ({ start, end: start + 4, text, n_words: 6, ends: true });
+  const r = { name: "ROUGH – x v1", mode: "safe", tempo: "normal", before_s: 100, after_s: 80, saved_s: 20, counts: { cuts: 3, pauses_seen: 5 },
+    speech: { asr: true, words: 90, vad: true }, review: [], skipped: [], takes_cut_s: 19.6,
+    takes: [{ kind: "exact", kind_label: "repeated take", recommended: 1, safe: true, applied: true, cut_s: 19.6, out_at: 12, lost: [],
+      takes: [take(10, "Днес ще ви покажа три неща."), take(30, "Днес ще ви покажа три неща.")] },
+    { kind: "near", kind_label: "repeated take (nearly the same)", recommended: 0, safe: false, applied: false, cut_s: 0, out_at: 50, lost: ["300"],
+      takes: [take(70, "Под 200 евро."), take(90, "Под 300 евро.")] },
+    { kind: "restart", kind_label: "repeated start", recommended: 1, safe: true, applied: false, cut_s: 0, out_at: 60, lost: [],
+      takes: [take(95, "днес ще ви"), take(96, "днес ще ви")] }] };
+  const out = describeResult(r, { problems: [] });
+  assert.ok(out.lines.some((l) => /Said again: 3 places, 1 cut \(19\.6 s\)/.test(l.text)));
+  assert.ok(out.lines.some((l) => l.cls === "reason" && /0:12: repeated take ×2; kept #2 "Днес ще ви покажа три неща\.", the other was cut \(19\.6 s\)/.test(l.text)));
+  assert.ok(out.lines.some((l) => l.cls === "warn" && /said differently \(300\): nothing cut/.test(l.text)));
+  assert.ok(out.lines.some((l) => /cut only in Smart mode/.test(l.text)));
+  const none = describeResult({ ...r, takes: [], speech: { asr: false } }, { problems: [] });
+  assert.ok(!none.lines.some((l) => /Said again|repeated takes/.test(l.text)));
 });
 
 test("clock rounds to whole seconds without 0:60", () => {
@@ -59,12 +88,12 @@ test("each layout entry keeps its panel item, so its effects can be read and car
 });
 
 test("the summary names time removed for lack of sound, closed gaps and what was carried over", () => {
-  const r = { name: "n", mode: "safe", tempo: "normal", tempo_bg: "нормално", before_s: 100, after_s: 40, saved_s: 60, no_sound_s: 37.5, empty_s: 4,
+  const r = { name: "n", mode: "safe", tempo: "normal", tempo_label: "normal", before_s: 100, after_s: 40, saved_s: 60, no_sound_s: 37.5, empty_s: 4,
     counts: { cuts: 3, pauses_seen: 5 }, speech: { asr: true, words: 10, vad: true }, review: [], skipped: [] };
-  const out = describeResult(r, { problems: [], notes: [{ cls: "line", text: "Пренесено от старите клипове: звук: сила." }] });
-  assert.ok(out.lines.some((l) => /Махнати 37\.5 s, в които няма маркиран звук/.test(l.text)));
-  assert.ok(out.lines.some((l) => /Затворени 4\.0 s празно място/.test(l.text)));
-  assert.ok(out.lines.some((l) => /Пренесено от старите клипове/.test(l.text)));
+  const out = describeResult(r, { problems: [], notes: [{ cls: "line", text: "Carried over from the old clips: audio: level." }] });
+  assert.ok(out.lines.some((l) => /37\.5 s taken out where no selected audio/.test(l.text)));
+  assert.ok(out.lines.some((l) => /4\.0 s of empty space/.test(l.text)));
+  assert.ok(out.lines.some((l) => /Carried over from the old clips/.test(l.text)));
   const holes = describeResult({ ...r, hole_speech_s: 6.5 }, { problems: [] });
-  assert.ok(holes.lines.some((l) => l.cls === "warn" && /6\.5 s са с една камера/.test(l.text)));
+  assert.ok(holes.lines.some((l) => l.cls === "warn" && /6\.5 s have only one camera/.test(l.text)));
 });

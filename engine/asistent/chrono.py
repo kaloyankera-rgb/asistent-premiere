@@ -62,22 +62,22 @@ def chronology(recorded: list[float | None], sources: list[str | None], cameras:
     note: list[str | None] = [None] * n
     for i in range(n):
         if recorded[i] is None:
-            note[i] = "няма време на запис"
+            note[i] = "no recording time"
         elif cameras[i] in offset:
             time[i] = recorded[i] - offset[cameras[i]]
             if spread[cameras[i]] > CLOCK_SPREAD:
-                note[i] = f"синхронът и часовникът на камерата се разминават с до {spread[cameras[i]]:.0f} s"
+                note[i] = f"the sync and the camera clock differ by up to {spread[cameras[i]]:.0f} s"
             elif sources[i] == "file":
-                note[i] = "времето е от файла (няма го в записа)"
+                note[i] = "the time is from the file (not in the recording)"
     known = [t for t in time if t is not None]
     for i in range(n):
         if recorded[i] is None or cameras[i] in offset:
             continue
         if known and min(known) - UNLINKED_WINDOW <= recorded[i] <= max(known) + UNLINKED_WINDOW:
             time[i] = recorded[i]
-            note[i] = "часовникът на тази камера не е проверен (няма синхрон с другите)"
+            note[i] = "this camera's clock is not checked (no sync with the others)"
         else:
-            note[i] = "часовникът на тази камера е далеч от другите и няма синхрон, по който да се поправи"
+            note[i] = "this camera's clock is far from the others and there is no sync to correct it by"
 
     cams = list(dict.fromkeys(cameras))
     return {

@@ -86,10 +86,10 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const { p } = await project();
       const t = await premiere.readTimeline(p);
       const chosen = pick(t.items, { kind: "video", ...a });
-      if (!chosen.length) throw new Error("Няма клипове по тези условия.");
+      if (!chosen.length) throw new Error("No clips match these conditions.");
       const ppro = require("premierepro");
       const Sel = ppro.TrackItemSelection;
-      if (!Sel || !premiere.has(Sel, "createEmptySelection")) throw new Error("Няма TrackItemSelection в това API.");
+      if (!Sel || !premiere.has(Sel, "createEmptySelection")) throw new Error("This API has no TrackItemSelection.");
       const step = [];
       let sel;
       for (const args of [[], [t.sequence], [() => {}]]) {
@@ -125,7 +125,7 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     },
     // fill the corrections box the way a person would
     async fill(a) {
-      if (a.id !== "notes") throw new Error("fill: само notes.");
+      if (a.id !== "notes") throw new Error("fill: notes only.");
       const e = doc.getElementById(a.id);
       e.value = String(a.value);
       return { id: a.id, value: e.value };
@@ -137,8 +137,8 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const hit = a.id ? [$(a.id)].filter(Boolean)
         : all.filter((b) => text(b).toLowerCase() === want).concat(all.filter((b) => text(b).toLowerCase().includes(want)));
       const b = hit[0];
-      if (!b) throw new Error(`Няма такъв бутон. Има: ${all.map(text).join(" | ")}`);
-      if (b.disabled) throw new Error(`Бутонът „${text(b)}“ е изключен.`);
+      if (!b) throw new Error(`No such button. There are: ${all.map(text).join(" | ")}`);
+      if (b.disabled) throw new Error(`The button "${text(b)}" is disabled.`);
       b.click();
       return { clicked: text(b) };
     },
@@ -187,7 +187,7 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const { p } = await project();
       const t = await premiere.readTimeline(p);
       const chosen = pick(t.items, { kind: "audio", ...a });
-      if (chosen.length !== 1) throw new Error(`Трябва точно един клип, намерени ${chosen.length}: ${chosen.map((x) => `${x.name} ${x.start.toFixed(1)}`).join(", ")}`);
+      if (chosen.length !== 1) throw new Error(`Exactly one clip is needed, found ${chosen.length}: ${chosen.map((x) => `${x.name} ${x.start.toFixed(1)}`).join(", ")}`);
       await premiereAudio.addEffectProbe(p, chosen[0], a.effect || "Dynamics");
       return { clip: brief(chosen[0]), effects: await premiereAudio.dumpChain(chosen[0]) };
     },
@@ -197,10 +197,10 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const { p } = await project();
       const t = await premiere.readTimeline(p);
       const chosen = pick(t.items, { kind: "video", ...a });
-      if (chosen.length !== 1) throw new Error(`Трябва точно един клип, намерени ${chosen.length}: ${chosen.map((x) => `${x.name} ${x.start.toFixed(1)}`).join(", ")}`);
+      if (chosen.length !== 1) throw new Error(`Exactly one clip is needed, found ${chosen.length}: ${chosen.map((x) => `${x.name} ${x.start.toFixed(1)}`).join(", ")}`);
       const values = a.values || {};
       if (!Object.keys(values).length || !Object.keys(values).every((k) => ["exposure", "temperature", "tint", "contrast", "saturation"].includes(k))) {
-        throw new Error("values: само exposure, temperature, tint, contrast, saturation.");
+        throw new Error("values: only exposure, temperature, tint, contrast, saturation.");
       }
       const before = (await premiereColor.lumetriState(chosen[0])).current;
       const after = await premiereColor.devWrite(p, chosen[0], values);
@@ -208,11 +208,11 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     },
     // ---- Phase 7 probes (docs/SUBTITLES_PLAN.md, M0); they write only into TEST.prproj, the user undoes/deletes
 
-    // P1: import .srt files (paths on this Mac) into the bin „Asistent тест“ and report what Premiere made of them
+    // P1: import .srt files (paths on this Mac) into the bin "Asistent test" and report what Premiere made of them
     async srt_import(a) {
       const { p } = await project();
       const ppro = require("premierepro");
-      const bin = await premiere.ensureBin(p, "Asistent тест");
+      const bin = await premiere.ensureBin(p, "Asistent test");
       const target = ppro.ProjectItem.cast(bin) || bin;
       const accepted = await p.importFiles(a.paths || [], true, target, false);
       const items = [];
@@ -225,10 +225,10 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const { p } = await project();
       const ppro = require("premierepro");
       const seq = await p.getActiveSequence();
-      const bin = await premiere.ensureBin(p, "Asistent тест");
+      const bin = await premiere.ensureBin(p, "Asistent test");
       const all = (await bin.getItems()) || [];
       const item = all.find((x) => x.name === a.name) || all[0];
-      if (!item) throw new Error("Няма нищо в „Asistent тест“: първо srt_import.");
+      if (!item) throw new Error("Nothing in \"Asistent test\": run srt_import first.");
       const end = premiere.secs(await seq.getEndTime()) || 0;
       const at = ppro.TickTime.createWithSeconds(end + 5);
       const v = await seq.getVideoTrackCount(), au = await seq.getAudioTrackCount();
@@ -242,7 +242,7 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const tried = [];
       for (const [name, make] of a.way ? ways.filter((w) => w[0] === a.way) : ways) {
         try {
-          premiere.transaction(p, `Asistent тест: субтитри (${name})`, (c) => c.addAction(make()));
+          premiere.transaction(p, `Asistent test: subtitles (${name})`, (c) => c.addAction(make()));
           tried.push({ way: name, ok: true });
           break;
         } catch (e) {
@@ -268,9 +268,9 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const { p } = await project();
       const ppro = require("premierepro");
       const seq = await p.getActiveSequence();
-      const bin = await premiere.ensureBin(p, "Asistent тест");
+      const bin = await premiere.ensureBin(p, "Asistent test");
       const item = ((await bin.getItems()) || []).find((x) => x.name === a.name);
-      if (!item) throw new Error("Няма такъв елемент в „Asistent тест“: " + a.name);
+      if (!item) throw new Error("No such item in \"Asistent test\": " + a.name);
       const editor = ppro.SequenceEditor.getEditor(seq);
       const args = (a.args || []).map((x) => (x === "$item" ? (ppro.ProjectItem.cast(item) || item) : x === "$seq" ? seq
         : typeof x === "string" && x.startsWith("$t:") ? ppro.TickTime.createWithSeconds(Number(x.slice(3))) : x));
@@ -278,7 +278,7 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       let outcome;
       try {
         let act;
-        premiere.transaction(p, `Asistent тест: ${a.method}`, (c) => { act = editor[a.method](...args); if (act) c.addAction(act); });
+        premiere.transaction(p, `Asistent test: ${a.method}`, (c) => { act = editor[a.method](...args); if (act) c.addAction(act); });
         outcome = { ok: true, returned: typeof act };
       } catch (e) {
         outcome = { ok: false, error: (e && e.message) || String(e) };
@@ -320,7 +320,7 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const ppro = require("premierepro");
       const t = await premiere.readTimeline(p);
       const x = t.items.find((i) => i.selected && i.kind === "video" && i.clip) || t.items.find((i) => i.selected && i.clip);
-      if (!x) throw new Error("Маркирай един клип с транскрипт.");
+      if (!x) throw new Error("Select one clip with a transcript.");
       const tries = [];
       for (const [label, arg] of [["clip", x.clip], ["projectItem", x.projectItem]]) {
         try {
@@ -340,9 +340,9 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const seq = await p.getActiveSequence();
       const objects = { project: p, sequence: seq, ppro: require("premierepro"), selection: await premiere.maybe(seq, "getSelection") };
       let o = objects[a.target];
-      if (!o) throw new Error(`Знам: ${Object.keys(objects).join(", ")}`);
+      if (!o) throw new Error(`Known: ${Object.keys(objects).join(", ")}`);
       for (const part of String(a.path || "").split(".").filter(Boolean)) o = o && o[part];     // e.g. "Transcript"
-      if (!o) throw new Error(`Няма ${a.target}.${a.path}`);
+      if (!o) throw new Error(`No ${a.target}.${a.path}`);
       const names = new Set();
       const walk = (q) => {
         for (; q && q !== Object.prototype && q !== Function.prototype; q = Object.getPrototypeOf(q)) {
@@ -363,11 +363,11 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
 
   async function run(cmd) {
     const fn = commands[cmd.name];
-    if (!fn) return { ok: false, data: { error: `Непозната команда: ${cmd.name}`, known: Object.keys(commands) } };
+    if (!fn) return { ok: false, data: { error: `Unknown command: ${cmd.name}`, known: Object.keys(commands) } };
     try {
       if (cmd.name !== "ping") {
         const pr = await project();
-        if (!pr.ok) return { ok: false, data: { error: `Само в TEST.prproj: сега е отворен „${pr.name}“. Нищо не е пипано.` } };
+        if (!pr.ok) return { ok: false, data: { error: `TEST.prproj only: "${pr.name}" is open now. Nothing was touched.` } };
       }
       return { ok: true, data: await fn(cmd.args || {}) };
     } catch (e) {

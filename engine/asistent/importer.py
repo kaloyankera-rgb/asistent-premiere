@@ -78,7 +78,7 @@ def classify(path: str, folder_root: str | None = None, probe: dict | None = Non
     parts = [p.lower() for p in rel.replace("\\", "/").split("/")[:-1]]
     for p in reversed(parts):                                   # 1. the folder it was saved into
         if p in FOLDER_CATEGORY:
-            return FOLDER_CATEGORY[p], f"папка „{p}“"
+            return FOLDER_CATEGORY[p], f"folder \"{p}\""
     text = rel.replace("_", " ")
     tags = {}
     duration = None
@@ -99,25 +99,25 @@ def classify(path: str, folder_root: str | None = None, probe: dict | None = Non
         sfx, music = bool(SFX_WORDS.search(text)), bool(MUSIC_WORDS.search(text))
         tagged = any(tags.get(k) for k in ("artist", "album", "genre"))
         if sfx and not music:
-            return "SFX", "името подсказва звуков ефект"
+            return "SFX", "the name suggests a sound effect"
         if music and not sfx:
-            return "MUSIC", "името подсказва музика"
+            return "MUSIC", "the name suggests music"
         if duration is not None and duration <= 8:
-            return "SFX", f"кратък звук ({duration:.1f} s)"
+            return "SFX", f"short sound ({duration:.1f} s)"
         if duration is not None and duration >= 60 and (tagged or " - " in os.path.basename(path)):
-            return "MUSIC", f"дълъг запис ({duration:.0f} s) с изпълнител"
+            return "MUSIC", f"long recording ({duration:.0f} s) with an artist"
         if duration is not None and duration >= 90:
-            return "MUSIC", f"дълъг запис ({duration:.0f} s)"
-        return "OTHER", "не е ясно дали е музика или ефект"
+            return "MUSIC", f"long recording ({duration:.0f} s)"
+        return "OTHER", "unclear whether it is music or an effect"
     if ext in VIDEO:
         if alpha or GRAPHIC_WORDS.search(text):
-            return "GRAPHICS", "видео с прозрачност" if alpha else "името подсказва графика"
-        return "BROLL", "видео"
+            return "GRAPHICS", "video with transparency" if alpha else "the name suggests a graphic"
+        return "BROLL", "video"
     if ext in IMAGE:
-        return ("GRAPHICS", "името подсказва графика") if GRAPHIC_WORDS.search(text) else ("IMAGES", "снимка")
+        return ("GRAPHICS", "the name suggests a graphic") if GRAPHIC_WORDS.search(text) else ("IMAGES", "image")
     if ext in GRAPHIC:
-        return "GRAPHICS", "файл за графика"
-    return "OTHER", "непознат вид"
+        return "GRAPHICS", "graphics file"
+    return "OTHER", "unknown type"
 
 
 class Store:
@@ -146,7 +146,7 @@ class Store:
     def bind(self, folder: str, project: str) -> dict:
         folder = os.path.abspath(os.path.expanduser(folder))
         if not os.path.isdir(folder):
-            raise ValueError(f"Папката не съществува: {folder}")
+            raise ValueError(f"The folder does not exist: {folder}")
         with self.lock:
             old = self.data["bindings"].get(folder)
             # one project follows one folder: switching to another folder drops the previous one
@@ -213,7 +213,7 @@ class Store:
         with self.lock:
             it = self.data["items"].get(item_id)
             if not it:
-                raise ValueError("Няма такъв файл в опашката.")
+                raise ValueError("No such file in the queue.")
             if ok:
                 it["state"], it["done_at"] = "imported", time.time()
             else:
@@ -343,7 +343,7 @@ class Watcher:
                 return
             self.store.add({"key": key, "path": path, "name": os.path.basename(path), "project": binding["project"],
                             "category": "OTHER", "why": "", "state": "failed", "done_at": time.time(),
-                            "note": "FFprobe не може да прочете файла (повреден или непълен)."})
+                            "note": "FFprobe cannot read the file (damaged or incomplete)."})
             return
         category, why = classify(path, folder, probe)
         item = self.store.add({"key": key, "path": path, "name": os.path.basename(path), "project": binding["project"],

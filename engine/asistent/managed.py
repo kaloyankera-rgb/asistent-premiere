@@ -47,7 +47,7 @@ class ManagedStore:
 
     def record(self, key: str, snapshot: str, values: dict | None = None) -> None:
         if not key or not snapshot:
-            raise ValueError("Липсва ключ или снимка на Lumetri.")
+            raise ValueError("A key or Lumetri snapshot is missing.")
         with self._lock:
             data = self._load()
             rec = data.get(key) or {"hashes": []}

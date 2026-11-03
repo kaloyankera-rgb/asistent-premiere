@@ -63,7 +63,7 @@ async function run(project) {
   }
   const t = await P.readTimeline(project);
   const clips = t.items.filter((x) => x.selected && x.kind === "video" && x.path);
-  if (clips.length !== 1) throw new UserError("За пробата маркирай точно един видео клип (в тестов проект).");
+  if (clips.length !== 1) throw new UserError("For the probe select exactly one video clip (in a test project).");
   const clip = clips[0];
   report.clip = { name: clip.name, path: clip.path, inPt: clip.inPt, start: clip.start, end: clip.end, track: clip.track };
 
@@ -85,7 +85,7 @@ async function run(project) {
       params: await c.getParamCount() });
   }
   if (report.existing.some((c) => /lumetri/i.test(c.match || ""))) {
-    throw new UserError("Клипът вече има Lumetri: за пробата маркирай клип без Lumetri.");
+    throw new UserError("The clip already has Lumetri: for the probe select a clip without Lumetri.");
   }
 
   // write one parameter at a time on the test clip, export the frame, put it back
@@ -99,14 +99,14 @@ async function run(project) {
   // Lumetri parameters
   const matches = (await maybe(ppro.VideoFilterFactory, "getMatchNames")) || [];
   report.lumetriMatch = matches.find((n) => /lumetri/i.test(n)) || null;
-  if (!report.lumetriMatch) throw new UserError("Не намирам Lumetri в този Premiere.");
+  if (!report.lumetriMatch) throw new UserError("Cannot find Lumetri in this Premiere.");
   const comp = await ppro.VideoFilterFactory.createComponent(report.lumetriMatch);
   // a fresh effect has no parameters until it sits on a clip (26.0): note what it offers, then append
   report.freshComponentMethods = Object.getOwnPropertyNames(Object.getPrototypeOf(comp) || {}).join(",");
   report.exporter = has(ppro.Exporter, "exportSequenceFrame");
 
   const source = report.exporter ? await shoot("probe_source.png") : null;   // timeline as it was
-  transaction(project, "Asistent: проба (Lumetri)", (c) => c.addAction(chain.createAppendComponentAction(comp)));
+  transaction(project, "Asistent: probe (Lumetri)", (c) => c.addAction(chain.createAppendComponentAction(comp)));
   let placed = null;
   for (let i = (await chain.getComponentCount()) - 1; i >= 0; i--) {
     const c = await chain.getComponentAtIndex(i);
@@ -115,7 +115,7 @@ async function run(project) {
       break;
     }
   }
-  if (!placed) throw new Error("Lumetri не се появи на клипа.");
+  if (!placed) throw new Error("Lumetri did not appear on the clip.");
   const params = await paramInfo(placed);
   report.lumetriParams = params.map(({ p, ...rest }) => rest);
   if (!report.exporter) {
@@ -134,11 +134,11 @@ async function run(project) {
     const to = from + delta;
     const rec = { param: key, index: info.index, name: info.name, from, to };
     try {
-      transaction(project, `Asistent: проба ${key}`, (c) => c.addAction(info.p.createSetValueAction(info.p.createKeyframe(to), true)));
+      transaction(project, `Asistent: probe ${key}`, (c) => c.addAction(info.p.createSetValueAction(info.p.createKeyframe(to), true)));
       const back = await maybe(info.p, "getStartValue");
       rec.readBack = back && back.value !== undefined ? (back.value.value ?? back.value) : null;
       rec.path = await shoot(`probe_${key}.png`);
-      transaction(project, `Asistent: проба ${key} обратно`, (c) => c.addAction(info.p.createSetValueAction(info.p.createKeyframe(from), true)));
+      transaction(project, `Asistent: probe ${key} back`, (c) => c.addAction(info.p.createSetValueAction(info.p.createKeyframe(from), true)));
       const restored = await maybe(info.p, "getStartValue");
       rec.restored = restored && restored.value !== undefined ? (restored.value.value ?? restored.value) : null;
     } catch (e) {
@@ -147,7 +147,7 @@ async function run(project) {
     frames.push(rec);
     debug(`probe ${key}: ${JSON.stringify({ ...rec, path: !!rec.path })}`);
   }
-  report.leftOnClip = "празен Lumetri (всички стойности върнати); може да се изтрие или Cmd+Z";
+  report.leftOnClip = "an empty Lumetri (all values restored); it can be deleted, or Cmd+Z";
   report.result = await engine.colorProbe(report, { source, baseline }, frames);
   return report;
 }

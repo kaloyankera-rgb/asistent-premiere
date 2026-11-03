@@ -173,7 +173,7 @@ def load_clip(path: str) -> Clip:
         # temporary normalisation: each channel to unit RMS before mixing, so a quiet safety
         # channel or a low lavalier is not buried under the loud one
         mix = sum(c.data / (np.sqrt(np.mean(c.data.astype(np.float64) ** 2)) + 1e-12) for c in prepared)
-        prepared.append(Channel("микс", -1, -1, np.asarray(mix, np.float32), 0.0, 0.0))
+        prepared.append(Channel("mix", -1, -1, np.asarray(mix, np.float32), 0.0, 0.0))
     clip = Clip(info, prepared, all_channels=chans)
     for c in prepared:
         x8 = signal.resample_poly(c.data, 1, COARSE_DECIM).astype(np.float32)
@@ -230,7 +230,7 @@ def _coarse(a: Clip, b: Clip, check: Callable[[], None]) -> list[Candidate]:
             r, zero = _xcorr(a.coarse[ia], b.coarse[ib], PHAT_BETA)
             scan(r, zero, csr, f"GCC-PHAT {ca.label}×{cb.label}", la, lb)
             r, zero = _xcorr(a.env[ia], b.env[ib], 0.0)
-            scan(r, zero, esr, f"обвивка {ca.label}×{cb.label}", la, lb)
+            scan(r, zero, esr, f"envelope {ca.label}×{cb.label}", la, lb)
     cands.sort(key=lambda c: c.score, reverse=True)
     return cands[:MAX_CANDIDATES]
 
@@ -423,10 +423,10 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
     if not a.channels or not b.channels:
         who = a.name if not a.channels else b.name
         res.update(confidence="low", offset=None)
-        res["reasons"].append(f"{who}: няма използваем звук (липсва или е напълно тих).")
+        res["reasons"].append(f"{who}: no usable sound (missing or completely silent).")
         if tc_offset is not None:
             res["approx_offset"] = tc_offset
-            res["reasons"].append("Има timecode, но той е само ориентир: провери ръчно.")
+            res["reasons"].append("There is timecode, but it is only a guide: check by hand.")
         return res
 
     cands = _coarse(a, b, check)
@@ -434,7 +434,7 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
     if quick and all(max(len(v.inliers), len(_band_cluster(v.windows))) < 2
                      for v in (_validate(a, b, c.offset, check, QUICK_WINDOWS) for c in cands[:QUICK_CANDIDATES])):
         res.update(confidence="low", offset=None, quick_reject=True)
-        res["reasons"].append("Не намерих общ звук, който да се потвърждава в няколко участъка.")
+        res["reasons"].append("Found no shared sound that is confirmed in several stretches.")
         return res
     vals = [(_validate(a, b, c.offset, check), c) for c in cands]
     vals.sort(key=lambda vc: (len(vc[0].inliers), np.mean([w.ratio for w in vc[0].inliers]) if vc[0].inliers else 0),
@@ -478,27 +478,27 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
     if n_in >= MIN_HIGH_WINDOWS and frac >= HIGH_FRACTION and coverage >= HIGH_COVERAGE and strong \
             and not ambiguous and ov >= min_ov and drift_total <= half_frame:
         conf = "high"
-        res["reasons"].append(f"{n_in} от {len(info_w)} независими участъка дават едно и също отместване "
-                              f"(разлика под {AGREE_TOL * 1000:.0f} ms).")
+        res["reasons"].append(f"{n_in} of {len(info_w)} independent stretches give the same offset "
+                              f"(difference under {AGREE_TOL * 1000:.0f} ms).")
     elif n_in >= MIN_HIGH_WINDOWS and frac >= 0.5 and coverage >= 0.4:
         conf = "medium"
         if drift_total > half_frame:
-            res["reasons"].append(f"Звукът се разминава с {drift_total * 1000:.0f} ms по дължината на записа "
-                                  f"(дрифт {best.slope * 1e6:.0f} ppm): синхронът е верен само в началото.")
+            res["reasons"].append(f"The sound drifts {drift_total * 1000:.0f} ms over the length of the recording "
+                                  f"(drift {best.slope * 1e6:.0f} ppm): the sync is right only at the start.")
         if ambiguous:
-            res["reasons"].append("Има второ възможно отместване (повтарящ се звук): провери на слух.")
+            res["reasons"].append("There is a second possible offset (repeating sound): check by ear.")
         if n_in < MIN_HIGH_WINDOWS or frac < HIGH_FRACTION or coverage < HIGH_COVERAGE:
-            res["reasons"].append(f"Само {n_in} от {best.total} участъка потвърждават отместването.")
+            res["reasons"].append(f"Only {n_in} of {best.total} stretches confirm the offset.")
         if not strong:
-            res["reasons"].append("Съвпадението е слабо изразено (общият звук е тих или много различен).")
+            res["reasons"].append("The match is weak (the shared sound is quiet or very different).")
         if ov < min_ov:
-            res["reasons"].append(f"Общата част е кратка ({ov:.1f} s).")
+            res["reasons"].append(f"The shared part is short ({ov:.1f} s).")
     else:
         conf = "low"
-        res["reasons"].append("Не намерих общ звук, който да се потвърждава в няколко участъка.")
+        res["reasons"].append("Found no shared sound that is confirmed in several stretches.")
         if tc_offset is not None:
             res["approx_offset"] = tc_offset
-            res["reasons"].append("Има timecode, но той е само ориентир: провери ръчно.")
+            res["reasons"].append("There is timecode, but it is only a guide: check by hand.")
     if conf != "high" and drift_total <= half_frame:
         band = _band_cluster(best.windows)
         nb = len(band)
@@ -513,28 +513,28 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
                        residual_ms=round(float(np.std([w.offset for w in band])) * 1000, 3), drift_ppm=0.0, drift_ms=0.0,
                        peak_ratio=round(float(np.median([w.ratio for w in band])), 2), loose=True,
                        spread_ms=round(spread * 1000, 1))
-            res["reasons"] = [f"{nb} от {best.total} участъка дават едно и също отместване в рамките на "
-                              f"{spread * 1000:.0f} ms (говорещите са на различно разстояние от двете камери)."]
-            res["warnings"].append(f"Участъците се разминават с до {spread * 1000:.0f} ms: синхронът е "
-                                   f"верен до ±{spread * 500:.0f} ms.")
+            res["reasons"] = [f"{nb} of {best.total} stretches give the same offset within "
+                              f"{spread * 1000:.0f} ms (the speakers are at different distances from the two cameras)."]
+            res["warnings"].append(f"The stretches differ by up to {spread * 1000:.0f} ms: the sync is "
+                                   f"right to ±{spread * 500:.0f} ms.")
     res["confidence"] = conf
     res["ambiguous"] = bool(ambiguous)
     res["drifting"] = bool(drift_total > half_frame)
 
     if drift_total > 0.001 and conf == "high":
-        res["warnings"].append(f"Малък дрифт: {drift_total * 1000:.1f} ms за целия запис.")
+        res["warnings"].append(f"Small drift: {drift_total * 1000:.1f} ms over the whole recording.")
     if tc_offset is not None and conf != "low":
         if abs(tc_offset - offset) < 1.0:
-            res["reasons"].append("Timecode-ът потвърждава отместването.")
+            res["reasons"].append("The timecode confirms the offset.")
         else:
-            res["warnings"].append("Timecode-ът не съвпада със звука; ползвам звука (timecode-ът вероятно не е общ).")
+            res["warnings"].append("The timecode does not agree with the sound; using the sound (the timecode is probably not shared).")
     for clip in (a, b):
         if clip.info.vfr:
-            res["warnings"].append(f"{clip.name} е с променлив frame rate (VFR): Premiere може да се разминава "
-                                   f"по-нататък в клипа.")
+            res["warnings"].append(f"{clip.name} has a variable frame rate (VFR): Premiere may drift "
+                                   f"later in the clip.")
     if abs(lead_fix) > 0.0005:
-        res["warnings"].append(f"Звукът и картината в контейнера не започват едновременно "
-                               f"(корекция {lead_fix * 1000:+.1f} ms).")
+        res["warnings"].append(f"Sound and picture in the container do not start together "
+                               f"(correction {lead_fix * 1000:+.1f} ms).")
     return res
 
 
@@ -543,7 +543,7 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
 def sync_clips(paths: list[str], reference: int | None = None,
                progress: ProgressFn | None = None, cancel: Callable[[], bool] | None = None) -> dict:
     if len(paths) < 2:
-        raise ValueError("Избери поне два клипа.")
+        raise ValueError("Choose at least two clips.")
     progress = progress or (lambda f, m: None)
 
     def check():
@@ -553,7 +553,7 @@ def sync_clips(paths: list[str], reference: int | None = None,
     clips: list[Clip] = []
     for i, p in enumerate(paths):
         check()
-        progress(0.05 + 0.4 * i / len(paths), f"Чета звука: {os.path.basename(p)}")
+        progress(0.05 + 0.4 * i / len(paths), f"Reading the sound: {os.path.basename(p)}")
         clips.append(load_clip(p))
 
     if reference is None:
@@ -564,7 +564,7 @@ def sync_clips(paths: list[str], reference: int | None = None,
                       "reasons": [], "warnings": []}
     others = [i for i in range(len(clips)) if i != reference]
     for n, i in enumerate(others):
-        progress(0.45 + 0.5 * n / len(others), f"Търся отместването: {clips[i].name}")
+        progress(0.45 + 0.5 * n / len(others), f"Finding the offset: {clips[i].name}")
         out[i] = analyze_pair(ref, clips[i], check)
 
     # chain through an already synced camera when the direct match failed
@@ -579,8 +579,8 @@ def sync_clips(paths: list[str], reference: int | None = None,
             if via["confidence"] == "high":
                 via["offset"] = round(out[j]["offset"] + via["offset"], 6)
                 via["confidence"] = "medium"
-                via["reasons"].insert(0, f"Синхронизиран през {clips[j].name} (няма пряк общ звук "
-                                         f"с {ref.name}).")
+                via["reasons"].insert(0, f"Synced through {clips[j].name} (no direct shared sound "
+                                         f"with {ref.name}).")
                 out[i] = via
                 break
 
@@ -600,7 +600,7 @@ def sync_clips(paths: list[str], reference: int | None = None,
             worst = "low"
         elif r["confidence"] == "medium" and worst == "high":
             worst = "medium"
-    progress(1.0, "Готово")
+    progress(1.0, "Done")
     return {"reference": reference, "confidence": worst, "clips": out}
 
 

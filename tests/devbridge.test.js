@@ -11,8 +11,8 @@ function el(text, extra = {}) {
 }
 
 function fakeDoc(buttonsList, over = {}) {
-  const nodes = { work: el("", { hidden: true }), message: el(""), summary: el("Готово", { className: "ok" }),
-    result: el("", { hidden: false }), details: el("", { children: [el("", { children: [el("fx39024.MP4 · изравнено"), el("Exposure 2.04")] })] }) };
+  const nodes = { work: el("", { hidden: true }), message: el(""), summary: el("Done", { className: "ok" }),
+    result: el("", { hidden: false }), details: el("", { children: [el("", { children: [el("fx39024.MP4 · matched"), el("Exposure 2.04")] })] }) };
   Object.assign(nodes, over);
   return { getElementById: (id) => nodes[id], querySelectorAll: () => buttonsList, nodes };
 }
@@ -28,44 +28,44 @@ test("ping works in any project and says whether it is the test project", async 
 });
 
 test("every other command is refused outside TEST.prproj and presses nothing", async () => {
-  const btn = el("Цвят: бяло и експозиция");
+  const btn = el("Auto color");
   const b = createBridge({ premiere: { activeProject: async () => ({ name: "Client.prproj", path: "/c/Client.prproj" }) },
     premiereColor: {}, doc: fakeDoc([btn]), version: "x", sleep });
   for (const name of ["click", "selection", "state", "frame", "lumetri", "select", "timeline", "api", "wait_idle", "set_lumetri", "chain", "srt_import", "caption_place", "transcript_export"]) {
-    const r = await b.run({ id: "1", name, args: { text: "Цвят" } });
+    const r = await b.run({ id: "1", name, args: { text: "Auto color" } });
     assert.strictEqual(r.ok, false, name);
-    assert.match(r.data.error, /Само в TEST\.prproj/);
+    assert.match(r.data.error, /TEST\.prproj only/);
   }
   assert.strictEqual(btn.clicked, 0);
 });
 
 test("click finds a button by its label (exact first, then part of it) and presses it once", async () => {
-  const a = el("Цвят: бяло и експозиция"), c = el("Изравни камерите"), apply = el("Приложи изравняването (1)");
+  const a = el("Auto color"), c = el("Match POVs"), apply = el("Apply the match (1)");
   const b = createBridge({ premiere: premiereOk, premiereColor: {}, doc: fakeDoc([a, c, apply]), version: "x", sleep });
-  const r = await b.run({ id: "1", name: "click", args: { text: "приложи изравняването" } });
-  assert.deepStrictEqual(r, { ok: true, data: { clicked: "Приложи изравняването (1)" } });
+  const r = await b.run({ id: "1", name: "click", args: { text: "apply the match" } });
+  assert.deepStrictEqual(r, { ok: true, data: { clicked: "Apply the match (1)" } });
   assert.deepStrictEqual([a.clicked, c.clicked, apply.clicked], [0, 0, 1]);
 });
 
 test("click says what buttons exist when none matches, and refuses a disabled one", async () => {
-  const dis = el("Оправи звука", { disabled: true });
-  const b = createBridge({ premiere: premiereOk, premiereColor: {}, doc: fakeDoc([dis, el("Цвят")]), version: "x", sleep });
-  const none = await b.run({ id: "1", name: "click", args: { text: "Синхронизирай" } });
+  const dis = el("Fix audio", { disabled: true });
+  const b = createBridge({ premiere: premiereOk, premiereColor: {}, doc: fakeDoc([dis, el("Auto color")]), version: "x", sleep });
+  const none = await b.run({ id: "1", name: "click", args: { text: "Sync cameras" } });
   assert.strictEqual(none.ok, false);
-  assert.match(none.data.error, /Оправи звука \| Цвят/);
-  const off = await b.run({ id: "2", name: "click", args: { text: "Оправи звука" } });
+  assert.match(none.data.error, /Fix audio \| Auto color/);
+  const off = await b.run({ id: "2", name: "click", args: { text: "Fix audio" } });
   assert.strictEqual(off.ok, false);
-  assert.match(off.data.error, /изключен/);
+  assert.match(off.data.error, /disabled/);
   assert.strictEqual(dis.clicked, 0);
 });
 
 test("state reads the panel's own answer: summary, blocks of lines, buttons", async () => {
-  const b = createBridge({ premiere: premiereOk, premiereColor: {}, doc: fakeDoc([el("Цвят")]), version: "x", sleep });
+  const b = createBridge({ premiere: premiereOk, premiereColor: {}, doc: fakeDoc([el("Auto color")]), version: "x", sleep });
   const r = await b.run({ id: "1", name: "state" });
   assert.ok(r.ok);
-  assert.strictEqual(r.data.summary, "Готово");
-  assert.deepStrictEqual(r.data.blocks, [["fx39024.MP4 · изравнено", "Exposure 2.04"]]);
-  assert.deepStrictEqual(r.data.buttons, [{ text: "Цвят", disabled: false }]);
+  assert.strictEqual(r.data.summary, "Done");
+  assert.deepStrictEqual(r.data.blocks, [["fx39024.MP4 · matched", "Exposure 2.04"]]);
+  assert.deepStrictEqual(r.data.buttons, [{ text: "Auto color", disabled: false }]);
   assert.strictEqual(r.data.busy, false);
 });
 
@@ -109,7 +109,7 @@ test("set_lumetri needs exactly one clip and only the known Lumetri keys", async
   const b = createBridge({ premiere, premiereColor, doc: fakeDoc([]), version: "x", sleep });
   const many = await b.run({ id: "1", name: "set_lumetri", args: { names: ["a.MP4"], values: { exposure: 2 } } });
   assert.strictEqual(many.ok, false);
-  assert.match(many.data.error, /точно един клип, намерени 2/);
+  assert.match(many.data.error, /Exactly one clip is needed, found 2/);
   const bad = await b.run({ id: "2", name: "set_lumetri", args: { names: ["b.MP4"], values: { lut: 1 } } });
   assert.strictEqual(bad.ok, false);
   const ok = await b.run({ id: "3", name: "set_lumetri", args: { names: ["b.MP4"], values: { exposure: 2 } } });

@@ -1,109 +1,102 @@
-# Asistent за Premiere Pro
+# Asistent for Premiere Pro
 
-Самостоятелен помощник за техническата част от монтажа: синхрон на камери, звук от петлички, автоматично внасяне на файлове, проект по клиент, баланс на бялото, български субтитри. Безплатен, работи само локално (нищо не се качва никъде), на Mac и Windows, с Premiere Pro 2026 (26.0+).
+A standalone helper for the technical side of editing: syncing cameras, lavalier audio, automatic import of files, white balance and exposure, a rough cut without pauses and repeated takes, and Bulgarian subtitles. Free, local only (nothing is uploaded anywhere), for Mac and Windows, with Premiere Pro 2026 (26.0+).
 
-Няма връзка с разширението Quick Search: друго ID (`com.contentstudio.asistent`), друг порт (47390), своя папка с данни.
+It has no connection to the Quick Search extension: a different ID (`com.contentstudio.asistent`), a different port (47390), its own data folder.
 
-## Как е устроен
+## How it is built
 
-- **Панел в Premiere** (`Window > UXP Plugins > Asistent`): единственият прозорец. Чете маркираните клипове и прави промените в проекта през официалния UXP API на Adobe.
-- **Engine** (Python, работи на заден план): анализира звука и картината с FFmpeg и NumPy. Слуша само на `127.0.0.1:47390` и приема само заявки от панела.
-- Настройки, логове и Python средата са извън Obsidian vault-а: Mac `~/Library/Application Support/Asistent/`, Windows `%LOCALAPPDATA%\Asistent\`.
+- **A panel in Premiere** (`Window > UXP Plugins > Asistent`): the only window. It reads the selected clips and makes the changes in the project through Adobe's official UXP API.
+- **The engine** (Python, runs in the background): analyses sound and picture with FFmpeg and NumPy. It listens only on `127.0.0.1:47390` and accepts requests only from the panel.
+- **The Asistent host**: an invisible helper inside Premiere for the few things UXP cannot do (the L/L and R/R audio copies, the caption track).
+- Settings, logs and the Python environment live outside the project folder: Mac `~/Library/Application Support/Asistent/`, Windows `%LOCALAPPDATA%\Asistent\`.
 
-## Инсталация
+## Installation
 
 ### Mac
-1. Нужни са Python 3.12 и FFmpeg (`brew install python@3.12 ffmpeg`).
-2. Engine: `tools/asistent/scripts/setup_mac.sh`. Създава Python средата и LaunchAgent, който пуска engine-а при всеки вход. Може да се пуска пак при обновяване.
-3. Панел: двоен клик на `tools/asistent/dist/Asistent-<версия>.ccx` (папката `dist/` не е в Git: пакетът се прави със `scripts/package_ccx.sh`, или направо `scripts/release_mac.sh`, виж по-долу). Creative Cloud показва предупреждение за плъгин извън Marketplace, натисни Install. После в Premiere: `Window > UXP Plugins > Asistent`.
+1. Python 3.12 and FFmpeg are needed (`brew install python@3.12 ffmpeg`).
+2. Engine: `tools/asistent/scripts/setup_mac.sh`. It creates the Python environment and a LaunchAgent that starts the engine at every login. Run it again to update.
+3. Panel: `scripts/release_mac.sh` packs the panel, installs it with Adobe's UnifiedPluginInstallerAgent and restarts the engine, with no dialog; an open Premiere loads the new panel at once. By hand: double-click `dist/Asistent-<version>.ccx` (the `dist/` folder is not in Git; `scripts/package_ccx.sh` makes the package). Then in Premiere: `Window > UXP Plugins > Asistent`. The panel's version is shown in its title.
 
-Спиране и махане на автоматичния старт: `scripts/uninstall_mac.sh`.
+To stop the engine and remove the automatic start: `scripts/uninstall_mac.sh`.
 
 ### Windows
-1. Нужни са Python 3.12 (`winget install Python.Python.3.12`) и FFmpeg в PATH (`winget install Gyan.FFmpeg`).
-2. Engine: `powershell -ExecutionPolicy Bypass -File tools\asistent\scripts\setup_win.ps1`. Слага скрит shortcut в Startup.
-3. Панел: двоен клик на `.ccx` файла, както на Mac.
+1. Python 3.12 (`winget install Python.Python.3.12`) and FFmpeg in PATH (`winget install Gyan.FFmpeg`) are needed.
+2. Engine: `powershell -ExecutionPolicy Bypass -File tools\asistent\scripts\setup_win.ps1`. It puts a hidden shortcut into Startup.
+3. Panel: double-click the `.ccx` file, as on Mac.
 
-Нова версия на Mac без нито един прозорец: `scripts/release_mac.sh` (пакетира, инсталира с инструмента на Adobe UnifiedPluginInstallerAgent и рестартира engine-а; отвореният Premiere зарежда новия панел веднага). Версията на панела се вижда в заглавието му. Ръчно: двоен клик върху `.ccx`.
+## Sync cameras
 
-## Синхронизирай камерите
+1. Put everything from the shooting day into a sequence (all on V1 one after another is fine), select it in the timeline and press **Sync cameras**.
+2. The engine compares the selected clips in pairs (clips from one folder, that is one camera, are not compared with each other) and gathers them into groups with surely shared sound. 28 clips take about 7 seconds.
+3. The panel makes a new sequence `SYNC – <your sequence>` in the bin `SYNC`: each camera (folder) on its own track, the groups one after another in the order they were in the timeline, each with a marker, and the clips without shared sound at the end.
+4. At the end the panel reads the new sequence and says "Done" only if every clip is exactly where it belongs.
+5. The sound is not touched: all tracks play, nothing is muted. Levels are fixed in the audio step.
 
-1. Вкарай в секвенция всичко от снимачния ден (може всичко на V1, едно след друго), маркирай го в таймлайна и натисни **Синхронизирай камерите**.
-2. Engine-ът сравнява маркираните клипове по двойки (клипове от една папка, тоест от една камера, не се сравняват помежду си) и ги събира в групи със сигурно общ звук. 28 клипа отнемат около 7 секунди.
-3. Панелът прави нова секвенция `SYNC – <твоята секвенция>` в папка `SYNC`: всяка камера (папка) на своя писта, групите една след друга в реда, в който са били в таймлайна, с маркер „Група N“ на всяка, а клиповете без общ звук накрая след маркер „Без синхрон“.
-4. Накрая панелът чете новата секвенция и пише „Готово“ само ако всеки клип е точно където трябва.
-5. Звукът не се пипа: всички писти свирят, нищо не се заглушава (решение на потребителя). Нивата се оправят в стъпката за звук.
-6. От SYNC секвенцията взимаш каквото ти трябва за основната: copy/paste на участък от всички писти (синхронът се пази), nest или през Source монитора.
+Your sequence is only read: nothing in it is moved or deleted. If you do not like the SYNC sequence, delete it.
 
-Твоята секвенция само се чете, нищо в нея не се мести и нищо не се изтрива. Ако SYNC секвенцията не ти харесва, изтриваш нея.
+## Fix audio
 
-## Оправи звука
+Select the clips in the timeline (their video or their audio) and press **Fix audio**. Every stereo clip is split the way an editor does it by hand: a copy with L/L (Modify Clip > Audio Channels) in place of the audio and a copy with R/R on the track below, both linked to the picture. A second press makes no new copies. Then the engine sets the level of each side towards −17 LUFS, keeps the sum of both sides under −6 dB peak, lowers the louder speaker when the two differ, and puts Dynamics → Limiter at −6 dB on every levelled clip (Premiere's scripts cannot reach the Mix track). If a quiet recording cannot be raised more because of the peaks or the room noise, the panel says how much is missing. A clipped recording is reported too.
 
-Маркирай аудио клиповете в таймлайна (може в твоята секвенция или в SYNC) и натисни **Оправи звука**. Engine-ът слуша частта от всеки клип, която е в таймлайна, и решава:
+**Manual ▸** has: **Split L/R**, **Split R/L** (the other way round), **L only**, **R only**, **Level only**, and **Even out phrases**: like Fix audio, plus Volume keyframes that bring each phrase more than 4 dB quieter or louder than the clip's average closer to it (only the excess over 4 dB, at most ±6 dB, with smooth 0.2 s changes in the pauses, never over −6 dB peak).
 
-| Какво има в L и R | Какво прави |
-|---|---|
-| звук само в единия канал (местена петличка, празен вход) | ефект Fill към този канал (звукът в центъра) |
-| два отделни микрофона (по една петличка на човек) | копие на клипа на най-близката празна аудио писта: оригиналът L/L, копието R/R, всеки със своя сила; общият пик на двете заедно също остава под −6 dB |
-| един глас в двата канала, вторият микрофон по-далеч (никога не води) | само водещият канал, иначе се чува двойно |
-| копие за безопасност с по-ниско ниво | основният канал, или копието, ако основният клипира |
-| еднакъв звук в двата канала | нищо за разпределяне |
-| обърната фаза | само единият канал (никога не се събират) |
-| стерео микрофон на камера | оставя се както е |
-| несигурно | не пипа нищо и казва да избереш ръчно |
+**Undo:** the levels and the limiter are one Cmd/Ctrl+Z step each; the split is separate Premiere steps (the copies and the link of each clip). The panel always says how many.
 
-После задава силата на клипа (Volume → Level, в Premiere най-много +15 dB): към −17 LUFS, но пикът никога не минава −6 dB; без компресия, без лимитер. Ако тих запис не може да се вдигне повече заради пиковете, панелът казва колко липсва. Ако записът е клипирал, също казва.
+## Color
 
-**Изравни фразите** прави същото и още: когато силата варира в клипа (петличката се мести, човекът се обръща), всяка фраза, която е с повече от 4 dB по-тиха или по-силна от средното за клипа, се доближава до него с ключови кадри (keyframes) на Volume. Поправя се само излишъкът над 4 dB (естествената динамика остава), най-много ±6 dB, никога над пик −6 dB и никога така, че шумът на стаята да мине −55 dBFS. Промените са плавни (0.2 s) и са в паузите, не в думите. Ако вече има ключови кадри на силата, клипът не се пипа. „Оправи звука“ подсказва, когато разликата между фразите е 6 dB или повече.
+Select the video clips and press **Auto color** (white balance and exposure together), **White balance** or **Exposure**. Nothing is applied at once: each clip shows before/after and a proposal with its confidence.
 
-Шумът пази и общата сила: почти безмълвен клип не се вдига толкова, че шумът на стаята да мине −55 dBFS (тогава панелът казва защо е вдигнат по-малко).
+- **Exposure** in steps of 0.5 up to ±2 stops: by the skin when there are faces, otherwise by the midtones (lower confidence). If the highlights may clip, the panel warns and checks on a real frame.
+- **White balance**: by the largest group of light, nearly neutral surfaces, checked against the whole picture. With no neutral surfaces and warm light (a restaurant) the confidence is low and nothing is touched.
+- **Apply the sure ones** applies only high confidence; **Apply the medium ones too** adds medium. Only Exposure, Temperature and Tint are written; a manual Lumetri grade is never touched.
+- After applying, the panel exports a frame from Premiere and the engine measures it: if the white is off or more than 3 % of the picture clipped, it is corrected once. The panel says how many Undo steps it took.
+- **Match POVs** (after the corrections, clips from two cameras): matches the brightness, white balance, contrast and saturation of the other cameras to one reference camera, by faces and neutral surfaces. A proposal first; the reference can be changed.
 
-Ръчни бутони: **Раздели L/R** (два микрофона, всеки на своя писта: L остава на пистата на клипа, R отива на копието), **Раздели R/L** (обратното: R остава, L на копието), **Само L**, **Само R**, **Само сила**. „Раздели L/R“ отказва, ако двата канала носят един и същ звук (стерео микрофон, един глас от два микрофона, празен канал): разделени ще се чуват двойно, затова прави правилното вместо това и казва защо.
+## Rough cut
 
-**Undo:** всичко от едно натискане е една стъпка: един Cmd/Ctrl+Z връща всички клипове. Изключение е „Раздели L/R“: Premiere прави копието такова, каквото е бил клипът преди стъпката, затова копията (всички заедно) получават R/R и силата си във втора стъпка: тогава са два Cmd/Ctrl+Z, колкото и клипове да са. Панелът винаги пише колко.
+Select the cameras and the microphones with speech (the SYNC sequence works) and press **Rough cut**. A new sequence `ROUGH – <sequence> (<mode>) vN` is made in the bin `Rough cut`, with the same cuts on every selected camera and microphone, so the sync is kept. The original and older versions are never touched.
 
-## Цвят: бяло и експозиция
+- **Safe** cuts long pauses that are surely silence; **Smart** shortens every pause to the **Tempo** (Calm, Normal, Tight).
+- Repeated takes are found from the words: when the same passage is said again, the last full take stays and the earlier takes go, together with short setup talk between them. A take said with other numbers or different content is only listed for you to review. A start repeated inside a sentence is cut only in Smart.
+- Time with no selected speech audio and empty space between clips are cut whole.
+- Audio on a muted track (or a switched-off clip) is not used: it is left out of the cut and of the speech, as if you had deleted it. Use this for a quiet camera microphone next to your lavaliers; otherwise its sound counts as speech and the cameras' rows get gaps.
+- The level, the limiter and the Lumetri values of the old clips are carried over to the new ones; other effects are listed as not carried.
+- **Review markers** puts a marker at every place worth a look.
 
-Маркирай видео клиповете в таймлайна и натисни **Цвят: бяло и експозиция**. Нищо не се прилага веднага: за всеки клип виждаш преди/след (сметнато от engine-а) и предложение със сигурност.
+## Subtitles (Bulgarian)
 
-- **Експозиция** на стъпки от 0.5 до ±2 стопа: по кожата, ако има лица (целта е яркост на кожата ~62 %), иначе по средните тонове (по-ниска сигурност). Ако светлите части може да изгорят, панелът предупреждава и проверява на истински кадър.
-- **Бяло**: по най-голямата група светли почти неутрални повърхности (стена, бяла дреха, лист), търсена само там, където може да е отклонение на камерата (зелено растение, дърво или лилава дреха не могат да минат за сиво), и сверена с цялата картина. Отделно се казва зелен или магента оттенък. Без неутрални повърхности и с топла светлина (ресторант) сигурността е ниска: не се пипа.
-- **Приложи сигурните** слага само висока сигурност; **Приложи и средните** и средната. В Lumetri се пипат само Exposure, Temperature и Tint; контраст, наситеност, LUT никога. Клип, който вече има Lumetri с промени по тези три, не се пипа.
-- След прилагането панелът изнася кадър от Premiere (с корекцията) и engine-ът мери: ако бялото не е уцелено (първите пъти, докато се научи как слайдерите на Lumetri отговарят) или изгорят над 3 % от картината, се поправя веднъж. Тогава Undo е 2 стъпки, иначе 1; панелът казва колко.
-- S-Log3 (Sony, разпознава се от XML файла до клипа) се мери след превръщане в Rec.709 и само се предлага, не се прилага само.
+Select the audio clips with speech and press **Subtitles (Bulgarian)**. The speech is recognised on this computer only (Whisper large-v3, about 3.1 GB, downloaded only with the **Download the model** button), checked against a Bulgarian dictionary, aligned to the sound, and saved as an .srt in `Asistent_subtitles` next to the project; the panel puts it on a new caption track. Uncertain words are listed, never guessed. The **Corrections and names** box takes lines like `heard => said` and names or terms, one per line.
 
-## Авто внасяне
+## Auto import
 
-В панела натисни **Следи Downloads** (или **Друга папка…**) в отворения проект. От този момент нататък всеки файл, който се изтегли или копира в папката (и в подпапките ѝ), влиза сам в проекта:
+Press **Watch Downloads** (or **Other folder…**) with a project open. From then on every file that is downloaded or copied into the folder (and its subfolders) goes into the project by itself:
 
-1. Engine-ът чака файлът да е готов: без временните файлове на браузъра (.crdownload, .part, Safari .download), с размер, който е спрял да расте, отваря се и FFprobe го чете.
-2. Определя категория: първо по подпапката (MUSIC, SFX, B-roll, …), после по името (whoosh, hit, riser → SFX; music, bpm → музика; overlay, logo, lower third → графики), етикетите (изпълнител), дължината (до 8 s → SFX; дълъг с изпълнител → музика) и прозрачността (видео с алфа → графики). Ако не е ясно, OTHER: разширението само по себе си не решава.
-3. Панелът го внася **на място** (без копиране, без преименуване) в папка (bin) MUSIC / SFX / BROLL / IMAGES / GRAPHICS / OTHER и проверява, че е там. В таймлайна не се слага нищо.
+1. The engine waits until the file is ready: no browser temp files (.crdownload, .part, Safari .download), a size that stopped growing, and FFprobe can read it.
+2. It picks a category: first by the subfolder (MUSIC, SFX, B-roll, …), then by the name (whoosh, hit, riser → SFX; music, bpm → music; overlay, logo, lower third → graphics), the tags (artist), the length (up to 8 s → SFX; long with an artist → music) and transparency (video with alpha → graphics). If unclear: OTHER.
+3. The panel imports it **in place** (no copy, no rename) into the bin MUSIC / SFX / BROLL / IMAGES / GRAPHICS / OTHER and checks it is there. Nothing is put on the timeline.
 
-Скорост: изтегляне от браузър (Chrome, Firefox, Safari завършват с преименуване от временното име) е готово 0.3 s след края, копиран файл 1.5 s след като спре да расте; панелът чака engine-а и внася веднага, така че файлът е в Premiere около секунда след края на изтеглянето.
+One folder belongs to one project; a file is imported only while that project is open; a file already in the project is not imported twice; files from before switching it on are left alone. The panel must be open (it may be hidden in a tab) to import.
 
-Защита: една папка принадлежи само на един проект и един проект следи една папка; файлът се внася само когато точно този проект е отворен (иначе чака); файл, който вече е в проекта, не се внася втори път (и след рестарт); файловете отпреди включването не се пипат; файл, който не се отваря, се пробва няколко пъти и после се показва като неуспешен. Панелът трябва да е отворен (може скрит в таб), за да внася.
+## How the sync offset is found
+- Each audio channel is looked at on its own (L and R separately, quiet and duplicated channels skipped), plus a temporarily levelled mix.
+- The sound is filtered to 150–4000 Hz and searched across the whole recording with GCC-PHAT and with a curve of sound onsets (more robust when the two microphones sound different).
+- Each candidate is checked in 3–10 separate, non-overlapping stretches. **High** confidence only if at least 60 % of all stretches (and at least 3) give the same offset within 5 ms, there is no equally good second offset, and the drift (the difference between the camera clocks) is under half a frame for the whole recording.
+- Timecode is only an extra check, and only if it lets the clips overlap at all. The file date never.
 
-### Как се търси отместването
-- Всеки аудио канал се гледа поотделно (L и R отделно, тихите и дублираните канали се пропускат), плюс временно изравнена смес.
-- Звукът се филтрира до 150–4000 Hz и се търси в целия запис с GCC-PHAT и с крива на началата на звуците (по-устойчива, когато двата микрофона звучат различно).
-- Всеки кандидат се проверява в 3–10 отделни участъка, които не се застъпват. **Висока** сигурност се дава само ако поне 60% от всички участъци (и поне 3) дават едно и също отместване с точност 5 ms, няма второ равностойно отместване и дрифтът (разликата в часовниците на камерите) е под половин кадър за целия запис. 5 ms са нужни, защото двете камери чуват звука по различен път (1 ms = 34 cm), и са под половин кадър при 60p.
-- Канал, който е 40 dB по-тих от другия на същата камера (например празен R на FX3), не участва.
-- Timecode се ползва само като допълнителна проверка и само ако изобщо позволява клиповете да се застъпват (Sony по подразбиране пише record run timecode, който между камерите не е общ). Датата на файла никога.
-
-## Тестове
+## Tests
 
 ```bash
 "$HOME/Library/Application Support/Asistent/venv/bin/pip" install -r tools/asistent/requirements-dev.txt
 cd tools/asistent && "$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q
+node --test tests/*.test.js
 ```
-Тестовете правят синтетичен говор с известно отместване (без синтез на глас и без клиентски материал) и проверяват тих звук, шум, две петлички в L/R, тих канал, частично припокриване, 44.1 срещу 48 kHz, дрифт, VFR, кратък дубъл, ехо в стая, три камери, несвързани записи и повтарящ се звук. Тестовете с Premiere са отделни и се правят ръчно (виж PROGRESS.md).
+The tests make synthetic speech with a known offset (no voice synthesis, no client material). Tests with Premiere are separate and done by hand in a test project (see PROGRESS.md).
 
-## Ограничения (проверени в UXP API на Premiere 26)
-- UXP не може да сменя channel mapping на клип и да създава multicam клип.
-- В Premiere 26.0.2 изтриване на клип от таймлайна през UXP, докато CEP панел (Quick Search, AutoCut, Mister Horse) изпълнява ExtendScript, срива Premiere. Затова Asistent никога не трие клипове.
-- Клиповете стоят на цели кадри в секвенцията, затова остава разлика до половин кадър (8 ms при 60 fps, 20 ms при 25 fps). Панелът я показва.
-- При VFR материал (телефони) Premiere може да се разминава по-нататък в клипа. Панелът предупреждава.
-- При дрифт над половин кадър синхронът е верен само в началото и не се прилага автоматично.
+## Limits (checked in Premiere 26's UXP API)
+- UXP cannot change a clip's channel mapping or create a multicam clip (the host does the L/L and R/R copies through ExtendScript).
+- In Premiere 26.0.2, removing a clip from the timeline through UXP crashed Premiere, so Asistent never deletes clips.
+- Clips sit on whole frames in the sequence, so up to half a frame of difference remains (8 ms at 60 fps, 20 ms at 25 fps). The panel shows it.
+- With VFR material (phones) Premiere may drift later in the clip. The panel warns.
 
-Състояние и следващи фази: [PROGRESS.md](PROGRESS.md).
+Status and next phases: [PROJECT_STATUS.md](PROJECT_STATUS.md), [TODO.md](TODO.md).

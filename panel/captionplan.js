@@ -23,14 +23,14 @@ function addedTrack(before, after) {
 
 /** Did the new track receive the captions of the SRT, at their times? -> list of problems (empty = verified) */
 function problems(track, captions) {
-  if (!track) return ["Premiere не добави нова писта със субтитри."];
+  if (!track) return ["Premiere did not add a new subtitle track."];
   const out = [];
   if (!captions.length) return out;
-  if (track.count !== captions.length) out.push(`на пистата има ${track.count} реда вместо ${captions.length}`);
+  if (track.count !== captions.length) out.push(`the track has ${track.count} lines instead of ${captions.length}`);
   const first = captions[0].start;
   const last = captions[captions.length - 1].end;
-  if (Math.abs(track.start - first) > TOL) out.push(`първият ред започва в ${track.start.toFixed(2)} s вместо в ${first.toFixed(2)} s`);
-  if (Math.abs(track.end - last) > TOL) out.push(`последният ред свършва в ${track.end.toFixed(2)} s вместо в ${last.toFixed(2)} s`);
+  if (Math.abs(track.start - first) > TOL) out.push(`the first line starts at ${track.start.toFixed(2)} s instead of ${first.toFixed(2)} s`);
+  if (Math.abs(track.end - last) > TOL) out.push(`the last line ends at ${track.end.toFixed(2)} s instead of ${last.toFixed(2)} s`);
   return out;
 }
 
@@ -41,29 +41,30 @@ function clock(t) {
 }
 
 /** { status: placed|exists|nohost|error, track?, problems?, message?, srt } -> { ok, text, lines } for the result box */
-function describePlacement(p, srt) {
-  const file = { cls: "hint", text: `Файл: ${srt}` };
+function describePlacement(p, srt, again) {
+  const file = { cls: "hint", text: `File: ${srt}` };
   if (p.status === "placed") {
-    const lines = [{ cls: "line", text: `Субтитрите са на пистата C${p.track.index + 1}: ${p.track.count} реда, ${clock(p.track.start)} до ${clock(p.track.end)}.` }];
-    for (const x of p.problems || []) lines.push({ cls: "warn", text: `Провери: ${x}.` });
-    lines.push({ cls: "hint", text: "Стилът се сменя в Essential Graphics. Файлът е и в бин „Субтитри“." });
+    const lines = [{ cls: "line", text: `The subtitles are on track C${p.track.index + 1}: ${p.track.count} lines, ${clock(p.track.start)} to ${clock(p.track.end)}.` }];
+    for (const x of p.problems || []) lines.push({ cls: "warn", text: `Check: ${x}.` });
+    if (p.replaces) lines.push({ cls: "warn", text: `The earlier subtitles are still on track C${p.replaces.index + 1}: delete that track (right-click C${p.replaces.index + 1} > Delete Track), or the two sets show on top of each other.` });
+    lines.push({ cls: "hint", text: "Change the style in Essential Graphics. The file is also in the bin \"Subtitles\"." });
     lines.push(file);
-    return { ok: !(p.problems || []).length, text: "Субтитрите са на таймлайна.", lines };
+    return { ok: !(p.problems || []).length, text: "The subtitles are on the timeline.", lines };
   }
   if (p.status === "exists") {
-    return { ok: false, text: "Вече има субтитри от Asistent на тази секвенция.", lines: [
-      { cls: "warn", text: `На пистата C${p.track.index + 1} са субтитрите от предишното натискане (${p.track.count} реда). Не слагам втори комплект над тях.` },
-      { cls: "line", text: "За нови субтитри: изтрий тази писта (десен бутон върху C" + (p.track.index + 1) + " > Delete Track) и натисни бутона пак." },
-      { cls: "hint", text: `Новият файл е готов, ако го искаш ръчно: ${srt}` } ] };
+    return { ok: false, text: "This sequence already has subtitles from Asistent.", lines: [
+      { cls: "warn", text: `Track C${p.track.index + 1} holds the subtitles from the previous press (${p.track.count} lines). Not putting a second set over them.` },
+      { cls: "line", text: "For new subtitles: delete that track (right-click C" + (p.track.index + 1) + " > Delete Track) and press the button again." },
+      { cls: "hint", text: `The new file is ready if you want it by hand: ${srt}` } ] };
   }
   if (p.status === "nohost") {
-    return { ok: false, text: "Субтитрите са готови, но не са на таймлайна.", lines: [
+    return { ok: false, text: "The subtitles are ready, but not on the timeline.", lines: [
       { cls: "warn", text: p.message },
-      { cls: "line", text: "Файлът е готов: внеси го в проекта и го довлечи върху секвенцията." }, file ] };
+      { cls: "line", text: "The file is ready: import it into the project and drag it onto the sequence." }, file ] };
   }
-  return { ok: false, text: "Субтитрите са готови, но не успях да ги сложа на таймлайна.", lines: [
-    { cls: "warn", text: p.message || "Неизвестна грешка." },
-    { cls: "line", text: "Файлът е готов: внеси го в проекта и го довлечи върху секвенцията." }, file ] };
+  return { ok: false, text: "The subtitles are ready, but I could not put them on the timeline.", lines: [
+    { cls: "warn", text: p.message || "Unknown error." },
+    { cls: "line", text: "The file is ready: import it into the project and drag it onto the sequence." }, file ] };
 }
 
 module.exports = { findOwn, addedTrack, problems, describePlacement, TOL };

@@ -1,4 +1,4 @@
-// „Оправи звука“ as pure logic (no Premiere here, so node can test it): what the engine is asked for each clip,
+// Fix audio as pure logic (no Premiere here, so node can test it): what the engine is asked for each clip,
 // which clips the host splits through their own channels, and which clip on the timeline gets which level.
 //
 // The user's workflow (reference video 2026-11-03): the audio is duplicated onto the track below, the upper clip
@@ -19,7 +19,7 @@ const FROM_SIDE = { L: "use_left", R: "use_right" };
 /**
  * What the engine is asked for one clip. A clip that is already one side (Asistent's, or a Fill effect from
  * earlier versions or by hand) keeps it and only gets its level. Otherwise the button's choice: the main button,
- * „Изравни фразите“ and both „Раздели“ split every stereo clip.
+ * Even out phrases and both Split buttons split every stereo clip.
  */
 function forceFor(it, force) {
   if (it.side) return FROM_SIDE[it.side];
@@ -95,12 +95,12 @@ function levelTargets(plans) {
 /** One line per routed clip for the report. */
 function routeLine(r) {
   if (!r) return null;
-  if (!r.ok) return `Не е разделено: ${r.msg}.`;
-  if (r.status === "already") return "Вече е разделен от Asistent: само силата.";
-  const sides = r.lower ? `${r.upperSide}/${r.upperSide} на A${r.upper.track + 1}, ${r.lowerSide}/${r.lowerSide} на A${r.lower.track + 1}`
-    : `само ${r.upperSide}/${r.upperSide} на A${r.upper.track + 1}`;
-  const link = r.linked ? ", свързани с картината" : r.relinked ? ", НЕ са свързани с картината (свържи ги ръчно)" : "";
-  return `Каналите: ${sides} (Audio Channels на копие от клипа${link}).`;
+  if (!r.ok) return `Not split: ${r.msg}.`;
+  if (r.status === "already") return "Already split by Asistent: level only.";
+  const sides = r.lower ? `${r.upperSide}/${r.upperSide} on A${r.upper.track + 1}, ${r.lowerSide}/${r.lowerSide} on A${r.lower.track + 1}`
+    : `only ${r.upperSide}/${r.upperSide} on A${r.upper.track + 1}`;
+  const link = r.linked ? ", linked to the picture" : r.relinked ? ", NOT linked to the picture (link them by hand)" : "";
+  return `Channels: ${sides} (Audio Channels on a copy of the clip${link}).`;
 }
 
 // ---------------------------------------------------------------- the limiter (Dynamics > Limiter, -6 dB)
@@ -121,16 +121,16 @@ const SAME = 0.004;                                     // 0.24 dB: a threshold 
  */
 function limiterState(dynamics, db = LIMITER_DB) {
   if (!dynamics.length) return { state: "add" };
-  if (dynamics.length > 1) return { state: "foreign", why: "на клипа има няколко Dynamics" };
+  if (dynamics.length > 1) return { state: "foreign", why: "the clip has several Dynamics" };
   const p = dynamics[0].params;
   const on = (k) => Number(p[k]) >= 0.5;
   const others = ["AutoGate Enabled", "Compressor Enabled", "Expander Enabled"].filter(on);
   if (on("Limiter Enabled")) {
     if (Math.abs(Number(p["Limiter Threshold"]) - dynValue(db)) <= SAME && !others.length) return { state: "ok" };
-    if (Math.abs(Number(p["Limiter Threshold"]) - dynValue(db)) <= SAME) return { state: "foreign", why: "Dynamics има и други включени процесори" };
-    return { state: "foreign", why: `Dynamics вече има лимитер с друг праг (${(Number(p["Limiter Threshold"]) * 60 - 60).toFixed(1)} dB)` };
+    if (Math.abs(Number(p["Limiter Threshold"]) - dynValue(db)) <= SAME) return { state: "foreign", why: "Dynamics has other processors on too" };
+    return { state: "foreign", why: `Dynamics already has a limiter with another threshold (${(Number(p["Limiter Threshold"]) * 60 - 60).toFixed(1)} dB)` };
   }
-  if (others.length) return { state: "foreign", why: "Dynamics вече е настроен с други процесори" };
+  if (others.length) return { state: "foreign", why: "Dynamics is already set with other processors" };
   return { state: "configure" };
 }
 

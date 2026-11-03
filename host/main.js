@@ -58,7 +58,7 @@ async function run(cmd) {
   try {
     return JSON.parse(raw);
   } catch (e) {
-    return { ok: false, msg: "Premiere не върна разбираем отговор: " + String(raw).slice(0, 300) };
+    return { ok: false, msg: "Premiere returned no readable answer: " + String(raw).slice(0, 300) };
   }
 }
 

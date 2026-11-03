@@ -133,8 +133,8 @@ def read(path):
 
 
 class FakeInfo:
-    def __init__(self, video=True, channels=2):
-        self.duration, self.has_video, self.width, self.height = 100.0, video, 3840, 2160
+    def __init__(self, video=True, channels=2, rotation=0):
+        self.duration, self.has_video, self.width, self.height, self.rotation = 100.0, video, 3840, 2160, rotation
         self.audio = [type("A", (), {"channels": channels, "sample_rate": 48000})()] if channels else []
 
 
@@ -159,6 +159,24 @@ def test_xml_has_every_piece_linked_and_the_markers():
     assert len(ids) == len(set(ids))
     refs = set(re.findall(r"<linkclipref>([^<]+)</linkclipref>", xml))
     assert refs <= set(ids) and "v1-1" in refs and "a1-1" in refs and "a2-1" in refs
+
+
+def test_a_file_stored_sideways_with_a_rotation_flag_is_described_as_it_displays(tmp_path):
+    items = [{"kind": "video", "track": 0, "path": "/m/v.mp4", "start": 0.0, "end": 5.0, "inPt": 0.0, "name": "v"}]
+    ps = edl.pieces(items, [(0.0, 5.0)], FPS)
+    for rot, size in ((90, "<width>2160</width><height>3840</height>"), (270, "<width>2160</width><height>3840</height>"), (0, "<width>3840</width><height>2160</height>")):
+        path = str(tmp_path / f"r{rot}.xml")
+        xmeml.write(path, "r", FPS, 2160, 3840, ps, probe=lambda s, rot=rot: FakeInfo(channels=0, rotation=rot))
+        x = read(path)
+        file_part = x[x.index("<file id"):x.index("</file>")]
+        assert size in file_part
+
+
+def test_the_probe_reads_the_rotation_flag(tmp_path):
+    from asistent import media
+    wav = synth.write_wav(tmp_path / "a.wav", [np.zeros(16000, np.float32)], sr=16000)
+    mp4 = synth.write_mp4(tmp_path / "v.mp4", wav)
+    assert media.probe(mp4).rotation == 0
 
 
 def test_xml_with_a_mono_file_reads_channel_one_on_both_sides():
@@ -195,11 +213,11 @@ def test_job_on_two_synthetic_cameras(home):
     log = []
     res = roughcut_job.run(body, lambda f, m: log.append(m), lambda: False)
     assert res["counts"]["cuts"] >= 2 and res["after_s"] < res["before_s"] - 5
-    assert res["speech"]["asr"] is False and "Няма модел" in res["speech"]["note"]
+    assert res["speech"]["asr"] is False and "No speech model" in res["speech"]["note"]
     assert os.path.isfile(res["xml"]) and os.path.isfile(res["json"])
-    assert res["name"].endswith(" v1") and "(внимателно)" in res["name"]
+    assert res["name"].endswith(" v1") and "(safe)" in res["name"]
     xml = read(res["xml"])
-    assert xml.count("<clipitem") > 0 and "<name>ГРУБ – тест (внимателно) v1</name>" in xml
+    assert xml.count("<clipitem") > 0 and "<name>ROUGH – тест (safe) v1</name>" in xml
     # the check the panel makes against Premiere's sequence
     assert res["check"]["video"] == {"1": res["counts"]["kept_ranges"], "2": res["counts"]["kept_ranges"]} or \
         res["check"]["video"] == {1: res["counts"]["kept_ranges"], 2: res["counts"]["kept_ranges"]}
@@ -208,10 +226,31 @@ def test_job_on_two_synthetic_cameras(home):
     assert res2["name"].endswith(" v2") and os.path.isfile(res["xml"])
 
 
+def test_job_cuts_a_repeated_take_and_marks_it(home, monkeypatch):
+    y = signal_with_pauses()
+    wav = synth.write_wav(home / "c1.wav", [np.repeat(y, 3)], sr=48000)
+    mp = synth.write_mp4(home / "cam1.mp4", wav)
+    words = [{"word": w, "start": 0.2 + 0.4 * k, "end": 0.5 + 0.4 * k, "p": 0.9} for k, w in enumerate("Днес ще ви покажа три неща.".split())]
+    words += [{"word": w, "start": 6.2 + 0.4 * k, "end": 6.5 + 0.4 * k, "p": 0.9} for k, w in enumerate("Днес ще ви покажа три неща.".split())]
+    monkeypatch.setattr(roughcut_job, "_words", lambda *a, **k: (words, {"asr": True, "cached": True, "windows": 1}))
+    lay = [{"kind": k, "track": 0, "path": mp, "start": 0.0, "end": 20.0, "inPt": 0.0, "name": "cam1"} for k in ("video", "audio")]
+    body = {"items": [{"path": mp, "start": 0.0, "end": 20.0, "at": 0.0, "name": "cam1", "track": 0}], "layout": lay, "out_dir": str(home),
+            "name": "тест", "fps": 30, "width": 1080, "height": 1920, "mode": "safe", "tempo": "normal", "markers": True}
+    res = roughcut_job.run(body, lambda f, m: None, lambda: False)
+    assert res["counts"]["takes"] == 1 and len(res["takes"]) == 1
+    g = res["takes"][0]
+    assert g["kind"] == "exact" and g["recommended"] == 1 and g["applied"] and g["cut_s"] > 4
+    assert "Review" in read(res["xml"]) and "kept #2" in read(res["xml"])
+    first, winner = g["takes"]
+    assert any(c["start"] <= first["start"] and first["end"] <= c["end"] for c in res["cuts"])           # the first take is gone
+    assert not any(c["start"] < winner["end"] and c["end"] > winner["start"] for c in res["cuts"])        # the winner is whole
+    assert res["counts"]["takes_cut"] == 1 and res["after_s"] < 20 - 6
+
+
 def test_job_refuses_what_it_cannot_do(home):
-    with pytest.raises(ValueError, match="Маркирай"):
+    with pytest.raises(ValueError, match="Select"):
         roughcut_job.validate({"items": []})
-    with pytest.raises(ValueError, match="Невалиден режим"):
+    with pytest.raises(ValueError, match="Invalid mode"):
         roughcut_job.validate({"items": [{"path": __file__, "start": 0, "end": 1, "at": 0}],
                                "layout": [{"kind": "video", "path": __file__, "start": 0, "end": 1}], "out_dir": str(home), "mode": "x"})
 

@@ -32,7 +32,7 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
                 cancel: Callable[[], bool] | None = None) -> dict:
     paths = list(dict.fromkeys(paths))            # one entry per file, first-seen order
     if len(paths) < 2:
-        raise ValueError("Маркирай поне два различни клипа.")
+        raise ValueError("Select at least two different clips.")
     progress = progress or (lambda f, m: None)
 
     def check():
@@ -50,7 +50,7 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
     def load(p: str) -> Clip:
         check()
         clip = load_clip(p)
-        tick(0.3, 0.0, len(paths), "Чета звука: {} от {}")
+        tick(0.3, 0.0, len(paths), "Reading the sound: {} of {}")
         return clip
 
     old_workers = sync.FFT_WORKERS
@@ -69,7 +69,7 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
             check()
             ref, oth = (i, j) if clips[i].length >= clips[j].length else (j, i)
             r = analyze_pair(clips[ref], clips[oth], check, quick=True)
-            tick(0.65, 0.3, len(pairs), "Сравнявам {} от {}")
+            tick(0.65, 0.3, len(pairs), "Comparing {} of {}")
             if r["confidence"] in ("high", "medium") and r.get("offset") is not None:
                 return {"a": ref, "b": oth, "offset": r["offset"], "confidence": r["confidence"],
                         "agree": f'{r.get("windows_agree")}/{r.get("windows_total")}', "loose": bool(r.get("loose")),
@@ -90,7 +90,7 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
     grouped = {m["clip"] for g in groups for m in g["members"]}
     # when each clip was recorded, on one clock for all cameras (the layout puts everything in that order)
     when = chrono.chronology(rec, src, folders, groups)
-    progress(1.0, "Готово")
+    progress(1.0, "Done")
     return {
         "clips": [{"path": c.info.path, "name": c.name, "duration": round(c.info.duration, 3),
                    "fps": c.info.fps, "has_video": c.info.has_video,
@@ -150,17 +150,17 @@ def _clock_check(clips: list[Clip], folders: list[str], split_by_folder: bool, e
             continue
         if abs(s - e["offset"]) > CLOCK_VETO:
             e["confidence"] = "medium"
-            e["reasons"].append(f"Часовниците на камерите казват {s:+.0f} s, а звукът {e['offset']:+.1f} s: "
-                                f"вероятно е същата реплика от друг дубъл.")
+            e["reasons"].append(f"The camera clocks say {s:+.0f} s and the sound {e['offset']:+.1f} s: "
+                                f"probably the same line from another take.")
         else:
-            e["reasons"].append("Часовниците на камерите го потвърждават.")
+            e["reasons"].append("The camera clocks confirm it.")
     for e in medium:
         s = said(e, raw=True, precision=CLOCK_CONFIRM)
         if s is not None and abs(s - e["offset"]) <= CLOCK_CONFIRM:
             e["confidence"] = "high"
             e["clock_confirmed"] = True
-            e["reasons"].append(f"Звукът сам не стигаше ({e['agree']} участъка), но часовниците на камерите дават "
-                                f"същото отместване ({s:+.1f} s срещу {e['offset']:+.3f} s от звука).")
+            e["reasons"].append(f"The sound alone was not enough ({e['agree']} stretches), but the camera clocks give "
+                                f"the same offset ({s:+.1f} s against {e['offset']:+.3f} s from the sound).")
 
 
 def _build_groups(clips: list[Clip], folders: list[str] | None, edges: list[dict]):
@@ -195,8 +195,8 @@ def _build_groups(clips: list[Clip], folders: list[str] | None, edges: list[dict
                     pos[v] = want
                     queue.append(v)
                 elif abs(pos[v] - want) > LOOP_TOL:
-                    problem = (f"{clips[u].name} и {clips[v].name} дават различни отмествания "
-                               f"({abs(pos[v] - want) * 1000:.0f} ms разлика)")
+                    problem = (f"{clips[u].name} and {clips[v].name} give different offsets "
+                               f"({abs(pos[v] - want) * 1000:.0f} ms apart)")
         if folders and not problem:
             for x in comp:
                 for y in comp:
@@ -204,8 +204,8 @@ def _build_groups(clips: list[Clip], folders: list[str] | None, edges: list[dict
                         a0, a1 = pos[x], pos[x] + clips[x].length
                         b0, b1 = pos[y], pos[y] + clips[y].length
                         if min(a1, b1) - max(a0, b0) > 0.5:
-                            problem = (f"{clips[x].name} и {clips[y].name} са от една камера, "
-                                       f"а излизат едновременни")
+                            problem = (f"{clips[x].name} and {clips[y].name} are from one camera "
+                                       f"but come out simultaneous")
         names = [clips[i].name for i in comp]
         if problem:
             conflicts.append({"clips": sorted(comp), "names": names, "reason": problem})

@@ -179,3 +179,12 @@ The user wants the result of their manual workflow (duplicate audio below, Modif
 
 ## 2026-11-03: limiter per clip instead of on the Mix track; balance only lowers
 The user's video puts Dynamics (Limiter -6 dB) on the Mix track. Not reachable by any script API in 26.0.2, so each levelled clip gets the same Dynamics and the engine keeps the SUM of both sides under -6 dB by the gains. Balancing between two speakers only ever lowers the louder side (max 12 dB, tolerance 2 dB) and ignores a channel without its own speaker: lifting the quieter side would lift its noise or bleed. Existing Dynamics with the user's own settings is never modified.
+
+## 2026-11-03: repeated takes are matched with difflib and only listed (Phase 8 M3)
+`rapidfuzz` was proposed in the plan; difflib on normalised words was enough on the real test footage and needs no new dependency, so it is used first. Takes are matched by whole sentences, grouped and chained into passages (a scene said three times is one group). Nothing is cut for a repeat in 0.9.64, in either mode: the user decides the take in the „Преглед“ view (next), and the score and Smart cutting are M4. A group whose losing takes say other content words or any number is marked as different text, never as a plain repeat.
+
+## 2026-11-03: Внимателно cuts plain repeats too (changes the plan's "Safe never removes a take")
+The user pressed Внимателно on three takes of one line and expected two of them gone ("it kept all 3"). So a plain repeat (same content, no number different, the last take complete) is cut in both modes, from the first take to the winner when only short setup talk lies between. What stays only listed in both modes: a group said differently (another number or several other content words). What only Умно cuts: a start repeated inside a sentence (a cut inside one sentence is the riskiest).
+
+## 2026-11-03: the tool is in English
+The user asked for the whole tool in English, replacing Bulgarian (no language switch), with English names for what Asistent creates in Premiere. The rule "panel texts in Bulgarian" in CLAUDE.md is replaced. Bulgarian stays only where it is data about Bulgarian speech or folder names, not text for the user to read.

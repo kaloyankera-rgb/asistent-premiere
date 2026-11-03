@@ -44,7 +44,7 @@ def _bin_for(parts: list[str]) -> list[str]:
 def scan(folder: str) -> tuple[dict[tuple, list[str]], dict]:
     folder = os.path.abspath(os.path.expanduser(folder))
     if not os.path.isdir(folder):
-        raise ValueError(f"Папката не съществува: {folder}")
+        raise ValueError(f"The folder does not exist: {folder}")
     bins: dict[tuple, list[str]] = {}
     skipped = {"cache": 0, "other": 0}
     for root, dirs, files in os.walk(folder):
@@ -126,7 +126,7 @@ def prepare(folder: str, progress=None) -> dict:
     progress = progress or (lambda f, m: None)
     bins, skipped = scan(folder)
     files = [p for ps in bins.values() for p in ps]
-    progress(0.1, f"Оглеждам {len(files)} файла")
+    progress(0.1, f"Looking at {len(files)} files")
     with ThreadPoolExecutor(max_workers=8) as pool:
         infos = list(pool.map(_inspect, files))
     by_path = {i["path"]: i for i in infos}
@@ -151,19 +151,19 @@ def prepare(folder: str, progress=None) -> dict:
     cams = [g for g in groups if g["bin"][0] == "RAW_FOOTAGE" and g["video"]]
     tips = []
     if len(cams) >= 2:
-        tips.append({"action": "sync", "text": f"{len(cams)} папки с видео (камери): маркирай клиповете в таймлайна → "
-                                               "„Синхронизирай камерите“."})
+        tips.append({"action": "sync", "text": f"{len(cams)} folders with video (cameras): select the clips in the timeline → "
+                                               "Sync cameras."})
     if any(g.get("stereo") for g in cams):
-        tips.append({"action": "audio", "text": "Камерите имат стерео звук: след синхрона → „Оправи звука“ "
-                                                "(L/R, петлички, сила)."})
+        tips.append({"action": "audio", "text": "The cameras have stereo sound: after the sync → Fix audio "
+                                                "(L/R, lavaliers, level)."})
     logs = sorted({x for g in cams for x in g.get("gamma", []) if "log" in x.lower()})
     if logs:
-        tips.append({"action": "color", "text": f"Запис в {', '.join(logs)}: нужна е корекция към Rec.709."})
+        tips.append({"action": "color", "text": f"Recorded in {', '.join(logs)}: a correction to Rec.709 is needed."})
     vfr = [n for g in groups for n in g.get("vfr", [])]
     if vfr:
-        tips.append({"action": "vfr", "text": f"{len(vfr)} клипа са с променлив frame rate (телефон?): синхронът "
-                                              "може да се разминава по-нататък в клипа."})
-    progress(1.0, "Готово")
+        tips.append({"action": "vfr", "text": f"{len(vfr)} clips have a variable frame rate (phone?): the sync "
+                                              "may drift later in the clip."})
+    progress(1.0, "Done")
     return {"folder": os.path.abspath(os.path.expanduser(folder)), "groups": groups, "files": len(files),
             "skipped": skipped, "tips": tips}
 
