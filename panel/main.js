@@ -46,6 +46,7 @@ function setBusy(busy) {
   state.busy = busy;
   for (const b of document.querySelectorAll("button.action, button.small")) b.disabled = busy || !state.online;
   show("work", busy);
+  if (busy && $("paneTools").hidden) openTab("paneTools");      // the progress and Отказ are there
   settle();
 }
 
@@ -77,7 +78,84 @@ function el(tag, cls, text) {
   return e;
 }
 
-function finish(text, ok, blocks) {
+// A button made in code: label, its tooltip and its handler (through onTap like every other press).
+function button(cls, label, help, fn) {
+  const b = el("button", cls, label);
+  b.setAttribute("data-tip", help);
+  onTap(b, fn);
+  return b;
+}
+
+// ---------------------------------------------------------------- tooltips
+// UXP shows nothing for `title`, so every button carries data-tip and this box shows it after a short hover:
+// under the button, above it near the panel's bottom edge, always inside the panel; gone on leave or press.
+let tipTimer = null;
+
+function hideTip() {
+  clearTimeout(tipTimer);
+  show("tip", false);
+}
+
+function showTip(node) {
+  const box = $("tip");
+  box.textContent = node.getAttribute("data-tip");
+  box.hidden = false;
+  const r = node.getBoundingClientRect();
+  const W = document.body.clientWidth || window.innerWidth;
+  const H = document.body.clientHeight || window.innerHeight;
+  const w = box.offsetWidth;
+  const h = box.offsetHeight;
+  const x = Math.min(Math.max(6, r.left), Math.max(6, W - w - 6));
+  let y = r.bottom + 4;
+  if (y + h > H - 6) y = Math.max(6, r.top - h - 4);
+  box.style.left = `${x}px`;
+  box.style.top = `${y}px`;
+}
+
+function bindTips(root) {
+  for (const n of root.querySelectorAll("[data-tip]")) {
+    if (n.getAttribute("data-tip-bound")) continue;
+    n.setAttribute("data-tip-bound", "1");
+    n.addEventListener("mouseenter", () => {
+      clearTimeout(tipTimer);
+      tipTimer = setTimeout(() => showTip(n), 450);
+    });
+    n.addEventListener("mouseleave", hideTip);
+    n.addEventListener("pointerdown", hideTip);
+  }
+}
+
+// ---------------------------------------------------------------- views and the result of a run
+// The main view keeps only the summary, the decisions (Приложи …) and links; the full report goes to
+// „Дневник“ and the before/after pictures to „Преди / след“ (2026-11-03: they used to push the buttons away).
+const history = [];
+
+function openTab(pane) {
+  hideTip();
+  for (const t of document.querySelectorAll("button.tab")) {
+    const on = t.getAttribute("data-tab") === pane;
+    t.className = on ? "tab on" : "tab";
+    show(t.getAttribute("data-tab"), on);
+  }
+  try {
+    $("app").scrollTop = 0;
+  } catch (e) {
+    /* older UXP */
+  }
+}
+
+function fillWith(id, nodes) {
+  const box = $(id);
+  box.innerHTML = "";
+  for (const n of nodes || []) box.appendChild(n);
+  bindTips(box);
+}
+
+/**
+ * text: one line; ok: green/red; blocks: the report („Дневник“); opts.actions: () => [buttons] for the
+ * decisions, shown under the summary and above the pictures; opts.previews: [nodes] for „Преди / след“.
+ */
+function finish(text, ok, blocks, opts = {}) {
   show("result", true);
   settle();
   try {
@@ -87,9 +165,28 @@ function finish(text, ok, blocks) {
   }
   $("summary").textContent = text;
   $("summary").className = ok ? "ok" : "err";
-  const box = $("details");
-  box.innerHTML = "";
-  for (const b of blocks || []) box.appendChild(b);
+  fillWith("details", blocks);
+  $("logSummary").textContent = text;
+  $("logSummary").className = ok ? "ok" : "err";
+  const warns = $("details").querySelectorAll(".warn, .err").length;
+  const link = $("openLog");
+  link.textContent = warns ? `Подробности · ${warns} ${warns === 1 ? "бележка" : "бележки"}` : "Подробности";
+  link.className = warns ? "link has-warn" : "link";
+  show("openLog", (blocks || []).length > 0);
+  $("logBadge").textContent = warns ? String(warns) : "!";
+  $("logBadge").className = ok ? "count" : "count err";
+  show("logBadge", warns > 0 || !ok);
+  fillWith("actions", opts.actions ? opts.actions() : []);
+  const pics = opts.previews || [];
+  fillWith("previews", pics);
+  fillWith("previewActions", pics.length && opts.actions ? opts.actions() : []);
+  show("tabPreview", pics.length > 0);
+  show("openPreview", pics.length > 0);
+  if (!pics.length && !$("panePreview").hidden) openTab("paneTools");
+  history.unshift({ at: new Date().toLocaleTimeString().slice(0, 5), text, ok });
+  history.length = Math.min(history.length, 11);
+  fillWith("history", history.slice(1).map((h) => el("div", `history-item ${h.ok ? "" : "err"}`, `${h.at}  ${h.text}`)));
+  if (history.length < 2) $("history").textContent = "Още няма.";
 }
 
 async function refreshHeader() {
@@ -416,26 +513,34 @@ function colorBlock(clip, r) {
     return box;
   }
   if (r.measured_on === "timeline") box.appendChild(el("div", "reason", `Мерено на таймлайна (${r.frames} кадъра).`));
-  if (r.preview && r.preview.before) {
-    const row = el("div", r.preview.portrait ? "thumbs portrait" : "thumbs");
-    for (const k of ["before", "after"]) {
-      const img = document.createElement("img");
-      img.src = `data:image/jpeg;base64,${r.preview[k]}`;
-      row.appendChild(img);
-    }
-    box.appendChild(row);
-    box.appendChild(el("div", "cap", "преди · след (приблизително)"));
-  }
+  for (const line of colorLines(r)) box.appendChild(el("div", "line", line));
+  for (const x of r.reasons || []) box.appendChild(el("div", "reason", x));
+  for (const x of r.warnings || []) box.appendChild(el("div", "warn", x));
+  return box;
+}
+
+function colorLines(r) {
   const e = r.exposure;
   // stops are what the picture needs; units are what goes into Lumetri (they differ above the shadows)
   const units = e.units !== undefined && e.units !== null && e.units !== e.stops ? ` = Exposure ${e.units > 0 ? "+" : ""}${e.units} в Lumetri` : "";
-  box.appendChild(el("div", "line", e.stops
-    ? `Експозиция ${e.stops > 0 ? "+" : ""}${e.stops} стопа${units} (${CONF[e.confidence]} сигурност)` : "Експозиция: без промяна"));
   const w = r.white;
-  box.appendChild(el("div", "line", w.balanced ? `Бяло: наред (${CONF[w.confidence]})`
-    : `Бяло: корекция (${CONF[w.confidence]} сигурност)`));
-  for (const x of r.reasons || []) box.appendChild(el("div", "reason", x));
-  for (const x of r.warnings || []) box.appendChild(el("div", "warn", x));
+  return [e.stops ? `Експозиция ${e.stops > 0 ? "+" : ""}${e.stops} стопа${units} (${CONF[e.confidence]} сигурност)` : "Експозиция: без промяна",
+    w.balanced ? `Бяло: наред (${CONF[w.confidence]})` : `Бяло: корекция (${CONF[w.confidence]} сигурност)`];
+}
+
+// one clip in „Преди / след“: its name, the two pictures and what would change
+function previewBlock(name, preview, caption, lines) {
+  const box = el("div", "group");
+  box.appendChild(el("div", "name", name));
+  const row = el("div", preview.portrait ? "thumbs portrait" : "thumbs");
+  for (const k of ["before", "after"]) {
+    const img = document.createElement("img");
+    img.src = `data:image/jpeg;base64,${preview[k]}`;
+    row.appendChild(img);
+  }
+  box.appendChild(row);
+  box.appendChild(el("div", "cap", caption));
+  for (const l of lines) box.appendChild(el("div", "line", l));
   return box;
 }
 
@@ -465,25 +570,21 @@ async function onColor() {
     const result = await runJob(job);
     Object.assign(colorState, { project, sel, results: result.items });
     const blocks = sel.clips.map((c, i) => colorBlock(c, result.items[i]));
+    const previews = sel.clips.map((c, i) => [c, result.items[i]]).filter(([, r]) => !r.error && r.preview && r.preview.before)
+      .map(([c, r]) => previewBlock(c.name, r.preview, "преди · след (приблизително)", colorLines(r)));
     // buttons by what they apply: „и средните“ appears whenever it adds a correction „сигурните“ leaves out
     const sure = colorPlans("sure").length;
     const all = colorPlans("all").length;
     const more = corrections(colorPlans("all")) > corrections(colorPlans("sure"));
-    const bar = el("div", "row buttons");
-    if (sure) {
-      const b = el("button", "small", `Приложи сигурните (${sure})`);
-      onTap(b, () => onColorApply("sure"));
-      bar.appendChild(b);
-    }
-    if (more) {
-      const b = el("button", "small", `Приложи и средните (${all})`);
-      onTap(b, () => onColorApply("all"));
-      bar.appendChild(b);
-    }
-    blocks.unshift(bar);
+    const actions = () => [
+      ...(sure ? [button("small", `Приложи сигурните (${sure})`, "Слага в Lumetri само корекциите с висока сигурност.",
+        () => onColorApply("sure"))] : []),
+      ...(more ? [button("small", `Приложи и средните (${all})`, "Слага в Lumetri и корекциите със средна сигурност.",
+        () => onColorApply("all"))] : []),
+    ];
     finish(all ? `Само предложение: в Lumetri още нищо не е сложено. Натисни „${sure ? `Приложи сигурните (${sure})` :
       `Приложи и средните (${all})`}“ отдолу, за да се приложи.` : "Няма какво да се поправя със сигурност: нищо не е пипано.",
-    true, blocks);
+    true, blocks, { actions, previews });
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `color: ${e && e.stack ? e.stack : e}`);
@@ -551,18 +652,15 @@ function onProbeAsk() {
   box.appendChild(el("p", "hint", "Пробата слага Lumetri на маркирания клип, пише по един параметър, изнася кадри и " +
     "връща стойностите. Само в тестов проект, с ЕДИН маркиран видео клип без Lumetri."));
   const bar = el("div", "row buttons");
-  const go = el("button", "small", "Да, пусни пробата");
-  const no = el("button", "small", "Не");
   const close = () => box.parentNode && box.parentNode.removeChild(box);
-  onTap(go, () => {
+  bar.appendChild(button("small", "Да, пусни пробата", "Слага Lumetri на маркирания клип и мери как реагира. Само в тестов проект.", () => {
     close();
     onProbe();
-  });
-  onTap(no, close);
-  bar.appendChild(go);
-  bar.appendChild(no);
+  }));
+  bar.appendChild(button("small", "Не", "Затваря въпроса, нищо не се пипа.", close));
   box.appendChild(bar);
   row.parentNode.insertBefore(box, row.nextSibling);
+  bindTips(box);
   settle();
 }
 
@@ -637,30 +735,27 @@ async function onShotMatch(reference = null) {
     const res = await runJob(job);
     Object.assign(shotState, { project, sel, clips, res, job, reference });
     const blocks = [];
-    // the reference as a plain choice: one button per camera, the current one ticked; a press re-runs against it
     const top = el("div", "group");
-    top.appendChild(el("div", "name", "Еталон (другите камери се изравняват към него):"));
-    const bar = el("div", "row buttons");
-    for (const cam of res.cameras) {
-      const b = el("button", "small", cam === res.reference ? `✓ ${cam}` : cam);
-      if (cam !== res.reference) onTap(b, () => onShotMatch(cam));
-      bar.appendChild(b);
-    }
-    top.appendChild(bar);
-    top.appendChild(el("div", "reason", reference ? "Избран от теб. Натисни друга камера, за да я направиш еталон."
-      : "Избран автоматично (най-надеждната камера). Натисни друга, за да я направиш еталон."));
+    top.appendChild(el("div", "name", `Еталон: ${res.reference}`));
+    top.appendChild(el("div", "reason", reference ? "Избран от теб. Друга камера като еталон: бутоните горе."
+      : "Избран автоматично (най-надеждната камера). Друга камера като еталон: бутоните горе."));
     for (const n of res.notes || []) top.appendChild(el("div", "warn", n));
     if (odd) top.appendChild(el("div", "warn", `${odd} клипа с променена скорост са пропуснати.`));
     blocks.push(top);
     for (const r of res.clips) blocks.push(shotBlock(clips[r.index], r));
+    const previews = res.clips.filter((r) => r.role === "match" && r.preview && r.preview.before)
+      .map((r) => previewBlock(clips[r.index].name, r.preview, "сега · след (приблизително)", [shotLine(r)]));
     const ready = res.clips.filter((r) => r.role === "match" && (r.changed || []).length && r.lumetri !== "manual").length;
-    if (ready) {
-      const b = el("button", "small", `Приложи изравняването (${ready})`);
-      onTap(b, onShotMatchApply);
-      blocks.splice(1, 0, b);
-    }
+    // the decisions: apply, and the reference as a plain choice (one button per camera, the current one ticked)
+    const actions = () => [
+      ...(ready ? [button("small", `Приложи изравняването (${ready})`, "Слага предложените стойности в Lumetri на камерите, които се изравняват.",
+        onShotMatchApply)] : []),
+      ...res.cameras.map((cam) => (cam === res.reference
+        ? button("small", `✓ ${cam}`, "Това е еталонът: другите камери се изравняват към него.", () => {})
+        : button("small", cam, `Пуска изравняването отново с ${cam} като еталон.`, () => onShotMatch(cam)))),
+    ];
     finish(ready ? "Само предложение: в Lumetri още нищо не е сложено. Натисни „Приложи изравняването“."
-      : "Няма какво да се изравнява със сигурност: нищо не е пипано.", true, blocks);
+      : "Няма какво да се изравнява със сигурност: нищо не е пипано.", true, blocks, { actions, previews });
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `shot match: ${e && e.stack ? e.stack : e}`);
@@ -670,24 +765,18 @@ async function onShotMatch(reference = null) {
   }
 }
 
+function shotLine(r) {
+  const ch = r.changed || [];
+  return ch.length ? ch.map((k) => `${SHOT_NAMES[k]} ${r.proposal[k]}`).join(" · ")
+    : "без промяна: вече съвпада или разликите са отбелязани отдолу";
+}
+
 function shotBlock(clip, r) {
   const box = el("div", "group");
   const role = r.role === "reference" ? "еталон" : r.role === "match" ? "изравнява се" : "пропуснат";
   box.appendChild(el("div", "name", `${clip.name} · ${r.camera} · ${role}`));
   if (r.role === "match") {
-    if (r.preview && r.preview.before) {
-      const row = el("div", r.preview.portrait ? "thumbs portrait" : "thumbs");
-      for (const k of ["before", "after"]) {
-        const img = document.createElement("img");
-        img.src = `data:image/jpeg;base64,${r.preview[k]}`;
-        row.appendChild(img);
-      }
-      box.appendChild(row);
-      box.appendChild(el("div", "reason", "сега · след (приблизително)"));
-    }
-    const ch = r.changed || [];
-    box.appendChild(el("div", "line", ch.length ? ch.map((k) => `${SHOT_NAMES[k]} ${r.proposal[k]}`).join(" · ")
-      : "без промяна: вече съвпада или разликите са отбелязани отдолу"));
+    box.appendChild(el("div", "line", shotLine(r)));
     const basis = Object.entries(r.basis || {}).map(([k, v]) => `${SHOT_PART_BG[k]} по ${v}${r.confidence && r.confidence[k] ? ` (${r.confidence[k]} сигурност)` : ""}`).join("; ");
     if (basis) box.appendChild(el("div", "reason", `Мерено: ${basis}${r.overlap ? " (общи моменти с еталона)" : ""}.`));
   }
@@ -820,6 +909,17 @@ for (const b of document.querySelectorAll("button.small[data-force]")) onTap(b, 
 $("cancel").addEventListener("click", () => {
   if (state.jobId) engine.cancel(state.jobId).catch(() => {});
 });
+
+for (const t of document.querySelectorAll("button.tab")) onTap(t, () => openTab(t.getAttribute("data-tab")));
+onTap($("openLog"), () => openTab("paneLog"));
+onTap($("openPreview"), () => openTab("panePreview"));
+onTap($("audioMore"), () => {
+  const open = $("audioManual").hidden;
+  show("audioManual", open);
+  $("audioMore").textContent = open ? "Ръчно ▾" : "Ръчно ▸";
+});
+bindTips(document);
+$("app").addEventListener("scroll", hideTip);
 
 refreshHeader();
 // test bridge: does nothing unless the engine has its flag file (see devbridge.js)

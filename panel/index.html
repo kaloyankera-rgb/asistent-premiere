@@ -15,68 +15,98 @@
     <div id="project" class="muted">Няма отворен проект</div>
   </header>
 
-  <section id="work" hidden>
-    <div id="message"></div>
-    <div class="bar"><div id="fill"></div></div>
-    <button id="cancel" class="secondary">Отказ</button>
-  </section>
+  <!-- Three views (2026-11-03): the actions, the full report of the last run, the before/after pictures.
+       The report and the pictures used to open above the buttons and push them out of view. -->
+  <nav class="tabs">
+    <button id="tabTools" class="tab on" data-tab="paneTools" data-tip="Бутоните на Asistent.">Инструменти</button>
+    <button id="tabLog" class="tab" data-tab="paneLog" data-tip="Пълният отчет на последната операция и по-ранните резултати.">Дневник<span id="logBadge" class="count" hidden></span></button>
+    <button id="tabPreview" class="tab" data-tab="panePreview" data-tip="Кадрите преди и след на последното предложение за цвят." hidden>Преди / след</button>
+  </nav>
 
-  <section id="result" hidden>
-    <div id="summary"></div>
+  <div id="paneTools" class="pane">
+    <section id="work" hidden>
+      <div id="message"></div>
+      <div class="bar"><div id="fill"></div></div>
+      <button id="cancel" class="secondary" data-tip="Спира текущата операция. Нищо недовършено не се прилага.">Отказ</button>
+    </section>
+
+    <section id="result" hidden>
+      <div id="summary"></div>
+      <div id="actions" class="row buttons"></div>
+      <div class="row links">
+        <button id="openLog" class="link" data-tip="Отваря пълния отчет в „Дневник“.">Подробности</button>
+        <button id="openPreview" class="link" data-tip="Отваря кадрите преди и след." hidden>Преди / след</button>
+      </div>
+    </section>
+
+    <div class="card" id="secSync">
+      <div class="title">СИНХРОН</div>
+      <p class="desc">Подрежда камерите по общия им звук в нова секвенция SYNC, по време на запис. Твоята секвенция не се пипа.</p>
+      <button id="sync" class="action" data-tip="Маркирай клиповете в таймлайна (може всички) и натисни. Прави нова секвенция SYNC с всяка камера на своя писта; клиповете без двойка стоят на мястото си по време.">Синхронизирай камерите</button>
+    </div>
+
+    <div class="card" id="secAudio">
+      <div class="title">ЗВУК</div>
+      <p class="desc">Маркирай клиповете с говор. Силата отива към −17 LUFS, пикът не минава −6 dB.</p>
+      <button id="audio" class="action" data-tip="Разпознава какво има в левия и десния канал, разпределя ги и изравнява силата на маркираните клипове.">Оправи звука</button>
+      <button id="audioMore" class="disclose" data-tip="Показва ръчните варианти за звука.">Ръчно ▸</button>
+      <div id="audioManual" class="row buttons" hidden>
+        <button class="small" data-force="split" data-tip="Левият канал остава тук, десният отива на копие на пистата отдолу.">Раздели L/R</button>
+        <button class="small" data-force="split_rl" data-tip="Десният канал остава тук, левият отива на копие на пистата отдолу.">Раздели R/L</button>
+        <button class="small" data-force="use_left" data-tip="Ползва само левия канал в двете страни.">Само L</button>
+        <button class="small" data-force="use_right" data-tip="Ползва само десния канал в двете страни.">Само R</button>
+        <button class="small" data-force="none" data-tip="Не пипа каналите, само изравнява силата.">Само сила</button>
+        <button class="small" data-force="phrases" data-tip="Като „Оправи звука“, плюс ключови кадри, които изравняват тихите и силните изречения.">Изравни фразите</button>
+      </div>
+    </div>
+
+    <div class="card" id="secColor">
+      <div class="title">ЦВЯТ</div>
+      <p class="desc">Маркирай видео клиповете. Първо показва предложение с преди и след; Lumetri се пипа чак след „Приложи“.</p>
+      <button id="color" class="action" data-tip="Мери бялото и експозицията на маркираните клипове и предлага корекция. Нищо не се прилага без „Приложи“.">Бяло и експозиция</button>
+      <div class="row buttons">
+        <button id="shotmatch" class="small" data-tip="Изравнява цвета на камерите една към друга (по лицата и неутралните повърхности). Първо показва предложение.">Изравни камерите</button>
+        <button id="probe" class="small" data-tip="Проверява как Lumetri в този Premiere реагира на стойностите. Само в тестовия проект.">Проба на Lumetri (тестов проект)</button>
+      </div>
+    </div>
+
+    <div class="card" id="secSubtitles">
+      <div class="title">СУБТИТРИ</div>
+      <p class="desc">Маркирай аудио клиповете с говор. Разпознава се само на този компютър; .srt отива в папката на проекта и на нова caption писта.</p>
+      <button id="subtitles" class="action" data-tip="Разпознава българския говор в маркираните клипове, прави .srt (папка Asistent_subtitles) и го слага на нова caption писта на активната секвенция.">Субтитри (български)</button>
+      <label for="notes" class="muted">Корекции и имена (по един на ред)</label>
+      <textarea id="notes" rows="3" placeholder="раф => рафт&#10;Джи Строй"></textarea>
+      <div id="notesState" class="hint" hidden></div>
+      <div id="subtitleModel" class="warn" hidden></div>
+      <div id="subtitleAsk" class="row buttons" hidden><button id="subtitleDownload" class="small" data-tip="Сваля модела за разпознаване на говор (около 3,1 GB). Тръгва само с този бутон.">Свали модела (около 3,1 GB)</button></div>
+    </div>
+
+    <div class="card" id="secImport">
+      <div class="title">АВТО ВНАСЯНЕ</div>
+      <p class="desc">Следи папка и внася новите файлове в проекта, подредени по вид.</p>
+      <div id="importStatus" class="muted">Изключено</div>
+      <div class="row buttons">
+        <button id="importToggle" class="small" data-tip="Включва или изключва следенето на Downloads за нови файлове.">Следи Downloads</button>
+        <button id="importFolder" class="small" data-tip="Избира друга папка за следене вместо Downloads.">Друга папка…</button>
+      </div>
+      <div id="importRecent"></div>
+    </div>
+  </div>
+
+  <div id="paneLog" class="pane" hidden>
+    <div class="title">ПОСЛЕДНА ОПЕРАЦИЯ</div>
+    <div id="logSummary" class="muted">Още няма.</div>
     <div id="details"></div>
-  </section>
-
-  <main>
-    <div class="title">СИНХРОН</div>
-    <button id="sync" class="action">Синхронизирай камерите</button>
-    <p class="hint">Маркирай клиповете в таймлайна (може всички) и натисни. Прави се нова секвенция SYNC, твоята не се пипа.</p>
-  </main>
-
-  <div class="block">
-    <div class="title">ЗВУК</div>
-    <button id="audio" class="action">Оправи звука</button>
-    <div class="row buttons">
-      <button class="small" data-force="split">Раздели L/R</button>
-      <button class="small" data-force="split_rl">Раздели R/L</button>
-      <button class="small" data-force="use_left">Само L</button>
-      <button class="small" data-force="use_right">Само R</button>
-      <button class="small" data-force="none">Само сила</button>
-      <button class="small" data-force="phrases">Изравни фразите</button>
-    </div>
-    <p class="hint">Маркирай аудио клиповете в таймлайна. Силата отива към −17 LUFS, пикът не минава −6 dB. „Изравни фразите“ изравнява и тихите/силните изречения в клипа.</p>
+    <div class="title spaced">ПО-РАНО</div>
+    <div id="history" class="muted">Още няма.</div>
   </div>
 
-  <div class="block">
-    <div class="title">ЦВЯТ</div>
-    <button id="color" class="action">Цвят: бяло и експозиция</button>
-    <p class="hint">Маркирай видео клиповете в таймлайна. Показва предложение (експозиция, бяло) с преди/след; прилага чак след „Приложи“.</p>
-    <div class="row buttons"><button id="shotmatch" class="small">Изравни камерите</button><button id="probe" class="small">Проба на Lumetri (тестов проект)</button></div>
+  <div id="panePreview" class="pane" hidden>
+    <div id="previewActions" class="row buttons"></div>
+    <div id="previews"></div>
   </div>
-
-  <div class="block">
-    <div class="title">СУБТИТРИ</div>
-    <button id="subtitles" class="action">Субтитри (български)</button>
-    <p class="hint">Маркирай в таймлайна аудио клиповете с говор. Разпознава се само на този компютър; прави .srt файл в папката на проекта (Asistent_subtitles) и го слага на нова caption писта на активната секвенция.</p>
-    <label for="notes" class="muted">Корекции и имена (по един на ред)</label>
-    <textarea id="notes" rows="5" placeholder="раф => рафт&#10;Джи Строй"></textarea>
-    <div id="notesState" class="hint" hidden></div>
-    <div id="subtitleModel" class="warn" hidden></div>
-    <div id="subtitleAsk" class="row buttons" hidden><button id="subtitleDownload" class="small">Свали модела (около 3,1 GB)</button></div>
-  </div>
-
-  <div class="block">
-    <div class="title">АВТО ВНАСЯНЕ</div>
-    <div id="importStatus" class="muted">Изключено</div>
-    <div class="row buttons">
-      <button id="importToggle" class="small">Следи Downloads</button>
-      <button id="importFolder" class="small">Друга папка…</button>
-    </div>
-    <div id="importRecent"></div>
-  </div>
-
-
-
 </div>
+<div id="tip" class="tip" hidden></div>
   <script src="main.js"></script>
 </body>
 </html>

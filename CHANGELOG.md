@@ -6,6 +6,12 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.55 - panel: sections, tooltips, report and pictures in their own views
+- Every feature is a card: title, one line saying what it does, then its buttons (СИНХРОН, ЗВУК, ЦВЯТ, СУБТИТРИ, АВТО ВНАСЯНЕ). The manual audio variants are folded under „Ръчно ▸“; nothing was removed.
+- Tooltips on every button (UXP shows nothing for `title`): shown after a short hover under the button, above it near the bottom edge, always inside the panel; hidden on leave, press or scroll. Buttons made in code get one through `button(cls, label, help, fn)` (a test checks every button in the HTML and in main.js).
+- Three views: „Инструменти“ (actions), „Дневник“ (the full report of the last run plus the last 10 results; a badge counts its warnings, red on an error) and „Преди / след“ (the before/after pictures of „Бяло и експозиция“ and „Изравни камерите“, with the Приложи buttons above them). The main view keeps only the progress, the one-line result, the decisions (Приложи…, the Shot Match reference) and links to the two views. Starting a run returns to „Инструменти“.
+- `[hidden]` always wins over a row's display, so folded rows stay folded.
+
 ## 0.9.54 - SYNC: fewer false „несигурно“, every decision explained
 - Cause found on the Masterhaus shoot (two pairs „Възможно, но несигурно“, like the user's fx39059/C9052 +2.273 s): every window found a strong, real peak, but they spread over 11-18 ms, and a window counted only within 5 ms of the line. Two POVs metres apart hear each speaker over a different path difference (1 ms = 34 cm), so speech from different places gives slightly different offsets; there is no single exact one.
 - New High rule for scattered windows (`sync.py`: `_band_cluster`, `LOOSE_BAND` 20 ms): at least 4 windows and 80 % of all (and of the informative) windows strong and inside one 20 ms band, median peak ratio >= 1.3, no second candidate, and the spread must not be a clock drift (`_drifting`: a straight line over >= 60 s stays refused). The offset is the band's median (error under 10 ms). The quick look before the full check accepts such candidates too.

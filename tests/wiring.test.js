@@ -12,7 +12,7 @@ const main = fs.readFileSync(path.join(panel, "main.js"), "utf8");
 
 function audioBlock() {
   const start = html.indexOf('<div class="title">ЗВУК</div>');
-  const end = html.indexOf('<div class="block">', start);
+  const end = html.indexOf('<div class="card"', start);
   assert.ok(start > 0 && end > start, "раздел ЗВУК не е намерен");
   return html.slice(start, end);
 }
@@ -80,7 +80,7 @@ test("Shot Match writes only the components the engine changed, into new or Asis
   assert.match(apply, /for \(const k of e\.r\.changed \|\| \[\]\) values\[k\] = e\.r\.proposal\[k\];/);
   assert.match(apply, /t = await target\(e\.clip\)/);                 // the manual-grade guard of „Цвят“
   assert.match(apply, /engine\.shotMatchCheck\(jobId, pl\.before, after/);   // checked on Premiere's frame
-  assert.match(html, /<button id="shotmatch" class="small">Изравни камерите<\/button>/);
+  assert.match(html, /<button id="shotmatch" class="small"[^>]*>Изравни камерите<\/button>/);
 });
 
 test("the subtitle section has its own buttons: no data-force, pressed through onTap, model download never automatic", () => {
@@ -116,4 +116,25 @@ test("the corrections box exists, are saved before a run and sent with it", () =
   assert.match(main, /saveSubtitleSettings\(project\.path\)/);
   assert.match(main, /readInput\(project, \[\], \$\("notes"\)\.value\)/);
   assert.match(sub, /text: notes/);
+});
+
+test("every button has a tooltip: in the HTML and every button made in code (2026-11-03)", () => {
+  const buttons = html.match(/<button[^>]*>/g) || [];
+  assert.ok(buttons.length > 15);
+  for (const b of buttons) assert.match(b, /data-tip="[^"]{8,}"/, `no tooltip: ${b}`);
+  // buttons made in code go through button(cls, label, help, fn): el("button" appears only inside it
+  assert.strictEqual((main.match(/el\("button"/g) || []).length, 1);
+  assert.match(main, /function button\(cls, label, help, fn\) \{\n  const b = el\("button", cls, label\);\n  b\.setAttribute\("data-tip", help\);/);
+  for (const m of main.matchAll(/button\("small", [^,]+, "([^"]*)"/g)) assert.ok(m[1].length >= 8, m[0]);
+});
+
+test("the report and the pictures live in their own views; the main view keeps summary, decisions, links", () => {
+  for (const id of ["paneTools", "paneLog", "panePreview", "details", "previews", "actions", "summary", "history"]) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  const tools = html.slice(html.indexOf('id="paneTools"'), html.indexOf('id="paneLog"'));
+  assert.doesNotMatch(tools, /id="details"|id="previews"/);
+  // pictures are made only for „Преди / след“, never inside the report blocks
+  assert.strictEqual((main.match(/createElement\("img"\)/g) || []).length, 1);
+  assert.match(main.slice(main.indexOf("function previewBlock")), /^function previewBlock[\s\S]*?createElement\("img"\)/);
 });
