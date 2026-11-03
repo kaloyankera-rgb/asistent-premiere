@@ -9,7 +9,7 @@ const ppro = require("premierepro");
 const { TickTime } = ppro;
 const P = require("./premiere.js");
 const { routeOf } = require("./channels.js");
-const { sideOf } = require("./audioplan.js");
+const { sideOf, limiterState, dynValue, LIMITER_DB } = require("./audioplan.js");
 
 const { transaction, maybe, debug } = P;
 
@@ -136,12 +136,33 @@ async function applyLevels(project, sequence, targets) {
   const items = (await P.readItems(sequence)).items;
   const actions = [];
   const checks = [];
+  const limit = [];                                // clips whose Dynamics needs the limiter: { ti, p, who, state }
   for (const t of targets) {
     const ti = items.find((x) => x.kind === "audio" && x.track === t.track && Math.abs(x.start - t.start) < 0.002);
     const p = t.plan;
     if (!ti) {
       p.problems.push(`${t.who}: клипът не е намерен за силата`);
       continue;
+    }
+    try {
+      // the limiter (Dynamics > Limiter -6 dB): appended in the same step as the levels, switched on in the next
+      // (a new effect has no parameters before it is applied); an existing Dynamics is reused, never doubled
+      const dyn = await dynamicsOf(ti.ti);
+      const lim = limiterState(dyn.map((d) => ({ params: d.values })));
+      if (lim.state === "add") {
+        const comp = await createEffect("Dynamics", ti.ti);
+        const { chain } = await components(ti.ti);
+        actions.push(() => chain.createAppendComponentAction(comp));
+        limit.push({ ti, p, who: t.who, state: "added" });
+      } else if (lim.state === "configure") {
+        limit.push({ ti, p, who: t.who, state: "configured" });
+      } else if (lim.state === "ok") {
+        p.lines.push(`${t.who}: лимитерът е вече на ${LIMITER_DB} dB.`);
+      } else {
+        p.lines.push(`${t.who}: лимитерът не е пипан: ${lim.why}.`);
+      }
+    } catch (e) {
+      p.problems.push(`${t.who}: лимитер: ${e.message || e}`);
     }
     if (t.out.lufs === null) {
       p.lines.push(`${t.who}: ${t.out.note}`);
@@ -171,7 +192,108 @@ async function applyLevels(project, sequence, targets) {
     const bad = await c();
     if (bad) p.problems.push(bad);
   }
-  return { undoSteps: actions.length ? 1 : 0 };
+  const switched = await switchLimiterOn(project, limit);
+  return { undoSteps: (actions.length ? 1 : 0) + (switched ? 1 : 0) };
 }
 
-module.exports = { readAudioSelection, applyLevels };
+async function createEffect(name, ti) {
+  const comp = await ppro.AudioFilterFactory.createComponentByDisplayName(name, ti);
+  if (!comp) throw new Error(`Premiere не направи ефекта ${name}`);
+  return comp;
+}
+
+// the Dynamics effects of a clip, with their parameter values by name
+async function dynamicsOf(ti) {
+  const { list } = await components(ti);
+  const out = [];
+  for (const c of list) {
+    if (!/^dynamics$/i.test(c.name)) continue;
+    const params = {};
+    const values = {};
+    const n = (await maybe(c.comp, "getParamCount")) || 0;
+    for (let i = 0; i < n; i++) {
+      const prm = await c.comp.getParam(i);
+      const label = (prm.displayName || "") + "";
+      if (!label) continue;
+      params[label] = prm;
+      values[label] = await readLevel(prm);
+    }
+    out.push({ comp: c.comp, params, values });
+  }
+  return out;
+}
+
+// step 2: Limiter on, Threshold -6 dB (in the clip's single Dynamics), everything else as it was; then read back
+async function switchLimiterOn(project, limit) {
+  if (!limit.length) return false;
+  const work = [];
+  for (const l of limit) {
+    const dyn = await dynamicsOf(l.ti.ti);
+    if (dyn.length !== 1 || !dyn[0].params["Limiter Enabled"] || !dyn[0].params["Limiter Threshold"]) {
+      l.p.problems.push(`${l.who}: Dynamics не се появи с параметри на лимитера`);
+      continue;
+    }
+    work.push({ l, d: dyn[0] });
+  }
+  if (work.length) {
+    transaction(project, "Asistent: лимитер −6 dB", (c) => {
+      for (const { d } of work) {
+        c.addAction(d.params["Limiter Enabled"].createSetValueAction(d.params["Limiter Enabled"].createKeyframe(1), true));
+        c.addAction(d.params["Limiter Threshold"].createSetValueAction(d.params["Limiter Threshold"].createKeyframe(dynValue(LIMITER_DB)), true));
+      }
+    });
+  }
+  for (const { l } of work) {
+    const back = (await dynamicsOf(l.ti.ti))[0];
+    const st = back ? limiterState([{ params: back.values }]) : { state: "missing" };
+    if (st.state === "ok") {
+      l.p.lines.push(`${l.who}: Dynamics → Limiter включен, праг ${LIMITER_DB} dB (${l.state === "added" ? "нов ефект" : "съществуващ Dynamics"}).`);
+    } else {
+      l.p.problems.push(`${l.who}: лимитерът не се записа като ${LIMITER_DB} dB (${st.why || st.state}; праг ${back && back.values["Limiter Threshold"]})`);
+    }
+  }
+  return work.length > 0;
+}
+
+// every effect of an audio clip with all its parameters, read only (development: how Premiere names them)
+async function dumpChain(x) {
+  const { list } = await components(x.ti);
+  const out = [];
+  for (const c of list) {
+    const params = [];
+    const n = c.comp.getParamCount ? await c.comp.getParamCount() : 0;
+    for (let i = 0; i < n; i++) {
+      const prm = await c.comp.getParam(i);
+      let value = null;
+      try {
+        const v = await prm.getStartValue();
+        value = v && v.value !== undefined ? (v.value.value !== undefined ? v.value.value : v.value) : v;
+      } catch (e) {
+        value = `unreadable: ${e && e.message ? e.message : e}`;
+      }
+      params.push({ i, name: (prm.displayName || "") + "", value, keyframed: !!(await maybe(prm, "isTimeVarying")) });
+    }
+    const methods = new Set();
+    if (n) for (let q = await c.comp.getParam(n - 1); q && q !== Object.prototype; q = Object.getPrototypeOf(q)) {
+      for (const m of Object.getOwnPropertyNames(q)) if (m !== "constructor") methods.add(m);
+    }
+    out.push({ name: c.name, match: c.match, params, paramMethods: [...methods].sort() });
+  }
+  return out;
+}
+
+// development: append one named audio effect to a clip (one Undo step)
+async function addEffectProbe(project, x, name) {
+  const step = async (label, fn) => {
+    try {
+      return await fn();
+    } catch (e) {
+      throw new Error(`${label}: ${e && e.message ? e.message : e}`);
+    }
+  };
+  const comp = await step("create", () => ppro.AudioFilterFactory.createComponentByDisplayName(name, x.ti));
+  const { chain } = await step("chain", () => components(x.ti));
+  await step("append", () => transaction(project, `Asistent: проба ${name}`, (c) => c.addAction(chain.createAppendComponentAction(comp))));
+}
+
+module.exports = { readAudioSelection, applyLevels, dumpChain, addEffectProbe };

@@ -3,7 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
-const { sideOf, forceFor, engineJobs, routeFor, levelTargets, routeLine } = require("../panel/audioplan.js");
+const { sideOf, forceFor, engineJobs, routeFor, levelTargets, routeLine, limiterState, dynValue, LIMITER_DB } = require("../panel/audioplan.js");
 
 const out = (route, gain) => ({ route, gain_db: gain, lufs: -30, result_lufs: -17, result_peak_db: -8 });
 
@@ -68,7 +68,8 @@ test("the report says where each side went and whether it is linked", () => {
 
 test("no Fill effect is ever added any more (user, 2026-11-03), and nothing is removed or muted by the panel", () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "panel", "premiere-audio.js"), "utf8");
-  assert.doesNotMatch(src, /createComponentByDisplayName|createAppendComponentAction|createCloneTrackItemAction/);
+  assert.doesNotMatch(src, /RE\.fill|RE\.swap|createCloneTrackItemAction|createEffect\("(Fill|Swap)/);                  // no routing effects
+  assert.deepStrictEqual([...src.matchAll(/createEffect\("([^"]+)"/g)].map((m) => m[1]), ["Dynamics"]);   // the only effect it adds
   assert.doesNotMatch(src, /createRemoveItemsAction|setMute|createSetDisabledAction/);
   const host = fs.readFileSync(path.join(__dirname, "..", "host", "host.jsx"), "utf8");
   const route = host.slice(host.indexOf("function as_route_one"), host.indexOf("function as_audio_route"));
@@ -104,4 +105,28 @@ test("an older Fill-effect split pair is measured as a pair too, and never split
 test("host.jsx starts with a UTF-8 BOM: $.evalFile reads a file without one as Mac Roman (Cyrillic came out garbled)", () => {
   const buf = fs.readFileSync(path.join(__dirname, "..", "host", "host.jsx"));
   assert.deepStrictEqual([...buf.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+});
+
+test("Dynamics' limiter: -6 dB is 0.9 in its normalised scale (the default -1 dB is 0.98333)", () => {
+  assert.strictEqual(LIMITER_DB, -6);
+  assert.ok(Math.abs(dynValue(-6) - 0.9) < 1e-12);
+  assert.ok(Math.abs(dynValue(-1) - 0.9833333) < 1e-6);
+});
+
+test("what happens to Dynamics already on a clip: reused, never doubled, somebody else's settings left alone", () => {
+  const dflt = { "AutoGate Enabled": 0, "Compressor Enabled": 0, "Expander Enabled": 0, "Limiter Enabled": 0, "Limiter Threshold": 0.98333 };
+  assert.deepStrictEqual(limiterState([]), { state: "add" });
+  assert.deepStrictEqual(limiterState([{ params: dflt }]), { state: "configure" });            // untouched Dynamics: only the limiter
+  assert.deepStrictEqual(limiterState([{ params: { ...dflt, "Limiter Enabled": 1, "Limiter Threshold": 0.9 } }]), { state: "ok" });   // second press
+  assert.strictEqual(limiterState([{ params: { ...dflt, "Limiter Enabled": 1, "Limiter Threshold": 0.95 } }]).state, "foreign");
+  assert.match(limiterState([{ params: { ...dflt, "Limiter Enabled": 1, "Limiter Threshold": 0.95 } }]).why, /-3\.0 dB/);
+  assert.strictEqual(limiterState([{ params: { ...dflt, "Compressor Enabled": 1 } }]).state, "foreign");
+  assert.strictEqual(limiterState([{ params: dflt }, { params: dflt }]).state, "foreign");
+});
+
+test("the limiter is switched on with a read-back, in the clip's single Dynamics", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "panel", "premiere-audio.js"), "utf8");
+  assert.match(src, /"Limiter Enabled"\]\.createKeyframe\(1\)/);
+  assert.match(src, /"Limiter Threshold"\]\.createKeyframe\(dynValue\(LIMITER_DB\)\)/);
+  assert.match(src, /const st = back \? limiterState\(\[\{ params: back\.values \}\]\)/);       // verified after the write
 });

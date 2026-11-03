@@ -33,6 +33,9 @@ TARGET_LUFS = -17.0
 PEAK_CEILING = -6.0
 MAX_GAIN = 30.0
 NOISE_MAX = -55.0      # dBFS: a boost may not lift the room noise above this
+BALANCE_TOL = 2.0      # dB: two speakers within this of each other count as equally loud; beyond it the louder is lowered
+BALANCE_MAX_CUT = 12.0 # dB: the most the louder speaker is ever lowered for balance (a whisperer is not matched to a shouter)
+OWN_SPEECH = 0.10      # share of the active frames in which a channel is >= 10 dB above the other: it carries its own speaker
 
 
 # ---------------------------------------------------------------- reading
@@ -374,8 +377,57 @@ _KINDS = {"same_voice": "един глас от два микрофона", "one
           "two_mics": "два микрофона", "uncertain": "несигурно", "silent": "без говор", "mono": "моно"}
 
 
+def _shift(o: dict, delta: float) -> None:
+    """Move one output's gain by `delta` dB and everything that follows from it."""
+    o["gain_db"] = round(o["gain_db"] + delta, 1)
+    o["result_lufs"] = round(o["result_lufs"] + delta, 1)
+    o["result_peak_db"] = round(o["result_peak_db"] + delta, 1)
+    o.pop("note", None)                       # "Вдигнато само с +3.9 dB…" described the gain before this shift
+
+
+def balance(outs: list[dict], ev: dict, tol: float = BALANCE_TOL) -> list[str]:
+    """Make the two sides of a split about equally loud, by speech: the BS.1770 loudness is gated, so it
+    is the level of the active speech and not of the pauses (and not a peak match). Only ever LOWERS the louder
+    side (never lifts noise), by at most BALANCE_MAX_CUT, and only between two channels that each carry their own
+    speaker. A channel that carries nobody of its own (the far copy of one voice, room bleed) is not matched to
+    anything and is not lifted above its source level. Changes `outs` (LL, RR); returns the report lines."""
+    if len(outs) != 2 or any(o["lufs"] is None for o in outs):
+        return []
+    own = {"LL": (ev.get("dominant_L") or 0.0) >= OWN_SPEECH, "RR": (ev.get("dominant_R") or 0.0) >= OWN_SPEECH}
+    lines: list[str] = []
+    side = {"LL": "L", "RR": "R"}
+    if own["LL"] != own["RR"]:
+        quiet = next(o for o in outs if not own[o["route"]])
+        if quiet["gain_db"] > 0:
+            lines.append(f"{side[quiet['route']]} няма свой говорител (само далечно копие или прослушване): не се вдига "
+                         f"({quiet['gain_db']:+.1f} dB стават 0).")
+            _shift(quiet, -quiet["gain_db"])
+            quiet["balance_note"] = "не е вдигано"
+        return lines
+    if not (own["LL"] and own["RR"]):
+        return lines
+    a, b = outs
+    diff = a["result_lufs"] - b["result_lufs"]
+    if abs(diff) <= tol:
+        return lines
+    loud, soft = (a, b) if diff > 0 else (b, a)
+    cut = min(abs(diff) - tol, BALANCE_MAX_CUT)
+    _shift(loud, -cut)
+    loud["balanced_by"] = round(-cut, 1)
+    left = abs(diff) - cut
+    why = ""
+    if soft.get("limited_by_noise"):
+        why = f" ({side[soft['route']]} не може да се вдигне повече: шумът на стаята)"
+    elif soft.get("limited_by_peak"):
+        why = f" ({side[soft['route']]} не може да се вдигне повече: пикът)"
+    lines.append(f"Говорителите се различаваха с {abs(diff):.1f} dB (говор по BS.1770): {side[loud['route']]} е свален с "
+                 f"{cut:.1f} dB{why}" + (f"; остават {left:.1f} dB (границата за сваляне е {BALANCE_MAX_CUT:.0f} dB)" if left > tol + 1e-6 else "") + ".")
+    return lines
+
+
 def analyze_item(path: str, start: float = 0.0, end: float | None = None, force: str | None = None,
-                 target: float = TARGET_LUFS, ceiling: float = PEAK_CEILING, phrases: bool = False) -> dict:
+                 target: float = TARGET_LUFS, ceiling: float = PEAK_CEILING, phrases: bool = False,
+                 balance_tol: float = BALANCE_TOL) -> dict:
     x = read_range(path, start, end)
     c = classify(x)
     # "split_all": the user's own workflow (2026-11-03): every stereo clip becomes L/L + R/R, whatever the analysis
@@ -420,15 +472,15 @@ def analyze_item(path: str, start: float = 0.0, end: float | None = None, force:
             g = gain_for(chs, target, ceiling)
             g["route"] = route
             outs.append(g)
+    if action == "split" and len(outs) == 2 and balance_tol is not None:
+        c["reasons"].extend(balance(outs, c.get("evidence") or {}, balance_tol))
     if action == "split" and len(outs) == 2 and all(o["lufs"] is not None for o in outs):
         # the two tracks play together: their sum must stay under the ceiling as well
         mix = x[0] * 10 ** (outs[0]["gain_db"] / 20) + x[1] * 10 ** (outs[1]["gain_db"] / 20)
         over = true_peak(mix) - ceiling
         if over > 0:
             for o in outs:
-                o["gain_db"] = round(o["gain_db"] - over, 1)
-                o["result_lufs"] = round(o["result_lufs"] - over, 1)
-                o["result_peak_db"] = round(o["result_peak_db"] - over, 1)
+                _shift(o, -over)
                 o["limited_by_peak"] = True
             c["reasons"].append(f"Двете писти заедно минаваха {ceiling:.0f} dB: и двете са свалени с {over:.1f} dB.")
     # phrase leveling: always measured (to suggest it), keyframes only when asked for
@@ -456,7 +508,8 @@ def analyze_item(path: str, start: float = 0.0, end: float | None = None, force:
 
 
 def analyze_items(items: list[dict], force: str | None = None, target: float = TARGET_LUFS,
-                  ceiling: float = PEAK_CEILING, progress=None, cancel=None, phrases: bool = False) -> dict:
+                  ceiling: float = PEAK_CEILING, progress=None, cancel=None, phrases: bool = False,
+                  balance_tol: float = BALANCE_TOL) -> dict:
     """Many timeline clips at once (threads: FFmpeg and NumPy release the GIL)."""
     from concurrent.futures import ThreadPoolExecutor
     from .sync import Cancelled
@@ -469,7 +522,7 @@ def analyze_items(items: list[dict], force: str | None = None, target: float = T
         try:
             r = analyze_item(it["path"], float(it.get("start") or 0.0),
                              float(it["end"]) if it.get("end") is not None else None,
-                             it.get("force") or force, target, ceiling, phrases)
+                             it.get("force") or force, target, ceiling, phrases, balance_tol)
         except MediaError as e:
             r = {"path": it["path"], "name": os.path.basename(it["path"]), "error": str(e), "outputs": []}
         done[0] += 1
@@ -478,7 +531,7 @@ def analyze_items(items: list[dict], force: str | None = None, target: float = T
 
     with ThreadPoolExecutor(max_workers=max(2, min(8, (os.cpu_count() or 4) - 2))) as pool:
         results = list(pool.map(one, items))
-    return {"items": results, "target_lufs": target, "ceiling_db": ceiling}
+    return {"items": results, "target_lufs": target, "ceiling_db": ceiling, "balance_tol_db": balance_tol}
 
 
 if __name__ == "__main__":

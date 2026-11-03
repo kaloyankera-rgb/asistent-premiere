@@ -24,6 +24,7 @@ identical for untrimmed clips), auto-import speed after 0.7.1, colour values set
 probe, `scripts/setup_win.ps1` (never run), Windows overall.
 
 ## Platform limitations (Premiere 26.0.2 UXP)
+- The Mix (master) track and its effects cannot be reached by script (QE: Audio 1-N only), so the Dynamics limiter of „Оправи звука“ is per clip.
 - No audio channel mapping through UXP (ExtendScript can set it on bin clips only: used by the host for the L/L + R/R copies), no multicam creation, no track creation except by insert/overwrite past the last track.
 - Removing track items while CEP panels run ExtendScript crashes Premiere → never remove.
 - Clones capture the clip as it was before the transaction; new effects have no parameters until applied.

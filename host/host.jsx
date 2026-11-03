@@ -1,7 +1,7 @@
 ﻿// Asistent host: the ExtendScript (ES3) side. main.js evaluates this file for every command and calls as_run(name, args).
 // Every function answers with a JSON string {ok, msg, ...}; nothing here throws out of as_run.
 
-var AS_HOST_VERSION = "0.9.56";
+var AS_HOST_VERSION = "0.9.57";
 
 function as_json(v) {
     if (v === null || v === undefined) return "null";
@@ -221,7 +221,8 @@ function as_route_one(seq, bin, a) {
     var pi = c.projectItem;
     if (as_in_bin(bin, pi)) {
         var mine = /\s(L|R)\s[\d.]+-[\d.]+$/.exec(String(pi.name));
-        return { ok: true, status: "already", side: mine ? mine[1] : null, upper: as_where(c) };
+        if (!mine) return { ok: false, msg: "клипът е от папка „" + AS_LR_BIN + "“, но името му не казва L или R: не е пипан" };
+        return { ok: true, status: "already", side: mine[1], upper: as_where(c) };
     }
     var map = pi.getAudioChannelMapping;
     if (!map || map.audioChannelsType !== 1 || map.audioClipsNumber !== 1) {
