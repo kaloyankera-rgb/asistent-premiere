@@ -6,6 +6,7 @@
 //
 // Every camera (= folder of the file) gets its own track, the same one in every group. Groups follow
 // each other with a gap; clips without a match come last. Times are where each clip's media starts.
+// No markers are written into the sequence.
 
 const GAP = 2.0;
 
@@ -22,8 +23,9 @@ function syncLayout(engine, order) {
     .map((g) => ({ members: g.members.slice(), first: Math.min(...g.members.map((m) => when(m.clip))) }))
     .sort((a, b) => a.first - b.first);
 
+  // No markers: the offsets alone place the clips, and the group list is shown in the panel, so the new
+  // sequence stays clean (the user asked for no Asistent markers on the timeline, 2026-11-03).
   const placements = [];
-  const markers = [];
   let cursor = 0;
   groups.forEach((g, n) => {
     const lead = Math.min(...g.members.map((m) => m.offset));
@@ -35,12 +37,9 @@ function syncLayout(engine, order) {
       placements.push({ clip: m.clip, zero, group: n + 1 });
       end = Math.max(end, zero + clips[m.clip].duration);
     }
-    markers.push({ time: cursor, name: `Група ${n + 1}`,
-      note: g.members.map((m) => clips[m.clip].name).join(", ") });
     cursor = end + GAP;
   });
   const lonely = engine.unsynced.slice().sort((a, b) => when(a) - when(b));
-  if (lonely.length) markers.push({ time: cursor, name: "Без синхрон", note: lonely.map((i) => clips[i].name).join(", ") });
   for (const i of lonely) {
     placements.push({ clip: i, zero: cursor, group: null });
     cursor += clips[i].duration + GAP;
@@ -62,7 +61,7 @@ function syncLayout(engine, order) {
     p.hasVideo = clips[p.clip].has_video !== false;
     p.duration = clips[p.clip].duration;
   }
-  return { placements, markers, cameras, seed };
+  return { placements, cameras, seed };
 }
 
 module.exports = { syncLayout, folderOf, GAP };

@@ -47,15 +47,16 @@ test("one track per camera and nothing overlaps on a track", () => {
   }
 });
 
-test("groups are separated by the gap and the lone clip comes last with a marker", () => {
-  const { placements, markers } = syncLayout(E, ORDER);
+test("groups are separated by the gap and the lone clip comes last; no markers", () => {
+  const lay = syncLayout(E, ORDER);
+  const { placements } = lay;
   const g1end = Math.max(...placements.filter((p) => p.group === 1).map((p) => p.zero + p.duration));
   const g2start = Math.min(...placements.filter((p) => p.group === 2).map((p) => p.zero));
   assert.ok(Math.abs(g2start - (g1end + GAP)) < 1e-9);
   const last = placements[placements.length - 1];
   assert.strictEqual(last.name, "fx39025.MP4");
   assert.strictEqual(last.group, null);
-  assert.deepStrictEqual(markers.map((m) => m.name), ["Група 1", "Група 2", "Без синхрон"]);
+  assert.strictEqual(lay.markers, undefined);
 });
 
 test("Windows paths split cameras by folder too", () => {

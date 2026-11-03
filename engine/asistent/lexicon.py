@@ -15,10 +15,12 @@ from __future__ import annotations
 
 import importlib.util
 from functools import lru_cache
+import gc
 import logging
 import os
 import re
 import threading
+import warnings
 
 from . import config
 
@@ -43,7 +45,13 @@ def _load():
             if available():
                 try:
                     from spylls.hunspell import Dictionary
-                    _state["dict"] = Dictionary.from_files(dict_base())
+                    # spylls 0.1.7 never closes the .aff/.dic it reads; collect them here, where their
+                    # ResourceWarning is expected, instead of at a random later moment (it failed whichever
+                    # test was running then under -W error)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore", ResourceWarning)
+                        _state["dict"] = Dictionary.from_files(dict_base())
+                        gc.collect()
                 except Exception as e:                             # noqa: BLE001 - the dictionary is a convenience
                     log.warning("bulgarian dictionary not loaded: %s", e)
         return _state["dict"]
