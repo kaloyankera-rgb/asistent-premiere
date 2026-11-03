@@ -1,18 +1,20 @@
 // Test bridge, panel side: runs commands the engine hands out (`GET /dev/poll`) so a developer can drive the
 // panel in the user's test project without a person pressing buttons. Off unless the engine has the flag file
 // `devbridge.enabled` (then /dev/poll answers 404 and this loop only sleeps). Refuses every command except `ping`
-// unless the open project is TEST.prproj (the user's rule: Premiere tests only there). Never closes or
+// unless the open project is one of the user's test projects, TEST.prproj or NEW TEST.prproj (the user's rule: Premiere
+// tests only there; NEW TEST added by the user 2026-11-04). Never closes or
 // restarts Premiere, never writes anything itself: it presses the panel's own buttons and reads.
 const engine = require("./engine.js");
+const { cssProbe } = require("./cssprobe.js");
 
-const TEST_PROJECT = /(^|[\\/])TEST\.prproj$/i;
+const TEST_PROJECT = /(^|[\\/])(NEW )?TEST\.prproj$/i;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const SETTLE = 900;                                 // main.js ignores clicks for 700 ms after the panel changed
 
 function createBridge({ premiere, premiereColor, premiereAudio, doc, version, engineApi = engine, sleep = wait }) {
   const $ = (id) => doc.getElementById(id);
   const text = (n) => ((n && n.textContent) || "").trim();
-  const buttons = () => [...doc.querySelectorAll("button")].filter((b) => !b.hidden);
+  const buttons = () => [...doc.querySelectorAll("button, .btn")].filter((b) => !b.hidden);        // .btn: the panel's own buttons (divs)
   const busy = () => !$("work").hidden;
 
   async function project() {
@@ -70,6 +72,10 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     async state() {
       return panelState();
     },
+    // which CSS this UXP really supports (measured on temporary elements; the panel redesign uses only what works)
+    async css_probe() {
+      return cssProbe(doc, typeof window !== "undefined" ? window : globalThis);
+    },
     async timeline(a) {
       const { p } = await project();
       const t = await premiere.readTimeline(p);
@@ -80,46 +86,34 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const t = await premiere.readTimeline(p);
       return { items: t.items.filter((x) => x.selected).map(brief) };
     },
-    // select clips by (part of) name / track / time range; needs TrackItemSelection (API unverified on 26.0.2: an
-    // error here says what is missing)
+    // select clips by (part of) name / track / time range; kind "video" (default), "audio" or "any" (one call sets the
+    // whole selection)
     async select(a) {
       const { p } = await project();
       const t = await premiere.readTimeline(p);
-      const chosen = pick(t.items, { kind: "video", ...a });
+      const chosen = pick(t.items, a.kind === "any" ? { ...a, kind: undefined } : { kind: "video", ...a });
       if (!chosen.length) throw new Error("No clips match these conditions.");
       const ppro = require("premierepro");
       const Sel = ppro.TrackItemSelection;
       if (!Sel || !premiere.has(Sel, "createEmptySelection")) throw new Error("This API has no TrackItemSelection.");
+      // 26.0.2 (verified 2026-11-04 in NEW TEST, 24 clips): createEmptySelection needs a callback and hands the selection
+      // to it; the selection is filled and set there (used after the callback, setSelection dereferenced a null pointer),
+      // and setSelection returns a promise that rejects ("A nullptr was dereferenced") once the selection is gone, even when
+      // the clips were selected: the promise is ignored and the timeline read back is the answer
       const step = [];
-      let sel;
-      for (const args of [[], [t.sequence], [() => {}]]) {
+      let reached = false;
+      await Sel.createEmptySelection((sel) => {
         try {
-          sel = await Sel.createEmptySelection(...args);
-          break;
+          for (const x of chosen) sel.addItem(x.ti, true);
+          const r = t.sequence.setSelection(sel);
+          if (r && r.catch) r.catch(() => {});
+          reached = true;
         } catch (e) {
-          step.push(`createEmptySelection/${args.length}: ${(e && e.message) || e}`);
+          step.push(`inside createEmptySelection: ${(e && e.message) || e}`);
         }
-      }
-      if (!sel) throw new Error(step.join(" | "));
-      for (const x of chosen) {
-        let ok = false;
-        for (const args of [[x.ti], [x.ti, true], [x.ti, true, true], [x.ti, false, true]]) {
-          try {
-            await sel.addItem(...args);
-            ok = true;
-            break;
-          } catch (e) {
-            step.push(`addItem/${args.length}: ${(e && e.message) || e}`);
-          }
-        }
-        if (!ok) throw new Error(step.join(" | "));
-      }
-      try {
-        await t.sequence.setSelection(sel);
-      } catch (e) {
-        step.push(`setSelection(sel): ${(e && e.message) || e}`);
-        throw new Error(step.join(" | "));
-      }
+      });
+      if (!reached) throw new Error(step.join(" | ") || "setSelection was not reached.");
+      await sleep(400);
       const again = await premiere.readTimeline(p);
       return { requested: chosen.map(brief), selected: again.items.filter((x) => x.selected).map(brief) };
     },
@@ -139,7 +133,8 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const b = hit[0];
       if (!b) throw new Error(`No such button. There are: ${all.map(text).join(" | ")}`);
       if (b.disabled) throw new Error(`The button "${text(b)}" is disabled.`);
-      b.click();
+      if (typeof b.click === "function") b.click();
+      else b.dispatchEvent(new Event("click"));
       return { clicked: text(b) };
     },
     async wait_idle(a) {
@@ -172,6 +167,95 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const out = [];
       for (const x of pick(t.items, { kind: "video", ...a })) out.push({ clip: brief(x), effects: await premiereColor.devChain(x) });
       return { clips: out };
+    },
+    // a graphic's text through UXP (2026-11-04: ExtendScript reads a Premiere text graphic's Source Text as one useless
+    // character): every parameter of the last graphic on V1 (or `track`), and with {"text": "..."} an attempt to write it
+    async graphic_text(a) {
+      const { p } = await project();
+      const seq = await p.getActiveSequence();
+      const ppro = require("premierepro");
+      const tr = await seq.getVideoTrack(Number.isInteger(a.track) ? a.track - 1 : 0);
+      const items = (await premiere.maybe(tr, "getTrackItems", ppro.Constants.TrackItemType.CLIP, false)) || [];
+      let ti = null;
+      for (const x of items) {
+        const n = (await premiere.maybe(x, "getName")) || "";
+        if (a.name ? n === a.name : /graphic|subtitle/i.test(n)) ti = x;
+      }
+      if (!ti) throw new Error("No graphic on that track.");
+      const chain = await ti.getComponentChain();
+      const out = [];
+      let source = null;
+      const show = async (prm) => {
+        const r = { name: prm.displayName };
+        for (const m of ["getStartValue", "getValue"]) {
+          try {
+            const v = await prm[m]();
+            r[m] = typeof v === "object" ? JSON.stringify(v && v.value !== undefined ? { value: v.value, type: typeof v.value } : v).slice(0, 400) : String(v).slice(0, 400);
+          } catch (e) {
+            r[m] = `error: ${(e && e.message) || e}`;
+          }
+        }
+        return r;
+      };
+      for (let i = 0; i < (await chain.getComponentCount()); i++) {
+        const comp = await chain.getComponentAtIndex(i);
+        const match = (await premiere.maybe(comp, "getMatchName")) || "";
+        const row = { match, params: [] };
+        for (let j = 0; j < (await comp.getParamCount()); j++) {
+          const prm = await comp.getParam(j);
+          if (/text/i.test(match) && /source text/i.test(prm.displayName || "")) source = prm;
+          if (/text/i.test(match) || j < 3) row.params.push(await show(prm));
+        }
+        out.push(row);
+      }
+      const names = [];
+      for (let q = source; q && q !== Object.prototype; q = Object.getPrototypeOf(q)) names.push(...Object.getOwnPropertyNames(q));
+      let written = null;
+      if (a.text && source) {
+        try {
+          const kf = source.createKeyframe(String(a.text));
+          premiere.transaction(p, "Asistent test: graphic text", (c) => c.addAction(source.createSetValueAction(kf, true)));
+          written = await show(source);
+        } catch (e) {
+          written = `error: ${(e && e.message) || e}`;
+        }
+      }
+      return { components: out, source_methods: [...new Set(names)].sort(), written };
+    },
+    // which value a point parameter (Motion > Position) takes through UXP, for moving subtitle graphics in one Undo step
+    async graphic_move(a) {
+      const { p } = await project();
+      const seq = await p.getActiveSequence();
+      const ppro = require("premierepro");
+      const tr = await seq.getVideoTrack(Number.isInteger(a.track) ? a.track - 1 : 0);
+      const items = (await premiere.maybe(tr, "getTrackItems", ppro.Constants.TrackItemType.CLIP, false)) || [];
+      let ti = null;
+      for (const x of items) if (((await premiere.maybe(x, "getName")) || "") === (a.name || "Graphic")) ti = x;
+      if (!ti) throw new Error("No such graphic.");
+      const chain = await ti.getComponentChain();
+      let pos = null;
+      for (let i = 0; i < (await chain.getComponentCount()); i++) {
+        const comp = await chain.getComponentAtIndex(i);
+        if (((await premiere.maybe(comp, "getMatchName")) || "") !== "AE.ADBE Motion") continue;
+        for (let j = 0; j < (await comp.getParamCount()); j++) {
+          const prm = await comp.getParam(j);
+          if (prm.displayName === "Position") pos = prm;
+        }
+      }
+      const read = async () => JSON.stringify((await pos.getStartValue()).value);
+      const tries = [];
+      const ways = [["PointF", () => new ppro.PointF(a.x, a.y)], ["array", () => [a.x, a.y]], ["object", () => ({ x: a.x, y: a.y })]];
+      for (const [label, make] of ways) {
+        try {
+          const kf = pos.createKeyframe(make());
+          premiere.transaction(p, "Asistent test: move graphic", (c) => c.addAction(pos.createSetValueAction(kf, true)));
+          tries.push({ label, after: await read() });
+          break;
+        } catch (e) {
+          tries.push({ label, error: (e && e.message) || String(e) });
+        }
+      }
+      return { before_ok: true, tries, PointF: typeof ppro.PointF };
     },
     // every effect on audio clips with all parameters (name, value, keyframed), read only: for finding how Premiere
     // names the parameters of an audio effect (Dynamics, Volume). args: names/track/from/to as for `timeline`
@@ -367,7 +451,7 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     try {
       if (cmd.name !== "ping") {
         const pr = await project();
-        if (!pr.ok) return { ok: false, data: { error: `TEST.prproj only: "${pr.name}" is open now. Nothing was touched.` } };
+        if (!pr.ok) return { ok: false, data: { error: `Test projects only (TEST.prproj, NEW TEST.prproj): "${pr.name}" is open now. Nothing was touched.` } };
       }
       return { ok: true, data: await fn(cmd.args || {}) };
     } catch (e) {

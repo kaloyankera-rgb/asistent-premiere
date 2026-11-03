@@ -19,7 +19,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
-from . import asr, edl, pauses, speechmap, subtitles, takes, vad, xmeml
+from . import asr, edl, media, pauses, speechmap, subtitles, takes, vad, xmeml
 from .dialoguemix import ASR_SR, build_mix
 from .subtitle_job import _inside, _same_word, plan_windows, read_window
 
@@ -143,6 +143,7 @@ def _clock(t: float) -> str:
 def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[[], bool]) -> dict:
     p = validate(body)
     t0 = time.time()
+    media.probe_all([d["path"] for d in p["dialogue"]] + [i["path"] for i in p["layout"]])     # the XML needs every file's facts
     fps = p["fps"]
     progress(0.0, "Reading the sound…")
     mix = build_mix(p["dialogue"], lambda f, m: progress(0.1 * f, m), cancelled)

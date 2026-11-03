@@ -152,9 +152,9 @@ async function applyShotMatch(project, timeline, jobId, entries) {
   let steps = 0;
   if (!prepared.length) return { steps, plans };
   if (dir) {
-    for (const [i, pl] of prepared.entries()) {
-      if (pl.moment !== null) pl.before = await exportFrame(timeline.sequence, pl.moment, `match_before_${i}.png`, dir);
-    }
+    const want = prepared.map((pl, i) => ({ pl, i })).filter(({ pl }) => pl.moment !== null);
+    const got = await exportFrames(timeline.sequence, want.map(({ pl, i }) => ({ seconds: pl.moment, name: `match_before_${i}.png` })), dir);
+    want.forEach(({ pl }, k) => { pl.before = got[k]; });
   }
   const fresh = prepared.filter((pl) => pl.t.isNew);
   if (fresh.length) {
@@ -180,14 +180,17 @@ async function applyShotMatch(project, timeline, jobId, entries) {
   }
   // the match on Premiere's own frames; worse components go back in one step
   const acts = [];
-  for (const [i, pl] of prepared.entries()) {
+  const checked = prepared.filter((pl) => pl.before);
+  const afters = await exportFrames(timeline.sequence, checked.map((pl) => ({ seconds: pl.moment, name: `match_after_${prepared.indexOf(pl)}.png` })), dir);
+  const afterOf = new Map(checked.map((pl, k) => [pl, afters[k]]));
+  for (const pl of prepared) {
     pl.reverted = [];
     if (!pl.before) {
       pl.lines.push(pl.moment === null ? "checked by the model only: the clip is covered by another layer everywhere"
         : "no check on a frame (the frame was not exported)");
       continue;
     }
-    const after = await exportFrame(timeline.sequence, pl.moment, `match_after_${i}.png`, dir);
+    const after = afterOf.get(pl);
     let chk = null;
     for (let n = 0; n < 10 && after && !chk; n++) {
       chk = await engine.shotMatchCheck(jobId, pl.before, after, pl.clip.name).catch(() => null);
@@ -298,17 +301,57 @@ async function exportFrame(sequence, seconds, name, dir, onError, long = 480) {
 }
 
 
-// What the viewer sees of the clip: frames exported from the sequence (any correction already on the clip
+// Many frames of ONE timeline state: every export is queued first, then all are waited for together (2026-11-03, speed).
+// 26.0.2 only queues an export and returns at once, and waiting for each file before queueing the next cost ~0.3 s a
+// frame (4 frames × 20 clips ≈ 26 s). Only for frames between which nothing on the timeline changes: the probe still
+// waits for each frame because it changes a value between them. shots: [{ seconds, name }] -> [path | null], same order.
+const FRAME_BATCH = 16;
+const BATCH_WAIT_S = 5;                // a batch's frames arrive within ~2 s; a missing one is retried, not waited for
+
+async function exportFrames(sequence, shots, dir, onBatch) {
+  const out = new Array(shots.length).fill(null);
+  if (!has(ppro.Exporter, "exportSequenceFrame")) return out;
+  const { w, h } = await frameSize(sequence, 480);
+  for (let s = 0; s < shots.length; s += FRAME_BATCH) {
+    const batch = shots.slice(s, s + FRAME_BATCH);
+    const names = [];
+    for (const shot of batch) {
+      const unique = `${Date.now().toString(36)}_${++exportCount}_${shot.name}`;
+      try {
+        const ok = await ppro.Exporter.exportSequenceFrame(sequence, TickTime.createWithSeconds(shot.seconds), unique, dir, w, h);
+        names.push(ok === false ? null : unique);
+      } catch (e) {
+        debug(`exportSequenceFrame failed: ${e && e.message ? e.message : e}`);
+        names.push(null);
+      }
+    }
+    const got = await Promise.all(names.map((n) => (n ? engine.waitFrame(`${dir}/${n}`, BATCH_WAIT_S).catch(() => null) : null)));
+    for (const [i, g] of got.entries()) {
+      out[s + i] = g && g.path ? g.path : null;
+      if (out[s + i]) continue;
+      // Premiere skipped this export (3 of 84 on 2026-11-03, each held its batch for the full 20 s): once more on its own
+      debug(`frame ${names[i] || batch[i].name}: not written in a batch, exported again on its own`);
+      out[s + i] = await exportFrame(sequence, batch[i].seconds, `again_${batch[i].name}`, dir);
+    }
+    if (onBatch) onBatch(Math.min(s + FRAME_BATCH, shots.length), shots.length);
+  }
+  return out;
+}
+
+// What the viewer sees of each clip: frames exported from the sequence (any correction already on the clip
 // included), 480 px like the render checks. Fewer than two usable moments: the engine falls back to the file.
 // (A 720 px experiment and a Lumetri readout lived here in 0.9.20-0.9.25 while a „correction not seen" report
 // was chased: every case turned out to be a correction undone before the re-run.)
-async function timelineFrames(timeline, clip, dir, index) {
-  const frames = [];
-  for (const [k, t] of analysisMoments(timeline, clip).entries()) {
-    const f = await exportFrame(timeline.sequence, t, `analyse_${index}_${k}.png`, dir);
-    if (f) frames.push(f);
-  }
-  return { frames };
+// clips -> [{ frames: [path] }] in the clips' order, each clip's frames in time order.
+async function timelineFrames(timeline, clips, dir, onBatch) {
+  const shots = [];
+  clips.forEach((clip, index) => analysisMoments(timeline, clip).forEach((t, k) => shots.push({ index, seconds: t, name: `analyse_${index}_${k}.png` })));
+  const paths = await exportFrames(timeline.sequence, shots, dir, onBatch);
+  const out = clips.map(() => ({ frames: [] }));
+  shots.forEach((shot, i) => {
+    if (paths[i]) out[shot.index].frames.push(paths[i]);
+  });
+  return out;
 }
 
 // final: the re-check after the one step back. The engine then gives its verdict and never proposes another step
@@ -374,9 +417,9 @@ async function apply(project, timeline, plans) {
 
   // frames before, for the check
   if (dir) {
-    for (const [i, pl] of prepared.entries()) {
-      if (!covered(timeline, pl.clip, pl.mid)) pl.before = await exportFrame(timeline.sequence, pl.mid, `before_${i}.png`, dir);
-    }
+    const want = prepared.map((pl, i) => ({ pl, i })).filter(({ pl }) => !covered(timeline, pl.clip, pl.mid));
+    const got = await exportFrames(timeline.sequence, want.map(({ pl, i }) => ({ seconds: pl.mid, name: `before_${i}.png` })), dir);
+    want.forEach(({ pl }, k) => { pl.before = got[k]; });
   }
   let steps = 0;
   const fresh = prepared.filter((pl) => pl.t.isNew);
@@ -413,12 +456,16 @@ async function apply(project, timeline, plans) {
     return { steps };
   }
   const second = [];
-  for (const [i, pl] of prepared.entries()) {
+  // every clip's frame after the change, queued together (one timeline state), then checked one by one
+  const checked = prepared.filter((pl) => pl.before);
+  const afters = await exportFrames(timeline.sequence, checked.map((pl) => ({ seconds: pl.mid, name: `after_${prepared.indexOf(pl)}.png` })), dir);
+  const afterOf = new Map(checked.map((pl, k) => [pl, afters[k]]));
+  for (const pl of prepared) {
     if (!pl.before) {
       pl.lines.push("no check: another layer is over the clip or the frame was not exported");
       continue;
     }
-    const after = await exportFrame(timeline.sequence, pl.mid, `after_${i}.png`, dir);
+    const after = afterOf.get(pl);
     const chk = after && (await checkWithRetry(pl.before, after, pl.applied, pl.res.white));
     if (!chk) {
       pl.lines.push("the check failed");
@@ -467,9 +514,10 @@ async function apply(project, timeline, plans) {
     for (const pl of prepared) if (pl.recheck) await remember(pl);
   }
   // the second step is measured once more on a new frame: report where it really landed, change nothing more
-  for (const [i, pl] of prepared.entries()) {
-    if (!pl.recheck) continue;
-    const after2 = await exportFrame(timeline.sequence, pl.mid, `after2_${i}.png`, dir);
+  const again = prepared.map((pl, i) => ({ pl, i })).filter(({ pl }) => pl.recheck);
+  const after2s = await exportFrames(timeline.sequence, again.map(({ pl, i }) => ({ seconds: pl.mid, name: `after2_${i}.png` })), dir);
+  for (const [k, { pl }] of again.entries()) {
+    const after2 = after2s[k];
     const chk2 = after2 && (await checkWithRetry(pl.before, after2, sinceBefore(pl), pl.res.white, true));
     if (!chk2) {
       pl.lines.push("after the refinement: the check failed");
@@ -645,4 +693,4 @@ async function copyLumetri(project, pairs) {
   return done;
 }
 
-module.exports = { readVideoSelection, apply, exportFrame, timelineFrames, lumetriState, applyShotMatch, readLumetri, copyLumetri, devWrite, devChain };
+module.exports = { readVideoSelection, apply, exportFrame, exportFrames, timelineFrames, lumetriState, applyShotMatch, readLumetri, copyLumetri, devWrite, devChain };

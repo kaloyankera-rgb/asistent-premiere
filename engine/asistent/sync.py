@@ -112,16 +112,29 @@ def _envelope(x8k: np.ndarray) -> np.ndarray:
 
 def _xcorr(a: np.ndarray, b: np.ndarray, beta: float) -> tuple[np.ndarray, int]:
     """r[k] = sum a[n] b[n-k] for k in [-(len(b)-1), len(a)-1]; returns (r, index of k=0)."""
-    n = sfft.next_fast_len(len(a) + len(b) - 1, real=True)
-    A = sfft.rfft(a, n, workers=FFT_WORKERS)
-    B = sfft.rfft(b, n, workers=FFT_WORKERS)
+    n = _fft_len(len(a), len(b))
+    return _xcorr_spec(_spec(a, n), _spec(b, n), n, len(a), len(b), beta)
+
+
+# A signal is correlated with every channel of the other clip: its spectrum is computed once per length and
+# reused (2026-11-03, speed; the same numbers as before, so every offset is bit-identical).
+def _fft_len(la: int, lb: int) -> int:
+    return sfft.next_fast_len(la + lb - 1, real=True)
+
+
+def _spec(x: np.ndarray, n: int) -> np.ndarray:
+    return sfft.rfft(x, n, workers=FFT_WORKERS)
+
+
+def _xcorr_spec(A: np.ndarray, B: np.ndarray, n: int, la: int, lb: int, beta: float) -> tuple[np.ndarray, int]:
+    """_xcorr from the two spectra (_spec at the same n); la, lb: the signals' lengths."""
     R = A * np.conj(B)
     if beta > 0:
         mag = np.abs(R)
         R = R / (mag ** beta + 1e-9 * (mag.max() + 1e-30))
     r = sfft.irfft(R, n, workers=FFT_WORKERS)
-    r = np.concatenate([r[n - (len(b) - 1):], r[: len(a)]]) if len(b) > 1 else r[: len(a)]
-    return r, len(b) - 1
+    r = np.concatenate([r[n - (lb - 1):], r[: la]]) if lb > 1 else r[: la]
+    return r, lb - 1
 
 
 def _taper(x: np.ndarray, sr: float, ramp: float) -> np.ndarray:
@@ -224,12 +237,17 @@ def _coarse(a: Clip, b: Clip, check: Callable[[], None]) -> list[Candidate]:
             work[max(0, i - excl): i + excl + 1] = 0
 
     la, lb = a.length, b.length
+    # all channels of a clip have one length, so one FFT size serves every channel pair
+    nc = _fft_len(len(a.coarse[0]), len(b.coarse[0]))
+    ne = _fft_len(len(a.env[0]), len(b.env[0]))
+    spec_a = [(_spec(x, nc), _spec(e, ne)) for x, e in zip(a.coarse, a.env)]
+    spec_b = [(_spec(x, nc), _spec(e, ne)) for x, e in zip(b.coarse, b.env)]
     for ia, ca in enumerate(a.channels):
         for ib, cb in enumerate(b.channels):
             check()
-            r, zero = _xcorr(a.coarse[ia], b.coarse[ib], PHAT_BETA)
+            r, zero = _xcorr_spec(spec_a[ia][0], spec_b[ib][0], nc, len(a.coarse[ia]), len(b.coarse[ib]), PHAT_BETA)
             scan(r, zero, csr, f"GCC-PHAT {ca.label}×{cb.label}", la, lb)
-            r, zero = _xcorr(a.env[ia], b.env[ib], 0.0)
+            r, zero = _xcorr_spec(spec_a[ia][1], spec_b[ib][1], ne, len(a.env[ia]), len(b.env[ib]), 0.0)
             scan(r, zero, esr, f"envelope {ca.label}×{cb.label}", la, lb)
     cands.sort(key=lambda c: c.score, reverse=True)
     return cands[:MAX_CANDIDATES]
@@ -271,17 +289,24 @@ def _window_offset(a: Clip, b: Clip, d0: float, t0: float, w: float, search: flo
         return None
     tb0 = ib0 / SR
     ramp = min(0.25, 0.1 * w)
-    for ca in a.channels:
-        sa = ca.data[ia0:ia1]
-        if not np.any(sa):
+    la, lb = ia1 - ia0, ib1 - ib0
+    n = _fft_len(la, lb)
+
+    def spectra(chans, i0, i1):            # silent stretches are skipped, as before
+        out = []
+        for c in chans:
+            x = c.data[i0:i1]
+            out.append((c, _spec(_taper(x, SR, ramp), n) if np.any(x) else None))
+        return out
+
+    sb_all = spectra(b.channels, ib0, ib1)
+    for ca, SA in spectra(a.channels, ia0, ia1):
+        if SA is None:
             continue
-        sa = _taper(sa, SR, ramp)
-        for cb in b.channels:
-            sb = cb.data[ib0:ib1]
-            if not np.any(sb):
+        for cb, SB in sb_all:
+            if SB is None:
                 continue
-            sb = _taper(sb, SR, ramp)
-            r, zero = _xcorr(sa, sb, PHAT_BETA)
+            r, zero = _xcorr_spec(SA, SB, n, la, lb, PHAT_BETA)
             # d = t0 - tb0 + k/SR, keep k so that d stays within d0 +/- search
             k0 = int(np.floor((d0 - search - t0 + tb0) * SR))
             k1 = int(np.ceil((d0 + search - t0 + tb0) * SR))
@@ -361,7 +386,8 @@ def _drifting(windows: list[Window]) -> bool:
     return float(np.corrcoef(t, o)[0, 1]) ** 2 >= 0.7
 
 
-def _validate(a: Clip, b: Clip, d0: float, check: Callable[[], None], max_windows: int | None = None) -> Validation:
+def _validate(a: Clip, b: Clip, d0: float, check: Callable[[], None], max_windows: int | None = None,
+              memo: dict | None = None) -> Validation:
     os_, oe = max(0.0, d0), min(a.length, d0 + b.length)
     ov = oe - os_
     if ov <= 1.0:
@@ -377,7 +403,13 @@ def _validate(a: Clip, b: Clip, d0: float, check: Callable[[], None], max_window
     wins = []
     for t0 in starts:
         check()
-        win = _window_offset(a, b, d0, float(t0), w, search)
+        key = (d0, float(t0), w, search)
+        if memo is not None and key in memo:
+            win = memo[key]
+        else:
+            win = _window_offset(a, b, d0, float(t0), w, search)
+            if memo is not None:
+                memo[key] = win
         if win:
             wins.append(win)
     good = [x for x in wins if x.z >= WIN_Z_MIN]
@@ -430,13 +462,14 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
         return res
 
     cands = _coarse(a, b, check)
+    memo: dict = {}                         # windows of the quick look are not measured twice
     # a candidate survives the quick look when two windows agree, tightly or within the scatter band
     if quick and all(max(len(v.inliers), len(_band_cluster(v.windows))) < 2
-                     for v in (_validate(a, b, c.offset, check, QUICK_WINDOWS) for c in cands[:QUICK_CANDIDATES])):
+                     for v in (_validate(a, b, c.offset, check, QUICK_WINDOWS, memo) for c in cands[:QUICK_CANDIDATES])):
         res.update(confidence="low", offset=None, quick_reject=True)
         res["reasons"].append("Found no shared sound that is confirmed in several stretches.")
         return res
-    vals = [(_validate(a, b, c.offset, check), c) for c in cands]
+    vals = [(_validate(a, b, c.offset, check, memo=memo), c) for c in cands]
     vals.sort(key=lambda vc: (len(vc[0].inliers), np.mean([w.ratio for w in vc[0].inliers]) if vc[0].inliers else 0),
               reverse=True)
     best, cand = vals[0]

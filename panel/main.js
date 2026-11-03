@@ -32,6 +32,7 @@ function settle() {
 
 function onTap(button, fn) {
   button.addEventListener("click", () => {
+    if (button.disabled) return;                     // own buttons are divs: a disabled one must not act (enable())
     const label = (button.textContent || "").trim();
     if (Date.now() < state.settleUntil) {
       engine.log("info", `panel: click ignored (panel just changed): ${label}`);
@@ -46,9 +47,17 @@ function show(id, visible) {
   $(id).hidden = !visible;
 }
 
+// The buttons are Asistent's own (divs with class btn, 0.9.72): Premiere draws every <button> with its own grey face
+// and ignores the panel's colours. `disabled` is what onTap and the test bridge read; the attribute dims it (CSS).
+function enable(b, on) {
+  b.disabled = !on;
+  if (on) b.removeAttribute("disabled");
+  else b.setAttribute("disabled", "");
+}
+
 function setBusy(busy) {
   state.busy = busy;
-  for (const b of document.querySelectorAll("button.action, button.small")) b.disabled = busy || !state.online;
+  for (const b of document.querySelectorAll(".btn.action, .btn.small")) enable(b, !busy && state.online);
   show("work", busy);
   if (busy && $("paneTools").hidden) openTab("paneTools");      // the progress and Cancel are there
   settle();
@@ -84,7 +93,7 @@ function el(tag, cls, text) {
 
 // A button made in code: label, its tooltip and its handler (through onTap like every other press).
 function button(cls, label, help, fn) {
-  const b = el("button", cls, label);
+  const b = el("div", `btn ${cls}`, label);
   b.setAttribute("data-tip", help);
   onTap(b, fn);
   return b;
@@ -136,9 +145,9 @@ const history = [];
 
 function openTab(pane) {
   hideTip();
-  for (const t of document.querySelectorAll("button.tab")) {
+  for (const t of document.querySelectorAll(".btn.tab")) {
     const on = t.getAttribute("data-tab") === pane;
-    t.className = on ? "tab on" : "tab";
+    t.className = on ? "btn tab on" : "btn tab";
     show(t.getAttribute("data-tab"), on);
   }
   try {
@@ -160,13 +169,8 @@ function fillWith(id, nodes) {
  * decisions, shown under the summary and above the pictures; opts.previews: [nodes] for Before / after.
  */
 function finish(text, ok, blocks, opts = {}) {
-  show("result", true);
+  show("result", true);                          // at the bottom of the panel (2026-11-03): the list does not need to scroll
   settle();
-  try {
-    $("app").scrollTop = 0;                      // the answer is at the top of the panel: bring it into view
-  } catch (e) {
-    /* older UXP */
-  }
   $("summary").textContent = text;
   $("summary").className = ok ? "ok" : "err";
   fillWith("details", blocks);
@@ -175,7 +179,7 @@ function finish(text, ok, blocks, opts = {}) {
   const warns = $("details").querySelectorAll(".warn, .err").length;
   const link = $("openLog");
   link.textContent = warns ? `Details · ${warns} ${warns === 1 ? "note" : "notes"}` : "Details";
-  link.className = warns ? "link has-warn" : "link";
+  link.className = warns ? "btn link has-warn" : "btn link";
   show("openLog", (blocks || []).length > 0);
   $("logBadge").textContent = warns ? String(warns) : "!";
   $("logBadge").className = ok ? "count" : "count err";
@@ -197,8 +201,9 @@ async function refreshHeader() {
   const st = await engine.status();
   state.online = !!(st && st.ok);
   $("dot").className = `dot ${state.online ? "on" : "off"}`;
-  $("engine").textContent = state.online ? `Connected · panel ${PANEL_VERSION} · engine ${st.version}`
-    : `No connection to the engine (panel ${PANEL_VERSION})`;
+  // short, it shares the line with the project name; both versions only when they differ
+  $("engine").textContent = !state.online ? `No engine · ${PANEL_VERSION}`
+    : st.version === PANEL_VERSION ? `Connected · ${PANEL_VERSION}` : `Connected · panel ${PANEL_VERSION} · engine ${st.version}`;
   $("detail").textContent = state.online ? "" : `${st.error}. Check that the engine is running (README).`;
   show("detail", !state.online);
   try {
@@ -208,7 +213,7 @@ async function refreshHeader() {
   } catch (e) {
     $("project").textContent = "No project open";
   }
-  if (!state.busy) for (const b of document.querySelectorAll("button.action, button.small")) b.disabled = !state.online;
+  if (!state.busy) for (const b of document.querySelectorAll(".btn.action, .btn.small")) enable(b, state.online);
   if (state.online && !state.modelShown) {                 // once per start: does the subtitle section need the install?
     state.modelShown = true;
     engine.subtitlesModel().then(renderSubtitleModel).catch(() => {
@@ -495,6 +500,7 @@ async function onSubtitles(opts = {}) {
     progress(0.02, "Reading the selected clips…");
     const saved = await saveSubtitleSettings(project.path);                  // what is in the boxes now is what runs, and is remembered
     const { payload, plan } = await premiereSubtitles.readInput(project, [], $("notes").value);
+    payload.english = $("subtitleEnglish").checked;                          // the English line under every Bulgarian line
     engine.log("info", `subtitles: ${plan.use.length} clips, ${plan.skipped.length} skipped`);
     const { job } = await engine.startSubtitles(payload);
     const result = await runJob(job);
@@ -507,6 +513,7 @@ async function onSubtitles(opts = {}) {
       out.ok = placed.ok;
       out.lines = [...placed.lines, ...out.lines.filter((l) => !/^File: /.test(l.text))];
     }
+    if (result.english_note) out.lines.unshift({ cls: "warn", text: result.english_note });
     renderCaptionEditor(result);
     finish(out.text, out.ok, out.lines.map((l) => el("div", l.cls, l.text)));
   } catch (e) {
@@ -637,12 +644,11 @@ async function onColor(part = null) {
     if (!sel.clips.length) throw new premiere.UserError("Select at least one video clip in the timeline.");
     // measure what is on the timeline (an earlier correction included), not the source file
     const dir = (await engine.status()).frames_dir;
-    const items = [];
-    for (const [i, c] of sel.clips.entries()) {
-      progress((0.4 * i) / sel.clips.length, `Frames from the timeline: ${i + 1} of ${sel.clips.length}…`);
-      const tl = dir ? await premiereColor.timelineFrames(sel.timeline, c, dir, i) : { frames: [] };
-      items.push({ path: c.path, start: c.inPt, end: c.outPt, frames: tl.frames });
-    }
+    // all clips' frames are queued in Premiere together and waited for together (premiere-color.js, exportFrames)
+    progress(0, `Frames from the timeline: ${sel.clips.length} ${sel.clips.length === 1 ? "clip" : "clips"}…`);
+    const tl = dir ? await premiereColor.timelineFrames(sel.timeline, sel.clips, dir,
+      (done, total) => progress((0.4 * done) / total, `Frames from the timeline: ${done} of ${total}…`)) : sel.clips.map(() => ({ frames: [] }));
+    const items = sel.clips.map((c, i) => ({ path: c.path, start: c.inPt, end: c.outPt, frames: tl[i].frames }));
     const { job } = await engine.startColor(items);
     const result = await runJob(job);
     Object.assign(colorState, { project, sel, results: result.items, part });
@@ -983,22 +989,59 @@ onTap($("subtitles"), () => onSubtitles());
 onTap($("captionApply"), onCaptionApply);
 onTap($("rough"), onRoughCut);
 onTap($("subtitleDownload"), onSubtitleDownload);
-// only the audio buttons carry data-force: "button.small" alone also caught the probe and the import
+// only the audio buttons carry data-force: ".small" alone also caught the probe and the import
 // buttons, so they ran Fix audio too (and its result hid the probe's question)
-for (const b of document.querySelectorAll("button.small[data-force]")) onTap(b, () => onAudio(b.getAttribute("data-force")));
+for (const b of document.querySelectorAll(".btn.small[data-force]")) onTap(b, () => onAudio(b.getAttribute("data-force")));
 // Cancel must always work, also right after the panel changed
 $("cancel").addEventListener("click", () => {
   if (state.jobId) engine.cancel(state.jobId).catch(() => {});
 });
 
-for (const t of document.querySelectorAll("button.tab")) onTap(t, () => openTab(t.getAttribute("data-tab")));
+for (const t of document.querySelectorAll(".btn.tab")) onTap(t, () => openTab(t.getAttribute("data-tab")));
 onTap($("openLog"), () => openTab("paneLog"));
 onTap($("openPreview"), () => openTab("panePreview"));
+onTap($("hideResult"), () => show("result", false));       // the full answer stays in Log
 onTap($("audioMore"), () => {
   const open = $("audioManual").hidden;
   show("audioManual", open);
   $("audioMore").textContent = open ? "Manual ▾" : "Manual ▸";
 });
+// the English line choice is remembered on this computer
+try {
+  $("subtitleEnglish").checked = localStorage.getItem("asistent.subtitleEnglish") === "1";
+} catch (e) {
+  /* no storage */
+}
+$("subtitleEnglish").addEventListener("change", () => {
+  try {
+    localStorage.setItem("asistent.subtitleEnglish", $("subtitleEnglish").checked ? "1" : "0");
+  } catch (e) {
+    /* no storage */
+  }
+});
+// the ⓘ of each card (what the feature does) and the Developer tools: open or closed, remembered on this computer
+for (const t of document.querySelectorAll(".btn.more")) {
+  const id = t.getAttribute("data-more");
+  const key = `asistent.open.${id}`;
+  const set = (open) => {
+    show(id, open);
+    t.className = open ? "btn more open" : "btn more";
+    try {
+      localStorage.setItem(key, open ? "1" : "0");
+    } catch (e) {
+      /* no storage: it simply starts closed next time */
+    }
+  };
+  let open = false;
+  try {
+    open = localStorage.getItem(key) === "1";
+  } catch (e) {
+    /* no storage */
+  }
+  show(id, open);
+  t.className = open ? "btn more open" : "btn more";
+  onTap(t, () => set($(id).hidden));
+}
 bindTips(document);
 $("app").addEventListener("scroll", hideTip);
 
@@ -1008,3 +1051,8 @@ createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: P
 setInterval(() => {
   if (!state.busy) refreshHeader();
 }, 4000);
+
+// browser preview only (preview/boot.js sets this; inside Premiere it never exists): sample results fill the views
+if (typeof window !== "undefined" && typeof window.__asistentPreview === "function") {
+  window.__asistentPreview({ finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab });
+}

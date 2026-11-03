@@ -13,6 +13,8 @@ seconds. The part of a weaker item that the winner does not cover is kept: it is
 """
 from __future__ import annotations
 
+import os
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
 import numpy as np
@@ -29,6 +31,8 @@ MIN_OVERLAP = 0.5                    # share of the shorter item that must overl
 MAX_LAG_S = 0.25                     # the cameras are synced by audio, but a few frames of difference are normal
 SNR_MARGIN_DB = 3.0                  # within this, the lower track wins (stable, predictable)
 QUIET_DB = -50.0                     # a speech level below this is penalised: far away or almost silent
+# items are decoded side by side (FFmpeg runs outside Python; 2026-11-03, speed: a 38-item rough cut read for 6 s one by one)
+READERS = max(2, min(8, (os.cpu_count() or 4) - 2))
 
 
 def mono_for_asr(x: np.ndarray, c: dict) -> np.ndarray:
@@ -128,18 +132,34 @@ def build_mix(items: list[dict], progress: Callable[[float, str], None] | None =
     cancelled = cancelled or (lambda: False)
     parts: list[dict] = []
     notes: list[dict] = []
-    for i, it in enumerate(items):
+
+    def read(it):                                        # one item: its sound as one 16 kHz channel (None: empty)
         if cancelled():
             raise Cancelled()
-        name = it.get("name") or it["path"]
-        progress(i / max(len(items), 1), f"Reading the sound: {name}")
         x = audio.read_range(it["path"], float(it["start"]), float(it["end"]))
         if x.shape[1] == 0:
-            notes.append({"name": name, "kind": "empty", "note": "no sound in the selected part"})
-            continue
+            return None
         c = audio.classify(x)
         y = signal.resample_poly(mono_for_asr(x, c), 1, _DECIM).astype(np.float32)
-        env = _envelope(y)
+        return c, y, _envelope(y)
+
+    with ThreadPoolExecutor(max_workers=READERS, thread_name_prefix="mix") as pool:
+        futures = [pool.submit(read, it) for it in items]
+        try:
+            done = [None] * len(items)
+            for i, (it, fut) in enumerate(zip(items, futures)):   # in the items' order, as before
+                progress(i / max(len(items), 1), f"Reading the sound: {it.get('name') or it['path']}")
+                done[i] = fut.result()
+        except BaseException:
+            for f in futures:
+                f.cancel()
+            raise
+    for it, got in zip(items, done):
+        name = it.get("name") or it["path"]
+        if got is None:
+            notes.append({"name": name, "kind": "empty", "note": "no sound in the selected part"})
+            continue
+        c, y, env = got
         parts.append({"name": name, "path": it["path"], "start": float(it["start"]), "at": float(it["at"]), "y": y, "env": env,
                       "dur": len(y) / ASR_SR,
                       "track": int(it.get("track", 0)), "q": quality(env), "kind": c["kind"], "action": c["action"]})

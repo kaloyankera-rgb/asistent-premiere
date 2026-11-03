@@ -12,6 +12,8 @@ drive the engine. The Host header is checked against DNS rebinding.
                               Whisper -> captions -> SRT + JSON in <out_dir>/Asistent_subtitles (nothing goes to Premiere)
   GET  /host/poll?wait=s     the Premiere host (CEP extension, ExtendScript): the next command; GET /host/status
   POST /host/result          {id, ok, data} from the host
+  POST /captions/graphics    {"captions": [{start, end, text}], "preset", "sequence", "project"?} -> every line as a text
+                             graphic on a new video track (Asistent's After Effects template, built on first use)
   POST /captions/place       {"srt", "sequence", "project"?, "bin"?} -> puts the SRT on a caption track of the active
                              sequence through the host; {"ok", "msg", ...} (503 with the reason when the host is away)
   GET  /subtitles/settings?project=   {text}: the corrections and names text (per project)
@@ -318,6 +320,14 @@ class Handler(BaseHTTPRequestHandler):
                 proj = body.get("project") if isinstance(body.get("project"), str) else None
                 res = hostbridge.place_captions(srt, seq, proj, str(body.get("bin") or "Subtitles"))
                 log.info("captions/place: %s", res)
+                return self._send(200, res)
+            if self.path == "/captions/graphics":
+                seq = body.get("sequence")
+                if not isinstance(seq, str) or not seq:
+                    raise ValueError("The sequence is missing.")
+                proj = body.get("project") if isinstance(body.get("project"), str) else None
+                res = hostbridge.place_graphics(body.get("captions"), str(body.get("preset") or "standard"), seq, proj)
+                log.info("captions/graphics: %s", {k: v for k, v in res.items() if k != "captions"})
                 return self._send(200, res)
             if self.path == "/audio/route":
                 seq = body.get("sequence")

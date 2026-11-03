@@ -4,11 +4,13 @@ Source files are only ever read. Nothing here writes next to the media.
 """
 from __future__ import annotations
 
+import copy
 import json
 import os
 import shutil
 import subprocess
 import sys
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from fractions import Fraction
@@ -102,9 +104,43 @@ class MediaInfo:
         return d
 
 
+# FFprobe answers the same for a file that did not change, and every button probes every selected file: the
+# answers are kept for the engine's life by path, size and modification time (2026-11-03, speed).
+_PROBED: dict = {}
+_PROBE_LOCK = threading.Lock()
+
+
 def probe(path: str) -> MediaInfo:
     if not os.path.isfile(path):
         raise MediaError(f"The file is missing: {path}")
+    st = os.stat(path)
+    key = (os.path.abspath(path), st.st_size, st.st_mtime_ns)
+    with _PROBE_LOCK:
+        hit = _PROBED.get(key)
+    if hit is not None:
+        return copy.deepcopy(hit)
+    info = _probe_file(path)
+    with _PROBE_LOCK:
+        _PROBED[key] = copy.deepcopy(info)
+    return info
+
+
+def probe_all(paths) -> None:
+    """Probes every distinct file side by side, so a job's later per-file probes are answered from the cache. A missing
+    or unreadable file is left alone here: its own caller reports it."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def one(p):
+        try:
+            probe(p)
+        except (MediaError, OSError):
+            pass
+
+    with ThreadPoolExecutor(max_workers=8, thread_name_prefix="probe") as pool:
+        list(pool.map(one, list(dict.fromkeys(paths))))
+
+
+def _probe_file(path: str) -> MediaInfo:
     p = _run([_tool("ffprobe"), "-v", "error", "-print_format", "json",
               "-show_format", "-show_streams", path])
     if p.returncode != 0:

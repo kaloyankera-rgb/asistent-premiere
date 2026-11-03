@@ -5,125 +5,157 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app">
-  <header>
+<!-- Buttons are divs with class btn (0.9.72): Premiere draws every <button> with its own grey face. -->
+<!-- The panel is one column (2026-11-03 redesign): the project line and the views stay at the top, the views scroll,
+     and the progress and the answer of the last run sit at the bottom, so nothing above the buttons ever moves. -->
+<div id="shell">
+  <div id="top">
     <div class="row">
       <span id="dot" class="dot off"></span>
-      <span id="engine">Connecting…</span>
+      <span id="project" class="project">No project open</span>
     </div>
-    <div id="detail" class="muted small" hidden></div>
-    <div id="project" class="muted">No project open</div>
-  </header>
+    <div id="engine" class="engine">Connecting…</div>
+    <div id="detail" class="detail" hidden></div>
+  </div>
 
-  <!-- Three views (2026-11-03): the actions, the full report of the last run, the before/after pictures.
-       The report and the pictures used to open above the buttons and push them out of view. -->
-  <nav class="tabs">
-    <button id="tabTools" class="tab on" data-tab="paneTools" data-tip="Asistent's buttons.">Tools</button>
-    <button id="tabLog" class="tab" data-tab="paneLog" data-tip="The full report of the last operation and earlier results.">Log<span id="logBadge" class="count" hidden></span></button>
-    <button id="tabPreview" class="tab" data-tab="panePreview" data-tip="Before and after frames of the last color proposal." hidden>Before / after</button>
-    <button id="tabCaptions" class="tab" data-tab="paneCaptions" data-tip="The lines of the last subtitles: type a wrong word right and rebuild." hidden>Captions</button>
-  </nav>
+  <!-- Views: the actions, the full report of the last run, the before/after pictures, the caption lines. -->
+  <div class="tabs">
+    <div id="tabTools" class="btn tab on" data-tab="paneTools" data-tip="Asistent's buttons.">Tools</div>
+    <div id="tabLog" class="btn tab" data-tab="paneLog" data-tip="The full report of the last operation and earlier results.">Log<span id="logBadge" class="count" hidden></span></div>
+    <div id="tabPreview" class="btn tab" data-tab="panePreview" data-tip="Before and after frames of the last color proposal." hidden>Before / after</div>
+    <div id="tabCaptions" class="btn tab" data-tab="paneCaptions" data-tip="The lines of the last subtitles: type a wrong word right and rebuild." hidden>Captions</div>
+  </div>
 
+  <div id="app">
   <div id="paneTools" class="pane">
-    <section id="work" hidden>
-      <div id="message"></div>
-      <div class="bar"><div id="fill"></div></div>
-      <button id="cancel" class="secondary" data-tip="Stops the current operation. Nothing unfinished is applied.">Cancel</button>
-    </section>
-
-    <section id="result" hidden>
-      <div id="summary"></div>
-      <div id="actions" class="row buttons"></div>
-      <div class="row links">
-        <button id="openLog" class="link" data-tip="Opens the full report in Log.">Details</button>
-        <button id="openPreview" class="link" data-tip="Opens the before and after frames." hidden>Before / after</button>
-      </div>
-    </section>
-
+    <!-- One card per feature in the order of the work: its name, the ⓘ for what it does, its main controls. -->
     <div class="card" id="secSync">
-      <div class="title">SYNC</div>
-      <p class="desc">Lines up the cameras by their shared sound in a new SYNC sequence, in recording order. Your sequence is not touched.</p>
-      <button id="sync" class="action" data-tip="Select the clips in the timeline (all of them is fine) and press. Makes a new SYNC sequence with each camera on its own track; clips without a pair stay in their place in time.">Sync cameras</button>
+      <div class="cardhead">
+        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg></span>
+        <div class="title">Sync</div>
+        <div class="btn more" data-more="aboutSync" data-tip="What Sync cameras does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
+      </div>
+      <p id="aboutSync" class="desc" hidden>Lines up the cameras by their shared sound in a new SYNC sequence, in recording order. Your sequence is not touched.</p>
+      <div id="sync" class="btn action" data-tip="Select the clips in the timeline (all of them is fine) and press. Makes a new SYNC sequence with each camera on its own track; clips without a pair stay in their place in time.">Sync cameras</div>
     </div>
 
     <div class="card" id="secRough">
-      <div class="title">ROUGH CUT</div>
-      <p class="desc">Select the cameras and the microphones with speech. Pauses and repeated takes are cut in a new sequence; the original is not touched. Audio you do not use (a quiet camera microphone): mute its track first, it is then left out.</p>
-      <button id="rough" class="action" data-tip="Finds the pauses from the words, the sound level and Silero, and the repeated takes from the words, then makes a new ROUGH sequence with the same cuts on every selected camera and microphone (sync is kept). Each press is a new version; the original and older versions are not touched.">Rough cut</button>
-      <div class="row buttons">
+      <div class="cardhead">
+        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88"/><path d="M14.47 14.48 20 20"/><path d="M8.12 8.12 12 12"/></svg></span>
+        <div class="title">Rough cut</div>
+        <div class="btn more" data-more="aboutRough" data-tip="What Rough cut does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
+      </div>
+      <p id="aboutRough" class="desc" hidden>Select the cameras and the microphones with speech. Pauses and repeated takes are cut in a new sequence; the original is not touched. Audio you do not use (a quiet camera microphone): mute its track first, it is then left out.</p>
+      <div id="rough" class="btn action" data-tip="Finds the pauses from the words, the sound level and Silero, and the repeated takes from the words, then makes a new ROUGH sequence with the same cuts on every selected camera and microphone (sync is kept). Each press is a new version; the original and older versions are not touched.">Rough cut</div>
+      <div class="row options">
         <label for="roughMode" class="muted" data-tip="Safe: cuts only long pauses that are surely silence, and repeated takes (the last full take stays). Smart: also shortens every pause to the tempo and cuts a start repeated inside a sentence.">Mode</label>
-        <select id="roughMode"><option value="safe">Safe</option><option value="smart">Smart</option></select>
+        <select id="roughMode"><option value="safe" selected>Safe</option><option value="smart">Smart</option></select>
+      </div>
+      <div class="row options">
         <label for="roughTempo" class="muted" data-tip="How much pause stays between sentences and inside them: calm 0.45 / 0.30 s, normal 0.35 / 0.22 s, tight 0.25 / 0.12 s.">Tempo</label>
         <select id="roughTempo"><option value="calm">Calm</option><option value="normal" selected>Normal</option><option value="tight">Tight</option></select>
       </div>
-      <div class="row buttons">
+      <div class="row options">
         <input type="checkbox" id="roughMarkers" />
         <label for="roughMarkers" class="muted" data-tip="Puts a marker in the new sequence at every place to review (repeated takes, speech without a recognised word). Off by default.">Review markers</label>
       </div>
     </div>
 
     <div class="card" id="secAudio">
-      <div class="title">AUDIO</div>
-      <p class="desc">Select the clips (video or audio). The left and right channels go on two tracks: L/L above, R/R below, linked to the picture. Loudness goes to −17 LUFS, the peak stays under −6 dB.</p>
-      <button id="audio" class="action" data-tip="Each stereo clip: a copy with L/L in place of the audio and a copy with R/R on the track below (Audio Channels, no Fill effects), linked to the video. Then evens out the level of both. A second press makes no new copies.">Fix audio</button>
-      <button id="audioMore" class="disclose" data-tip="Shows the manual audio options.">Manual ▸</button>
+      <div class="cardhead">
+        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span>
+        <div class="title">Audio</div>
+        <div class="btn more" data-more="aboutAudio" data-tip="What Fix audio does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
+      </div>
+      <p id="aboutAudio" class="desc" hidden>Select the clips (video or audio). The left and right channels go on two tracks: L/L above, R/R below, linked to the picture. Loudness goes to −17 LUFS, the peak stays under −6 dB.</p>
+      <div id="audio" class="btn action" data-tip="Each stereo clip: a copy with L/L in place of the audio and a copy with R/R on the track below (Audio Channels, no Fill effects), linked to the video. Then evens out the level of both. A second press makes no new copies.">Fix audio</div>
+      <div id="audioMore" class="btn disclose" data-tip="Shows the manual audio options.">Manual ▸</div>
       <div id="audioManual" class="row buttons" hidden>
-        <button class="small" data-force="split" data-tip="The same as Fix audio: L/L in place of the audio, R/R on the track below.">Split L/R</button>
-        <button class="small" data-force="split_rl" data-tip="Like Split L/R, but the other way round: R/R in place of the audio, L/L on the track below.">Split R/L</button>
-        <button class="small" data-force="use_left" data-tip="Puts a copy with L/L (the left channel on both sides) in place of the audio.">L only</button>
-        <button class="small" data-force="use_right" data-tip="Puts a copy with R/R (the right channel on both sides) in place of the audio.">R only</button>
-        <button class="small" data-force="none" data-tip="Leaves the channels alone and only evens out the level.">Level only</button>
-        <button class="small" data-force="phrases" data-tip="Like Fix audio, plus keyframes that even out quiet and loud sentences.">Even out phrases</button>
+        <div class="btn small" data-force="split" data-tip="The same as Fix audio: L/L in place of the audio, R/R on the track below.">Split L/R</div>
+        <div class="btn small" data-force="split_rl" data-tip="Like Split L/R, but the other way round: R/R in place of the audio, L/L on the track below.">Split R/L</div>
+        <div class="btn small" data-force="use_left" data-tip="Puts a copy with L/L (the left channel on both sides) in place of the audio.">L only</div>
+        <div class="btn small" data-force="use_right" data-tip="Puts a copy with R/R (the right channel on both sides) in place of the audio.">R only</div>
+        <div class="btn small" data-force="none" data-tip="Leaves the channels alone and only evens out the level.">Level only</div>
+        <div class="btn small" data-force="phrases" data-tip="Like Fix audio, plus keyframes that even out quiet and loud sentences.">Even out phrases</div>
       </div>
     </div>
 
     <div class="card" id="secColor">
-      <div class="title">COLOR</div>
-      <p class="desc">Select the video clips. A proposal with before and after comes first; Lumetri is touched only after Apply. Match POVs is for after the corrections: clips from two cameras.</p>
-      <button id="color" class="action" data-tip="Measures the white balance and exposure of the selected clips and proposes both corrections together. Nothing is applied without Apply.">Auto color</button>
+      <div class="cardhead">
+        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></span>
+        <div class="title">Color</div>
+        <div class="btn more" data-more="aboutColor" data-tip="What the color buttons do."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
+      </div>
+      <p id="aboutColor" class="desc" hidden>Select the video clips. A proposal with before and after comes first; Lumetri is touched only after Apply. Match POVs is for after the corrections: clips from two cameras.</p>
+      <div id="color" class="btn action" data-tip="Measures the white balance and exposure of the selected clips and proposes both corrections together. Nothing is applied without Apply.">Auto color</div>
       <div class="row buttons">
-        <button id="colorWhite" class="small" data-tip="The same measurement as Auto color, but proposes only the white balance (Temperature and Tint). Nothing is applied without Apply.">White balance</button>
-        <button id="colorExposure" class="small" data-tip="The same measurement as Auto color, but proposes only the brightness (Exposure). Nothing is applied without Apply.">Exposure</button>
-        <button id="shotmatch" class="small" data-tip="Select clips from two cameras that are already corrected. Matches the brightness, white balance, contrast and saturation of the other cameras to one reference camera (by the faces and neutral surfaces), on top of the corrections made. A proposal comes first; the reference can be changed.">Match POVs</button>
-        <button id="probe" class="small" data-tip="Checks how Lumetri in this Premiere responds to the values. Test project only.">Lumetri probe (test project)</button>
+        <div id="colorWhite" class="btn small" data-tip="The same measurement as Auto color, but proposes only the white balance (Temperature and Tint). Nothing is applied without Apply.">White balance</div>
+        <div id="colorExposure" class="btn small" data-tip="The same measurement as Auto color, but proposes only the brightness (Exposure). Nothing is applied without Apply.">Exposure</div>
+        <div id="shotmatch" class="btn small" data-tip="Select clips from two cameras that are already corrected. Matches the brightness, white balance, contrast and saturation of the other cameras to one reference camera (by the faces and neutral surfaces), on top of the corrections made. A proposal comes first; the reference can be changed.">Match POVs</div>
       </div>
     </div>
 
     <div class="card" id="secSubtitles">
-      <div class="title">SUBTITLES</div>
-      <p class="desc">Select the audio clips with speech. Recognition runs only on this computer; the .srt goes into the project folder and onto a new caption track.</p>
-      <button id="subtitles" class="action" data-tip="Recognises the Bulgarian speech in the selected clips, makes an .srt (folder Asistent_subtitles) and puts it on a new caption track of the active sequence.">Subtitles (Bulgarian)</button>
-      <label for="notes" class="muted">Corrections and names (one per line)</label>
+      <div class="cardhead">
+        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4"/><path d="M15 15h2"/><path d="M7 11h2"/><path d="M13 11h4"/></svg></span>
+        <div class="title">Subtitles</div>
+        <div class="btn more" data-more="aboutSubtitles" data-tip="What Subtitles does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
+      </div>
+      <p id="aboutSubtitles" class="desc" hidden>Select the audio clips with speech. Recognition runs only on this computer; the .srt goes into the project folder and onto a new caption track. Select all its captions to restyle them together in Properties.</p>
+      <div id="subtitles" class="btn action" data-tip="Recognises the Bulgarian speech in the selected clips, makes an .srt (folder Asistent_subtitles) and puts it on a new caption track of the active sequence. Select all the captions and change font, size, outline or shadow in the Properties panel.">Subtitles (Bulgarian)</div>
+      <div class="row options">
+        <input type="checkbox" id="subtitleEnglish" />
+        <label for="subtitleEnglish" class="muted" data-tip="Adds an English line under every Bulgarian line: the same number of lines and the same times, translated sentence by sentence on this computer, on a second caption track. Correct the Bulgarian first: the English is made from it.">English line</label>
+      </div>
+      <div id="subtitleModel" class="warn" hidden></div>
+      <div id="subtitleAsk" class="row buttons" hidden><div id="subtitleDownload" class="btn small" data-tip="Downloads the speech recognition model (about 3.1 GB). It starts only with this button.">Download the model (about 3.1 GB)</div></div>
+      <label for="notes" class="field">Corrections and names (one per line)</label>
       <textarea id="notes" rows="3" placeholder="раф => рафт&#10;Джи Строй"></textarea>
       <div id="notesState" class="hint" hidden></div>
-      <div id="subtitleModel" class="warn" hidden></div>
-      <div id="subtitleAsk" class="row buttons" hidden><button id="subtitleDownload" class="small" data-tip="Downloads the speech recognition model (about 3.1 GB). It starts only with this button.">Download the model (about 3.1 GB)</button></div>
     </div>
 
     <div class="card" id="secImport">
-      <div class="title">AUTO IMPORT</div>
-      <p class="desc">Watches a folder and imports new files into the project, sorted by type.</p>
+      <div class="cardhead">
+        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></span>
+        <div class="title">Auto import</div>
+        <div class="btn more" data-more="aboutImport" data-tip="What Auto import does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
+      </div>
+      <p id="aboutImport" class="desc" hidden>Watches a folder and imports new files into the project, sorted by type.</p>
       <div id="importStatus" class="muted">Off</div>
       <div class="row buttons">
-        <button id="importToggle" class="small" data-tip="Turns watching Downloads for new files on or off.">Watch Downloads</button>
-        <button id="importFolder" class="small" data-tip="Picks another folder to watch instead of Downloads.">Other folder…</button>
+        <div id="importToggle" class="btn small" data-tip="Turns watching Downloads for new files on or off.">Watch Downloads</div>
+        <div id="importFolder" class="btn small" data-tip="Picks another folder to watch instead of Downloads.">Other folder…</div>
       </div>
       <div id="importRecent"></div>
+    </div>
+
+    <!-- Tools for testing Asistent itself, closed by default: they are not part of the daily work. -->
+    <div class="card quiet" id="secDev">
+      <div class="cardhead">
+        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M10 2v7.31"/><path d="M14 9.3V2"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/></svg></span>
+        <div class="title">Developer</div>
+        <div class="btn more" data-more="devTools" data-tip="Shows the tools for testing Asistent (test project only)."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+      </div>
+      <div id="devTools" hidden>
+        <div class="row buttons">
+          <div id="probe" class="btn small" data-tip="Checks how Lumetri in this Premiere responds to the values. Test project only.">Lumetri probe (test project)</div>
+        </div>
+      </div>
     </div>
   </div>
 
   <div id="paneLog" class="pane" hidden>
-    <div class="title">LAST OPERATION</div>
+    <div class="title">Last operation</div>
     <div id="logSummary" class="muted">None yet.</div>
     <div id="details"></div>
-    <div class="title spaced">EARLIER</div>
+    <div class="title spaced">Earlier</div>
     <div id="history" class="muted">None yet.</div>
   </div>
 
   <div id="paneCaptions" class="pane" hidden>
-    <p class="desc">Type a wrong word right, then press Apply. The corrected words are timed by the sound again, and the corrections are remembered for this project (they are added to the box in SUBTITLES).</p>
+    <p class="desc">Type a wrong word right, then press Apply. The corrected words are timed by the sound again, and the corrections are remembered for this project (they are added to the box in Subtitles).</p>
     <div id="captionEditActions" class="row buttons">
-      <button id="captionApply" class="action" data-tip="Adds what you changed to the corrections, rebuilds the subtitles (the speech is not recognised again, so it takes seconds) and puts them on a new caption track. Delete the old caption track afterwards.">Apply and rebuild</button>
+      <div id="captionApply" class="btn action" data-tip="Adds what you changed to the corrections, rebuilds the subtitles (the speech is not recognised again, so it takes seconds) and puts them on a new caption track. Delete the old caption track afterwards.">Apply and rebuild</div>
     </div>
     <div id="captionEditState" class="muted"></div>
     <div id="captionList"></div>
@@ -132,6 +164,29 @@
   <div id="panePreview" class="pane" hidden>
     <div id="previewActions" class="row buttons"></div>
     <div id="previews"></div>
+  </div>
+  </div>
+
+  <!-- the current operation and the answer of the last one -->
+  <div id="bottom">
+    <div id="work" hidden>
+      <div class="row">
+        <div id="message"></div>
+        <div id="cancel" class="btn secondary" data-tip="Stops the current operation. Nothing unfinished is applied.">Cancel</div>
+      </div>
+      <div class="bar"><div id="fill"></div></div>
+    </div>
+
+    <div id="result" hidden>
+      <div id="summary"></div>
+      <div id="actions" class="row buttons"></div>
+      <div class="row links">
+        <div id="openLog" class="btn link" data-tip="Opens the full report in Log.">Details</div>
+        <div id="openPreview" class="btn link" data-tip="Opens the before and after frames." hidden>Before / after</div>
+        <span class="spacer"></span>
+        <div id="hideResult" class="btn link quiet" data-tip="Hides this answer to free the space. It stays in Log.">Hide</div>
+      </div>
+    </div>
   </div>
 </div>
 <div id="tip" class="tip" hidden></div>

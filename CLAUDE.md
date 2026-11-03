@@ -17,10 +17,11 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
     shared helpers (`transaction`, `has`, `maybe`, `ensureBin`, `readTimeline`, `readItems`)
   - `premiere-audio.js` Fill L/R, split copy, Volume level/keyframes · `channels.js` effect-chain routing
   - `captionedit.js` (what a typed caption correction becomes: correction lines for the engine) · `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
-  - `devbridge.js` test bridge executor · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
+  - `cssprobe.js` which CSS this UXP really supports (measured, run by the bridge's `css_probe`) · `devbridge.js` test bridge executor · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
 - **Asistent host** `host/` (since 0.9.45): an invisible CEP extension (`CSXS/manifest.xml`, `main.js`, `host.jsx`) installed by
   `scripts/install_host_mac.sh` (called by `release_mac.sh`). It long-polls `GET /host/poll` and runs ExtendScript inside Premiere,
-  now only `createCaptionTrack` for the subtitles (UXP cannot). A NEW extension needs one Premiere restart; `host.jsx` is read per
+  `createCaptionTrack` (the subtitles' caption track), `as_graphics` (subtitle lines as After Effects template graphics,
+  0.9.80, kept but not used by the panel: see DECISIONS) and the L/L R/R audio split (UXP cannot do any of these). A NEW extension needs one Premiere restart; `host.jsx` is read per
   command, so edits to it need none. Separate from Quick Search. Development: `scripts/dev_cmd.py host ping|probe|captions|eval`.
 - **Python engine** `engine/asistent/` (stdlib HTTP server on `127.0.0.1:47390`, requests must carry
   header `X-Asistent: 1`; web origins and foreign Host headers are rejected). Started by `engine/run_engine.py`.
@@ -32,7 +33,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `subtitles.py` Phase 7 text core: captions from timed words (Bulgarian spelling `bgtext.py`, phrase grouping for 9:16, frame snap, no blink, SRT with BOM)
   - `subtitle_job.py` + `dialoguemix.py` the `/subtitles` job: cleanest microphone per speech, per-piece recognition (3 readings), `align.py`/`align_worker.py` optional MMS_FA alignment in `venv-align`, `consensus.py` + `lexicon.py` word votes with the Bulgarian dictionary, `corrections.py` the editor's `чуто => казано` lines (applied before the alignment), `subtitle_settings.py` per-project choices; `scripts/check_subtitles.py` checks a run against the audio
   - `hostbridge.py` + `captionstate.py` the channel to the Asistent host (below) and the memory of which caption track Asistent placed
-  - `devbridge.py` test bridge: the panel runs commands from the engine (`scripts/dev_cmd.py`), only in TEST.prproj, off without the flag file `devbridge.enabled`
+  - `devbridge.py` test bridge: the panel runs commands from the engine (`scripts/dev_cmd.py`), only in TEST.prproj / NEW TEST.prproj, off without the flag file `devbridge.enabled`; `select` can select clips (26.0.2 quirks in CHANGELOG 0.9.74-0.9.79)
   - `speechmap.py` + `vad.py` + `pauses.py` + `edl.py` + `xmeml.py` + `takes.py` (repeated takes: a plain repeat is cut, the last full take stays) + `roughcut_job.py` Phase 8 rough cut: label every 10 ms (word / voiced / low / silent), cut pauses, same cuts on every selected item, write FCP7 XML that the panel imports as a new sequence (`docs/ROUGHCUT_PLAN.md`)
   - `faces.py` face detector (YuNet through OpenCV, model in `models/`); no OpenCV/model → no skin anchor
   - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`)
@@ -43,6 +44,14 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   `lumetri.json` (slider calibration, created on first verified render), `lumetri_capabilities.json` (probe),
   `managed.json` (Lumetri corrections Asistent wrote: may be updated by Asistent, never a manual grade),
   `color_audit.jsonl` (one record per clip and „Приложи“ press: measured, written, kept, reverted, status).
+- **Browser preview** `preview/` (development only, never packed): `index.html` + `boot.js` load the real panel markup, style and
+  code with fake Premiere/engine modules, `scenarios.js` holds the states, `node preview/shoot.js <label> [--compare <earlier>]` takes
+  screenshots at 240/300/420 px with the installed Chrome (`playwright-core`, `npm install` in `preview/`) and counts changed pixels.
+  Look at the panel there before installing; Chrome is not UXP, so Premiere is still the final check. Panel CSS: only what
+  `css_probe` proved in Premiere (CHANGELOG 0.9.71-0.9.72): flexbox, absolute position, variables, calc, transform, ellipsis,
+  width media queries, inline SVG with outlines from CSS only; NOT gap, grid, transitions, animations, :focus-visible, matchMedia,
+  `<header>`/`<footer>` (centred flex rows: use divs). Buttons are `div.btn` (Premiere paints `<button>` grey): make them with
+  `button()`, switch them with `enable()`. Colours only through the tokens in `style.css` `:root`.
 - Dependencies: Python 3.12 venv with `numpy==2.5.4`, `scipy==1.18.1`, `watchdog==7.0.0`, `opencv-python-headless==5.0.0.93` (`requirements.txt`),
   `pytest==9.2.0` (`requirements-dev.txt`); system FFmpeg/FFprobe (Homebrew on Mac); Node only for tests.
 
@@ -54,7 +63,8 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   (211 tests; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere) and
   `node --test tests/layout.test.js tests/channels.test.js tests/wiring.test.js tests/moments.test.js tests/colorplans.test.js` (50 tests);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
-- Premiere tests only in the user's test project `TEST.prproj`, never in client projects; never close or
+- Premiere tests only in the user's test projects `TEST.prproj` or `NEW TEST.prproj` (Ludi Glavi/Projects; the user's choice
+  2026-11-04: use NEW TEST for future tests, Claude may run them itself through the bridge), never in client projects; never close or
   restart Premiere without asking. Client footage stays local; never look at client frames as images (measure them with numbers, delete any overlay you wrote).
 - The Premiere 26.0.2 API differs from Adobe's published types (they start at 26.2): call methods through
   `maybe()`/`has()`, log what exists (`debug(...)` → engine log), never assume an index or unit.
@@ -107,6 +117,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   or unverified), `TODO.md` (tick or remove the finished task, add new ones), `BUGS.md` (new/fixed bugs),
   `PROGRESS.md` (dated line), `DECISIONS.md` (only if a decision was made) → one descriptive commit
   (`Asistent X.Y.Z: what and why`; docs-only commits start with `Docs:`) → tell the user what is committed.
+- Speed changes must give bit-identical results: compare against the `git show HEAD:` code on real footage before keeping one.
 - Commit only completed and verified work, never half-finished code; do not commit failing tests.
   The pre-commit hook (`scripts/githooks`, enabled by `git config core.hooksPath scripts/githooks`) refuses a code
   commit that does not also stage `CHANGELOG.md` and `PROJECT_STATUS.md`.

@@ -11,15 +11,15 @@ const html = fs.readFileSync(path.join(panel, "index.html"), "utf8");
 const main = fs.readFileSync(path.join(panel, "main.js"), "utf8");
 
 function audioBlock() {
-  const start = html.indexOf('<div class="title">AUDIO</div>');
-  const end = html.indexOf('<div class="card"', start);
+  const start = html.indexOf('<div class="card" id="secAudio">');
+  const end = html.indexOf('<div class="card"', start + 1);
   assert.ok(start > 0 && end > start, "section AUDIO not found");
   return html.slice(start, end);
 }
 
 test("data-force only on buttons of the audio section", () => {
-  const all = html.match(/<button[^>]*data-force=/g) || [];
-  const inAudio = audioBlock().match(/<button[^>]*data-force=/g) || [];
+  const all = html.match(/<div[^>]*class="btn[^"]*"[^>]*data-force=/g) || [];
+  const inAudio = audioBlock().match(/<div[^>]*class="btn[^"]*"[^>]*data-force=/g) || [];
   assert.ok(all.length > 0);
   assert.strictEqual(all.length, inAudio.length);
 });
@@ -27,12 +27,12 @@ test("data-force only on buttons of the audio section", () => {
 test("onAudio is bound only to the audio buttons", () => {
   const binds = main.split("\n").filter((l) => /querySelectorAll\(/.test(l) && /onAudio\(/.test(l));
   assert.strictEqual(binds.length, 1);
-  assert.match(binds[0], /querySelectorAll\("button\.small\[data-force\]"\)/);
+  assert.match(binds[0], /querySelectorAll\("\.btn\.small\[data-force\]"\)/);
 });
 
 test("the probe and import buttons have their own handlers", () => {
   for (const id of ["probe", "importToggle", "importFolder"]) {
-    assert.match(html, new RegExp(`<button id="${id}"(?![^>]*data-force)`));
+    assert.match(html, new RegExp(`<div id="${id}" class="btn[^"]*"(?![^>]*data-force)`));
     assert.match(main, new RegExp(`onTap\\(\\$\\("${id}"\\)`));
   }
 });
@@ -80,12 +80,12 @@ test("Shot Match writes only the components the engine changed, into new or Asis
   assert.match(apply, /for \(const k of e\.r\.changed \|\| \[\]\) values\[k\] = e\.r\.proposal\[k\];/);
   assert.match(apply, /t = await target\(e\.clip\)/);                 // the manual-grade guard of Auto color
   assert.match(apply, /engine\.shotMatchCheck\(jobId, pl\.before, after/);   // checked on Premiere's frame
-  assert.match(html, /<button id="shotmatch" class="small"[^>]*>Match POVs<\/button>/);
+  assert.match(html, /<div id="shotmatch" class="btn small"[^>]*>Match POVs<\/div>/);
 });
 
 test("the subtitle section has its own buttons: no data-force, pressed through onTap, model download never automatic", () => {
   for (const id of ["subtitles", "subtitleDownload"]) {
-    assert.match(html, new RegExp(`<button id="${id}"(?![^>]*data-force)`));
+    assert.match(html, new RegExp(`<div id="${id}" class="btn[^"]*"(?![^>]*data-force)`));
     assert.match(main, new RegExp(`onTap\\(\\$\\("${id}"\\)`));
   }
   // the 3 GB download is started only by onSubtitleDownload (the button names the size), never by onSubtitles
@@ -119,12 +119,13 @@ test("the corrections box exists, are saved before a run and sent with it", () =
 });
 
 test("every button has a tooltip: in the HTML and every button made in code (2026-11-03)", () => {
-  const buttons = html.match(/<button[^>]*>/g) || [];
+  const buttons = html.match(/<div[^>]*class="btn[^"]*"[^>]*>/g) || [];
   assert.ok(buttons.length > 15);
   for (const b of buttons) assert.match(b, /data-tip="[^"]{8,}"/, `no tooltip: ${b}`);
-  // buttons made in code go through button(cls, label, help, fn): el("button" appears only inside it
-  assert.strictEqual((main.match(/el\("button"/g) || []).length, 1);
-  assert.match(main, /function button\(cls, label, help, fn\) \{\n  const b = el\("button", cls, label\);\n  b\.setAttribute\("data-tip", help\);/);
+  // buttons made in code go through button(cls, label, help, fn): an own button (div.btn) is made only inside it
+  assert.strictEqual((main.match(/el\("div", `btn /g) || []).length, 1);
+  assert.doesNotMatch(main, /el\("button"|createElement\("button"\)/);
+  assert.match(main, /function button\(cls, label, help, fn\) \{\n  const b = el\("div", `btn \$\{cls\}`, label\);\n  b\.setAttribute\("data-tip", help\);/);
   for (const m of main.matchAll(/button\("small", [^,]+, "([^"]*)"/g)) assert.ok(m[1].length >= 8, m[0]);
 });
 
@@ -141,7 +142,7 @@ test("the report and the pictures live in their own views; the main view keeps s
 
 test("COLOR: the separate buttons run the same analysis and the same apply as Auto Color, only the part differs", () => {
   for (const id of ["color", "colorWhite", "colorExposure", "shotmatch", "probe"]) {
-    assert.match(html, new RegExp(`<button id="${id}"`));
+    assert.match(html, new RegExp(`<div id="${id}" class="btn`));
     assert.match(main, new RegExp(`onTap\\(\\$\\("${id}"\\)`));
   }
   assert.match(main, /onTap\(\$\("color"\), \(\) => onColor\(null\)\)/);
@@ -157,7 +158,7 @@ test("COLOR: the separate buttons run the same analysis and the same apply as Au
 
 test("ROUGH CUT: the source sequence is only read; the result is imported as a new sequence and checked", () => {
   const rough = fs.readFileSync(path.join(panel, "premiere-roughcut.js"), "utf8");
-  assert.match(html, /<button id="rough" class="action" data-tip="[^"]+">Rough cut<\/button>/);
+  assert.match(html, /<div id="rough" class="btn action" data-tip="[^"]+">Rough cut<\/div>/);
   assert.match(main, /onTap\(\$\("rough"\), onRoughCut\)/);
   assert.match(rough, /project\.importFiles\(\[result\.xml\]/);
   assert.match(rough, /verify\(result\.check, got\)/);
@@ -168,10 +169,21 @@ test("ROUGH CUT: the source sequence is only read; the result is imported as a n
 test("SUBTITLES: the caption editor is a hidden tab that appears after a run; Apply goes through onTap and re-runs with a new track allowed", () => {
   const main = fs.readFileSync(path.join(__dirname, "..", "panel", "main.js"), "utf8");
   const html = fs.readFileSync(path.join(__dirname, "..", "panel", "index.html"), "utf8");
-  assert.match(html, /<button id="tabCaptions" class="tab" data-tab="paneCaptions"[^>]*hidden>Captions<\/button>/);
+  assert.match(html, /<div id="tabCaptions" class="btn tab" data-tab="paneCaptions"[^>]*hidden>Captions<\/div>/);
   assert.match(html, /<div id="paneCaptions" class="pane" hidden>/);
   assert.match(main, /onTap\(\$\("captionApply"\), onCaptionApply\)/);
   assert.match(main, /onSubtitles\(\{ again: true \}\)/);
   assert.match(main, /renderCaptionEditor\(result\)/);
   assert.match(fs.readFileSync(path.join(__dirname, "..", "panel", "premiere-captions.js"), "utf8"), /own && !opts\.again/);
+});
+
+test("SUBTITLES: the panel puts a caption track (restyled all at once in Properties, the user 2026-11-04); the graphics way stays tested code", () => {
+  const cap = fs.readFileSync(path.join(panel, "premiere-captions.js"), "utf8");
+  const host = fs.readFileSync(path.join(__dirname, "..", "host", "host.jsx"), "utf8");
+  const place = cap.slice(cap.indexOf("async function place("), cap.indexOf("async function placeGraphics("));
+  assert.match(place, /engine\.placeCaptions\(/);
+  assert.doesNotMatch(place, /placeGraphics/);
+  assert.match(cap, /async function placeGraphics\([\s\S]*engine\.placeGraphics\(/);
+  assert.match(host, /if \(name === "graphics"\) return as_graphics/);
+  assert.doesNotMatch(host.slice(host.indexOf("function as_graphics"), host.indexOf("function as_run")), /\.remove\(|removeItem|deleteSequence/);
 });

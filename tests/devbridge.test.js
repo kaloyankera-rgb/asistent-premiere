@@ -31,10 +31,10 @@ test("every other command is refused outside TEST.prproj and presses nothing", a
   const btn = el("Auto color");
   const b = createBridge({ premiere: { activeProject: async () => ({ name: "Client.prproj", path: "/c/Client.prproj" }) },
     premiereColor: {}, doc: fakeDoc([btn]), version: "x", sleep });
-  for (const name of ["click", "selection", "state", "frame", "lumetri", "select", "timeline", "api", "wait_idle", "set_lumetri", "chain", "srt_import", "caption_place", "transcript_export"]) {
+  for (const name of ["click", "selection", "state", "frame", "lumetri", "select", "timeline", "api", "wait_idle", "set_lumetri", "chain", "srt_import", "caption_place", "transcript_export", "css_probe"]) {
     const r = await b.run({ id: "1", name, args: { text: "Auto color" } });
     assert.strictEqual(r.ok, false, name);
-    assert.match(r.data.error, /TEST\.prproj only/);
+    assert.match(r.data.error, /Test projects only/);
   }
   assert.strictEqual(btn.clicked, 0);
 });
@@ -116,4 +116,10 @@ test("set_lumetri needs exactly one clip and only the known Lumetri keys", async
   assert.ok(ok.ok);
   assert.deepStrictEqual(ok.data.before, { exposure: 1 });
   assert.deepStrictEqual(written, [{ exposure: 2 }]);
+});
+
+test("both of the user's test projects are accepted, a name that only ends in TEST is not (2026-11-04)", () => {
+  const { TEST_PROJECT } = require("../panel/devbridge.js");
+  for (const ok of ["/Users/x/Projects/TEST.prproj", "/Users/x/Ludi Glavi/Projects/NEW TEST.prproj", "NEW TEST.prproj"]) assert.ok(TEST_PROJECT.test(ok), ok);
+  for (const no of ["/c/Client TEST.prproj", "/c/MYTEST.prproj", "/c/NEW TEST copy.prproj", "/c/RoboHubPro.prproj"]) assert.ok(!TEST_PROJECT.test(no), no);
 });

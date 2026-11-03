@@ -66,7 +66,7 @@ Select the cameras and the microphones with speech (the SYNC sequence works) and
 
 ## Subtitles (Bulgarian)
 
-Select the audio clips with speech and press **Subtitles (Bulgarian)**. The speech is recognised on this computer only (Whisper large-v3, about 3.1 GB, downloaded only with the **Download the model** button), checked against a Bulgarian dictionary, aligned to the sound, and saved as an .srt in `Asistent_subtitles` next to the project; the panel puts it on a new caption track. Uncertain words are listed, never guessed. The **Corrections and names** box takes lines like `heard => said` and names or terms, one per line.
+Select the audio clips with speech and press **Subtitles (Bulgarian)**. The speech is recognised on this computer only (Whisper large-v3, about 3.1 GB, downloaded only with the **Download the model** button), checked against a Bulgarian dictionary, aligned to the sound, and saved as an .srt in `Asistent_subtitles` next to the project; the panel puts it on a new caption track. To restyle them, open the Properties panel, select all the captions on that track and change font, size, outline or shadow for all at once; save the look as a Track Style. Right-click > Upgrade Caption to Graphic turns them into text graphics if needed.
 
 ## Auto import
 
@@ -92,6 +92,8 @@ cd tools/asistent && "$HOME/Library/Application Support/Asistent/venv/bin/python
 node --test tests/*.test.js
 ```
 The tests make synthetic speech with a known offset (no voice synthesis, no client material). Tests with Premiere are separate and done by hand in a test project (see PROGRESS.md).
+
+The panel's look can be checked in a browser before installing: `cd tools/asistent/preview && npm install && node shoot.js now` takes screenshots of ten panel states at 240, 300 and 420 px with the Chrome on this computer (`--compare <earlier label>` reports what changed). Development only; nothing in `preview/` goes into the panel.
 
 ## Limits (checked in Premiere 26's UXP API)
 - UXP cannot change a clip's channel mapping or create a multicam clip (the host does the L/L and R/R copies through ExtendScript).
