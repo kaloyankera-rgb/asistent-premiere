@@ -16,7 +16,8 @@ const E = engineOf([
   { anchor: 0, members: [{ clip: 0, offset: 0 }, { clip: 1, offset: 1.1375 }, { clip: 2, offset: 23.6952 }, { clip: 3, offset: 39.3416 }] },
   { anchor: 4, members: [{ clip: 4, offset: 0 }, { clip: 5, offset: 0.0265 }] },
 ], [6]);
-const ORDER = { "/m/fx3/fx39013.MP4": 0, "/m/fx30/C9013.MP4": 100, "/m/fx3/fx39027.MP4": 200, "/m/fx30/C9025.MP4": 300 };
+const ORDER = { "/m/fx3/fx39013.MP4": 0, "/m/fx30/C9013.MP4": 100, "/m/fx3/fx39027.MP4": 200, "/m/fx30/C9025.MP4": 300,
+  "/m/fx3/fx39025.MP4": 400 };
 
 test("groups keep the timeline order, first clip opens the sequence on V1 at 0", () => {
   const { placements, cameras } = syncLayout(E, ORDER);
@@ -47,7 +48,7 @@ test("one track per camera and nothing overlaps on a track", () => {
   }
 });
 
-test("groups are separated by the gap and the lone clip comes last; no markers", () => {
+test("without recording times the timeline order decides; the gap separates everything; no markers", () => {
   const lay = syncLayout(E, ORDER);
   const { placements } = lay;
   const g1end = Math.max(...placements.filter((p) => p.group === 1).map((p) => p.zero + p.duration));
@@ -57,6 +58,51 @@ test("groups are separated by the gap and the lone clip comes last; no markers",
   assert.strictEqual(last.name, "fx39025.MP4");
   assert.strictEqual(last.group, null);
   assert.strictEqual(lay.markers, undefined);
+});
+
+// The user's example (2026-11-03): camera A at 10:00, 10:05, 10:15, camera B only at 10:05 (synced with A).
+// rec_time is already on one clock (the engine's chrono.py corrected camera B's clock).
+const T = (hh, mm) => Date.UTC(2026, 10, 3, hh, mm) / 1000;
+function chronoEngine() {
+  return engineOf([["/m/A/a1.mp4", 60], ["/m/A/a2.mp4", 60], ["/m/A/a3.mp4", 60], ["/m/B/b2.mp4", 50]],
+    [{ anchor: 1, members: [{ clip: 1, offset: 0 }, { clip: 3, offset: 4 }] }], [0, 2]);
+}
+function withTimes(e, times, notes = []) {
+  e.clips.forEach((c, i) => { c.rec_time = times[i]; c.rec_note = notes[i] || null; });
+  return e;
+}
+
+test("unmatched clips stay in recording order instead of going to the end", () => {
+  // the editor's timeline has camera A's clips first, then camera B: that order must not matter
+  const order = { "/m/A/a3.mp4": 0, "/m/A/a1.mp4": 100, "/m/A/a2.mp4": 200, "/m/B/b2.mp4": 300 };
+  const e = withTimes(chronoEngine(), [T(10, 0), T(10, 5), T(10, 15), T(10, 5) + 4]);
+  const { placements, uncertain } = syncLayout(e, order);
+  assert.deepStrictEqual(placements.map((p) => p.name), ["a1.mp4", "a2.mp4", "b2.mp4", "a3.mp4"]);
+  const z = Object.fromEntries(placements.map((p) => [p.name, p.zero]));
+  assert.strictEqual(z["a1.mp4"], 0);
+  assert.strictEqual(z["a2.mp4"], 60 + GAP);
+  assert.ok(Math.abs(z["b2.mp4"] - z["a2.mp4"] - 4) < 1e-9);             // synced offset kept exactly
+  assert.strictEqual(z["a3.mp4"], 60 + GAP + 60 + GAP);
+  assert.deepStrictEqual(placements.map((p) => p.group), [null, 1, 1, null]);
+  assert.deepStrictEqual(uncertain, []);
+});
+
+test("a clip without a recording time keeps its timeline neighbour and is reported", () => {
+  const order = { "/m/A/a1.mp4": 0, "/m/A/a2.mp4": 100, "/m/B/b2.mp4": 100, "/m/A/a3.mp4": 200 };
+  const e = withTimes(chronoEngine(), [null, T(10, 5), T(10, 15), T(10, 5) + 4], ["няма време на запис"]);
+  const { placements, uncertain } = syncLayout(e, order);
+  // a1 is first in the timeline and has no time: it stays first
+  assert.deepStrictEqual(placements.map((p) => p.name), ["a1.mp4", "a2.mp4", "b2.mp4", "a3.mp4"]);
+  assert.deepStrictEqual(uncertain.map((u) => u.name), ["a1.mp4"]);
+  assert.match(uncertain[0].reason, /по таймлайна/);
+});
+
+test("an unchecked clock is used but reported; a group with one timed member is still ordered", () => {
+  const e = withTimes(chronoEngine(), [T(10, 20), null, T(10, 15), T(10, 5) + 4],
+    ["часовникът на тази камера не е проверен"]);
+  const { placements, uncertain } = syncLayout(e, {});
+  assert.deepStrictEqual(placements.map((p) => p.name), ["a2.mp4", "b2.mp4", "a3.mp4", "a1.mp4"]);
+  assert.deepStrictEqual(uncertain.map((u) => u.name), ["a1.mp4"]);
 });
 
 test("Windows paths split cameras by folder too", () => {

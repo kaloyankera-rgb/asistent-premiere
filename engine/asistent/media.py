@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from fractions import Fraction
 
 import numpy as np
@@ -79,6 +80,12 @@ class MediaInfo:
     height: int = 0
     timecode: str | None = None
     audio: list[AudioStream] = field(default_factory=list)
+    # when the recording started, in the camera's own clock (Unix seconds): the container's creation_time
+    # (Sony writes the record start, equal to its XML sidecar), else the file's modification time minus the
+    # duration (cameras close the file when they stop). Camera clocks are not set alike (GStroy: FX30 in
+    # 2024, FX3 in 2026), so only differences within one camera mean anything until chrono.py corrects them.
+    recorded: float | None = None
+    recorded_from: str | None = None             # "metadata" | "file"
 
     @property
     def audio_lead(self) -> float:
@@ -134,7 +141,30 @@ def probe(path: str) -> MediaInfo:
             info.timecode = info.timecode or tags.get("timecode")
     if not info.duration:
         info.duration = max((_float(s.get("duration")) or 0.0) for s in streams) if streams else 0.0
+    created = _when((fmt.get("tags") or {}).get("creation_time"))
+    for s in streams:
+        created = created or _when((s.get("tags") or {}).get("creation_time"))
+    if created is not None:
+        info.recorded, info.recorded_from = created, "metadata"
+    else:
+        try:
+            info.recorded, info.recorded_from = os.path.getmtime(path) - info.duration, "file"
+        except OSError:
+            pass
     return info
+
+
+def _when(text: str | None) -> float | None:
+    """ISO creation_time -> Unix seconds; the zero dates of an unset clock (1904/1970) count as none."""
+    if not text:
+        return None
+    try:
+        t = datetime.fromisoformat(text.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    return t.timestamp() if t.year >= 1980 else None
 
 
 def read_audio(path: str, stream: int, channels: int, sr: int) -> np.ndarray:

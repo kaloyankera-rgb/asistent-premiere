@@ -4,9 +4,9 @@
 //         groups[{ anchor, members[{ clip, offset }] }], unsynced[clip index]
 // order:  path -> where the clip was in the editor's timeline (groups keep that order)
 //
-// Every camera (= folder of the file) gets its own track, the same one in every group. Groups follow
-// each other with a gap; clips without a match come last. Times are where each clip's media starts.
-// No markers are written into the sequence.
+// Every camera (= folder of the file) gets its own track, the same one in every group. Groups and clips
+// without a match follow each other with a gap in the order they were recorded (`chronological`).
+// Times are where each clip's media starts. No markers are written into the sequence.
 
 const GAP = 2.0;
 
@@ -15,34 +15,78 @@ function folderOf(path) {
   return i >= 0 ? path.slice(0, i) : "";
 }
 
+const median = (xs) => {
+  const s = xs.slice().sort((a, b) => a - b);
+  return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+};
+
+/**
+ * Groups and single clips in the order they were recorded. The engine gives every clip `rec_time`, the
+ * start of its recording on one clock for all cameras (chrono.py), or null. A group starts when its
+ * earliest member started (the median over its timed members, so one odd clock cannot move it). An
+ * entry without any time keeps its place from the editor's timeline: it follows the entry before it
+ * there (deterministic, and listed in `uncertain`). Nothing is pushed to the end for having no partner.
+ */
+function chronological(engine, when) {
+  const clips = engine.clips;
+  const entries = engine.groups.map((g) => {
+    const lead = Math.min(...g.members.map((m) => m.offset));
+    const starts = g.members.filter((m) => Number.isFinite(clips[m.clip].rec_time))
+      .map((m) => clips[m.clip].rec_time - (m.offset - lead));
+    return { members: g.members.slice(), key: starts.length ? median(starts) : null,
+      tl: Math.min(...g.members.map((m) => when(m.clip))) };
+  });
+  for (const i of engine.unsynced) {
+    const t = clips[i].rec_time;
+    entries.push({ members: null, clip: i, key: Number.isFinite(t) ? t : null, tl: when(i) });
+  }
+  const byTimeline = entries.slice().sort((a, b) => a.tl - b.tl);
+  let last = -Infinity;
+  byTimeline.forEach((e, k) => {
+    if (e.key !== null) last = e.key;
+    e.sortKey = e.key !== null ? e.key : last;
+    e.rank = k;
+  });
+  entries.sort((a, b) => (a.sortKey === b.sortKey ? 0 : a.sortKey - b.sortKey) ||
+    (a.key === null) - (b.key === null) || a.rank - b.rank);
+  const uncertain = [];
+  for (const e of entries) {
+    const ids = e.members ? e.members.map((m) => m.clip) : [e.clip];
+    const name = ids.map((i) => clips[i].name).join(" + ");
+    const why = ids.map((i) => clips[i].rec_note).find((x) => x);
+    if (e.key === null) uncertain.push({ name, reason: `${why || "няма време на запис"}: мястото е по таймлайна` });
+    else if (!e.members && why) uncertain.push({ name, reason: why });
+  }
+  return { entries, uncertain };
+}
+
 function syncLayout(engine, order) {
   const clips = engine.clips;
   const when = (i) => (order && order[clips[i].path] !== undefined ? order[clips[i].path] : i);
-
-  const groups = engine.groups
-    .map((g) => ({ members: g.members.slice(), first: Math.min(...g.members.map((m) => when(m.clip))) }))
-    .sort((a, b) => a.first - b.first);
+  const { entries, uncertain } = chronological(engine, when);
 
   // No markers: the offsets alone place the clips, and the group list is shown in the panel, so the new
   // sequence stays clean (the user asked for no Asistent markers on the timeline, 2026-11-03).
   const placements = [];
   let cursor = 0;
-  groups.forEach((g, n) => {
-    const lead = Math.min(...g.members.map((m) => m.offset));
+  let n = 0;
+  for (const e of entries) {
+    if (!e.members) {
+      placements.push({ clip: e.clip, zero: cursor, group: null });
+      cursor += clips[e.clip].duration + GAP;
+      continue;
+    }
+    n += 1;
+    const lead = Math.min(...e.members.map((m) => m.offset));
     let end = cursor;
     // earliest clip first: the very first placement opens the sequence at 0
-    g.members.sort((a, b) => a.offset - b.offset);
-    for (const m of g.members) {
+    e.members.sort((a, b) => a.offset - b.offset);
+    for (const m of e.members) {
       const zero = cursor + (m.offset - lead);
-      placements.push({ clip: m.clip, zero, group: n + 1 });
+      placements.push({ clip: m.clip, zero, group: n });
       end = Math.max(end, zero + clips[m.clip].duration);
     }
     cursor = end + GAP;
-  });
-  const lonely = engine.unsynced.slice().sort((a, b) => when(a) - when(b));
-  for (const i of lonely) {
-    placements.push({ clip: i, zero: cursor, group: null });
-    cursor += clips[i].duration + GAP;
   }
 
   // the sequence is created from the first clip with picture (its settings, on V1/A1), so that clip's
@@ -61,7 +105,7 @@ function syncLayout(engine, order) {
     p.hasVideo = clips[p.clip].has_video !== false;
     p.duration = clips[p.clip].duration;
   }
-  return { placements, cameras, seed };
+  return { placements, cameras, seed, uncertain };
 }
 
 module.exports = { syncLayout, folderOf, GAP };

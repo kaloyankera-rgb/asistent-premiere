@@ -58,6 +58,18 @@ function signed(seconds) {
   return `${seconds >= 0 ? "+" : "−"}${Math.abs(seconds).toFixed(3)} s`;
 }
 
+// a camera clock difference in words: "+730 дни 0:47 ч", "−3:12 мин"
+function clockGap(seconds) {
+  const s = Math.abs(Math.round(seconds));
+  const d = Math.floor(s / 86400);
+  const h = Math.floor((s % 86400) / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sign = seconds >= 0 ? "+" : "−";
+  if (d) return `${sign}${d} дни ${h}:${String(m).padStart(2, "0")} ч`;
+  if (h) return `${sign}${h}:${String(m).padStart(2, "0")} ч`;
+  return `${sign}${m}:${String(s % 60).padStart(2, "0")} мин`;
+}
+
 function el(tag, cls, text) {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -120,10 +132,12 @@ async function runJob(id) {
   }
 }
 
-function describe(result, timeline) {
+function describe(result, timeline, lay) {
   const name = (i) => result.clips[i].name;
   const blocks = [];
-  result.groups.forEach((g, n) => {
+  // groups in the order they sit in the new sequence (recording order), when it was built
+  const first = (g) => (lay ? lay.placements.findIndex((p) => g.members.some((m) => m.clip === p.clip)) : 0);
+  result.groups.slice().sort((a, b) => first(a) - first(b)).forEach((g, n) => {
     const box = el("div", "group");
     box.appendChild(el("div", "name", `Група ${n + 1}: ${g.members.map((m) => name(m.clip)).join(", ")}`));
     for (const m of g.members) {
@@ -133,8 +147,14 @@ function describe(result, timeline) {
   });
   const notes = [];
   if (result.unsynced.length) {
-    notes.push(`Без общ звук с друг клип (сложени накрая): ${result.unsynced.map(name).join(", ")}`);
+    notes.push(`Без общ звук с друг клип (сложени на мястото си по време на запис): ${result.unsynced.map(name).join(", ")}`);
   }
+  for (const c of result.clocks || []) {
+    if (c.linked && c.name !== result.clock_reference && Math.abs(c.offset) >= 60) {
+      notes.push(`Часовникът на ${c.name} е разместен спрямо ${result.clock_reference} (${clockGap(c.offset)}): поправен по синхрона.`);
+    }
+  }
+  for (const u of (lay && lay.uncertain) || []) notes.push(`Несигурно място: ${u.name} (${u.reason}).`);
   for (const c of result.conflicts) notes.push(`Не е синхронизирано: ${c.reason}.`);
   for (const s of result.suggestions) {
     notes.push(`Възможно, но несигурно (не е приложено): ${name(s.a)} и ${name(s.b)} ${signed(s.offset)}. Провери ръчно.`);
@@ -165,14 +185,14 @@ async function onSync() {
     const t0 = Date.now();
     const { job } = await engine.startGroups(timeline.clips.map((c) => c.path));
     const result = await runJob(job);
-    const blocks = describe(result, timeline);
     if (!result.groups.length) {
-      finish("Не намерих клипове със сигурно общ звук. Не е създадена секвенция.", false, blocks);
+      finish("Не намерих клипове със сигурно общ звук. Не е създадена секвенция.", false, describe(result, timeline));
       return;
     }
     progress(0.95, "Правя SYNC секвенцията…");
     const order = Object.fromEntries(timeline.clips.map((c) => [c.path, c.start]));
     const lay = layout.syncLayout(result, order);
+    const blocks = describe(result, timeline, lay);
     const done = await premiere.buildSyncSequence(project, timeline, lay);
     const secsTaken = ((Date.now() - t0) / 1000).toFixed(0);
     if (done.bad.length) {

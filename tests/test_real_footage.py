@@ -72,3 +72,18 @@ def test_whole_timeline_selection():
                                    ("C9025", "fx39027", "fx39028", "fx39029"), ("C9026", "fx39030"),
                                    ("C9037", "fx39042"), ("C9038", "fx39043")]}
     assert got == want and not res["conflicts"]
+
+    # recording order (Bug 3): the FX30's clock is set to 2024, the FX3's to 2026; the 10 synced pairs
+    # must agree on one clock difference, and then every clip (synced or not) gets a time on one clock
+    fx30 = next(c for c in res["clocks"] if c["name"] == "fx30")
+    fx3 = next(c for c in res["clocks"] if c["name"] == "fx3")
+    assert fx30["linked"] and fx3["linked"]
+    gap = abs(fx30["offset"] - fx3["offset"])
+    assert 700 * 86400 < gap < 740 * 86400                       # about two years apart
+    assert max(fx30["spread"], fx3["spread"]) <= 3.0
+    assert all(c["rec_time"] is not None and c["rec_note"] is None for c in res["clips"])
+    # the lone FX3 take fx39025 (1.5 s) was recorded between the fx39024 and fx39026 groups
+    t = {c["name"][:-4]: c["rec_time"] for c in res["clips"]}
+    assert t["fx39024"] < t["fx39025"] < t["fx39026"]
+    # a synced pair now starts within a few seconds on the shared clock
+    assert abs(t["C9023"] - t["fx39024"]) < 30
