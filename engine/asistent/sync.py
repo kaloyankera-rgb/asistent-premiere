@@ -47,6 +47,16 @@ HIGH_FRACTION = 0.7        # of the informative windows
 HIGH_COVERAGE = 0.6        # of ALL windows checked: chance lines up 3 of 10 windows, a real sync nearly all
 HIGH_RATIO = 1.3           # median peak / second peak of the agreeing windows
 
+# Scattered agreement (2026-11-03, false negatives on Masterhaus fx31030/C0730 and fx31036/C0740: every
+# window found a strong peak, but they spread over 11-17 ms, because two POVs metres apart hear each
+# speaker over a different path difference). Such a pair is High when nearly ALL windows are strong and
+# lie in one band this wide; the offset is the band's median, so it is off by at most half the band
+# (under half a frame at 50p). A chance match cannot fill 80 % of the windows with strong peaks in 20 ms
+# out of the 200 ms searched. groups.py also checks such a pair against the cameras' clocks.
+LOOSE_BAND = 0.020         # s, full width of the band
+LOOSE_MIN_WINDOWS = 4
+LOOSE_SHARE = 0.8          # of ALL windows checked, and of the informative ones
+
 QUICK_WINDOWS = 4          # quick look: this many windows on the best two candidates before the full check
 QUICK_CANDIDATES = 2
 FFT_WORKERS = -1           # set to 1 when many pairs run side by side
@@ -325,6 +335,32 @@ def _fit(windows: list[Window]) -> tuple[list[Window], float, float]:
     return [w for w, m in zip(windows, mask) if m], float(c), float(s)
 
 
+def _band_cluster(windows: list[Window]) -> list[Window]:
+    """The largest set of informative windows whose offsets fit in LOOSE_BAND (ties: the narrowest)."""
+    good = sorted((w for w in windows if w.z >= WIN_Z_MIN), key=lambda w: w.offset)
+    best: list[Window] = []
+    j = 0
+    for i in range(len(good)):
+        j = max(j, i)
+        while j + 1 < len(good) and good[j + 1].offset - good[i].offset <= LOOSE_BAND:
+            j += 1
+        cur = good[i:j + 1]
+        if len(cur) > len(best) or (len(cur) == len(best) and cur and
+                                    cur[-1].offset - cur[0].offset < best[-1].offset - best[0].offset):
+            best = cur
+    return best
+
+
+def _drifting(windows: list[Window]) -> bool:
+    """Is the spread of these windows a clock drift (a straight line in time) rather than acoustic scatter
+    (speakers at different places, no order in time)? Only measurable across DRIFT_MIN_SPAN."""
+    t = np.array([w.t for w in windows])
+    o = np.array([w.offset for w in windows])
+    if len(t) < 3 or np.ptp(t) < DRIFT_MIN_SPAN or np.std(o) < 1e-6:
+        return False
+    return float(np.corrcoef(t, o)[0, 1]) ** 2 >= 0.7
+
+
 def _validate(a: Clip, b: Clip, d0: float, check: Callable[[], None], max_windows: int | None = None) -> Validation:
     os_, oe = max(0.0, d0), min(a.length, d0 + b.length)
     ov = oe - os_
@@ -394,8 +430,9 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
         return res
 
     cands = _coarse(a, b, check)
-    if quick and all(len(_validate(a, b, c.offset, check, QUICK_WINDOWS).inliers) < 2
-                     for c in cands[:QUICK_CANDIDATES]):
+    # a candidate survives the quick look when two windows agree, tightly or within the scatter band
+    if quick and all(max(len(v.inliers), len(_band_cluster(v.windows))) < 2
+                     for v in (_validate(a, b, c.offset, check, QUICK_WINDOWS) for c in cands[:QUICK_CANDIDATES])):
         res.update(confidence="low", offset=None, quick_reject=True)
         res["reasons"].append("Не намерих общ звук, който да се потвърждава в няколко участъка.")
         return res
@@ -462,7 +499,27 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
         if tc_offset is not None:
             res["approx_offset"] = tc_offset
             res["reasons"].append("Има timecode, но той е само ориентир: провери ръчно.")
+    if conf != "high" and drift_total <= half_frame:
+        band = _band_cluster(best.windows)
+        nb = len(band)
+        if nb >= LOOSE_MIN_WINDOWS and nb >= LOOSE_SHARE * best.total and nb >= LOOSE_SHARE * len(info_w) \
+                and float(np.median([w.ratio for w in band])) >= HIGH_RATIO and not ambiguous and ov >= min_ov \
+                and not _drifting(band):
+            spread = band[-1].offset - band[0].offset
+            mid_off = float(np.median([w.offset for w in band]))
+            conf = "high"
+            res.pop("approx_offset", None)
+            res.update(offset=round(mid_off + lead_fix, 6), offset_audio=round(mid_off, 6), windows_agree=nb,
+                       residual_ms=round(float(np.std([w.offset for w in band])) * 1000, 3), drift_ppm=0.0, drift_ms=0.0,
+                       peak_ratio=round(float(np.median([w.ratio for w in band])), 2), loose=True,
+                       spread_ms=round(spread * 1000, 1))
+            res["reasons"] = [f"{nb} от {best.total} участъка дават едно и също отместване в рамките на "
+                              f"{spread * 1000:.0f} ms (говорещите са на различно разстояние от двете камери)."]
+            res["warnings"].append(f"Участъците се разминават с до {spread * 1000:.0f} ms: синхронът е "
+                                   f"верен до ±{spread * 500:.0f} ms.")
     res["confidence"] = conf
+    res["ambiguous"] = bool(ambiguous)
+    res["drifting"] = bool(drift_total > half_frame)
 
     if drift_total > 0.001 and conf == "high":
         res["warnings"].append(f"Малък дрифт: {drift_total * 1000:.1f} ms за целия запис.")

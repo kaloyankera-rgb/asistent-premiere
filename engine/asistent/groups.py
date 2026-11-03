@@ -18,6 +18,8 @@ from . import chrono, sync
 from .sync import Cancelled, Clip, ProgressFn, analyze_pair, load_clip
 
 LOOP_TOL = 0.010
+CLOCK_VETO = 10.0      # s: recording times (1 s steps, a moment of start-up) further apart than this are another take
+CLOCK_CONFIRM = 2.0    # s: recording times this close to the audio's offset confirm an uncertain pair
 # FFmpeg decoding and NumPy/SciPy FFTs release the GIL, so threads use several cores
 WORKERS = max(2, min(8, (os.cpu_count() or 4) - 2))
 
@@ -70,7 +72,8 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
             tick(0.65, 0.3, len(pairs), "Сравнявам {} от {}")
             if r["confidence"] in ("high", "medium") and r.get("offset") is not None:
                 return {"a": ref, "b": oth, "offset": r["offset"], "confidence": r["confidence"],
-                        "agree": f'{r.get("windows_agree")}/{r.get("windows_total")}',
+                        "agree": f'{r.get("windows_agree")}/{r.get("windows_total")}', "loose": bool(r.get("loose")),
+                        "ambiguous": bool(r.get("ambiguous")), "drifting": bool(r.get("drifting")),
                         "reasons": r["reasons"], "warnings": r["warnings"]}
             return None
 
@@ -79,11 +82,14 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
         pool.shutdown(wait=True, cancel_futures=True)
         sync.FFT_WORKERS = old_workers
 
+    rec = [c.info.recorded for c in clips]
+    src = [c.info.recorded_from for c in clips]
+    _clock_check(clips, folders, split_by_folder, edges, rec, src)
     groups, conflicts = _build_groups(clips, folders if split_by_folder else None,
                                       [e for e in edges if e["confidence"] == "high"])
     grouped = {m["clip"] for g in groups for m in g["members"]}
     # when each clip was recorded, on one clock for all cameras (the layout puts everything in that order)
-    when = chrono.chronology([c.info.recorded for c in clips], [c.info.recorded_from for c in clips], folders, groups)
+    when = chrono.chronology(rec, src, folders, groups)
     progress(1.0, "Готово")
     return {
         "clips": [{"path": c.info.path, "name": c.name, "duration": round(c.info.duration, 3),
@@ -96,8 +102,65 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
         "unsynced": [i for i in range(len(clips)) if i not in grouped],
         "suggestions": [e for e in edges if e["confidence"] == "medium"
                         and not ({e["a"], e["b"]} <= grouped)],
+        # pairs accepted by the scattered-window rule or by the clocks: the panel says how each was decided
+        "accepted_notes": [{"a": e["a"], "b": e["b"], "text": " ".join(e["reasons"] + e["warnings"])}
+                           for e in edges if e["confidence"] == "high" and (e.get("loose") or e.get("clock_confirmed"))
+                           and {e["a"], e["b"]} <= grouped],
         "pairs_checked": len(pairs),
     }
+
+
+def _clock_check(clips: list[Clip], folders: list[str], split_by_folder: bool, edges: list[dict],
+                 rec: list, src: list) -> None:
+    """The cameras' recording times as a second, independent witness (changes `edges`).
+
+    Clock differences between cameras are learnt from the strict pairs alone (chrono.py).
+    - Veto: a pair that is High only by the scattered-window rule (sync.LOOSE_BAND) whose learnt-clock
+      times disagree by more than CLOCK_VETO is the same line from another take (the one false match
+      audio alone cannot rule out): back to the suggestions, with the reason.
+    - Confirm: a Medium pair (not drifting, no second possible offset) whose times agree within
+      CLOCK_CONFIRM becomes High. Without a learnt difference the raw clocks may confirm too: two
+      arbitrary camera clocks landing within 2 s of the audio's offset by chance is not credible; raw
+      clocks never veto, as they may simply be set wrong (GStroy FX30: two years behind).
+    Masterhaus (2026-11-03): all 9 audio pairs agree with the learnt clocks within 0.8 s."""
+    loose = [e for e in edges if e["confidence"] == "high" and e.get("loose")]
+    medium = [e for e in edges if e["confidence"] == "medium" and not e.get("ambiguous") and not e.get("drifting")]
+    if not loose and not medium:
+        return
+    strict = [e for e in edges if e["confidence"] == "high" and not e.get("loose")]
+    base, _ = _build_groups(clips, folders if split_by_folder else None, strict)
+    clock = chrono.chronology(rec, src, folders, base)
+    learnt = {c["camera"]: (c["offset"], c["spread"]) for c in clock["cameras"] if c["pairs"] > 0}
+    if learnt or len(set(folders)) == 1:
+        learnt[clock["reference"]] = (0.0, 0.0)
+
+    def said(e, raw, precision):
+        """b's start minus a's on one clock, from cameras whose learnt clocks are this precise."""
+        a, b = e["a"], e["b"]
+        if src[a] != "metadata" or src[b] != "metadata":
+            return None
+        ka, kb = learnt.get(folders[a]), learnt.get(folders[b])
+        if ka and kb and max(ka[1], kb[1]) <= precision:
+            return (rec[b] - kb[0]) - (rec[a] - ka[0])
+        return rec[b] - rec[a] if raw else None
+
+    for e in loose:
+        s = said(e, raw=False, precision=CLOCK_VETO / 2)
+        if s is None:
+            continue
+        if abs(s - e["offset"]) > CLOCK_VETO:
+            e["confidence"] = "medium"
+            e["reasons"].append(f"Часовниците на камерите казват {s:+.0f} s, а звукът {e['offset']:+.1f} s: "
+                                f"вероятно е същата реплика от друг дубъл.")
+        else:
+            e["reasons"].append("Часовниците на камерите го потвърждават.")
+    for e in medium:
+        s = said(e, raw=True, precision=CLOCK_CONFIRM)
+        if s is not None and abs(s - e["offset"]) <= CLOCK_CONFIRM:
+            e["confidence"] = "high"
+            e["clock_confirmed"] = True
+            e["reasons"].append(f"Звукът сам не стигаше ({e['agree']} участъка), но часовниците на камерите дават "
+                                f"същото отместване ({s:+.1f} s срещу {e['offset']:+.3f} s от звука).")
 
 
 def _build_groups(clips: list[Clip], folders: list[str] | None, edges: list[dict]):

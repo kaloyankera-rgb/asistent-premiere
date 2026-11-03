@@ -1,7 +1,8 @@
 """Smart Auto Sync on synthetic recordings with a known answer.
 
 Rule checked in every case: a High result is within 1 ms of the truth, and a case that has no
-reliable answer never comes back High.
+reliable answer never comes back High. Exception by nature: when the speakers stand at different
+distances from the two cameras there is no single truth; then High lies inside the speakers' spread.
 """
 import numpy as np
 import pytest
@@ -180,3 +181,29 @@ def test_unrelated_recordings_never_high(tmp_path, talkers, seed):
     clip = run(a, b)["clips"][1]
     assert clip["confidence"] == "low"
     assert clip["windows_agree"] / clip["windows_total"] < 0.4     # keep a wide margin below High (0.6)
+
+
+def test_speakers_at_different_distances_still_sync(tmp_path):
+    # Masterhaus case (2026-11-03): camera B hears the second talker 14 ms later than the first (that
+    # talker stands 5 m further from B), so windows split between two offsets 14 ms apart. Premiere's
+    # Synchronize accepts such pairs; the 5 ms rule alone called them uncertain.
+    s1, s2 = synth.scene(80.0, seed=11)
+    lag = int(0.014 * synth.SCENE_SR)
+    s2_far = np.concatenate([np.zeros(lag), s2[:-lag]])
+    a = synth.write_wav(tmp_path / "a.wav", [synth.mic([(s1, 1.0), (s2, 1.0)], 5.0, 70.0, seed=1)])
+    b = synth.write_wav(tmp_path / "b.wav", [synth.mic([(s1, 1.0), (s2_far, 1.0)], 7.0, 60.0, color=(200, 6000), seed=2)])
+    clip = run(a, b)["clips"][1]
+    assert clip["confidence"] == "high", clip["reasons"]
+    assert 2.0 - 0.002 <= clip["offset"] <= 2.014 + 0.002, clip["offset"]
+
+
+def test_band_cluster_and_drift_shape():
+    from asistent.sync import Window, _band_cluster, _drifting
+    w = lambda t, ms, z=10.0: Window(t, 2.0 + ms / 1000, 2.0, z, "x")
+    scattered = [w(5, -8.7), w(10, -5.6), w(15, 0.6), w(20, 2.2), w(25, -0.7), w(30, 0.0), w(35, -7.0)]
+    assert len(_band_cluster(scattered)) == 7
+    assert len(_band_cluster(scattered + [w(40, 40.0)])) == 7          # an outlier stays out
+    assert len(_band_cluster([w(5, 0.0, z=3.0)] * 5)) == 0                # weak windows never count
+    assert not _drifting(scattered)                                       # 35 s: drift not measurable
+    line = [w(t, t * 0.09) for t in range(10, 310, 30)]                  # 90 ppm over 300 s
+    assert _drifting(line)
