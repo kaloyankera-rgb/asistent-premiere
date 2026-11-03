@@ -1,4 +1,4 @@
-# Project status — Asistent 0.9.54 (2026-11-03)
+# Project status — Asistent 0.9.55 (2026-11-03)
 
 Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.48 via
 UnifiedPluginInstallerAgent, engine 0.9.48 as LaunchAgent `com.contentstudio.asistent` (starts at login).
@@ -6,6 +6,11 @@ UnifiedPluginInstallerAgent, engine 0.9.48 as LaunchAgent `com.contentstudio.asi
 Git: `tools/asistent` repo, last commit see `git log`. Tests: 329 pytest + 70 node, all passing at 0.9.48.
 
 Legend: **Done + verified in Premiere** · **Done, engine-tested, NOT verified in Premiere** · **Partial** · **Planned**
+
+## Panel layout (0.9.55, user's request 2026-11-03)
+Cards per feature (title, one-line purpose, buttons), tooltips on every button, three views: Инструменти / Дневник
+(report + last 10 results) / Преди / след (colour previews with the Приложи buttons). Node-tested (wiring) and rendered
+statically at 320 px in Chrome; NOT yet verified in Premiere (UXP: tooltip positioning, hover events, tabs).
 
 ## Phase 1 — architecture (Done + verified)
 UXP panel + Python engine on localhost, setup/release scripts for Mac, engine autostart. Windows script
