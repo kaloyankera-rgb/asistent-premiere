@@ -41,6 +41,10 @@ PRESETS = {
               "min_s": 0.5, "max_s": 2.5, "phrases": True},
     "standard": {"max_words": None, "max_chars": 42, "soft_chars": 42, "lines": 2, "line_chars": 42,
                  "min_s": 1.0, "max_s": 6.0},
+    # the ReShape client's own style (docs/SUBTITLE_STYLE.md, measured on 7 of its videos): 2-3 words, no punctuation, every
+    # line 0.18 s before its first word (their lines fade in over ~4 frames and are fully there as the word starts)
+    "reshape": {"max_words": 3, "max_chars": 14, "soft_chars": 16, "lines": 1, "line_chars": 22,
+                "min_s": 0.4, "max_s": 2.5, "phrases": True, "lead": 0.18, "bare": True},
 }
 
 # NTSC rates arrive as 23.976 / 29.97 / 59.94; the sequence really runs at N*1000/1001.
@@ -241,7 +245,11 @@ NON_FINAL = FUNCTION_WORDS | ENCLITIC | {"в", "с", "и", "а", "да", "не",
                                         "такъв", "такава", "такива", "още", "само", "много"}
 PHRASE_COST = {"base": 1.0, "one_word": 1.4, "three_words": 0.3, "four_words": 3.0, "four_words_function": 1.0,
                "over_soft": 0.3, "over_hard": 20.0, "ends_function": 40.0, "starts_enclitic": 1.2, "too_short": 1.5,
-               "too_long": 4.0, "inner_sentence_end": 4.0, "inner_comma": 0.6, "inner_pause": 3.0}
+               "too_long": 4.0, "inner_sentence_end": 4.0, "inner_comma": 0.6, "inner_pause": 3.0, "ends_clitic": 1.0,
+               "starts_li": 40.0}
+# A short pronoun after a noun or a verb belongs to it and may end a caption („бюста ви“, „колегите ми“, „благодаря ви“),
+# as may „ли“ („и прави ли“); after a function word it leans on the verb that follows („ще ви покажа“) and may not.
+TRAILING = {"ли", "ми", "ти", "му", "ѝ", "ни", "ви", "им", "си", "ги", "го", "ме", "се"}
 
 
 def _word_core(w):
@@ -250,6 +258,12 @@ def _word_core(w):
 
 def _can_end(u):
     return PUNCT_END.search(u[-1]["word"]) is not None or _word_core(u[-1]) not in NON_FINAL
+
+
+def _ends_on_clitic(flat):
+    """The caption ends on a short pronoun or „ли“ that belongs to the content word before it."""
+    return len(flat) > 1 and _word_core(flat[-1]) in TRAILING and _word_core(flat[-2]) not in NON_FINAL \
+        and not PUNCT_END.search(flat[-2]["word"])
 
 
 def _break_cost(prev, nxt):
@@ -267,6 +281,8 @@ def _break_cost(prev, nxt):
         cost += 0.4                                            # no pause at all: one breath, one phrase
     if _word_core(nxt) in ENCLITIC and not re.search(r"[.?!…]$", t) and gap < PAUSE_SPLIT:
         cost += PHRASE_COST["starts_enclitic"]
+    if _word_core(nxt) == "ли":                                # „ли“ always leans on the word before it
+        cost += PHRASE_COST["starts_li"]
     return cost
 
 
@@ -296,7 +312,7 @@ def _phrase_cost(units, cfg, forced_edges):
     cost += c["too_short"] if speech < 0.35 and n > 1 else c["too_short"] + 1.0 if speech < 0.3 and n == 1 else 0.0
     cost += c["too_long"] if speech > cfg["max_s"] else 0.0
     if not _can_end(units[-1]):
-        cost += c["ends_function"]
+        cost += c["ends_clitic"] if _ends_on_clitic(flat) else c["ends_function"]
     return cost
 
 
@@ -331,6 +347,14 @@ def _group_phrases(words, cfg):
     return groups[::-1]
 
 
+BARE = re.compile(r"^[„“\"«(]+|[.,?!…:;\"»“”)]+$")
+
+
+def _shown(word, cfg):
+    """A word as the caption shows it: a "bare" preset drops the punctuation around it (inside stays: „360-градусово“, „1,5“)."""
+    return BARE.sub("", word) or word if cfg.get("bare") else word
+
+
 def build_captions(words, preset="short", fps=25.0):
     """Words (sequence seconds, `p` optional) -> captions {"start", "end", "text", "words", "flags"}.
 
@@ -351,13 +375,15 @@ def build_captions(words, preset="short", fps=25.0):
     frame = lambda t: int(math.floor(t * fps + 0.5))
     min_f = max(1, int(math.ceil(cfg["min_s"] * fps - 1e-9)))
     max_f = max(min_f, int(math.floor(cfg["max_s"] * fps + 1e-9)))
-    # A caption appears about one frame before its first word, but never before the previous caption's speech ended.
+    # A caption appears about one frame before its first word, but never before the previous caption's speech ended;
+    # a preset with its own lead (a client's style) starts that early whatever the previous caption is doing.
+    lead = cfg.get("lead", LEAD)
     first = []
     for i, g in enumerate(groups):
-        t = g[0][0]["start"] - LEAD
-        if i:
+        t = g[0][0]["start"] - lead
+        if i and "lead" not in cfg:
             t = max(t, groups[i - 1][-1][-1]["end"] if groups[i - 1][-1][-1]["end"] < g[0][0]["start"] else t)
-        first.append(frame(t))
+        first.append(frame(max(t, 0.0)))
     # Starts strictly increase: two captions can never start on the same frame.
     for i in range(1, len(first)):
         first[i] = max(first[i], first[i - 1] + 1)
@@ -380,7 +406,7 @@ def build_captions(words, preset="short", fps=25.0):
         captions.append({
             "start": first[i] / fps,
             "end": end / fps,
-            "text": "\n".join(" ".join(w["word"] for w in line) for line in _lines(g, cfg)),
+            "text": "\n".join(" ".join(_shown(w["word"], cfg) for w in line) for line in _lines(g, cfg)),
             "words": [dict(w) for w in flat],
             "flags": [{"word": w["word"], "p": w["p"], "at": w["start"]} for w in flat if w["p"] < LOW_P],
         })

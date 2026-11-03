@@ -376,3 +376,47 @@ def test_a_conditional_clause_gets_its_comma_before_the_main_clause_when_whisper
                  ["Ако", "го", "видиш", "кажи", "ми."]):                                  # clitic too early
         out, info = S.tidy_words(_ws(*sent))
         assert [w["word"] for w in out] == sent and info["commas"] == [], sent
+
+
+# --- clitics and the ReShape client's style (docs/SUBTITLE_STYLE.md) -------------------------------------------
+
+def test_li_never_starts_a_line_and_a_pronoun_stays_with_its_noun():
+    # the client's own videos: „и прави ли / такива операции“, „и измерва ли / бюста ви / преди да предложи“
+    for text in ["Кой ще ви оперира и прави ли такива операции в ежедневната си практика?",
+                 "Как стига до избрания имплант и измерва ли бюста ви преди да предложи решение?"]:
+        for preset in ("short", "reshape"):
+            lines = lines_of(S.build_captions(words(text), preset, 25))
+            assert not any(ln.split()[0].lower() == "ли" for ln in lines), lines
+            assert " ".join(lines).split() == [S._shown(w, S.PRESETS[preset]) for w in text.split()]
+
+
+def test_a_pronoun_before_its_verb_still_does_not_end_a_line():
+    lines = lines_of(S.build_captions(words("Днес ще ви покажа една операция за липоскулптуриране в областта на бедрата."), "reshape", 25))
+    assert not any(ln.split()[-1].lower() == "ви" for ln in lines), lines
+
+
+def test_reshape_style_has_no_punctuation_and_keeps_the_sentence_capital():
+    text = "Преди 10 години, пациентките искаха всички да забележат. Днес повечето искат точно обратното, 360-градусово."
+    caps = S.build_captions(words(text), "reshape", 25)
+    shown = " ".join(lines_of(caps))
+    assert not re.search(r"[.,?!]", shown.replace("360-градусово", "")), shown
+    assert "10" in shown and "360-градусово" in shown and "Днес" in shown and "Преди" in shown
+    assert all(len(ln.split()) <= 4 for ln in lines_of(caps))
+
+
+@pytest.mark.parametrize("fps", FPS_LIST)
+def test_reshape_style_starts_each_line_early_even_inside_continuous_speech(fps):
+    ws = words("Знаете ли кое определя една добре извършена естетична операция когато никой не разбира какво точно е извършено", t=1.0, gap=0.03)
+    caps = S.build_captions(ws, "reshape", fps)
+    for c in caps:
+        lead = c["words"][0]["start"] - c["start"]
+        assert S.PRESETS["reshape"]["lead"] - 1 / fps <= lead <= S.PRESETS["reshape"]["lead"] + 1 / fps, (c["text"], lead)
+    for a, b in zip(caps, caps[1:]):
+        assert a["end"] <= b["start"] + 1e-9
+
+
+def test_auto_style_is_unchanged_by_the_client_style():
+    ws = words("Знаете ли кое определя една добре извършена естетична операция.")
+    caps = S.build_captions(ws, "short", 25)
+    assert caps[0]["start"] >= ws[0]["start"] - S.LEAD - 1 / 25
+    assert lines_of(caps)[-1].endswith(".")

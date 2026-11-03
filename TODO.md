@@ -66,9 +66,13 @@ USER: press Subtitles with "English line" on (NEW TEST); judge the English cuts;
 Open: Arial Pro Heavy (the user's English font) is not on this Mac (Arial Black / Arial Bold are): the user to install it or choose.
 Next:
 1. English lines editable in the Captions tab (now: fix them in Premiere after Upgrade; a rebuild makes them again).
-4. Shorter Bulgarian chunks like the reference (1-2 words, ~12 chars) as a preset.
+4. Done in 0.9.86: Style "ReShape" (measured on 7 client videos, docs/SUBTITLE_STYLE.md). Open: "бюста / ви" can still split
+   when the next words allow it (no word classes to tell it from "много хора / си представят").
 5. "Move off faces" button: selected subtitle graphics (after Upgrade), faces under each line (engine YuNet on the visible clip's
-   frames), a Bulgarian line and its English line move together, nearest free height, one Undo step (UXP PointF).
+   frames), a Bulgarian line and its English line move together, one Undo step (UXP PointF). The client's rule (measured 0.9.86):
+   one height per shot, changed at a cut; the Bulgarian line's top 0.11 of the frame height under the chin (median error 0.028,
+   a fixed height 0.042); above the face when the face is low; no face = the middle (0.50-0.53); never higher than ~0.16 or lower
+   than ~0.72; English centre 0.035 of the height under the Bulgarian centre, letters 0.81 of its size.
 6. Optional: the 1-2 frame fade-in (UXP `createAddVideoTransitionAction` exists).
 
 ## G. Subtitles: captions, restyled together (0.9.81)

@@ -6,6 +6,22 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.86 - The ReShape style, measured on the client's own videos
+- **Measured** (the user, 2026-11-04: "we need to recreate this style for this client"): six of the client's TikTok videos and the
+  Instagram reference, 625 lines, read with the Mac's own text recognition (Apple Vision), faces with YuNet, speech with Asistent's
+  own recognition (its word starts are 0.025 s after the sound onset, so usable as truth). Results in `docs/SUBTITLE_STYLE.md`:
+  2-3 words a line, no punctuation, a capital only at a sentence start, each line 0.18 s before its first word with a ~4-frame
+  fade-in; the height is kept per shot (79 of 90 changes at a cut) with the line's top 0.11 of the frame height under the chin.
+- **Subtitles card: Style** Auto / ReShape (remembered on this computer). ReShape = preset `reshape` in `subtitles.py`: 2-3 words,
+  no punctuation around words (inside stays: "360-градусово", "1,5"), lines start 0.18 s early even in continuous speech. With the
+  English line on, the English gets no punctuation either, except a question's "?" (`translate.bare`); the translation now reads
+  the words with their punctuation, so sentences are still found.
+- **"ли" never starts a line, a short pronoun may end one after its noun or verb** (all styles): "и прави ли / такива операции",
+  "бюста ви" (before: "и прави / ли такива операции"); after a function word it still goes with the verb ("ще ви покажа").
+- Against the client's own line breaks: 72 % of Asistent's breaks are theirs and 70 % of theirs are Asistent's (71 / 69 % before);
+  their remaining breaks follow the speaker's rhythm and 7.5 % end on "на", "да", "и", which Asistent never does on purpose.
+  Engine tests 412, panel 115, all passing. Not pressed in Premiere yet.
+
 ## 0.9.82-0.9.85 - The English line (reference style); probes for the subtitle graphics
 - **English line** (the user, 2026-11-04: the same number of lines and the same times as the Bulgarian, translating the same words
   and still making sense): `engine/asistent/translate.py` translates every Bulgarian sentence whole with the local NLLB-200 600M

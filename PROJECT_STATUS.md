@@ -1,4 +1,4 @@
-# Project status — Asistent 0.9.85 (2026-11-03)
+# Project status — Asistent 0.9.86 (2026-11-04)
 
 Installed on the user's MacBook (Premiere Pro 26.0.2, macOS 15.7, M4 Max): panel 0.9.48 via
 UnifiedPluginInstallerAgent, engine 0.9.48 as LaunchAgent `com.contentstudio.asistent` (starts at login).
@@ -21,7 +21,10 @@ normalised 0.9; the −1 dB default = 0.98333 fixes the scale). The limiter is p
 
 ## Subtitles in the reference style (R, started 2026-11-04, in progress, nothing built into the panel yet)
 Spec from the user's references in `docs/SUBTITLE_STYLE.md`; translator and font installed. 0.9.85: English line (translate.py, second
-caption track, same times), engine-tested on the ReShape reference and placed in NEW TEST; button not pressed by the user yet. Next: TODO "R".
+caption track, same times), engine-tested on the ReShape reference and placed in NEW TEST; button not pressed by the user yet.
+0.9.86: the style measured on 7 of the client's videos (625 lines) and built as Style "ReShape" (lines, no punctuation, 0.18 s lead,
+English without marks); the placement rule for "Move off faces" measured (one height per shot, 0.11 under the chin). Engine-tested on
+the client's videos; not pressed in Premiere. Next: TODO "R".
 Bridge probes added (test projects only): `graphic_text` (UXP cannot read or write a Premiere text graphic's text), `graphic_move`
 (moving a graphic in one Undo step works).
 

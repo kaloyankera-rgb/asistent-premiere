@@ -8,7 +8,7 @@ drive the engine. The Host header is checked against DNS rebinding.
   GET  /subtitles/model      speech model status (backend installed, model present, size, device)
   POST /subtitles/model/download   job: download the ~3 GB model (only from the confirmed panel button)
   POST /subtitles            {"items": [{path, start, end, at, name}], "out_dir", "name", "fps", "width", "height",
-                              "preset"?: auto|short|standard, "terms"?: [...], "skipped"?: [...]} -> job: dialogue mix ->
+                              "preset"?: auto|short|standard|reshape, "terms"?: [...], "skipped"?: [...]} -> job: dialogue mix ->
                               Whisper -> captions -> SRT + JSON in <out_dir>/Asistent_subtitles (nothing goes to Premiere)
   GET  /host/poll?wait=s     the Premiere host (CEP extension, ExtendScript): the next command; GET /host/status
   POST /host/result          {id, ok, data} from the host

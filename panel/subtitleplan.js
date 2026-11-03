@@ -55,7 +55,7 @@ function clock(t) {
   return `${m}:${s < 10 ? "0" : ""}${s.toFixed(1)}`;
 }
 
-const PRESET_NAME = { short: "short (9:16)", standard: "standard (16:9)" };
+const PRESET_NAME = { short: "short (9:16)", standard: "standard (16:9)", reshape: "ReShape" };
 
 /** The engine's /subtitles result -> { text, ok, lines: [{cls, text}] } for the result box. */
 function describeResult(r) {

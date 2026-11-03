@@ -34,7 +34,7 @@ MAX_WINDOW = 120.0         # a merged window is not grown past this many seconds
 SECOND_BEAM = 2            # a cheaper decode for the second opinion (beam 5 for the main reading)
 SECOND_PAD = 2.0           # the second opinion on a doubtful piece: that piece alone with this much context
 MIN_OVERLAP = 0.4          # a word belongs to the piece when this much of it lies inside the piece
-PRESET_NAMES = ("auto", "short", "standard")
+PRESET_NAMES = ("auto", "short", "standard", "reshape")
 
 
 def cache_dir() -> str:
@@ -401,7 +401,10 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     if p["english"]:
         if translate.available():
             progress(0.97, "Translating into English…")
-            english = translate.english_lines([c["text"] for c in captions])
+            # from the words as spoken, with their punctuation: a "bare" preset shows none, but the sentences are found by it
+            english = translate.english_lines([" ".join(w["word"] for w in c["words"]) for c in captions])
+            if subtitles.PRESETS[preset].get("bare"):
+                english = [translate.bare(e) for e in english]
             subtitles.write_srt([{**c, "text": e} for c, e in zip(captions, english)], stem + ".en.srt")
         else:
             english_note = "The English line needs the translator (models/nllb-600m-int8 and the sentencepiece package): see README."

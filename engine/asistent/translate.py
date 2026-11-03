@@ -159,6 +159,14 @@ def _translate_sentence(lines: list[str]) -> list[str]:
     return [" ".join(en_words[a:b]) for a, b in cuts]
 
 
+BARE = re.compile(r"[.,!:;…\"“”]+(?=\s|$)")
+
+
+def bare(text: str) -> str:
+    """An English line in a style without punctuation: the marks go, a question keeps its "?" (the client's videos)."""
+    return " ".join(BARE.sub("", text).split())
+
+
 def english_lines(lines: list[str]) -> list[str]:
     """Bulgarian subtitle lines (in order) -> the English line for each, the same number. Line breaks inside a line are spaces."""
     flat = [" ".join(str(t).split()) for t in lines]
