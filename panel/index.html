@@ -104,6 +104,10 @@
       <p id="aboutSubtitles" class="desc" hidden>Select the audio clips with speech. Recognition runs only on this computer; the .srt goes into the project folder and onto a new caption track. Select all its captions to restyle them together in Properties.</p>
       <div id="subtitles" class="btn action" data-tip="Recognises the Bulgarian speech in the selected clips, makes an .srt (folder Asistent_subtitles) and puts it on a new caption track of the active sequence. Select all the captions and change font, size, outline or shadow in the Properties panel.">Subtitles (Bulgarian)</div>
       <div class="row options">
+        <label for="subtitleStyle" class="muted" data-tip="How the lines are cut and timed. Auto: 2-3 words for 9:16, two lines for 16:9. ReShape: that client's own style, measured on its videos: 2-3 words, no punctuation, each line 0.18 s before its first word.">Style</label>
+        <select id="subtitleStyle"><option value="auto" selected>Auto</option><option value="reshape">ReShape</option></select>
+      </div>
+      <div class="row options">
         <input type="checkbox" id="subtitleEnglish" />
         <label for="subtitleEnglish" class="muted" data-tip="Adds an English line under every Bulgarian line: the same number of lines and the same times, translated sentence by sentence on this computer, on a second caption track. Correct the Bulgarian first: the English is made from it.">English line</label>
       </div>

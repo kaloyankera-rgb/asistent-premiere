@@ -39,3 +39,10 @@ def test_real_model_gives_one_english_line_per_bulgarian_line():
     en = translate.english_lines(lines)
     assert len(en) == len(lines) and all(en)
     assert "liposuction" in en[0].lower() and "mirror" in en[-1].lower()
+
+
+def test_bare_drops_marks_but_keeps_a_question():
+    assert translate.bare("Before getting breast augmentation,") == "Before getting breast augmentation"
+    assert translate.bare("made you proud of the team?") == "made you proud of the team?"
+    assert translate.bare("At RE/SHAPE Clinic, we're there.") == "At RE/SHAPE Clinic we're there"
+    assert translate.bare("a 360-degree result, 2.5 cm") == "a 360-degree result 2.5 cm"

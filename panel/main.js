@@ -501,6 +501,7 @@ async function onSubtitles(opts = {}) {
     const saved = await saveSubtitleSettings(project.path);                  // what is in the boxes now is what runs, and is remembered
     const { payload, plan } = await premiereSubtitles.readInput(project, [], $("notes").value);
     payload.english = $("subtitleEnglish").checked;                          // the English line under every Bulgarian line
+    payload.preset = $("subtitleStyle").value;                               // auto, or a client's own style
     engine.log("info", `subtitles: ${plan.use.length} clips, ${plan.skipped.length} skipped`);
     const { job } = await engine.startSubtitles(payload);
     const result = await runJob(job);
@@ -1006,15 +1007,23 @@ onTap($("audioMore"), () => {
   show("audioManual", open);
   $("audioMore").textContent = open ? "Manual ▾" : "Manual ▸";
 });
-// the English line choice is remembered on this computer
+// the English line and the style are remembered on this computer
 try {
   $("subtitleEnglish").checked = localStorage.getItem("asistent.subtitleEnglish") === "1";
+  if (localStorage.getItem("asistent.subtitleStyle") === "reshape") $("subtitleStyle").value = "reshape";
 } catch (e) {
   /* no storage */
 }
 $("subtitleEnglish").addEventListener("change", () => {
   try {
     localStorage.setItem("asistent.subtitleEnglish", $("subtitleEnglish").checked ? "1" : "0");
+  } catch (e) {
+    /* no storage */
+  }
+});
+$("subtitleStyle").addEventListener("change", () => {
+  try {
+    localStorage.setItem("asistent.subtitleStyle", $("subtitleStyle").value);
   } catch (e) {
     /* no storage */
   }
