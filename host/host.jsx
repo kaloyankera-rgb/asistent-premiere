@@ -1,7 +1,7 @@
 ﻿// Asistent host: the ExtendScript (ES3) side. main.js evaluates this file for every command and calls as_run(name, args).
 // Every function answers with a JSON string {ok, msg, ...}; nothing here throws out of as_run.
 
-var AS_HOST_VERSION = "0.9.57";
+var AS_HOST_VERSION = "0.9.63";
 
 function as_json(v) {
     if (v === null || v === undefined) return "null";

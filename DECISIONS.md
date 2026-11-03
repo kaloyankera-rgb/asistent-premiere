@@ -16,6 +16,14 @@
   but unloads the running panel) then `--install`; `--install` alone leaves the old panel loaded ("already exists").
 - **Python 3.12 venv** (stable NumPy/SciPy wheels); Homebrew default 3.15 not used.
 
+## Colour buttons (0.9.58)
+- **Separate buttons narrow the plans, they do not fork the code.** „Бяло“ and „Експозиция“ run the one analysis and the one apply of „Авто цвят“; only `plansFor(..., only)` drops the other correction. Reason: the user's rule was to keep every calibrated value and check as it was; a second code path would have to be kept equal by hand.
+- **No Contrast/Saturation button for one clip.** The single-clip engine never had such a measure (a target for contrast or saturation is a taste, not a measurement). Shot Match has them because the reference camera defines the target. Exposing them alone would mean inventing the algorithm.
+- **„Изравни POV-тата“ is Auto Shot Match, not a second feature.** It already starts from the clip's current Lumetri values and writes absolute values for the components it changes, so previous corrections are kept and a repeat press gives the same result.
+
+## Rough cut build path (2026-11-03)
+- **Engine-written FCP7 XML imported with UXP `importFiles`**, one new sequence per run, never edits the source sequence. Probed in TEST.prproj (see `docs/ROUGHCUT_PLAN.md`, M0 results): frame-exact, linked, markers possible. Rejected as the primary path: cloning the sequence and deleting (removal through UXP crashes 26.0.2) and UXP additive trimming (unprobed, fragile on 26.0.2).
+
 ## Premiere API usage (26.0.2)
 - **Call every method through `maybe()`/`has()`.** Adobe's types start at 26.2; 26.0.2 lacks e.g.
   `SequenceSettings.getVideoFrameRate` (use `sequence.getTimebase()`: ticks per frame).

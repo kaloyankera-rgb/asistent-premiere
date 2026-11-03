@@ -105,3 +105,62 @@ test("a revert is driven by the final check and costs one Undo step for all clip
   assert.match(src, /steps \+= await revertWorse\(project, prepared\)/);
   assert.match(src, /transaction\(project, "Asistent: върни влошеното"/);
 });
+
+// ---- the separate buttons (0.9.58): the same plans narrowed to one correction; Auto Color is unchanged
+
+// the plansFor of 0.9.57, kept here as the reference Auto Color must still match
+function plansBefore(clips, results, level) {
+  const ok = (c) => c === "high" || (level === "all" && c === "medium");
+  const plans = [];
+  clips.forEach((clip, i) => {
+    const r = results[i];
+    if (!r || r.error) return;
+    const units = r.exposure.units ?? r.exposure.stops;
+    const exposure = r.exposure.stops && ok(r.exposure.confidence) ? units : null;
+    const wb = !r.white.balanced && ok(r.white.confidence);
+    const left = [];
+    if (level === "sure" && r.exposure.stops && r.exposure.confidence === "medium") left.push("експозицията");
+    if (level === "sure" && !r.white.balanced && r.white.confidence === "medium") left.push("бялото");
+    if (exposure || wb) plans.push({ clip, res: r, exposure, wb, left });
+  });
+  return plans;
+}
+
+test("Auto Color (no part) gives exactly the plans the single button gave before", () => {
+  const confs = ["high", "medium", "low"];
+  for (const level of ["sure", "all"]) for (const ec of confs) for (const wc of confs) for (const bal of [true, false]) {
+    for (const stops of [0, -1.2, 2]) {
+      const clips = [{ name: "a" }], results = [res(stops, ec, bal, wc)];
+      assert.deepStrictEqual(plansFor(clips, results, level), plansBefore(clips, results, level));
+      assert.deepStrictEqual(plansFor(clips, results, level, null), plansBefore(clips, results, level));
+    }
+  }
+});
+
+test("Бяло alone plans only the white; Експозиция alone plans only the exposure", () => {
+  const clips = [{ name: "fx39024.MP4" }];
+  const results = [res(2, "high", false, "high")];
+  const white = plansFor(clips, results, "sure", "white");
+  const exposure = plansFor(clips, results, "sure", "exposure");
+  assert.strictEqual(white.length, 1);
+  assert.strictEqual(white[0].wb, true);
+  assert.strictEqual(white[0].exposure, null);
+  assert.strictEqual(exposure.length, 1);
+  assert.strictEqual(exposure[0].wb, false);
+  assert.strictEqual(exposure[0].exposure, 2.1);
+  // the two together are Auto Color's two corrections, nothing more and nothing less
+  assert.strictEqual(corrections(white) + corrections(exposure), corrections(plansFor(clips, results, "sure")));
+});
+
+test("a part with nothing to do is no plan, even when the other part has work", () => {
+  const results = [res(2, "high", true, "high")];                  // white balanced, exposure needs +2
+  assert.strictEqual(plansFor([{}], results, "all", "white").length, 0);
+  assert.strictEqual(plansFor([{}], results, "all", "exposure").length, 1);
+});
+
+test("a medium correction of the other part is not reported as left out", () => {
+  const results = [res(2, "medium", false, "high")];               // exposure medium, white high
+  assert.deepStrictEqual(plansFor([{}], results, "sure", "white")[0].left, []);
+  assert.strictEqual(plansFor([{}], results, "sure", "exposure").length, 0);
+  assert.deepStrictEqual(plansFor([{}], results, "sure")[0].left, ["експозицията"]);
+});
