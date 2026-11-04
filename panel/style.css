@@ -183,6 +183,16 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .capline.en .t { color: var(--text-2-soft); }
 .capline.en input { font-size: 11px; color: var(--text-2-soft); }
 
+/* who speaks on which microphone track, and the Learned list (Captions tab, 0.9.96) */
+.speakers { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.speakers .muted { margin: 0 6px 0 0; }
+.speakers select { margin: 2px 12px 2px 0; }
+.learnedhead { margin-top: 10px; }
+.learned { display: flex; flex-direction: row; align-items: center; margin-top: 3px; }
+.learned .what { flex: 1; min-width: 0; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.learned .how { font-size: 10px; color: var(--text-2); margin: 0 8px; white-space: nowrap; }
+.learned.off .what { color: var(--text-2-soft); text-decoration: line-through; }
+
 /* tooltip: placed by main.js under the button (or above it near the bottom edge), kept inside the panel */
 /* The toast: the last answer for a few seconds over the header's text (nothing moves, no button covered), two lines at most; a
    coloured edge says done or failed. Click hides it. Positioned like .tip (absolute, top set by main.js). */

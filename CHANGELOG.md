@@ -6,6 +6,20 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.96 - Who speaks per track, agreement marks, the Learned list, measuring (the plan's phases 5-8)
+- Captions tab, "Who speaks": per microphone track a man, a woman, or not set / both (per project, and the client's default
+  for its next projects through the learning folder). First-person forms on a set track follow that person („съм свършил“
+  -> „съм свършила“, „бях доволна“ -> „бях доволен“, also „Казала съм“), unless Whisper finds the changed word clearly worse
+  for the sound (then it stays and is listed for review). Not set: only checked, as before. Tried on the Ludi Glavi
+  recording: woman -> „свършила“ (score -4.5), man -> unchanged. A change here alone is enough for Apply and rebuild.
+- An adjective that disagrees with the noun after it („нов стена“, „нова телефон“) is marked (yellow edge, review reason),
+  never changed: an ending is one letter of sound, which the sound check cannot hear (Phase 0). Count forms, plurals in
+  -ове, adverbs, participles and pronoun-like words are left out; on 19 saved runs no false mark is left.
+- The Learned list under the caption lines (collapsed): every learned fix of the client, in use / waiting / removed, with
+  Remove and Restore for everyone (an event that always counts after what the editor saw).
+- Every use of a learned fix is recorded (once per project); `scripts/measure_learning.py report` shows uses against the
+  ones typed back (target 98 %), `dry` what the rules would do to saved runs.
+
 ## 0.9.95 - Subtitles learn from the editors' fixes, shared through the office; Bulgarian writing rules
 The Smart Subtitle Correction plan (2026-11-04), phases 0-4; the user's choices: learning runs in the background with nothing to
 press, every editor's fixes help everyone through the office (no cloud), the office folder

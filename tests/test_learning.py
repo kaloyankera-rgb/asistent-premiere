@@ -267,3 +267,49 @@ def test_a_correction_written_from_the_captions_matches_any_repair_the_dictionar
     monkeypatch.setattr(lexicon, "repair", lambda w, *a: None)
     monkeypatch.setattr(lexicon, "candidates", lambda w: ["месната", "мастната"] if w == "масната" else [])
     assert {"масната", "месната", "мастната"} <= T.subtitle_job._variants("масната")
+
+
+def test_the_learned_list_shows_each_fix_and_remove_and_restore_reach_everyone(office, monkeypatch):
+    p1, p2 = project(office, "ReShape", "Видео 1"), project(office, "ReShape", "Видео 2")
+    as_computer(monkeypatch, "aaaaaaaaaaaa")
+    fix(p1, "Решейп", "ReShape")
+    fix(p1, "при", "по", left="като")
+    learning.reset()
+    lst = learning.listing(p2)
+    assert lst["client"] == "ReShape" and lst["shared"] is True
+    row = {r["said"]: r for r in lst["rules"]}["ReShape"]
+    assert row["active"] and row["projects"] == 1 and not row["removed"]
+    as_computer(monkeypatch, "bbbbbbbbbbbb")                     # another editor removes it: gone for everyone
+    after = learning.set_removed(p2, row["key"], True)
+    assert {r["said"]: r for r in after["rules"]}["ReShape"]["removed"]
+    as_computer(monkeypatch, "aaaaaaaaaaaa")
+    assert row["key"] not in keys(p2)
+    learning.set_removed(p2, row["key"], False)
+    assert row["key"] in keys(p2)
+    with pytest.raises(ValueError):
+        learning.set_removed(p2, "nothing=>here", True)
+
+
+def test_every_use_is_counted_once_per_project_for_the_measurement(office, job, tmp_path, monkeypatch):
+    as_computer(monkeypatch, "aaaaaaaaaaaa")
+    monkeypatch.setattr(audiocheck, "margin", lambda y, ws, i, n, said: -1.0)
+    run_in(office, tmp_path, "Видео 1", monkeypatch, text="Решейп => ReShape")
+    for _ in range(2):
+        learning.reset()
+        run_in(office, tmp_path, "Видео 2", monkeypatch)
+    learning.reset()
+    rule = {r["said"]: r for r in learning.listing(project(office, "ReShape", "Видео 3"))["rules"]}["ReShape"]
+    assert rule["used"] == 1
+
+
+def test_the_measurement_report_counts_uses_and_reverts(office, monkeypatch, capsys):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("measure", os.path.join(os.path.dirname(__file__), "..", "scripts", "measure_learning.py"))
+    measure = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(measure)
+    p1 = project(office, "ReShape", "Видео 1")
+    as_computer(monkeypatch, "aaaaaaaaaaaa")
+    fix(p1, "Решейп", "ReShape")
+    assert measure.report(p1) == 0
+    out = capsys.readouterr().out
+    assert "ReShape: 1 learned fixes" in out and "No learned fix has been used yet." in out

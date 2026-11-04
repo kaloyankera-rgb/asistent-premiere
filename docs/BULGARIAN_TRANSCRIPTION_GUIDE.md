@@ -167,6 +167,10 @@ Timestamps are **illustrative regression anchors**, not a universal mapping for 
   with enough confirmations, between the words it was fixed between when it is a single dictionary word, and when Whisper
   does not find it clearly worse than the heard words for that sound (`audiocheck.py`). An editor typing the original back
   undoes it for everyone.
+- Speakers (0.9.96, §2.3): the editor sets per microphone track a man, a woman or nothing. First-person forms on a set
+  track follow that person unless the sound clearly says the other form (then the heard form stays and is marked). A
+  track that is not set (two people on one microphone, quotes) is only checked, as before.
+- Adjective and noun that disagree are marked for review, not changed: one ending is too little sound to decide by.
 
 ## 12. Instructions for Claude Code
 
