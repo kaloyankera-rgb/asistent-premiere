@@ -120,22 +120,30 @@ async function readTimeline(project) {
   const fps = await frameRate(sequence);
   const { counts, items } = await readItems(sequence);
 
-  // which items are selected: the sequence selection (works in every version), matched by place
+  // which items are selected: the sequence selection (works in every version), matched by place. The place is the
+  // track as well as the time: after Sync every cut lines up on all tracks, and a clip on V1 matched by its time alone
+  // also selected the clip above it on V2 (0.10.0: Auto color went onto a switched-off POV on V2).
   const selection = await maybe(sequence, "getSelection");
   const picked = (await maybe(selection, "getTrackItems")) || [];
-  const keys = new Set();
+  const how = new Map();                                        // item -> how it was found selected (for the log)
   for (const ti of picked) {
-    const video = has(ti, "createAddVideoTransitionAction");
-    keys.add(`${video ? "video" : "audio"}|${ms(secs(await ti.getStartTime()))}|${ms(secs(await ti.getEndTime()))}`);
+    const kind = has(ti, "createAddVideoTransitionAction") ? "video" : "audio";
+    const at = `${ms(secs(await ti.getStartTime()))}|${ms(secs(await ti.getEndTime()))}`;
+    const track = await maybe(ti, "getTrackIndex");
+    const name = (await maybe(ti, "getName")) || "";
+    const same = items.filter((x) => x.kind === kind && `${ms(x.start)}|${ms(x.end)}` === at && (!name || x.name === name));
+    const exact = same.filter((x) => x.track === track);
+    for (const x of exact.length ? exact : same) how.set(x, exact.length ? "list" : `list, track unknown (${track})`);
   }
   // either way of knowing counts: the selection list, or the clip itself saying it is selected
   for (const it of items) {
-    it.selected = keys.has(`${it.kind}|${ms(it.start)}|${ms(it.end)}`) || !!(await maybe(it.ti, "getIsSelected"));
+    if (!how.has(it) && (await maybe(it.ti, "getIsSelected"))) how.set(it, "itself");
+    it.selected = how.has(it);
   }
   const sel = items.filter((x) => x.selected);
   debug(`selection: ${picked.length} in the list, ${sel.length} selected parts: ` +
     sel.map((x) => `${x.kind[0].toUpperCase()}${x.track + 1} ${x.name}${x.path ? "" : " (no file: offline/nested/graphic)"}` +
-      `${Math.abs(x.speed - 1) >= 0.01 ? " (speed)" : ""}`).join(" | "));
+      `${Math.abs(x.speed - 1) >= 0.01 ? " (speed)" : ""}${x.unused ? " (switched off)" : ""}${how.get(x) === "list" ? "" : ` [${how.get(x)}]`}`).join(" | "));
   reportApi({ project, sequence, trackItem: items[0] && items[0].ti, tickTime: TickTime,
     editor: ppro.SequenceEditor.getEditor(sequence) });
 

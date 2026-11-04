@@ -49,11 +49,18 @@ async function value(p) {
   return Number(v && v.value !== undefined ? (v.value.value ?? v.value) : NaN);
 }
 
-// Selected video clips on the active sequence.
+// Selected video clips on the active sequence. A switched-off clip (Clip > Enable unticked) is left alone: the editor does
+// not use it, and the frame check cannot see a correction on it.
 async function readVideoSelection(project) {
   const t = await P.readTimeline(project);
-  const clips = t.items.filter((x) => x.selected && x.kind === "video" && x.path);
-  return { timeline: t, clips };
+  const all = t.items.filter((x) => x.selected && x.kind === "video" && x.path);
+  const clips = all.filter((x) => !x.unused);
+  const off = all.filter((x) => x.unused).map((x) => x.name);
+  if (off.length) debug(`color: switched off, left alone: ${off.join(", ")}`);
+  if (!clips.length && off.length) {
+    throw new P.UserError(`${off.join(", ")} ${off.length === 1 ? "is" : "are"} switched off: Asistent corrects only clips that are on (Clip > Enable).`);
+  }
+  return { timeline: t, clips, off };
 }
 
 // Every parameter of a Lumetri as text: the fingerprint that tells Asistent's own correction from a grade

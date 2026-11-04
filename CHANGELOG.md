@@ -6,6 +6,16 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.10.0 - A selected clip no longer selects the clips with the same cut on other tracks
+The user, 2026-11-04 (MASTERHAUS, two POVs after Sync): Auto color on the POV on V1, with the POV on V2 switched off, corrected
+the V2 clip instead. The panel matched Premiere's selection to the timeline clips by kind, start and end only; after Sync every
+cut lines up on all tracks, so the V1 clip also selected the V2 clip at the same place (the log: "1 in the list, 2 selected
+parts"), and an audio clip on A1 also selected A2 and A3. Every tool reads the selection this way (colour, Match POVs, Fix
+audio, the audio splits, Subtitles, Rough cut, Sync), so all of them could take clips that were not selected. The selection is
+now matched by track, name and time (`getTrackIndex`; without it by name and time, and the log says so); the log also marks
+how each part was found and which are switched off. Colour (Auto color, White balance, Exposure, ±0.5, Match POVs) leaves a
+switched-off clip alone and says so when it was the only one selected. Tests: `tests/selection.test.js` (fails on 0.9.99).
+
 ## 0.9.99 - Colour applies on the first click
 The user, 2026-11-04: the apply buttons are not needed. Auto color, White balance and Exposure now measure and put the
 correction into Lumetri in one press (high- and medium-confidence corrections; low confidence is still left alone), then the

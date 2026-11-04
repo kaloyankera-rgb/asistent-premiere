@@ -220,3 +220,4 @@
 - 2026-11-04: 0.9.97: new subtitle pair replaces the own earlier pair (removeLines, probed in NEW TEST: 13x60 lines under ExtendScript load + 3 real placements, no crash), lines wait for the cut, adjective+noun / може да / 25-char ReShape phrases (agreement.bond), NLLB 1.3B translator (600M fallback, context prefix tried and dropped), Captions search box.
 - 2026-11-04: 0.9.98: silence between clips for Whisper (Затова), edge scraps left out (На), adverb+participle bond, English cut by per-line translations (HINT 2.0), PLAIN adipose->fat, learned english_word events, search on Enter/Find/Clear; full ReShape run checked.
 - 2026-11-04: 0.9.99: Auto color / White balance / Exposure / Match POVs apply on the first click (applyColor, applyShotMatch), no proposal step.
+- 2026-11-04: 0.10.0: selection matched by track + name + time (getTrackIndex), not time alone (V1 selected V2 after Sync; A1 selected A2/A3); colour skips switched-off clips; tests/selection.test.js.

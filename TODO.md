@@ -4,6 +4,10 @@ Work rule for every step: implement → tests → bump version (manifest + confi
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
 ## A. Fix known bugs
+- **0.10.0, check in NEW TEST**: select one POV on V1 with the V2 POV switched off, Auto color: only V1 corrected, V2 stays off
+  (the log line "selection: … 1 selected parts" with no "[list, track unknown …]"); Fix audio on one A1 clip touches only A1.
+- **Export reveal (docs/EXPORT_REVEAL_PLAN.md)**: work in progress kept in `git stash` ("export reveal WIP"); phase 0 probes
+  need NEW TEST.prproj open.
 Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 
 ## B. Colour engine, per `COLOR_CORRECTION_PLAN.md` (current focus of the user)
