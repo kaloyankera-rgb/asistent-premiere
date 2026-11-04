@@ -1,4 +1,6 @@
-# Project status — Asistent 0.9.91 (2026-11-04)
+# Project status — Asistent 0.9.92 (2026-11-04)
+
+Toast with a coloured face and plain Exposure wording (0.9.92); seen in the preview, not in Premiere yet.
 
 Exposure ±0.5 act on the mouse press (0.9.91): clicks after a write were taken by Premiere's focus (user's screen recording).
 Not pressed yet; the log now shows focus changes and which event each press came as.

@@ -6,6 +6,12 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.92 - A toast that reads as a message
+- The user, 2026-11-04: "Where is the pop up message?" It was there (the screen recording shows it under the header), but in
+  Premiere 26.0.2 the one-sided green border did not render, so it was a plain black bar that looked like part of the panel.
+  Now it has a green face (red for a failure), bold 12 px text, and for Exposure ±0.5 plain words: "+0.5 exposure added ·
+  fx31028.MP4 now +1.5" / "0.5 exposure removed · 3 clips" (`finish(..., { toast })`).
+
 ## 0.9.91 - Exposure ±0.5 act on the press
 - The user's screen recording (2026-11-04 10:19, Masterhaus fx31028) next to the log: Effect Controls stayed at 0.0 and at 1.0
   for seconds while the user clicked, and no click reached the panel in that time (no "click" line at all); two quick clicks did.

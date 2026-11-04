@@ -182,9 +182,11 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 /* tooltip: placed by main.js under the button (or above it near the bottom edge), kept inside the panel */
 /* The toast: the last answer for a few seconds under the header, over the list (nothing moves), two lines at most; a
    coloured edge says done or failed. Click hides it. Positioned like .tip (absolute, top set by main.js). */
-.toast { position: absolute; left: 8px; right: 8px; padding: 6px 10px 6px 8px; border-radius: 4px; font-size: 11px;
-  line-height: 15px; max-height: 30px; overflow: hidden; background-color: var(--tip-bg); color: var(--tip-text);
-  border: 1px solid var(--tip-line); border-left: 3px solid var(--ok-dot); }
-.toast.err { border-left-color: var(--err-dot); }
+/* 0.9.92: a coloured face, so it reads as a message and not as part of the panel (in Premiere 26.0.2 the one-sided coloured
+   border of 0.9.90 did not show: a plain black bar, the user did not see it). */
+.toast { position: absolute; left: 8px; right: 8px; padding: 6px 10px; border-radius: 4px; font-size: 12px; font-weight: bold;
+  line-height: 16px; max-height: 34px; overflow: hidden; background-color: var(--ok-bg); color: var(--ok);
+  border: 1px solid var(--ok); }
+.toast.err { background-color: var(--err-bg); color: var(--err); border-color: var(--err); }
 .tip { position: absolute; max-width: 240px; padding: 5px 7px; border-radius: 4px; font-size: 11px; line-height: 15px;
   background-color: var(--tip-bg); color: var(--tip-text); border: 1px solid var(--tip-line); }

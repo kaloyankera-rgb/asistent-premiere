@@ -219,7 +219,7 @@ test("every answer also shows as a toast under the header, which never moves the
   assert.match(html, /<div id="toast" class="toast" hidden><\/div>/);
   assert.match(css, /\.toast \{ position: absolute;/);
   const fin = main.slice(main.indexOf("function finish("), main.indexOf("function finish(") + 200);
-  assert.match(fin, /toast\(text, ok\);/);
+  assert.match(fin, /toast\(opts\.toast \|\| text, ok\);/);
 });
 
 test("onPress acts once per press, whichever events Premiere delivers", async () => {
@@ -249,4 +249,13 @@ test("onPress acts once per press, whichever events Premiere delivers", async ()
   await sleep(100);
   fire(b, "pointerdown", "click");
   assert.strictEqual(n, 4);
+});
+
+test("the Exposure toast says in plain words what was added or removed", () => {
+  const fn = main.slice(main.indexOf("async function onExposureNudge"), main.indexOf("// one JSON record per clip and press"));
+  assert.match(fn, /exposure added/);
+  assert.match(fn, /exposure removed/);
+  assert.match(fn, /\{ toast: short \}/);
+  const css = fs.readFileSync(path.join(panel, "style.css"), "utf8");
+  assert.match(css, /\.toast \{[^}]*background-color: var\(--ok-bg\)/);   // a coloured face: a one-sided border did not show in Premiere
 });
