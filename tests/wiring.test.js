@@ -40,9 +40,7 @@ test("the probe and import buttons have their own handlers", () => {
 test("every press but Cancel goes through onTap (logged, ignored while the panel moves)", () => {
   const direct = main.split("\n").filter((l) => /addEventListener\("click"/.test(l));
   assert.deepStrictEqual(direct.map((l) => l.trim().slice(0, 40)), [
-    'button.addEventListener("click", () => {',         // onTap
-    'button.addEventListener("click", () => {',         // onPress (Exposure ±0.5): logged there, acts on the press
-    '$("cancel").addEventListener("click", ()',
+    'button.addEventListener("click", () => {',         // onTap: acts on the press, the click only when no press came
     '$("toast").addEventListener("click", () ',          // only hides the toast: not an action, nothing to log or guard
   ]);
 });
@@ -195,9 +193,9 @@ test("Exposure −0.5 / +0.5 add a fixed step through the same safe Lumetri choi
   assert.match(html, /id="exposureDown"[^>]*class="btn small"/);
   assert.match(html, /id="exposureUp"[^>]*class="btn small"/);
   // pressed several times in a row: act on the mouse going down (a click after Premiere took the focus never arrives)
-  assert.match(main, /onPress\(\$\("exposureDown"\), \(\) => onExposureNudge\(-0\.5\)\)/);
-  assert.match(main, /onPress\(\$\("exposureUp"\), \(\) => onExposureNudge\(0\.5\)\)/);
-  const press = main.slice(main.indexOf("function onPress"), main.indexOf("function show("));
+  assert.match(main, /onTap\(\$\("exposureDown"\), \(\) => onExposureNudge\(-0\.5\), \{ repeat: true \}\)/);
+  assert.match(main, /onTap\(\$\("exposureUp"\), \(\) => onExposureNudge\(0\.5\), \{ repeat: true \}\)/);
+  const press = main.slice(main.indexOf("function onTap"), main.indexOf("function show("));
   assert.match(press, /\["pointerdown", "mousedown"\]/);
   assert.match(press, /if \(Date\.now\(\) - downAt < 1000\) return;/);
   const fn = color.slice(color.indexOf("async function nudgeExposure"), color.indexOf("// ---------------------------------------------------------------- render check"));
@@ -222,33 +220,43 @@ test("every answer also shows as a toast under the header, which never moves the
   assert.match(fin, /toast\(opts\.toast \|\| text, ok\);/);
 });
 
-test("onPress acts once per press, whichever events Premiere delivers", async () => {
-  const src = main.slice(main.indexOf("function onPress"), main.indexOf("function show("));
+test("every button acts once per press, whichever events Premiere delivers (onTap)", async () => {
+  const src = main.slice(main.indexOf("function onTap"), main.indexOf("function show("));
   const logs = [];
   const engine = { log: (lvl, m) => logs.push(m) };
-  const onPress = new Function("engine", `${src}; return onPress;`)(engine);
-  const mk = () => { const b = new EventTarget(); b.textContent = "Exposure +0.5"; b.disabled = false; return b; };
+  const state = { settleUntil: 0 };
+  const onTap = new Function("engine", "state", `${src}; return onTap;`)(engine, state);
+  const mk = () => { const b = new EventTarget(); b.textContent = "Log"; b.disabled = false; return b; };
   const fire = (b, ...kinds) => kinds.forEach((k) => b.dispatchEvent(new Event(k)));
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   let n = 0;
   const b = mk();
-  onPress(b, () => n++);
+  onTap(b, () => n++);
   fire(b, "pointerdown", "mousedown", "click");          // a normal press
   assert.strictEqual(n, 1);
   await sleep(100);
-  fire(b, "pointerdown", "mousedown", "click");          // a second press
+  fire(b, "mousedown");                                  // only the press arrives (the click was lost to Premiere's focus)
   assert.strictEqual(n, 2);
-  await sleep(100);
-  fire(b, "mousedown");                                  // only the press arrives (the click was lost to the focus)
-  assert.strictEqual(n, 3);
   await sleep(1100);
-  fire(b, "click");                                      // only the click arrives
-  assert.strictEqual(n, 4);
+  fire(b, "click");                                      // only the click arrives (the test bridge's b.click())
+  assert.strictEqual(n, 3);
   b.disabled = true;
   await sleep(100);
   fire(b, "pointerdown", "click");
-  assert.strictEqual(n, 4);
+  assert.strictEqual(n, 3);
+
+  // the "panel just changed" guard: a normal button waits it out, a { repeat: true } one does not
+  let m = 0;
+  const r = mk();
+  const c = mk();
+  onTap(r, () => m++, { repeat: true });
+  onTap(c, () => m++);
+  state.settleUntil = Date.now() + 500;
+  fire(r, "pointerdown", "click");
+  fire(c, "pointerdown", "click");
+  assert.strictEqual(m, 1);
+  assert.ok(logs.some((l) => l.startsWith("panel: click ignored")));
 });
 
 test("the Exposure toast says in plain words what was added or removed", () => {

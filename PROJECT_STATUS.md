@@ -1,4 +1,8 @@
-# Project status — Asistent 0.9.92 (2026-11-04)
+# Project status — Asistent 0.9.93 (2026-11-04)
+
+Every button acts on the mouse press (0.9.93, Premiere's focus took first clicks); the toast sits over the header text. The panel
+loads in Premiere (bridge ping); clicks not yet tried by the user.
+
 
 Toast with a coloured face and plain Exposure wording (0.9.92); seen in the preview, not in Premiere yet.
 

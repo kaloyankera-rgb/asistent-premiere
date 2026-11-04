@@ -180,7 +180,7 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .capline.edited input { border-color: var(--accent); }
 
 /* tooltip: placed by main.js under the button (or above it near the bottom edge), kept inside the panel */
-/* The toast: the last answer for a few seconds under the header, over the list (nothing moves), two lines at most; a
+/* The toast: the last answer for a few seconds over the header's text (nothing moves, no button covered), two lines at most; a
    coloured edge says done or failed. Click hides it. Positioned like .tip (absolute, top set by main.js). */
 /* 0.9.92: a coloured face, so it reads as a message and not as part of the panel (in Premiere 26.0.2 the one-sided coloured
    border of 0.9.90 did not show: a plain black bar, the user did not see it). */

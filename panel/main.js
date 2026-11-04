@@ -30,31 +30,24 @@ function settle() {
   state.settleUntil = Date.now() + SETTLE_MS;
 }
 
-// A button meant to be pressed several times in a row (Exposure ±0.5) passes { repeat: true }: since the 2026-11-03 layout
-// the answer appears at the bottom and nothing above it moves, and the guard was eating every quick second press
-// (2026-11-04: "I have to click multiple times").
+// Every button acts when the mouse button goes down, not on the finished click (0.9.93). The user's screen recordings
+// (2026-11-04 10:19 and 10:26): whenever one of Premiere's own panels has the focus (after a write it shows the new value in
+// Effect Controls, or the user worked in the timeline), the first click on Asistent only takes the focus back and never
+// arrives as a click; the cursor is an arrow instead of the hand. The press itself does arrive (Exposure ±0.5, 0.9.91: every
+// press counted). A press is acted on once, by whichever of pointerdown / mousedown / click comes first; the click that
+// ends a press already acted on is not counted again.
+// { repeat: true } (Exposure ±0.5, Cancel): never ignored by the "panel just changed" guard; since the 2026-11-03 layout the
+// answer appears at the bottom and nothing above it moves, and the guard ate every quick second press.
 function onTap(button, fn, opts = {}) {
-  button.addEventListener("click", () => {
+  let downAt = 0;
+  const act = (kind) => {
     if (button.disabled) return;                     // own buttons are divs: a disabled one must not act (enable())
     const label = (button.textContent || "").trim();
     if (!opts.repeat && Date.now() < state.settleUntil) {
       engine.log("info", `panel: click ignored (panel just changed): ${label}`);
       return;
     }
-    engine.log("info", `panel: click: ${label}`);
-    fn();
-  });
-}
-
-// Exposure ±0.5 act when the mouse button goes down, not on the finished click. The user's screen recording (2026-11-04
-// 10:19): after each write Premiere puts the focus on its own panels (Effect Controls shows the new value), and the next
-// click on Asistent only took the focus back: it never reached the panel as a click (nothing in the log), so a single press
-// seemed to do nothing. A press is acted on once, by whichever of pointerdown / mousedown / click arrives first.
-function onPress(button, fn) {
-  let downAt = 0;
-  const act = (kind) => {
-    if (button.disabled) return;
-    engine.log("info", `panel: press (${kind}): ${(button.textContent || "").trim()}`);
+    engine.log("info", `panel: click${kind === "click" ? "" : ` (${kind})`}: ${label}`);
     fn();
   };
   for (const kind of ["pointerdown", "mousedown"]) {
@@ -67,7 +60,7 @@ function onPress(button, fn) {
   }
   button.addEventListener("click", () => {
     if (Date.now() - downAt < 1000) return;              // the end of a press already acted on when it went down
-    act("click");                                        // no down event arrived for this press
+    act("click");                                        // no down event arrived for this press (also the test bridge)
   });
 }
 
@@ -204,7 +197,9 @@ function toast(text, ok) {
   const box = $("toast");
   box.textContent = text;
   box.className = ok ? "toast" : "toast err";
-  box.style.top = `${$("top").getBoundingClientRect().bottom + 2}px`;
+  // over the project name and the engine line (text only): under the header it covered the tabs, and a tab clicked in those
+  // seconds hit the toast instead (0.9.93)
+  box.style.top = `${$("top").getBoundingClientRect().top + 4}px`;
   box.hidden = false;
   clearTimeout(state.toastTimer);
   state.toastTimer = setTimeout(() => { box.hidden = true; }, ok ? TOAST_MS.ok : TOAST_MS.err);
@@ -1071,8 +1066,8 @@ onTap($("shotmatch"), () => onShotMatch(null));
 onTap($("color"), () => onColor(null));
 onTap($("colorWhite"), () => onColor("white"));
 onTap($("colorExposure"), () => onColor("exposure"));
-onPress($("exposureDown"), () => onExposureNudge(-0.5));
-onPress($("exposureUp"), () => onExposureNudge(0.5));
+onTap($("exposureDown"), () => onExposureNudge(-0.5), { repeat: true });
+onTap($("exposureUp"), () => onExposureNudge(0.5), { repeat: true });
 // when the panel loses and gets back the keyboard focus, in the log: shows whether Premiere takes it after a write (2026-11-04)
 window.addEventListener("blur", () => engine.log("info", "panel: focus lost"));
 window.addEventListener("focus", () => engine.log("info", "panel: focus back"));
@@ -1158,9 +1153,9 @@ onTap($("updateGo"), onUpdate);
 // buttons, so they ran Fix audio too (and its result hid the probe's question)
 for (const b of document.querySelectorAll(".btn.small[data-force]")) onTap(b, () => onAudio(b.getAttribute("data-force")));
 // Cancel must always work, also right after the panel changed
-$("cancel").addEventListener("click", () => {
+onTap($("cancel"), () => {
   if (state.jobId) engine.cancel(state.jobId).catch(() => {});
-});
+}, { repeat: true });
 
 for (const t of document.querySelectorAll(".btn.tab")) onTap(t, () => openTab(t.getAttribute("data-tab")));
 onTap($("openLog"), () => openTab("paneLog"));
