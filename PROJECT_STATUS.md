@@ -1,4 +1,7 @@
-# Project status — Asistent 0.9.98 (2026-11-04)
+# Project status — Asistent 0.9.99 (2026-11-04)
+
+0.9.99: colour buttons and Match POVs apply on the first click (no Apply step), the user's request; the same apply and frame
+check code as before, so only the flow changed. Seen in the browser preview; not yet pressed in Premiere.
 
 0.9.98 (the user's review of 0.9.97 on the ReShape video): cut-out media between clips is silent for Whisper (restores
 „Затова“), edge scraps left out (the final „На“), adverb + participle kept, English cut by each line's own translation, plain

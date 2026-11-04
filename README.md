@@ -59,13 +59,13 @@ Select the clips in the timeline (their video or their audio) and press **Fix au
 
 ## Color
 
-Select the video clips and press **Auto color** (white balance and exposure together), **White balance** or **Exposure**. Nothing is applied at once: each clip shows before/after and a proposal with its confidence.
+Select the video clips and press **Auto color** (white balance and exposure together), **White balance** or **Exposure**. One press measures and puts the correction into Lumetri at once; **Before / after** shows it, Cmd/Ctrl+Z undoes it.
 
 - **Exposure** in steps of 0.5 up to ±2 stops: by the skin when there are faces, otherwise by the midtones (lower confidence). If the highlights may clip, the panel warns and checks on a real frame.
 - **White balance**: by the largest group of light, nearly neutral surfaces, checked against the whole picture. With no neutral surfaces and warm light (a restaurant) the confidence is low and nothing is touched.
-- **Apply the sure ones** applies only high confidence; **Apply the medium ones too** adds medium. Only Exposure, Temperature and Tint are written; a manual Lumetri grade is never touched.
+- High- and medium-confidence corrections are applied (low confidence is left alone and said). Only Exposure, Temperature and Tint are written; a manual Lumetri grade is never touched.
 - After applying, the panel exports a frame from Premiere and the engine measures it: if the white is off or more than 3 % of the picture clipped, it is corrected once. The panel says how many Undo steps it took.
-- **Match POVs** (after the corrections, clips from two cameras): matches the brightness, white balance, contrast and saturation of the other cameras to one reference camera, by faces and neutral surfaces. A proposal first; the reference can be changed.
+- **Match POVs** (after the corrections, clips from two cameras): matches the brightness, white balance, contrast and saturation of the other cameras to one reference camera, by faces and neutral surfaces, at once; a camera's button under the result matches to that camera instead.
 
 ## Rough cut
 

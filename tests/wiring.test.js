@@ -335,3 +335,15 @@ test("the words changed in an English line are kept per project, undone when typ
   assert.match(apply, /saveEnglishWords\(project\.path, words\)/);
   assert.match(main, /payload\.english_words = englishWords\(project\.path\);/);
 });
+
+test("a colour press and Match POVs apply at once, with Before / after, no approval step (the user, 2026-11-04)", () => {
+  const col = main.slice(main.indexOf("async function onColor("), main.indexOf("async function onExposureNudge"));
+  assert.match(col, /const plans = colorPlans\("all"\);/);
+  assert.ok(col.indexOf("await applyColor(plans") > col.indexOf("await runJob(job)"));
+  assert.match(col, /finish\(out\.text, out\.ok, \[\.\.\.out\.blocks, \.\.\.blocks\], \{ previews \}\)/);
+  assert.doesNotMatch(main, /Only a proposal|Apply the sure ones|Apply the match/);
+  const shot = main.slice(main.indexOf("async function onShotMatch("), main.indexOf("function shotLine"));
+  assert.match(shot, /const out = await applyShotMatch\(\);/);
+  assert.match(shot, /onShotMatch\(cam\)/);                                   // another reference: matched again
+});
+

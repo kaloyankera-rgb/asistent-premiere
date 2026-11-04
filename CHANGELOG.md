@@ -6,6 +6,12 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.99 - Colour applies on the first click
+The user, 2026-11-04: the apply buttons are not needed. Auto color, White balance and Exposure now measure and put the
+correction into Lumetri in one press (high- and medium-confidence corrections; low confidence is still left alone), then the
+frame check takes back what made the picture worse, and Before / after shows the change. Match POVs matches at once too; a
+camera's button under the result matches to that camera instead. One Cmd/Ctrl+Z undoes a press, as before.
+
 ## 0.9.98 - Every spoken word kept, no scraps, closer English, word fixes learned, search on Enter
 The user's review of 0.9.97 on the ReShape video (2026-11-04).
 - A missing word after a cut: the media between the clips (retakes the editor cut out) was heard too, and the aligner put the

@@ -7,7 +7,7 @@ const PANEL_VERSION = require("./version.js");
 const premiereImport = require("./premiere-import.js");
 const premiereColor = require("./premiere-color.js");
 const premiereProbe = require("./premiere-probe.js");
-const { plansFor, corrections, statusOf, STATUS_BG } = require("./colorplans.js");
+const { plansFor, statusOf, STATUS_BG } = require("./colorplans.js");
 const { cameras, shotMoments } = require("./moments.js");
 const { createBridge } = require("./devbridge.js");
 const premiereSubtitles = require("./premiere-subtitles.js");
@@ -949,19 +949,13 @@ async function onColor(part = null) {
     const blocks = sel.clips.map((c, i) => colorBlock(c, result.items[i]));
     const previews = sel.clips.map((c, i) => [c, result.items[i]]).filter(([, r]) => !r.error && r.preview && r.preview.before)
       .map(([c, r]) => previewBlock(c.name, r.preview, "before · after (approximate)", colorLines(r, part)));
-    // buttons by what they apply: "and the medium ones" appears whenever it adds a correction "the sure ones" leaves out
-    const sure = colorPlans("sure").length;
-    const all = colorPlans("all").length;
-    const more = corrections(colorPlans("all")) > corrections(colorPlans("sure"));
-    const actions = () => [
-      ...(sure ? [button("small", `Apply the sure ones (${sure})`, "Puts only the high-confidence corrections into Lumetri.",
-        () => onColorApply("sure"))] : []),
-      ...(more ? [button("small", `Apply the medium ones too (${all})`, "Also puts the medium-confidence corrections into Lumetri.",
-        () => onColorApply("all"))] : []),
-    ];
-    finish(all ? `Only a proposal: nothing is in Lumetri yet. Press "${sure ? `Apply the sure ones (${sure})` :
-      `Apply the medium ones too (${all})`}" below to apply it.` : "Nothing to correct with certainty: nothing was touched.",
-    true, blocks, { actions, previews });
+    // one click analyses and applies (the user, 2026-11-04: no approval step): sure and medium corrections go into Lumetri at
+    // once, the check after applying takes back what made the frame worse, Before / after shows what was measured
+    const plans = colorPlans("all");
+    if (!plans.length) return finish("Nothing to correct with certainty: nothing was touched.", true, blocks, { previews });
+    progress(0.6, "Applying in Lumetri and checking on a frame…");
+    const out = await applyColor(plans, "all");
+    finish(out.text, out.ok, [...out.blocks, ...blocks], { previews });
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `color: ${e && e.stack ? e.stack : e}`);
@@ -1034,38 +1028,24 @@ function audit(pl, level) {
   }).catch(() => {});
 }
 
-async function onColorApply(level) {
-  if (state.busy || !colorState.sel) return;
-  setBusy(true);
-  progress(0.5, "Applying in Lumetri and checking on a frame…");
-  try {
-    const plans = colorPlans(level);
-    const { steps } = await premiereColor.apply(colorState.project, colorState.sel.timeline, plans);
-    const blocks = plans.map((pl) => {
-      pl.status = statusOf(pl);
-      audit(pl, level);
-      const box = el("div", "group");
-      box.appendChild(el("div", "name", `${pl.clip.name} · ${STATUS_BG[pl.status]}`));
-      for (const l of pl.lines || []) box.appendChild(el("div", "line", l));
-      if (pl.left && pl.left.length && !pl.skipped) {
-        box.appendChild(el("div", "warn", `Not applied (medium confidence): ${pl.left.join(" and ")}. ` +
-          "To add it too: press the same button again and Apply the medium ones too (it adds to this correction)."));
-      }
-      return box;
-    });
-    const undo = steps === 1 ? "One Cmd/Ctrl+Z undoes everything." : steps > 1 ? `${steps} times Cmd/Ctrl+Z undo everything.` : "";
-    // a clip that already has a graded Lumetri is left alone: never report it as applied
-    const done = plans.filter((pl) => !pl.skipped).length;
-    const skipped = plans.length - done;
-    finish(done ? `Applied to ${done} ${done === 1 ? "clip" : "clips"}${skipped ? `, ${skipped} skipped` : ""}. ${undo}`
-      : "Nothing was applied: see the reason below.", done > 0, blocks);
-    colorState.sel = null;
-  } catch (e) {
-    finish(e.message || String(e), false);
-    if (!(e instanceof premiere.UserError)) engine.log("error", `color apply: ${e && e.stack ? e.stack : e}`);
-  } finally {
-    setBusy(false);
-  }
+/** Writes the plans into Lumetri (one transaction, then the check on a frame) -> { text, ok, blocks } for the result box. */
+async function applyColor(plans, level) {
+  const { steps } = await premiereColor.apply(colorState.project, colorState.sel.timeline, plans);
+  const blocks = plans.map((pl) => {
+    pl.status = statusOf(pl);
+    audit(pl, level);
+    const box = el("div", "group");
+    box.appendChild(el("div", "name", `${pl.clip.name} · ${STATUS_BG[pl.status]}`));
+    for (const l of pl.lines || []) box.appendChild(el("div", "line", l));
+    return box;
+  });
+  const undo = steps === 1 ? "One Cmd/Ctrl+Z undoes everything." : steps > 1 ? `${steps} times Cmd/Ctrl+Z undo everything.` : "";
+  // a clip that already has a graded Lumetri is left alone: never report it as applied
+  const done = plans.filter((pl) => !pl.skipped).length;
+  const skipped = plans.length - done;
+  colorState.sel = null;
+  return { ok: done > 0, blocks, text: done ? `Applied to ${done} ${done === 1 ? "clip" : "clips"}${skipped ? `, ${skipped} skipped` : ""}. ${undo}`
+    : "Nothing was applied: see the reason below." };
 }
 
 // capability probe: asks first, because it puts a Lumetri on the selected clip. The question opens right
@@ -1131,8 +1111,8 @@ const SHOT_PART_BG = { white: "white balance", exposure: "brightness", saturatio
 const SHOT_STATUS_BG = { CORRECTED: "matched", ALREADY_MATCHED: "already matches", REVERTED: "reverted (it got worse)",
   PARTLY_REVERTED: "matched, part reverted", BLOCKED: "not touched (manual grade)", FAILED: "did not work" };
 
-// Selected clips from two or more cameras → a suggestion against one reference camera (chosen, or the most
-// reliable one). Nothing is written until Apply the match.
+// Selected clips from two or more cameras → matched against one reference camera (chosen, or the most reliable one), written
+// into Lumetri at once (the user, 2026-11-04: no approval step) and checked on a frame; another camera's button matches again.
 async function onShotMatch(reference = null) {
   if (state.busy) return;
   if (!state.online) return finish("No connection to the engine. See README.", false);
@@ -1170,18 +1150,16 @@ async function onShotMatch(reference = null) {
     blocks.push(top);
     for (const r of res.clips) blocks.push(shotBlock(clips[r.index], r));
     const previews = res.clips.filter((r) => r.role === "match" && r.preview && r.preview.before)
-      .map((r) => previewBlock(clips[r.index].name, r.preview, "now · after (approximate)", [shotLine(r)]));
+      .map((r) => previewBlock(clips[r.index].name, r.preview, "before · after (approximate)", [shotLine(r)]));
     const ready = res.clips.filter((r) => r.role === "match" && (r.changed || []).length && r.lumetri !== "manual").length;
-    // the decisions: apply, and the reference as a plain choice (one button per camera, the current one ticked)
-    const actions = () => [
-      ...(ready ? [button("small", `Apply the match (${ready})`, "Puts the proposed values into Lumetri of the cameras being matched.",
-        onShotMatchApply)] : []),
-      ...res.cameras.map((cam) => (cam === res.reference
-        ? button("small", `✓ ${cam}`, "This is the reference: the other cameras are matched to it.", () => {})
-        : button("small", cam, `Runs the match again with ${cam} as the reference.`, () => onShotMatch(cam)))),
-    ];
-    finish(ready ? "Only a proposal: nothing is in Lumetri yet. Press Apply the match."
-      : "Nothing to match with certainty: nothing was touched.", true, blocks, { actions, previews });
+    // the reference stays a plain choice (one button per camera, the current one ticked): another one matches again
+    const actions = () => res.cameras.map((cam) => (cam === res.reference
+      ? button("small", `✓ ${cam}`, "This is the reference: the other cameras are matched to it.", () => {})
+      : button("small", cam, `Matches the other cameras to ${cam} instead.`, () => onShotMatch(cam))));
+    if (!ready) return finish("Nothing to match with certainty: nothing was touched.", true, blocks, { actions, previews });
+    progress(0.6, "Matching and checking on a frame…");
+    const out = await applyShotMatch();
+    finish(out.text, out.ok, [...out.blocks, ...blocks], { actions, previews });
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `shot match: ${e && e.stack ? e.stack : e}`);
@@ -1210,39 +1188,31 @@ function shotBlock(clip, r) {
   return box;
 }
 
-async function onShotMatchApply() {
-  if (state.busy || !shotState.res) return;
-  setBusy(true);
-  progress(0.5, "Matching and checking on a frame…");
-  try {
-    const entries = shotState.res.clips.filter((r) => r.role === "match" && (r.changed || []).length)
-      .map((r) => ({ clip: shotState.clips[r.index], r }));
-    const { steps, plans } = await premiereColor.applyShotMatch(shotState.project, shotState.sel.timeline, shotState.job, entries);
-    const blocks = plans.map((pl) => {
-      pl.status = pl.skipped ? (/did not work/.test(pl.skipReason || "") ? "FAILED" : "BLOCKED") : pl.nothing ? "ALREADY_MATCHED"
-        : (pl.reverted || []).length >= Object.keys(SHOT_PART_KEYS(pl)).length ? "REVERTED"
-          : (pl.reverted || []).length ? "PARTLY_REVERTED" : "CORRECTED";
-      engine.colorAudit({ kind: "shotmatch", clip: pl.clip.name, path: pl.clip.path, in: pl.clip.inPt, out: pl.clip.outPt,
-        status: pl.status, reference: shotState.res.reference, camera: pl.res.camera, overlap: pl.res.overlap,
-        proposal: pl.res.proposal, flags: pl.res.flags, before: pl.t ? pl.t.current : null, written: pl.values || null,
-        final: pl.final || null, reverted: pl.reverted || [], check: pl.check || null, lines: pl.lines }).catch(() => {});
-      const box = el("div", "group");
-      box.appendChild(el("div", "name", `${pl.clip.name} · ${SHOT_STATUS_BG[pl.status]}`));
-      for (const l of pl.lines) box.appendChild(el("div", "line", l));
-      for (const f of pl.res.flags || []) box.appendChild(el("div", "warn", f));
-      return box;
-    });
-    const done = plans.filter((pl) => !pl.skipped && !pl.nothing).length;
-    const undo = steps === 1 ? "One Cmd/Ctrl+Z undoes everything." : steps > 1 ? `${steps} times Cmd/Ctrl+Z undo everything.` : "";
-    finish(done ? `Matched: ${done} ${done === 1 ? "clip" : "clips"} against ${shotState.res.reference}. ${undo}`
-      : "Nothing was applied: see the reason below.", done > 0, blocks);
-    shotState.res = null;
-  } catch (e) {
-    finish(e.message || String(e), false);
-    if (!(e instanceof premiere.UserError)) engine.log("error", `shot match apply: ${e && e.stack ? e.stack : e}`);
-  } finally {
-    setBusy(false);
-  }
+/** Writes the match into Lumetri (then the check on a frame) -> { text, ok, blocks } for the result box. */
+async function applyShotMatch() {
+  const entries = shotState.res.clips.filter((r) => r.role === "match" && (r.changed || []).length)
+    .map((r) => ({ clip: shotState.clips[r.index], r }));
+  const { steps, plans } = await premiereColor.applyShotMatch(shotState.project, shotState.sel.timeline, shotState.job, entries);
+  const blocks = plans.map((pl) => {
+    pl.status = pl.skipped ? (/did not work/.test(pl.skipReason || "") ? "FAILED" : "BLOCKED") : pl.nothing ? "ALREADY_MATCHED"
+      : (pl.reverted || []).length >= Object.keys(SHOT_PART_KEYS(pl)).length ? "REVERTED"
+        : (pl.reverted || []).length ? "PARTLY_REVERTED" : "CORRECTED";
+    engine.colorAudit({ kind: "shotmatch", clip: pl.clip.name, path: pl.clip.path, in: pl.clip.inPt, out: pl.clip.outPt,
+      status: pl.status, reference: shotState.res.reference, camera: pl.res.camera, overlap: pl.res.overlap,
+      proposal: pl.res.proposal, flags: pl.res.flags, before: pl.t ? pl.t.current : null, written: pl.values || null,
+      final: pl.final || null, reverted: pl.reverted || [], check: pl.check || null, lines: pl.lines }).catch(() => {});
+    const box = el("div", "group");
+    box.appendChild(el("div", "name", `${pl.clip.name} · ${SHOT_STATUS_BG[pl.status]}`));
+    for (const l of pl.lines) box.appendChild(el("div", "line", l));
+    for (const f of pl.res.flags || []) box.appendChild(el("div", "warn", f));
+    return box;
+  });
+  const done = plans.filter((pl) => !pl.skipped && !pl.nothing).length;
+  const undo = steps === 1 ? "One Cmd/Ctrl+Z undoes everything." : steps > 1 ? `${steps} times Cmd/Ctrl+Z undo everything.` : "";
+  const text = done ? `Matched: ${done} ${done === 1 ? "clip" : "clips"} against ${shotState.res.reference}. ${undo}`
+    : "Nothing was applied: see the reason below.";
+  shotState.res = null;
+  return { ok: done > 0, blocks, text };
 }
 
 // the parts a clip's write touched (white counts once for Temperature + Tint)

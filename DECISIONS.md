@@ -270,3 +270,10 @@ emptied tracks stay and the panel says so. Hiding the old tracks (`CaptionTrack.
 - **English word fixes are client-wide at once** (like name lines, not like Bulgarian word fixes, which wait for 2 projects):
   they change only the English line, which the editor reads anyway, and typing the old word back takes one out.
 
+## 2026-11-04: colour applies on the first click (0.9.99, reverses "preview first")
+The user: the Apply buttons are not needed; a press should put the effect in and show before/after. The colour spec's "preview
+first" came from the start of the project; the safety that matters stays: low confidence is never applied, a manual grade is
+never touched, the frame check after writing takes back what made the picture worse, and one Undo takes the press back. Medium
+confidence is applied too (the user chose no approval step at all); it is said per clip in Details. Match POVs the same; the
+reference camera buttons now re-match at once.
+

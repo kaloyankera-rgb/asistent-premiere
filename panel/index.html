@@ -90,12 +90,12 @@
         <div class="title">Color</div>
         <div class="btn more" data-more="aboutColor" data-tip="What the color buttons do."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
       </div>
-      <p id="aboutColor" class="desc" hidden>Select the video clips. A proposal with before and after comes first; Lumetri is touched only after Apply. Match POVs is for after the corrections: clips from two cameras.</p>
-      <div id="color" class="btn action" data-tip="Measures the white balance and exposure of the selected clips and proposes both corrections together. Nothing is applied without Apply.">Auto color</div>
+      <p id="aboutColor" class="desc" hidden>Select the video clips and press: the correction goes into Lumetri at once and is checked on a frame; Before / after shows it, Cmd/Ctrl+Z undoes it. Match POVs is for after the corrections: clips from two cameras.</p>
+      <div id="color" class="btn action" data-tip="Measures the white balance and exposure of the selected clips and puts both corrections into Lumetri at once, then checks them on a frame. Before / after shows the change; Cmd/Ctrl+Z undoes it.">Auto color</div>
       <div class="row buttons">
-        <div id="colorWhite" class="btn small" data-tip="The same measurement as Auto color, but proposes only the white balance (Temperature and Tint). Nothing is applied without Apply.">White balance</div>
-        <div id="colorExposure" class="btn small" data-tip="The same measurement as Auto color, but proposes only the brightness (Exposure). Nothing is applied without Apply.">Exposure</div>
-        <div id="shotmatch" class="btn small" data-tip="Select clips from two cameras that are already corrected. Matches the brightness, white balance, contrast and saturation of the other cameras to one reference camera (by the faces and neutral surfaces), on top of the corrections made. A proposal comes first; the reference can be changed.">Match POVs</div>
+        <div id="colorWhite" class="btn small" data-tip="The same measurement as Auto color, but puts only the white balance into Lumetri (Temperature and Tint), at once.">White balance</div>
+        <div id="colorExposure" class="btn small" data-tip="The same measurement as Auto color, but puts only the brightness into Lumetri (Exposure), at once.">Exposure</div>
+        <div id="shotmatch" class="btn small" data-tip="Select clips from two cameras that are already corrected. Matches the brightness, white balance, contrast and saturation of the other cameras to one reference camera (by the faces and neutral surfaces), on top of the corrections made, at once. Another camera as the reference: its button under the result.">Match POVs</div>
       </div>
       <div class="row buttons">
         <div id="exposureDown" class="btn small" data-tip="Adds -0.5 to the Exposure of the selected clips' Lumetri at once, as you would by hand (no measuring, works without faces). A Lumetri you graded by hand is not touched. Cmd+Z undoes it.">Exposure −0.5</div>
