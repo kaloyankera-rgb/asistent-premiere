@@ -6,6 +6,16 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.93 - Every button acts on the press
+- The user's screen recording 2026-11-04 10:26 (clicking the Tools / Log / Before-after tabs): clicks that did nothing were made
+  with an arrow cursor instead of the hand, at any spot of a tab; the log has no click for them. As with Exposure ±0.5 (0.9.91,
+  every press counted since), the first click after one of Premiere's own panels had the focus only took the focus back. Now
+  every button, tab, link and Cancel acts when the mouse button goes down (`onTap`: pointerdown / mousedown / click, whichever
+  comes first, once per press); the "panel just changed" guard stays for the normal buttons, Exposure ±0.5 and Cancel skip it.
+  `onPress` is folded into `onTap`. The native dropdowns and checkboxes are Premiere's and unchanged.
+- The toast moved from under the header (it covered the tabs for 3.5 s after every answer, and a tab clicked then hit the
+  toast) to over the project name and engine line, which have nothing to click.
+
 ## 0.9.92 - A toast that reads as a message
 - The user, 2026-11-04: "Where is the pop up message?" It was there (the screen recording shows it under the header), but in
   Premiere 26.0.2 the one-sided green border did not render, so it was a plain black bar that looked like part of the panel.
