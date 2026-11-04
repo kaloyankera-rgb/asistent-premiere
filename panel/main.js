@@ -46,6 +46,31 @@ function onTap(button, fn, opts = {}) {
   });
 }
 
+// Exposure ±0.5 act when the mouse button goes down, not on the finished click. The user's screen recording (2026-11-04
+// 10:19): after each write Premiere puts the focus on its own panels (Effect Controls shows the new value), and the next
+// click on Asistent only took the focus back: it never reached the panel as a click (nothing in the log), so a single press
+// seemed to do nothing. A press is acted on once, by whichever of pointerdown / mousedown / click arrives first.
+function onPress(button, fn) {
+  let downAt = 0;
+  const act = (kind) => {
+    if (button.disabled) return;
+    engine.log("info", `panel: press (${kind}): ${(button.textContent || "").trim()}`);
+    fn();
+  };
+  for (const kind of ["pointerdown", "mousedown"]) {
+    button.addEventListener(kind, () => {
+      const now = Date.now();
+      if (now - downAt < 80) return;                    // the same press reported as pointerdown and as mousedown
+      downAt = now;
+      act(kind);
+    });
+  }
+  button.addEventListener("click", () => {
+    if (Date.now() - downAt < 1000) return;              // the end of a press already acted on when it went down
+    act("click");                                        // no down event arrived for this press
+  });
+}
+
 function show(id, visible) {
   $(id).hidden = !visible;
 }
@@ -1040,8 +1065,11 @@ onTap($("shotmatch"), () => onShotMatch(null));
 onTap($("color"), () => onColor(null));
 onTap($("colorWhite"), () => onColor("white"));
 onTap($("colorExposure"), () => onColor("exposure"));
-onTap($("exposureDown"), () => onExposureNudge(-0.5), { repeat: true });
-onTap($("exposureUp"), () => onExposureNudge(0.5), { repeat: true });
+onPress($("exposureDown"), () => onExposureNudge(-0.5));
+onPress($("exposureUp"), () => onExposureNudge(0.5));
+// when the panel loses and gets back the keyboard focus, in the log: shows whether Premiere takes it after a write (2026-11-04)
+window.addEventListener("blur", () => engine.log("info", "panel: focus lost"));
+window.addEventListener("focus", () => engine.log("info", "panel: focus back"));
 onTap($("probe"), onProbeAsk);
 
 // ---------------------------------------------------------------- auto import

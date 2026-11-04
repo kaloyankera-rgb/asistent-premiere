@@ -1,4 +1,8 @@
-# Project status — Asistent 0.9.90 (2026-11-04)
+# Project status — Asistent 0.9.91 (2026-11-04)
+
+Exposure ±0.5 act on the mouse press (0.9.91): clicks after a write were taken by Premiere's focus (user's screen recording).
+Not pressed yet; the log now shows focus changes and which event each press came as.
+
 
 Toast (0.9.90): every answer also shows for a few seconds under the header. Preview only; check in Premiere that it appears
 and hides by itself.

@@ -6,6 +6,17 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.91 - Exposure ±0.5 act on the press
+- The user's screen recording (2026-11-04 10:19, Masterhaus fx31028) next to the log: Effect Controls stayed at 0.0 and at 1.0
+  for seconds while the user clicked, and no click reached the panel in that time (no "click" line at all); two quick clicks did.
+  After each write Premiere puts the focus on its own panels, and the next click on Asistent only takes it back. So the Exposure
+  buttons now act when the mouse button goes down (`onPress`: pointerdown / mousedown / click, whichever comes first, once per
+  press; a click within 1 s of its own press is not counted again). The panel logs "focus lost" / "focus back", so the next try
+  shows what Premiere delivers.
+- The morning's three "Exposure 0 → -0.5" presses in a row (10:18:54-10:19:02) read 0 each time: the value read right after
+  a write can be stale. Not changed yet: if it shows again with presses that do arrive, the step will be counted from the value
+  Asistent last wrote.
+
 ## 0.9.90 - The answer as a toast
 - The user, 2026-11-04: "a little pop up message when something is added or removed, somewhere visible but not taking much space,
   so we don't have to look at the bottom". Every answer (`finish()`) now also shows for 3.5 s (a failure 7 s) as a toast under the
