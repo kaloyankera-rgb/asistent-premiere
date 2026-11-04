@@ -6,6 +6,23 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.98 - Every spoken word kept, no scraps, closer English, word fixes learned, search on Enter
+The user's review of 0.9.97 on the ReShape video (2026-11-04).
+- A missing word after a cut: the media between the clips (retakes the editor cut out) was heard too, and the aligner put the
+  clip's own „Затова“ on a retake 1.5 s earlier, outside the clip. That media is now silence for Whisper and the aligner (the
+  context before the first and after the last clip stays: silencing it too lost „Когато“). On the ReShape video the only
+  change is „Затова“ back; the first run of a recording reads it again (about 2 minutes), then the cache serves it.
+- A scrap at a clip's edge that was not heard clearly (the final „На“, the start of a sentence the cut left out) is left out of
+  the lines and listed for review, not shown.
+- An adverb stays with its participle or adjective („Те са / патологично променени“, „просто наднормено тегло“).
+- English: every line is also translated on its own, and its words pull the English cut ("the fat cells / aren't just bigger",
+  "They're / pathologically altered", "Fluid retention / further increases"); plain words for the viewer ("adipose" -> "fat");
+  the words an editor changes in an English line are learned for the client from the first fix ("lipidemia" -> "lipedema"),
+  typing the old word back takes the fix out. About 17 s for the ReShape video's English (was 11). Tried and dropped: choosing
+  among the translator's other sentences by the lines' own words (made other sentences worse), a stronger pull (3-4).
+- The search in the Captions tab runs on Enter or Find, with Clear: filtering while typing hid most lines at the third
+  letter, after which Premiere took the keyboard and the next keys went to the timeline.
+
 ## 0.9.97 - A new pair replaces the old one, lines wait for the cut, phrases stay whole, a better translator, search
 The user's requests after the first learning test (2026-11-04).
 - Apply and rebuild (and Subtitles pressed again) replaces Asistent's own earlier pair: after the new pair is placed, every line

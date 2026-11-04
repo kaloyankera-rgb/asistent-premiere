@@ -1,4 +1,10 @@
-# Project status — Asistent 0.9.97 (2026-11-04)
+# Project status — Asistent 0.9.98 (2026-11-04)
+
+0.9.98 (the user's review of 0.9.97 on the ReShape video): cut-out media between clips is silent for Whisper (restores
+„Затова“), edge scraps left out (the final „На“), adverb + participle kept, English cut by each line's own translation, plain
+words, learned English word fixes, search on Enter. Checked with a full run on the ReShape recording (outside the office
+folder); the panel (search buttons, English word fixes) in the browser preview only. 0.9.97's pair replacement worked in the
+real ReShape project („earlier pair C4, C5, 122 lines removed“).
 
 0.9.97 (the user's requests after the first learning test): a new subtitle pair replaces Asistent's own earlier pair (its lines
 removed in one step; VERIFIED in NEW TEST through the panel's own placement code, 3 presses, plus 13 removals of 60 lines under

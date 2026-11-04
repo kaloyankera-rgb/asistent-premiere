@@ -40,6 +40,12 @@ DANGLING = {"the", "a", "an", "of", "to", "in", "on", "at", "for", "with", "by",
             "does", "did", "were", "been", "had", "just", "also", "even", "more", "most", "less", "really", "such", "some", "any",
             "no", "every", "each", "about", "through", "without", "like", "because", "while", "where", "how", "it's", "they're"}
 SENTENCE_END = re.compile(r"[.?!…]+[»\"')]*$")
+HINT = 2.0                      # attention mass a word gets toward the line whose own translation has it („the fat cells“)
+STOP = {"the", "a", "an", "of", "to", "in", "on", "at", "and", "or", "is", "are", "it", "it's", "that", "this", "with", "by",
+        "for", "be", "as", "but", "not", "just", "so", "they", "we", "you", "he", "she", "i", "its", "their", "our", "your", "from"}
+# plain words for the viewer where the translator picks a specialist's one (the user, 2026-11-04: "fat tissue", not "adipose");
+# the editors' own word fixes are learned per client on top of these (learning.py, english_word)
+PLAIN = {"adipose": "fat"}
 
 _lock = threading.Lock()
 _state: dict = {}
@@ -184,8 +190,45 @@ def split(mass: np.ndarray, en_words: list[str], ends_punct: list[bool], bg_len:
     return cuts[::-1]
 
 
-def _translate_sentence(lines: list[str]) -> list[str]:
-    """One Bulgarian sentence given as its subtitle lines -> one English piece per line."""
+def _core(w: str) -> str:
+    return re.sub(r"[^\w']", "", w.lower())
+
+
+def replace_words(en_words: list[str], M: np.ndarray, fixes: dict) -> tuple[list[str], np.ndarray]:
+    """The English words with every fix applied ({words as translated: as wanted}, one or more words each; case and the
+    punctuation around them kept). A new word takes the attention of the words it replaces, so the cut still follows the
+    Bulgarian lines."""
+    if not fixes:
+        return en_words, M
+    out, rows, i = [], [], 0
+    pats = sorted(((k.split(), v.split()) for k, v in fixes.items()), key=lambda kv: -len(kv[0]))
+    while i < len(en_words):
+        for old, new in pats:
+            n = len(old)
+            if [_core(w) for w in en_words[i:i + n]] == [_core(w) for w in old] and new:
+                lead = re.match(r"^\W*", en_words[i]).group(0)
+                tail = re.search(r"[^\w']*$", en_words[i + n - 1]).group(0)
+                new = list(new)
+                if en_words[i][len(lead):len(lead) + 1].isupper():
+                    new[0] = new[0][:1].upper() + new[0][1:]
+                new[0], new[-1] = lead + new[0], new[-1] + tail
+                out += new
+                rows += [M[i:i + n].mean(axis=0)] * len(new)
+                i += n
+                break
+        else:
+            out.append(en_words[i])
+            rows.append(M[i])
+            i += 1
+    return out, np.asarray(rows)
+
+
+def _translate_sentence(lines: list[str], fixes: dict | None = None) -> list[str]:
+    """One Bulgarian sentence given as its subtitle lines -> one English piece per line.
+
+    Every line is also translated on its own: its words tell which English words belong to it (2026-11-04: "the fat | cells
+    aren't just bigger" became "the fat cells | aren't just bigger"). Choosing among the model's other sentences by these
+    words was tried and dropped: it made other sentences worse."""
     sp, tr = _load()
     words = [line.split() for line in lines]
     src, owner = [], []
@@ -198,6 +241,11 @@ def _translate_sentence(lines: list[str]) -> list[str]:
         return ["" for _ in lines]
     res = tr.translate_batch([src + ["</s>", "bul_Cyrl"]], target_prefix=[["eng_Latn"]], beam_size=4,
                              max_decoding_length=256, return_attention=True)[0]
+    hints = [set() for _ in lines]
+    if len(lines) > 1:
+        own = tr.translate_batch([[p for w in ws for p in sp.encode(w, out_type=str)] + ["</s>", "bul_Cyrl"] for ws in words],
+                                 target_prefix=[["eng_Latn"]] * len(words), beam_size=2, max_decoding_length=64)
+        hints = [{c for c in map(_core, sp.decode(r.hypotheses[0][1:]).split()) if c and c not in STOP} for r in own]
     hyp = res.hypotheses[0]
     hyp = hyp[1:] if hyp and hyp[0] == "eng_Latn" else hyp
     att = np.asarray(res.attention[0], dtype=np.float64)
@@ -219,6 +267,14 @@ def _translate_sentence(lines: list[str]) -> list[str]:
         return ["" for _ in lines]
     M = np.asarray([mass[i] for i in keep])
     M = M / (M.sum(axis=1, keepdims=True) + 1e-12)
+    fixes = {**PLAIN, **(fixes or {})}
+    en_words, M = replace_words(en_words, M, fixes)    # first, so the plain word meets the line's own translation of it
+    hints = [{_core(w) for w in replace_words(sorted(h), np.zeros((len(h), 1)), fixes)[0]} for h in hints]
+    for i, w in enumerate(en_words):                  # a word the line's own translation has leans to that line
+        owners = [j for j, h in enumerate(hints) if _core(w) in h]
+        if 0 < len(owners) < len(lines):
+            M[i, owners] += HINT / len(owners)
+    M = M / (M.sum(axis=1, keepdims=True) + 1e-12)
     cuts = split(M, en_words, [bool(ws) and ws[-1].endswith(PUNCT) for ws in words], [len(ws) for ws in words])
     return [" ".join(en_words[a:b]) for a, b in cuts]
 
@@ -231,16 +287,18 @@ def bare(text: str) -> str:
     return " ".join(BARE.sub("", text).split())
 
 
-def english_lines(lines: list[str]) -> list[str]:
-    """Bulgarian subtitle lines (in order) -> the English line for each, the same number. Line breaks inside a line are spaces."""
+def english_lines(lines: list[str], fixes: dict | None = None) -> list[str]:
+    """Bulgarian subtitle lines (in order) -> the English line for each, the same number. Line breaks inside a line are spaces.
+    fixes: English words the editors changed ({as translated: as wanted}), applied before the sentence is cut."""
     flat = [" ".join(str(t).split()) for t in lines]
     out = [""] * len(flat)
     if any(flat):
         _load()                                        # a newly downloaded model empties the cache of the old one's lines
+    fx = tuple(sorted((fixes or {}).items()))
     for group in sentences(flat):
-        key = tuple(flat[i] for i in group)
+        key = (tuple(flat[i] for i in group), fx)
         if key not in _cache:
-            _cache[key] = _translate_sentence(list(key))
+            _cache[key] = _translate_sentence(list(key[0]), dict(fx))
         for i, en in zip(group, _cache[key]):
             out[i] = en
     return out

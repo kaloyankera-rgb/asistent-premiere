@@ -24,6 +24,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
+import numpy as np
+
 from . import (agreement, align, asr, audiocheck, bgnorm, config, consensus, corrections, dialoguemix, learning, lexicon,
                subtitle_settings, subtitles, suspects, translate)
 from .dialoguemix import ASR_SR, build_mix, read_segment
@@ -36,6 +38,7 @@ MAX_WINDOW = 120.0         # a merged window is not grown past this many seconds
 SECOND_BEAM = 2            # a cheaper decode for the second opinion (beam 5 for the main reading)
 SECOND_PAD = 2.0           # the second opinion on a doubtful piece: that piece alone with this much context
 MIN_OVERLAP = 0.4          # a word belongs to the piece when this much of it lies inside the piece
+EDGE = 0.05                # seconds: a word this close to a clip's edge and not clearly heard is a scrap the cut left
 PRESET_NAMES = ("auto", "short", "standard", "reshape")
 MAX_CHECKS = 24            # learned fixes checked against the sound in one run (about 9 s each on the Mac's processor)
 
@@ -99,6 +102,7 @@ def validate(body: dict) -> dict:
             "width": body.get("width"), "height": body.get("height"), "out_dir": out_dir,
             "name": str(body.get("name") or "sequence"), "terms": terms, "skipped": skipped, "text": text,
             "english": bool(body.get("english")), "english_fixed": _english_fixed(body.get("english_fixed")),
+            "english_words": _english_words(body.get("english_words")),
             "project": body.get("project") if isinstance(body.get("project"), str) else ""}
 
 
@@ -115,6 +119,16 @@ def _english_fixed(raw) -> dict:
                                                                for k, v in raw.items()):
         raise ValueError("Invalid English corrections.")
     return {line_key(k): " ".join(v.split()) for k, v in raw.items() if v.strip()}
+
+
+def _english_words(raw) -> dict:
+    """The words the editor changed in English lines: {as translated: as written} („adipose“ -> „fat“)."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or len(raw) > 500 or not all(isinstance(k, str) and isinstance(v, str) and 0 < len(k) < 100
+                                                              and len(v) < 100 for k, v in raw.items()):
+        raise ValueError("Invalid English word corrections.")
+    return {" ".join(k.lower().split()): " ".join(v.split()) for k, v in raw.items() if k.strip() and v.strip()}
 
 
 def _words_key(audio, prompt: str) -> str:
@@ -179,9 +193,28 @@ def plan_windows(segments: list[dict], pad: float = PAD) -> list[dict]:
     return wins
 
 
+def silence_between(y: np.ndarray, win: dict) -> np.ndarray:
+    """The media between the pieces of a window, which the editor cut out, as silence (5 ms ramps). Whisper and the aligner then
+    hear what the viewer hears: a retake 1.5 s before a clip took the clip's own „Затова“ (ReShape, 2026-11-04). The context
+    before the first and after the last piece stays: silencing it too lost „Когато“ at a clip start on the same recording."""
+    pieces = sorted(win["pieces"], key=lambda s: s["start"])
+    at = lambda t: min(len(y), max(0, int(round((t - win["a"]) * ASR_SR))))
+    keep = np.zeros(len(y), dtype=np.float32)
+    keep[:at(pieces[0]["start"])] = 1.0
+    keep[at(pieces[-1]["end"]):] = 1.0
+    for sg in pieces:
+        keep[at(sg["start"]):at(sg["end"])] = 1.0
+    if keep.all():
+        return y
+    ramp = int(0.005 * ASR_SR)
+    keep = np.convolve(np.pad(keep, ramp, mode="edge"), np.ones(2 * ramp + 1, dtype=np.float32) / (2 * ramp + 1), mode="valid")
+    return (y * keep).astype(np.float32)
+
+
 def read_window(win: dict, prompt: str, progress, cancelled) -> dict:
     """One Whisper reading of a window (cached by its audio + prompt) -> {"y", "key", "entry", "cached"}."""
     y, _ = read_segment({"path": win["path"], "start": win["a"], "end": win["b"]}, 0.0)
+    y = silence_between(y, win)
     key = _words_key(y, prompt)
     entry = _cached(key) or {}
     cached = "words" in entry
@@ -405,11 +438,19 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
                 checked[i]["p"] = min(checked[i].get("p", 1.0), consensus.UNSURE_P)
                 votes["unsure"] += 1
                 disputes.append({"at": round(sg["at"] + checked[i]["start"], 2), "word": checked[i]["word"], "reason": reason})
+        kept = []
         for w in checked:
+            if w.get("unheard") and (w["start"] <= EDGE or w["end"] >= hi - lo - EDGE):
+                # the clip's edge cuts a word that was not heard clearly: a scrap of the next sentence („На“ at the end of the
+                # ReShape video), not a line to show
+                disputes.append({"at": round(sg["at"] + w["start"], 2), "word": w["word"], "reason": "cut off by the edge of the clip: left out"})
+                continue
             if w.get("unheard"):
                 w["p"] = min(w.get("p", 1.0), consensus.UNSURE_P)
                 votes["unsure"] += 1
                 disputes.append({"at": round(sg["at"] + w["start"], 2), "word": w["word"], "reason": "not clearly audible (quiet noise)"})
+            kept.append(w)
+        checked = kept
         changed += votes["changed"]
         unsure += votes["unsure"]
         changes += votes["changes"]
@@ -533,7 +574,9 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         if translate.available():
             progress(0.97, "Translating into English…")
             # from the words as spoken, with their punctuation: a "bare" preset shows none, but the sentences are found by it
-            english = translate.english_lines([" ".join(w["word"] for w in c["words"]) for c in captions])
+            # the editors' word fixes for this client, then this project's own (plain words first: translate.PLAIN)
+            en_words = {**(learned.plan.english_words if learned else {}), **p["english_words"]}
+            english = translate.english_lines([" ".join(w["word"] for w in c["words"]) for c in captions], en_words)
             if subtitles.PRESETS[preset].get("bare"):
                 english = [translate.bare(e) for e in english]
             # the editor's own English (Captions tab) wins wherever its Bulgarian line is still the same; then what the
@@ -575,7 +618,8 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
              aligned, weak, f", {align_error}" if align_error else "", asr_s, " (cached)" if cached else "",
              time.time() - t0, preset, stem + ".srt")
     if learned:                                            # in the background: the editor does not wait for the server
-        learning.record(learned.plan, learned.contexts, parsed["terms"], p["english_fixed"], used=learned.used)
+        learning.record(learned.plan, learned.contexts, parsed["terms"], p["english_fixed"], used=learned.used,
+                        english_words=p["english_words"])
         log.info("learning: %s, %d learned fixes active, %d used, %d refused by the sound", learned.plan.client or "this computer",
                  len(learned.plan.rules), len(learned.used), len(learned.vetoed))
     progress(1.0, "Done")

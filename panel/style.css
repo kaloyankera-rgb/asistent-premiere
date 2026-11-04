@@ -176,6 +176,7 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .capline { display: flex; flex-direction: row; align-items: center; margin-top: 4px; }
 .capsearch { display: flex; flex-direction: row; align-items: center; margin-top: 8px; }
 .capsearch input { flex: 1; min-width: 0; font-size: 12px; }
+.capsearch .btn { flex-shrink: 0; margin-left: 6px; }
 .capsearch .muted { flex-shrink: 0; margin-left: 8px; font-size: 11px; }
 .capline .t { width: 44px; flex-shrink: 0; font-size: 10px; color: var(--text-2); }
 .capline input { flex: 1; min-width: 0; font-size: 12px; }

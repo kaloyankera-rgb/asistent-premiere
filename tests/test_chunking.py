@@ -63,3 +63,28 @@ def test_may_and_its_da_stay_together():
 def test_without_the_dictionary_nothing_is_bonded(monkeypatch):
     monkeypatch.setattr(lexicon, "known", lambda w: None)
     assert agreement.bond("хронично", "заболяване") is False
+
+
+@need_dict
+@pytest.mark.parametrize("a, n, together", [
+    ("патологично", "променени", True), ("наднормено", "тегло", True), ("бързо", "отиде", False), ("просто", "като", False),
+])
+def test_an_adverb_stays_with_the_word_it_describes(a, n, together):
+    assert agreement.bond(a, n) is together
+
+
+# ---------------------------------------------------------------- what Whisper hears (0.9.98)
+
+def test_the_media_cut_out_between_clips_is_silent_and_the_rest_untouched():
+    import numpy as np
+    from asistent import subtitle_job as J
+    sr = J.ASR_SR
+    y = np.ones(10 * sr, dtype=np.float32)
+    win = {"a": 0.0, "pieces": [{"start": 1.0, "end": 3.0}, {"start": 6.0, "end": 8.0}]}
+    out = J.silence_between(y, win)
+    assert out[int(4.5 * sr)] == 0.0                                     # the retake between the clips
+    assert out[int(0.5 * sr)] == 1.0 and out[int(9.5 * sr)] == 1.0       # context before the first and after the last clip
+    assert out[int(2.0 * sr)] == 1.0 and out[int(7.0 * sr)] == 1.0
+    assert out[0] == 1.0 and out[-1] == 1.0
+    one = {"a": 0.0, "pieces": [{"start": 1.0, "end": 3.0}]}
+    assert J.silence_between(y, one) is y

@@ -114,3 +114,17 @@ def L_office(tmp_path, monkeypatch):
     words = []
     monkeypatch.setattr(asr, "transcribe", lambda audio, prompt, *a, **k: [dict(w) for w in words])
     return office, {"words": words}
+
+
+def test_a_scrap_at_the_clips_edge_that_was_not_heard_is_left_out(L_office, tmp_path, monkeypatch):
+    """0.9.98: „На“ at the very end of the ReShape video was the start of a sentence the cut left out (p 0, not heard)."""
+    _, job = L_office
+    job["words"][:] = W("Когато тялото ни показва сигнали.", 0.3) + [{"word": "На", "start": 3.93, "end": 4.0, "p": 0.0},
+                                                                     {"word": "още", "start": 2.5, "end": 2.7, "p": 0.1}]
+    job["words"].sort(key=lambda w: w["start"])
+    mark = lambda y, ws, sr=16000: ([dict(w, unheard=w["word"] in ("На", "още")) for w in ws], [])
+    monkeypatch.setattr(T.align, "unheard", mark)
+    res = T.subtitle_job.run(T.body(tmp_path), lambda f, m: None, lambda: False)
+    text = " ".join(c["text"] for c in res["captions"])
+    assert "На" not in text.split() and "още" in text                   # inside the clip it stays, only marked
+    assert any(r["word"] == "На" and "cut off by the edge" in r["reason"] for r in res["review"])

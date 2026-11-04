@@ -313,3 +313,14 @@ def test_the_measurement_report_counts_uses_and_reverts(office, monkeypatch, cap
     assert measure.report(p1) == 0
     out = capsys.readouterr().out
     assert "ReShape: 1 learned fixes" in out and "No learned fix has been used yet." in out
+
+
+def test_english_word_fixes_count_for_the_whole_client_at_once_and_go_when_typed_back(office, monkeypatch):
+    p1, p2 = project(office, "ReShape", "Видео 1"), project(office, "ReShape", "Видео 2")
+    as_computer(monkeypatch, "aaaaaaaaaaaa")
+    learning.record(learning.plan_for(p1), [], english_words={"lipidemia": "lipedema", "adipose": "fat"}, background=False)
+    learning.reset()
+    assert learning.plan_for(p2).english_words == {"lipidemia": "lipedema", "adipose": "fat"}
+    learning.record(learning.plan_for(p2), [], english_words={"lipedema": "lipidemia"}, background=False)
+    learning.reset()
+    assert learning.plan_for(p1).english_words == {"adipose": "fat"}

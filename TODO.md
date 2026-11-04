@@ -67,8 +67,11 @@ UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips
 - [ ] 0.9.97 in a real project: Apply and rebuild replaces the old pair (old tracks emptied, one Undo brings them back), lines
   after a cut start on the cut, the search box, the English line from 1.3B. On each office computer: press Download the
   translator (1.4 GB) once.
-- [ ] English: 1.3B writes "lipidemia" for липедема; editors' English fixes are learned per whole line only. A word-level
-  English fix (learned per client, applied before the line is cut) would carry "lipedema" to the next videos.
+- [x] English word fixes learned per client (0.9.98): fix "lipidemia" -> "lipedema" once in an English line. In Premiere:
+  check a second ReShape project gets it. A fix of a common word ("forming" -> "and form") applies to every video of the
+  client: the editor types it back if that is wrong somewhere.
+- [ ] English cuts the Bulgarian lines cannot match when the English word order differs ("in fat / tissue", "chronic fatty /
+  tissue disease"): the editor fixes those lines.
 - [ ] Apply and rebuild stops with "Select the audio clips" when nothing is selected (the user hit it 2026-11-04): reuse the
   clips of the last run.
 - [ ] Windows: open a ReShape project from the server on the PC, run subtitles once, check the PC's events file appears.

@@ -256,3 +256,17 @@ emptied tracks stay and the panel says so. Hiding the old tracks (`CaptionTrack.
   start (context) made both models return nothing for most sentences, so every sentence is still translated alone. 1.3B writes
   "lipidemia" for липедема; an editor's English fix is remembered per line (learning).
 
+## 2026-11-04: Whisper hears the edit between clips; English cut by each line's own translation (0.9.98)
+- **Silence between clips, context kept outside.** Compared on the ReShape recording: as before / the media between the clips
+  silent / everything outside the clips silent. Silencing between the clips changed one thing (the lost „Затова“ back);
+  silencing all lost „Когато“ at a clip start and wrote „лимфният“. So only the media between the clips of one window is
+  silent (5 ms ramps); the context before the first and after the last clip stays (read_segment's note: Whisper needs it).
+- **Edge scraps.** A word the clip edge cuts and the "unheard" check flags is left out and listed, not shown. A clear word at
+  the edge stays (the clip may start a few frames into a word, as with „Затова“).
+- **English hints, not reranking.** Each line translated alone (beam 2) gives the words that belong to it; they add 2.0 of
+  attention toward their line before the cut. Picking among the 4 best sentences by those words gave "and form" once but broke
+  others ("It's | a chronic | disease of adipose tissue"), so the first sentence is always used. Word order the lines cannot
+  follow stays for the editor.
+- **English word fixes are client-wide at once** (like name lines, not like Bulgarian word fixes, which wait for 2 projects):
+  they change only the English line, which the editor reads anyway, and typing the old word back takes one out.
+

@@ -552,6 +552,24 @@ function englishFixed(projectPath) {
   }
 }
 
+// The words the editor changed in English lines, per project on this computer: {as translated (lower case): as written}. Sent
+// with every run; the engine applies them before cutting the English sentence and learns them for the client (0.9.98).
+function englishWords(projectPath) {
+  try {
+    return JSON.parse(localStorage.getItem(`asistent.englishWords.${projectPath}`) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveEnglishWords(projectPath, map) {
+  try {
+    localStorage.setItem(`asistent.englishWords.${projectPath}`, JSON.stringify(map));
+  } catch (e) {
+    /* no storage: the line itself is still kept (englishFixed) */
+  }
+}
+
 function saveEnglishFixed(projectPath, map) {
   try {
     localStorage.setItem(`asistent.englishFixed.${projectPath}`, JSON.stringify(map));
@@ -596,10 +614,15 @@ function renderCaptionEditor(result) {
   filterCaptions();
 }
 
-// The search above the lines (0.9.97): only the lines whose Bulgarian or English text holds what is typed stay visible, with
-// their English line under them. Hidden lines keep what was typed in them, so Apply still sees every change.
+// The search above the lines (0.9.97): only the lines whose Bulgarian or English text holds the word stay visible, with their
+// English line under them. Hidden lines keep what was typed in them, so Apply still sees every change. 0.9.98: it runs on Enter
+// or Find only. Filtering while typing hid most lines at the third letter and Premiere took the keyboard back: the next keys
+// went to the timeline (the user, 2026-11-04).
+const search = { applied: "" };
+
 function filterCaptions() {
-  const q = $("captionSearch").value.trim().toLowerCase();
+  const q = search.applied;
+  show("captionClear", !!q);
   let shown = 0;
   captionEdit.inputs.forEach((input, i) => {
     const en = captionEdit.enInputs[i];
@@ -703,6 +726,14 @@ async function onCaptionApply() {
     const map = englishFixed(project.path);
     for (const [en, i] of enChanged) map[lineKey(edited[i])] = en.value.trim();
     saveEnglishFixed(project.path, map);
+    const words = englishWords(project.path);
+    for (const [en] of enChanged) {
+      for (const p of captionedit.pairsFor(en.getAttribute("data-original"), en.value)) {
+        if (words[p.said.toLowerCase()] && words[p.said.toLowerCase()].toLowerCase() === p.heard.toLowerCase()) delete words[p.said.toLowerCase()];
+        else words[p.heard.toLowerCase()] = p.said;
+      }
+    }
+    saveEnglishWords(project.path, words);
   }
   if (pairs.length) $("notes").value = captionedit.addToNotes($("notes").value, pairs);
   const said = [];
@@ -737,6 +768,7 @@ async function onSubtitles(opts = {}) {
     payload.english = $("subtitleEnglish").checked;                          // the English line under every Bulgarian line
     payload.preset = $("subtitleStyle").value;                               // auto, or a client's own style
     payload.english_fixed = englishFixed(project.path);                      // English lines typed in the Captions tab
+    payload.english_words = englishWords(project.path);                      // and the words changed in them (learned per client)
     payload.project = project.path;                                          // finds the client's learning folder (learning.py)
     engine.log("info", `subtitles: ${plan.use.length} clips, ${plan.skipped.length} skipped`);
     const { job } = await engine.startSubtitles(payload);
@@ -1303,7 +1335,18 @@ onTap($("sync"), onSync);
 onTap($("audio"), () => onAudio(null));
 onTap($("subtitles"), () => onSubtitles());
 onTap($("captionApply"), onCaptionApply);
-$("captionSearch").addEventListener("input", filterCaptions);
+function runSearch() {
+  search.applied = $("captionSearch").value.trim().toLowerCase();
+  filterCaptions();
+}
+$("captionSearch").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") runSearch();
+});
+onTap($("captionFind"), runSearch);
+onTap($("captionClear"), () => {
+  $("captionSearch").value = "";
+  runSearch();
+});
 onTap($("learnedHead"), () => {
   learnedView.open = !learnedView.open;
   if (learnedView.path) loadLearned(learnedView.path);
@@ -1387,5 +1430,5 @@ setInterval(() => {
 
 // browser preview only (preview/boot.js sets this; inside Premiere it never exists): sample results fill the views
 if (typeof window !== "undefined" && typeof window.__asistentPreview === "function") {
-  window.__asistentPreview({ finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab, renderSpeakers, renderLearned, learnedView, filterCaptions });
+  window.__asistentPreview({ finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab, renderSpeakers, renderLearned, learnedView, filterCaptions, runSearch });
 }
