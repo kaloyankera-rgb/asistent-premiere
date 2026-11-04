@@ -6,6 +6,26 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.10.2 - Faster subtitles; English words written in English
+The user, 2026-11-04: subtitles are slow; and an English word a Bulgarian speaker says should be written in English
+(„Бюти сектор“ = "Beauty Sector", „спей се“ = "Space").
+- **Speed** (cold runs, nothing cached, measured on the M4 Max): ReShape (72 s of speech in one window, learned fixes)
+  256 -> 130 s; Beauty Sector (31 s, two windows) 89 -> 53 s. Where the time went: one Whisper reading at a time inside a
+  window, the second opinions one after another (96 s), the sound checks of learned fixes one after another (51 s, ~10 s each),
+  the English sentences one after another. Now the second opinions of a window and the sound checks run at the same time, the
+  translator takes three sentences at once and loads while Whisper reads, and Whisper runs 3 readings x 4 threads instead of
+  5 x 2 (one long window reads 32 % faster; the thread count does not change the words). The subtitles are byte-identical
+  to before on ReShape (Bulgarian and English SRT); only the order of the learned-fix list in the report changed (now sorted).
+- **English words in English** (`english.py`, a writing rule after the aligner, listed in the edits as `english`): a Cyrillic
+  word that is not Bulgarian, not a Bulgarian word with its ending swallowed, 4+ letters, and the usual Cyrillic spelling of a
+  common English word is written in English („уоркшоп“ -> workshop, „имейл“ -> email, „окей“ -> okay), and the English words
+  right after it too („бюти сектор“ -> Beauty Sector, capitals for a name of two or more words); „спей се“ (Whisper splitting
+  a final s) -> Space. A Latin name in the names box is written exactly as given. Bulgarian loans spelled the Bulgarian way
+  stay („дискомфорт“, „маркетинг“, „фитнес“). The data: `models/english_bg.json.gz` (381 KB, from CMUdict, BSD, see
+  LICENSES.md; `scripts/build_english_index.py`). On all 16 earlier runs on this Mac (1345 words) it changed only бюти,
+  сектор, спей се, уоркшоп. An English name is not split across two lines. The English line improves too ("shop we" ->
+  "Space we").
+
 ## 0.10.1 - Exposure ±0.5 also works in a Lumetri you set yourself
 The user, 2026-11-04 (MASTERHAUS fx31028, a Lumetri with Exposure, Tint and Saturation set by hand: "Nothing changed"):
 Exposure −0.5 / +0.5 now move Exposure in the editor's own Lumetri too. Only Exposure changes; Tint, Saturation and every other

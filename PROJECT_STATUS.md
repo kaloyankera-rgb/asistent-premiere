@@ -1,4 +1,8 @@
-# Project status — Asistent 0.10.1 (2026-11-04)
+# Project status — Asistent 0.10.2 (2026-11-04)
+
+0.10.2: subtitles about 1.7x faster on a first run (ReShape 256 -> 130 s, Beauty Sector 89 -> 53 s, cold, same output on
+ReShape) and English words written in English (Beauty Sector, Space, workshop). Measured on saved jobs outside Premiere (a copy
+of the ReShape learning folder, nothing written to the office); not yet run from the panel.
 
 0.10.1: Exposure ±0.5 moves only Exposure in a hand-set Lumetri too (not recorded as Asistent's; keyframed Exposure left
 alone); tests with a fake Lumetri; not yet pressed in Premiere. 0.10.0's selection fix seen working in the user's MASTERHAUS

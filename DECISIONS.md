@@ -283,3 +283,15 @@ The user pressed +0.5 on a clip whose Lumetri they had set by hand and nothing h
 as typing into the slider, so it now changes Exposure there too; nothing else in that Lumetri, never a keyframed Exposure, and
 the Lumetri is not recorded as Asistent's, so the measuring buttons (Auto color, White balance, Exposure, Match POVs) still never
 touch a hand grade. The user asked for ±0.5 only "for now".
+
+## 2026-11-04: English words a Bulgarian speaker says are written in English (0.10.2)
+The user asked for it („Бюти сектор“ = "Beauty Sector"). It is a writing rule (the same said word, another spelling), so it
+fits the guide's rule that a word is never rewritten on a hunch. Precision before reach: only common English words (one
+Whisper token), only the usual Cyrillic spelling of their sound, never a Bulgarian word or one with its ending swallowed
+(„работ“), so Bulgarian loans spelled the Bulgarian way stay Cyrillic. Rejected: any word one letter from a Bulgarian word
+(blocked „бюти“, „бранд“), a pronunciation model (download, slower), asking Whisper again in English (a 30 s window per word).
+
+## 2026-11-04: subtitle speed changes keep the output identical (0.10.2)
+Only changes that give the same subtitles were made (checked byte for byte on a cold ReShape run): running independent work at
+the same time and more threads per reading (2, 4 and 8 threads read identical words). Splitting one long window into parallel
+pieces or Whisper on the Apple GPU (MLX) would be faster still but change the words; they wait for the user's choice.

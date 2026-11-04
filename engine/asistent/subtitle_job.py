@@ -26,7 +26,7 @@ from typing import Callable
 
 import numpy as np
 
-from . import (agreement, align, asr, audiocheck, bgnorm, config, consensus, corrections, dialoguemix, learning, lexicon,
+from . import (agreement, align, asr, audiocheck, bgnorm, config, consensus, corrections, dialoguemix, english, learning, lexicon,
                subtitle_settings, subtitles, suspects, translate)
 from .dialoguemix import ASR_SR, build_mix, read_segment
 from .sync import Cancelled
@@ -285,6 +285,38 @@ class Learned:
             self.contexts.append({"heard": pair[0], "said": pair[1], "left": left, "right": right, "example": example})
         return True
 
+    def prefetch(self, y, entry, key, words) -> None:
+        """The sound checks `accept` will ask for in these words, all at the same time (about 10 s each on the Mac's processor,
+        one after another before 0.10.2). Stored where `accept` looks first, so what it decides does not change."""
+        checks = entry.setdefault("checks", {})
+        todo = []
+
+        def found(ws, i, n, k):
+            rule = self.plan.rules[k]
+            mark = f"{round(ws[i]['start'], 2)}|{rule.key}"
+            if mark not in checks and self.plan.context_ok(ws, i, n, k) and all(t[0] != mark for t in todo):
+                todo.append((mark, i, n, rule.said))
+            return False
+        corrections.apply(words, self.plan.pairs, _variants, found)
+        with self.lock:
+            todo = todo[:max(0, MAX_CHECKS - self.checks)]
+            self.checks += len(todo)
+        if not todo:
+            return
+
+        def one(t):
+            try:
+                return round(audiocheck.margin(y, words, t[1], t[2], t[3]), 2)
+            except Exception as e:                             # noqa: BLE001 - no check, no learned fix
+                log.warning("learning: sound check failed: %s", e)
+                return None
+        with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(todo)))) as pool:
+            margins = list(pool.map(one, todo))
+        for (mark, *_), m in zip(todo, margins):
+            if m is not None:
+                checks[mark] = m
+        _store(key, entry)
+
     def accept(self, y, entry, key, words, i, n, k) -> bool:
         rule = self.plan.rules[k]
         if not self.plan.context_ok(words, i, n, k):
@@ -310,14 +342,17 @@ class Learned:
         return audiocheck.fits(m)
 
 
-def _aligned(y, entry_words: list[dict], entry: dict, key: str, spoken: dict, pairs, learned=None) -> tuple[list[dict], dict]:
+def _aligned(y, entry_words: list[dict], entry: dict, key: str, spoken: dict, pairs, learned=None, names=()) -> tuple[list[dict], dict]:
     """Writing rules, the editor's corrections, learned fixes, then alignment (cached per corrected text), then out of
-    silence -> (words, info). The writing rules come first: the editor writes corrections from what the captions show."""
+    silence, then English words written in English -> (words, info). The writing rules come first: the editor writes
+    corrections from what the captions show. English comes after the aligner: the Cyrillic spelling is what was heard, so it
+    is what the sound is matched to, and the dictionary checks after this leave Latin words alone."""
     info = {"aligned": 0, "weak": 0}
     words, info["norms"] = bgnorm.apply(entry_words)
     saw = (lambda ws, i, n, k: learned.saw(pairs[k], ws, i, n)) if learned else None
     words, info["applied"] = corrections.apply(words, pairs, _variants, saw)
     if learned and learned.plan.pairs:
+        learned.prefetch(y, entry, key, words)
         words, _ = corrections.apply(words, learned.plan.pairs, _variants,
                                      lambda ws, i, n, k: learned.accept(y, entry, key, ws, i, n, k))
     if align.available():
@@ -334,10 +369,11 @@ def _aligned(y, entry_words: list[dict], entry: dict, key: str, spoken: dict, pa
     words, info["trimmed"] = align.trim_silence(y, words)           # a word is not spoken in silence
     words, info["unheard"] = align.unheard(y, words)                # and a word with no speech under it is only marked
     info["gaps"] = align.uncovered_speech(y, words)                 # speech-like sound that has no word
+    words, info["english"] = english.apply(words, names)            # „бюти сектор“ -> "Beauty Sector" (english.py)
     return words, info
 
 
-def _second_opinion(sg: dict, prompt: str, spoken: dict, pairs, progress, cancelled, learned=None) -> list[dict]:
+def _second_opinion(sg: dict, prompt: str, spoken: dict, pairs, progress, cancelled, learned=None, names=()) -> list[dict]:
     """The piece alone with SECOND_PAD seconds of context -> its words, in seconds from the start of the piece."""
     seg = {"path": sg["path"], "start": sg["start"], "end": sg["end"]}
     y, lead = read_segment(seg, SECOND_PAD)
@@ -346,7 +382,7 @@ def _second_opinion(sg: dict, prompt: str, spoken: dict, pairs, progress, cancel
     if "words" not in entry:
         entry = {"words": asr.transcribe(y, prompt or None, progress, cancelled, beam=SECOND_BEAM)}
         _store(key, entry)
-    words, _ = _aligned(y, entry["words"], entry, key, spoken, pairs, learned)
+    words, _ = _aligned(y, entry["words"], entry, key, spoken, pairs, learned, names)
     dur = sg["end"] - sg["start"]
     return _clamp([dict(w, start=w["start"] - lead, end=w["end"] - lead) for w in words if _inside(w, lead, lead + dur)], dur)
 
@@ -384,7 +420,7 @@ def _speaker_forms(checked: list[dict], gender: str, y, lo: float, entry: dict, 
 
 
 def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(), prompt="", progress=None, cancelled=None,
-                 learned=None, speakers=None) -> tuple[list[dict], dict]:
+                 learned=None, speakers=None, names=()) -> tuple[list[dict], dict]:
     """Words of every piece in a window, in SEQUENCE seconds, plus {"cached", "aligned", "weak", "align_error"?, "changed",
     "unsure", "changes", "applied", "trimmed", "second": [(sequence second, "A"|"B")]}.
 
@@ -395,7 +431,7 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
     progress = progress or (lambda f, m: None)
     cancelled = cancelled or (lambda: False)
     y, key, entry = read["y"], read["key"], read["entry"]
-    words, info = _aligned(y, entry["words"], entry, key, spoken, pairs, learned)
+    words, info = _aligned(y, entry["words"], entry, key, spoken, pairs, learned, names)
     info["cached"] = read["cached"]
     repair = lambda w, doubt=True: lexicon.repair(w, doubt, vocab)
     out: list[dict] = []
@@ -405,7 +441,23 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
     disputes: list = []
     verbatim: list = []
     speaker_changes: list = []
-    for sg in win["pieces"]:
+    # the pieces that still hold unknown words get a second opinion; those readings are independent, so they run at the same
+    # time (asr.workers() at once) instead of one after another: 96 s -> about 30 s on a 6-piece ReShape window, same words
+    first = {}
+    for k, sg in enumerate(win["pieces"]):
+        lo = sg["start"] - win["a"]
+        hi = lo + (sg["end"] - sg["start"])
+        mine = _clamp([dict(w, start=w["start"] - lo, end=w["end"] - lo) for w in words if _inside(w, lo, hi)], hi - lo)
+        first[k] = consensus.merge(mine, [], lexicon.known, repair)
+    need = [k for k, (checked, _) in first.items() if _unknown(checked) or agreement.forms(checked)]
+    alts = {}
+    if need:
+        with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(need)))) as pool:
+            futures = {k: pool.submit(_second_opinion, win["pieces"][k], prompt, spoken, pairs, progress, cancelled, learned, names)
+                       for k in need}
+            for k, f in futures.items():
+                alts[k] = f.result()
+    for k, sg in enumerate(win["pieces"]):
         lo = sg["start"] - win["a"]
         hi = lo + (sg["end"] - sg["start"])
         for a, b in info["gaps"]:                                  # voiced sound without a word, inside this piece
@@ -415,12 +467,10 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
                                  "reason": "speech without a word (a word may be missing, or it is breathing)"})
         verbatim += [{"word": w["word"], "start": round(sg["at"] + w["start"] - lo, 3), "end": round(sg["at"] + w["end"] - lo, 3), "p": w.get("p")}
                      for w in entry["words"] if _inside(w, lo, hi)]                    # what Whisper wrote, untouched
-        mine = _clamp([dict(w, start=w["start"] - lo, end=w["end"] - lo) for w in words if _inside(w, lo, hi)], hi - lo)
-        checked, votes = consensus.merge(mine, [], lexicon.known, repair)
+        checked, votes = first[k]
         gender = (speakers or {}).get(str(sg.get("track", "")))           # who speaks on this piece's track, if set
-        if _unknown(checked) or agreement.forms(checked):
-            alt = _second_opinion(sg, prompt, spoken, pairs, progress, cancelled, learned)
-            alt_checked, alt_votes = consensus.merge(alt, [], lexicon.known, repair)
+        if k in alts:
+            alt_checked, alt_votes = consensus.merge(alts[k], [], lexicon.known, repair)
             better = _doubts(alt_checked) < _doubts(checked)
             second.append((round(sg["at"], 1), "B" if better else "A"))
             other = checked if better else alt_checked
@@ -469,9 +519,18 @@ def _file_stem(name: str) -> str:
     return f"{stem[:60]} {time.strftime('%Y-%m-%d %H-%M-%S')}"
 
 
+def _warm_translator() -> None:
+    try:
+        translate._load()
+    except Exception as e:                                 # noqa: BLE001 - the English step reports its own error later
+        log.warning("translator preload failed: %s", e)
+
+
 def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[[], bool]) -> dict:
     p = validate(body)
     t0 = time.time()
+    if p["english"] and translate.available():            # the translator loads while Whisper reads (it is needed at the end)
+        threading.Thread(target=_warm_translator, name="translator-load", daemon=True).start()
     mix = build_mix(p["items"], lambda f, m: progress(0.1 * f, m), cancelled)
     segments = mix["segments"]
     parsed = corrections.parse(p["text"])
@@ -481,7 +540,8 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
             learned = Learned(learning.plan_for(p["project"], parsed["pairs"]))
         except Exception as e:                             # noqa: BLE001
             log.warning("learning: not available for this run: %s", e)
-    prompt = subtitles.initial_prompt(p["terms"] + parsed["terms"] + (learned.plan.terms if learned else []))
+    names = p["terms"] + parsed["terms"] + (learned.plan.terms if learned else [])
+    prompt = subtitles.initial_prompt(names)
     # who speaks on which microphone track: the project's own choice, else the client's last one (Captions tab)
     speakers = {**(learned.plan.speakers if learned else {}), **subtitle_settings.get(p["project"]).get("speakers", {})} if p["project"] else {}
     wins = plan_windows(segments)
@@ -496,6 +556,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     applied = [0] * len(parsed["pairs"])
     align_error = None
     norms: list = []
+    english_words: list = []
     speaker_changes: list = []
     t_asr = time.time()
     shares = [(w["b"] - w["a"]) / total for w in wins]
@@ -522,7 +583,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     vocab = vocabulary(reads, [t for _, b in parsed["pairs"] for t in b.split()])
     def finish_one(i: int):
         return window_words(wins[i], reads[i], p["spoken"], parsed["pairs"], vocab, prompt, lambda f, m: None, cancelled, learned,
-                            speakers)
+                            speakers, names)
     progress(0.86, "Aligning the words to the sound…")
     with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(wins)))) as pool:   # pass 2: corrections, alignment, spelling
         futures = [pool.submit(finish_one, i) for i in range(len(wins))]
@@ -544,6 +605,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         changes += info["changes"]
         applied = [a + b for a, b in zip(applied, info["applied"])]
         norms += info["norms"]
+        english_words += info["english"]
         speaker_changes += info["speaker"]
         align_error = align_error or info.get("align_error")
     asr_s = time.time() - t_asr
@@ -588,6 +650,9 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
             english_note = "The English line needs the translator (models/nllb-600m-int8 and the sentencepiece package): see README."
     flagged = sum(len(c["flags"]) for c in captions)
     timing = "aligned" if aligned else "whisper"
+    if learned:                                            # second opinions finish in any order: the report is the same every run
+        for lst in (learned.used, learned.vetoed):
+            lst.sort(key=lambda u: (u["key"], u["heard"], u["margin"]))
     result = {
         "srt": stem + ".srt", "json": stem + ".json", "preset": preset, "fps": subtitles.exact_fps(p["fps"]),
         "captions": [{"start": c["start"], "end": c["end"], "text": c["text"], "flags": c["flags"],
@@ -607,7 +672,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     }
     with open(stem + ".json", "w", encoding="utf-8") as f:
         # the verbatim layer (what Whisper wrote) is never edited; every change to it is listed in `edits`
-        edits = {"corrections": result["corrections"], "writing": norms, "speaker_forms": speaker_changes, "spelling": changes, "commas": tidy["commas"],
+        edits = {"corrections": result["corrections"], "writing": norms, "english": english_words, "speaker_forms": speaker_changes, "spelling": changes, "commas": tidy["commas"],
                  "joined_tokens": tidy["joined"], "second_opinions": second, "review": review,
                  "learned": learned.used if learned else [], "learned_refused": learned.vetoed if learned else []}
         json.dump({**result, "words": words, "verbatim": sorted(verbatim, key=lambda w: w["start"]), "edits": edits,
