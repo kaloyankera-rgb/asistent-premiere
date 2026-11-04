@@ -6,6 +6,13 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.10.1 - Exposure ±0.5 also works in a Lumetri you set yourself
+The user, 2026-11-04 (MASTERHAUS fx31028, a Lumetri with Exposure, Tint and Saturation set by hand: "Nothing changed"):
+Exposure −0.5 / +0.5 now move Exposure in the editor's own Lumetri too. Only Exposure changes; Tint, Saturation and every other
+slider stay as they were. That Lumetri is not recorded as Asistent's, so Auto color, White balance, Exposure and Match POVs
+still never touch it. A keyframed Exposure is left alone (said in the details). Only these two buttons; one Cmd/Ctrl+Z undoes
+a press. 0.10.0's selection fix is confirmed in the log of that press ("1 selected parts: V1 fx31028.MP4").
+
 ## 0.10.0 - A selected clip no longer selects the clips with the same cut on other tracks
 The user, 2026-11-04 (MASTERHAUS, two POVs after Sync): Auto color on the POV on V1, with the POV on V2 switched off, corrected
 the V2 clip instead. The panel matched Premiere's selection to the timeline clips by kind, start and end only; after Sync every

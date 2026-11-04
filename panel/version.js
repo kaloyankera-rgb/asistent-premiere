@@ -1,2 +1,2 @@
 // written by scripts/package_ccx.sh
-module.exports = "0.10.0";
+module.exports = "0.10.1";
