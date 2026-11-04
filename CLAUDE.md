@@ -32,6 +32,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `asr.py` speech recognition (faster-whisper large-v3 from `<app>/models/whisper`, local only, never downloads by itself; optional `requirements-asr.txt`)
   - `subtitles.py` Phase 7 text core: captions from timed words (Bulgarian spelling `bgtext.py`, phrase grouping for 9:16, frame snap, no blink, SRT with BOM)
   - `subtitle_job.py` + `dialoguemix.py` the `/subtitles` job: cleanest microphone per speech, per-piece recognition (3 readings), `align.py`/`align_worker.py` optional MMS_FA alignment in `venv-align`, `consensus.py` + `lexicon.py` word votes with the Bulgarian dictionary, `corrections.py` the editor's `чуто => казано` lines (applied before the alignment), `subtitle_settings.py` per-project choices; `scripts/check_subtitles.py` checks a run against the audio
+  - `learning.py` (the editors' fixes recorded per project into the client's "… Subtitle Learning" office folder, used in the next
+    videos by confirmations and context), `audiocheck.py` (Whisper scores the heard and the fixed words: a learned fix that fits
+    clearly worse is not used), `bgnorm.py` (Bulgarian writing rules: не знам, по-/най-, full/short article)
   - `hostbridge.py` + `captionstate.py` the channel to the Asistent host (below) and the memory of which caption track Asistent placed
   - `devbridge.py` test bridge: the panel runs commands from the engine (`scripts/dev_cmd.py`), only in TEST.prproj / NEW TEST.prproj, off without the flag file `devbridge.enabled`; `select` can select clips (26.0.2 quirks in CHANGELOG 0.9.74-0.9.79)
   - `speechmap.py` + `vad.py` + `pauses.py` + `edl.py` + `xmeml.py` + `takes.py` (repeated takes: a plain repeat is cut, the last full take stays) + `roughcut_job.py` Phase 8 rough cut: label every 10 ms (word / voiced / low / silent), cut pauses, same cuts on every selected item, write FCP7 XML that the panel imports as a new sequence (`docs/ROUGHCUT_PLAN.md`)
@@ -90,7 +93,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 `align*.py`, `numbers.py`). Its rules, and where they live in the code:
 - verbatim by default; edits go in a separate layer with a log (`verbatim` + `edits` in the result JSON);
 - never rewrite a word on a hunch: only a dictionary-checked repair of a mis-heard word (`lexicon.repair`), the editor's
-  own `чуто => казано` line (`corrections.py`), or a punctuation rule (`subtitles.tidy_words`); everything doubtful is
+  own `чуто => казано` line (`corrections.py`), a fix editors made before that passed the trust rules and the sound check
+  (`learning.py`, `audiocheck.py`), a writing rule that changes only how a said word is written (`bgnorm.py`), or a
+  punctuation rule (`subtitles.tidy_words`); everything doubtful is
   marked and listed with a reason (`suspects.py`, `agreement.py`, the "unheard" check in `align.py`);
 - grammatical gender: no global male/female setting (the user removed it: both speakers are in one edit); first-person
   forms are only CHECKED (readings that disagree are flagged), never converted;

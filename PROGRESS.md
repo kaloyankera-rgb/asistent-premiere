@@ -215,3 +215,4 @@
 - 2026-11-04: 0.9.92: toast green/red face (one-sided border does not render in Premiere 26.0.2), 'exposure added/removed' wording.
 - 2026-11-04: 0.9.93: all buttons act on pointerdown/mousedown (arrow-cursor clicks lost to Premiere's focus, user's recording 10:26); toast over the header text, not the tabs.
 - 2026-11-04: 0.9.94: English lines editable in the Captions tab (english_fixed per project), tooltips go above text boxes.
+- 2026-11-04: 0.9.95: learning from caption fixes (learning.py, client folder ReShape Subtitle Learning), sound check of learned fixes (audiocheck.py, veto 8 from 26 measured fixes + the real ReShape run), Bulgarian writing rules (bgnorm.py), corrections match every dictionary repair.

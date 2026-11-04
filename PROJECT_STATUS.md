@@ -1,4 +1,10 @@
-# Project status — Asistent 0.9.94 (2026-11-04)
+# Project status — Asistent 0.9.95 (2026-11-04)
+
+Subtitles learn from the editors' fixes (0.9.95): recorded in the client's office folder
+(`Production/ReShape/ReShape Subtitle Learning`), used in the next videos after the sound check; Bulgarian writing rules.
+Engine-tested end to end on the real ReShape recording with a temporary folder; not yet used from Premiere, so nothing has been
+written to the office folder yet; not tried on Windows (the folder is found from the project path, so a project opened from
+`\\server\Production\…` or a drive letter mapped to Production works; one mapped deeper does not).
 
 Captions tab with editable English lines and tooltips above text boxes (0.9.94); engine-tested on a reference, not pressed in Premiere.
 

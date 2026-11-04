@@ -639,6 +639,7 @@ async function onSubtitles(opts = {}) {
     payload.english = $("subtitleEnglish").checked;                          // the English line under every Bulgarian line
     payload.preset = $("subtitleStyle").value;                               // auto, or a client's own style
     payload.english_fixed = englishFixed(project.path);                      // English lines typed in the Captions tab
+    payload.project = project.path;                                          // finds the client's learning folder (learning.py)
     engine.log("info", `subtitles: ${plan.use.length} clips, ${plan.skipped.length} skipped`);
     const { job } = await engine.startSubtitles(payload);
     const result = await runJob(job);

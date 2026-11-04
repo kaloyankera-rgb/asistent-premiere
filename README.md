@@ -82,6 +82,8 @@ Select the cameras and the microphones with speech (the SYNC sequence works) and
 
 Select the audio clips with speech and press **Subtitles (Bulgarian)**. The speech is recognised on this computer only (Whisper large-v3, about 3.1 GB, downloaded only with the **Download the model** button), checked against a Bulgarian dictionary, aligned to the sound, and saved as an .srt in `Asistent_subtitles` next to the project; the panel puts it on a new caption track. To restyle them, open the Properties panel, select all the captions on that track and change font, size, outline or shadow for all at once; save the look as a Track Style. Right-click > Upgrade Caption to Graphic turns them into text graphics if needed.
 
+Fix a wrong word in the **Captions** tab and press **Apply and rebuild**: the fix is remembered and the next videos of the same client get it too, on every computer in the office. Nothing to press: a client folder on the server that holds a folder named "<Client> Subtitle Learning" (for example `ReShape/ReShape Subtitle Learning`) is where the fixes are shared; projects outside such a folder learn on that computer only. A word fix reaches the other editors after it was made in two projects; a fix is only used where the sound agrees with it; typing the original word back undoes it for everyone.
+
 ## Auto import
 
 Press **Watch Downloads** (or **Other folder…**) with a project open. From then on every file that is downloaded or copied into the folder (and its subfolders) goes into the project by itself:

@@ -61,6 +61,18 @@ USER: try in NEW TEST (see PROJECT_STATUS). Later, if wanted: the same step for 
 7 Bulgarian subtitles, 8 AI Auto Rough Cut (plan: `docs/ROUGHCUT_PLAN.md`, next step M0 = probes in TEST.prproj: XML import from code, trimming, markers; `rapidfuzz` needs the user's OK) + export QA, 9 Windows (run `setup_win.ps1`, silent install with
 UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips, sub-frame audio alignment.
 
+## SL. Smart subtitle correction and learning (0.9.95, phases 0-4 done)
+- [ ] In Premiere: fix a word in the Captions tab of a ReShape project, Apply and rebuild, then check that
+  `ReShape Subtitle Learning/events/<computer>.jsonl` has the fix and that a second ReShape project gets it.
+- [ ] Windows: open a ReShape project from the server on the PC, run subtitles once, check the PC's events file appears.
+- [ ] Other clients: each needs a "<Client> Subtitle Learning" folder in its client folder (ask the user before creating them).
+- [ ] Phase 5: speaker per microphone track (once per project/client), first-person gender changed only when the sound agrees.
+- [ ] Phase 6: gender and number agreement (adjective-noun, pronoun-noun, subject-verb), each checked against the sound.
+- [ ] Phase 7: the "Learned" list in the Captions tab (collapsed; remove/restore for everyone; `remove`/`restore` events exist).
+- [ ] Phase 8: measure on corrected projects before widening anything (target 98 % right, nothing said changed).
+- [ ] The dictionary repair is wrong on medical words („масните“ -> „масоните“, „масната“ -> „месната“; the doctor says
+  „мастните“): learned fixes cover it once an editor fixes it; a better repair needs more than the nearest dictionary word.
+
 ## R. Subtitles in the reference style (ReShape; started 2026-11-04, the user's current priority)
 Spec: `docs/SUBTITLE_STYLE.md` (two layers: Bulgarian chunks word by word in Montserrat Bold with a soft shadow at ~48 % height; English
 phrase line under it, Arial-like bold on a ~60 % maroon rounded box; 1-2 frame fade-in). User decisions so far: Premiere's own text

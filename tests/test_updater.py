@@ -163,8 +163,10 @@ def test_the_release_zip_has_what_a_computer_needs(tmp_path):
         pytest.skip("zip is needed to pack the panel")
     r = subprocess.run([sys.executable, os.path.join(REPO, "scripts", "build_release.py")], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
-    ver = json.load(open(os.path.join(REPO, "panel", "manifest.json")))["version"]
-    latest = json.load(open(os.path.join(REPO, "dist", "latest.json")))
+    with open(os.path.join(REPO, "panel", "manifest.json"), encoding="utf-8") as f:
+        ver = json.load(f)["version"]
+    with open(os.path.join(REPO, "dist", "latest.json"), encoding="utf-8") as f:
+        latest = json.load(f)
     assert latest["version"] == ver
     with zipfile.ZipFile(os.path.join(REPO, "dist", latest["bundle"]["name"])) as z:
         names = {n.split("/", 1)[1] for n in z.namelist()}
