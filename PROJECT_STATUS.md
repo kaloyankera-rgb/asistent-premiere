@@ -1,4 +1,10 @@
-# Project status — Asistent 0.9.99 (2026-11-04)
+# Project status — Asistent 0.10.0 (2026-11-04)
+
+0.10.0: the selection is matched by track as well as time, so a clip on V1 (or A1) no longer also selects the clip with the
+same cut on V2 (or A2, A3); colour leaves switched-off clips alone. Fixes the user's MASTERHAUS report (Auto color corrected
+the switched-off POV on V2). Node tests with a fake Premiere; not yet pressed in Premiere. Open from the same recording: after
+that press the Program monitor showed the V2 clip; Asistent never switches a clip on (no `createSetDisabledAction` call), to be
+checked in NEW TEST.
 
 0.9.99: colour buttons and Match POVs apply on the first click (no Apply step), the user's request; the same apply and frame
 check code as before, so only the flow changed. Seen in the browser preview; not yet pressed in Premiere.
