@@ -178,6 +178,16 @@ def repair(word: str, doubt: bool = True, prefer=frozenset()) -> str | None:
     return lead + new + tail
 
 
+def candidates(word: str) -> list[str]:
+    """Every real word an unknown word may be the by-ear spelling of, at the smallest edit (`repair` picks one of them only
+    when it is the only one or the recording says it elsewhere)."""
+    c = _candidates(word, True)
+    if not c or not c[3]:
+        return []
+    lead, tail, cap, ((n, found),) = c
+    return [lead + (f[:1].upper() + f[1:] if cap else f) + tail for f in found]
+
+
 def reset_cache() -> None:
     _candidates.cache_clear()
 

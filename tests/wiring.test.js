@@ -275,6 +275,7 @@ test("the Captions tab shows the English line under its Bulgarian line, and type
   const apply = main.slice(main.indexOf("async function onCaptionApply"), main.indexOf("async function onSubtitles"));
   assert.match(apply, /saveEnglishFixed\(project\.path, map\)/);
   assert.match(main, /payload\.english_fixed = englishFixed\(project\.path\);/);
+  assert.match(main, /payload\.project = project\.path;/);                       // the client's learning folder is found from it
 });
 
 test("a tooltip that would land on a text box goes above its button (native controls are drawn over it)", () => {

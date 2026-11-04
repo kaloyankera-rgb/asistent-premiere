@@ -208,6 +208,17 @@ its exposed fields, and no script can create Premiere's own text graphics with w
 Graphic" either). Captions do exactly what the user asked (all selected -> Properties; Track Style to keep a look), so the panel
 places a caption track again; the template graphics code stays for designed templates later.
 
+## 2026-11-04: subtitles learn from the editors' fixes, per client, through the office folder (0.9.95)
+The user: learning runs in the background and is not shown; everyone's fixes help everyone, through the office, not a cloud.
+The folder sits in the client folder (`Production/ReShape/ReShape Subtitle Learning`, the user's choice), so it is found by
+walking up from the project and names the client; no office address is written in the code (the repo goes public). Each
+computer appends to its own file, so two editors never write the same file over SMB. One editor's fix must not reach everyone
+unchecked: names reach the client at once, a word fix needs a second project (its own computer at once), other clients need
+three projects by two computers, a single dictionary word needs the words it was fixed between, and the sound check (Whisper
+reading both texts) refuses a fix that fits more than 8 worse. Measured: that catches a different word but not a near-miss,
+so the confirmations carry the weight. The writing rules (не знам, по-, the article) are applied without asking: they change
+how a said word is written, which the user asked for, like the punctuation rules.
+
 ## 2026-11-04: reference-style subtitles: captions, the editor's one click, then Asistent moves lines off faces
 The user needs exact words, every line its own layer, all restyled at once in Properties, and lines moved off faces (the reference
 puts them mid-frame). Premiere 26: its own text graphics do all of that but no script can put words into them (UXP and ExtendScript

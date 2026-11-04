@@ -158,6 +158,16 @@ Timestamps are **illustrative regression anchors**, not a universal mapping for 
 - [ ] Regression-test the examples above; distinguish confirmed errors from suspected ones.
 - [ ] Preserve existing code behavior until improvement is measured. Commit tested changes; request approval before GitHub push.
 
+## 12a. Writing rules and learned fixes (Asistent 0.9.95, the user's decision 2026-11-04)
+
+- Writing rules (`bgnorm.py`) change only how a word that was said is written: „не“ apart from the verb, „по-“ and „най-“
+  joined, the full or short article of a masculine word by its place (after a preposition short; the subject before
+  „е/не/ще…“ and after „това е“ full). They never add, drop or exchange a word, and never touch the editor's own fixes.
+- Learned fixes (`learning.py`) are the editors' own corrections from earlier projects of the same client. One is used only
+  with enough confirmations, between the words it was fixed between when it is a single dictionary word, and when Whisper
+  does not find it clearly worse than the heard words for that sound (`audiocheck.py`). An editor typing the original back
+  undoes it for everyone.
+
 ## 12. Instructions for Claude Code
 
 Read this guide before changing the subtitle pipeline. Audit current code and identify where Bulgarian text corrections happen relative to forced alignment. Propose small, testable changes. Never fix the specific examples by hardcoding their replacement into general subtitles. Use the examples as regression tests, and benchmark changes on the **same** original audio. Report what was verified, what remains uncertain, and what was not tested. If a setting or a dependency is undocumented, do not claim it is in use.

@@ -182,6 +182,27 @@ def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[
     return words
 
 
+def score_texts(audio: np.ndarray, texts: list[str], language: str = LANGUAGE) -> list[float]:
+    """How well each text fits the same audio (at most 30 s): the sum of the log probabilities Whisper gives its tokens
+    when it is made to read that text (CTranslate2 `align`, the call faster-whisper times words with). Only differences
+    between texts for the same audio mean anything. Measured 2026-11-04 on 26 fixes (audiocheck.py): Whisper prefers its
+    own spelling, so a fix scores a little lower or higher, a wrong word several points lower."""
+    from faster_whisper.audio import pad_or_trim
+    from faster_whisper.tokenizer import Tokenizer
+    model = _load()
+    tok = Tokenizer(model.hf_tokenizer, True, task="transcribe", language=language)
+    feats = model.feature_extractor(audio.astype(np.float32))
+    frames = min(feats.shape[-1], model.feature_extractor.nb_max_frames)
+    enc = model.encode(pad_or_trim(feats))
+    out = []
+    for text in texts:
+        res = model.model.align(enc, tok.sot_sequence, [tok.encode(" " + text.strip())], frames // 2)
+        out.append(float(np.log(np.maximum(np.asarray(res[0].text_token_probs, dtype=np.float64), 1e-9)).sum()))
+    _state["last"] = time.time()
+    _schedule_free()
+    return out
+
+
 def download_model(progress: Callable[[float, str], None], cancelled: Callable[[], bool]) -> dict:
     """Download the model into `model_dir()` (resumable: a cancelled or broken download continues next time).
     Only ever called from the user's confirmed panel button; progress follows the bytes on disk."""

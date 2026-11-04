@@ -6,6 +6,31 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.95 - Subtitles learn from the editors' fixes, shared through the office; Bulgarian writing rules
+The Smart Subtitle Correction plan (2026-11-04), phases 0-4; the user's choices: learning runs in the background with nothing to
+press, every editor's fixes help everyone through the office (no cloud), the office folder
+`Production/ReShape/ReShape Subtitle Learning`.
+- `learning.py`: every correction line that matched in a run (typed in the Captions tab or the corrections box), every name line
+  and every typed English line is recorded once per project, with the words around it, into the client's learning folder (a
+  folder whose name ends in "Subtitle Learning" inside the client folder, found by walking up from the project; a deep folder
+  that Finder mounted as its own volume is traced back through `mount`). Each computer writes its own file; a failed write
+  waits in an outbox. The next videos use what was learned: a name for the whole client from the first fix (and in Whisper's
+  prompt), a word fix on the same computer at once and for everyone after two projects, other clients after three projects by
+  two computers; a single dictionary word only between the words it was fixed between. Typing the original back undoes a
+  learned fix for everyone and is never learned the other way round. The editor's own English lines are reused for the same
+  Bulgarian line in the client's other projects.
+- `audiocheck.py` + `asr.score_texts`: before a learned fix is used, Whisper reads the heard and the fixed words over the same
+  sound; a fix scoring more than 8 lower is not used (it catches a different word, not a near-miss: measured on 26 fixes and
+  the first real run, see the module). Results are kept per reading, so a rebuild does not check again.
+- `bgnorm.py`: Bulgarian writing rules applied without asking (only how a said word is written): „не знам“ apart, „по-“/„най-“
+  joined (also Whisper's own „по -пълни“), full or short article of masculine words by their place (after a preposition,
+  sentence subject, after „това е“). The editor's fixed words are never touched. They run before the corrections, so a
+  correction can be written from what the captions show.
+- Fixed: a correction line written from the captions did not match when the dictionary had several repairs for the heard word
+  (the ReShape run showed „месната“ for „масната“; „месната => мастната“ matched nothing). Every possible repair matches now.
+- Tried end to end on the ReShape „Липедемата“ recording with a temporary learning folder: four fixes typed in one project
+  (мастните, мастна, мастната, компрометира) were all used in a second project, scores -2.7 … -6.9; 25 s instead of 11 s.
+
 ## 0.9.94 - English lines in the Captions tab; tooltips never under a text box
 - The user, 2026-11-04 (screenshots): "there is only a captions tab for the Bulgarian subtitles". With the English line on, every
   Bulgarian line in the Captions tab now has its English line under it ("EN"), editable. Apply and rebuild keeps a typed English

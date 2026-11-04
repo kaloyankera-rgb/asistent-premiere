@@ -44,13 +44,14 @@ def _tail(word: str) -> str:
     return m.group(0) if m else ""
 
 
-def apply(words: list[dict], pairs: list[tuple[str, str]], variants=None) -> tuple[list[dict], list[int]]:
+def apply(words: list[dict], pairs: list[tuple[str, str]], variants=None, accept=None) -> tuple[list[dict], list[int]]:
     """Words (times in any unit) -> (words with the corrections applied, how many times each pair matched).
 
     `variants(word) -> set of normalised spellings` lets a line match the spelling the editor sees as well as the one
     Whisper wrote. A replaced stretch keeps its start and end, its words share the span by length (a placeholder: the
     aligner places them), carry p = 1 and `fixed: True`, the punctuation after the last old word, and a capital
-    letter if the first old word had one."""
+    letter if the first old word had one. `accept(words, i, n, k) -> bool` may refuse one match of pair k at
+    words[i:i+n] (learned fixes: the words around it, the sound); a refused match is left as heard."""
     counts = [0] * len(pairs)
     if not pairs or not words:
         return [dict(w) for w in words], counts
@@ -66,8 +67,9 @@ def apply(words: list[dict], pairs: list[tuple[str, str]], variants=None) -> tup
             for k in order:
                 t = toks[k]
                 if t and i + len(t) <= len(words) and all(t[j] in forms[i + j] and not words[i + j].get("fixed") for j in range(len(t))):
-                    hit = (k, len(t))
-                    break
+                    if accept is None or accept(words, i, len(t), k):
+                        hit = (k, len(t))
+                        break
         if not hit:
             out.append(dict(words[i]))
             i += 1
