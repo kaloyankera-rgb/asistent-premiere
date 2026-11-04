@@ -79,6 +79,14 @@ window.PREVIEW_SCENARIOS = (function () {
     color: { run: colorProposal },
     beforeafter: { run: (api) => { colorProposal(api); api.openTab("panePreview"); } },
     captions: { run: (api) => { api.renderCaptionEditor(captions); api.openTab("paneCaptions"); } },
+    search: {
+      run: (api) => {
+        api.renderCaptionEditor(captions);
+        document.getElementById("captionSearch").value = "ра";
+        api.filterCaptions();
+        api.openTab("paneCaptions");
+      },
+    },
     learned: {
       run: (api) => {
         api.renderCaptionEditor({ ...captions, tracks: [0, 1], speakers: { 0: "m" } });

@@ -63,6 +63,15 @@ test("when the host is away or Premiere refuses, the file path is still given", 
   }
 });
 
+test("a replaced pair says how many lines went and that the empty tracks can be deleted by hand", () => {
+  const r = describePlacement({ status: "placed", track: track({ index: 4, count: 2 }), english: track({ index: 5, count: 2 }), problems: [],
+    removed: { tracks: [track({ index: 2 }), track({ index: 3 })], count: 50 } }, "/a.srt", true);
+  assert.ok(r.ok);
+  assert.ok(r.lines.some((l) => /earlier subtitles are replaced: their 50 lines on C3 and C4 are removed/.test(l.text)));
+  assert.ok(r.lines.some((l) => /C3 and C4 are empty now: right-click > Delete Track/.test(l.text)));
+  assert.ok(!r.lines.some((l) => /still on track/.test(l.text)));
+});
+
 test("corrected subtitles on a new track say the old track must go", () => {
   const r = describePlacement({ status: "placed", track: track({ index: 1, count: 2 }), problems: [], replaces: track({ index: 0, count: 2 }) }, "/a.srt", true);
   assert.ok(r.lines.some((l) => l.cls === "warn" && /earlier subtitles are still on track C1: delete that track/.test(l.text)));

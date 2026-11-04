@@ -233,3 +233,26 @@ most every 6 h) and installs only when the editor presses Update, because an upd
 (never in the middle of someone's work). The engine runs from a copy in the app folder, so an update never needs git or the repo.
 Not chosen: an automatic silent install (it could restart the engine during a job), a private repo with a token on every
 computer (a secret to hand out), Adobe's marketplace (review and a public listing for an internal tool).
+
+## 2026-11-04: a new subtitle pair replaces Asistent's own earlier pair (0.9.97, reverses "No caption track deletion")
+The user: Apply and rebuild must not leave two pairs on top of each other. No script deletes a caption track (ExtendScript has
+only `createCaptionTrack`, QE `removeTracks` takes video/audio/submix counts, UXP `CaptionTrack` has no remove), but UXP
+`SequenceEditor.createRemoveItemsAction` removes the lines. That call crashed Premiere 26.0.2 in 0.3 (clone + remove while CEP
+panels ran ExtendScript), so it was probed in NEW TEST with the user's OK first: 13 tracks of 60 lines removed while Asistent's
+host ran ExtendScript continuously and Quick Search polled, then `premiere-captions.place` three times in a row (each removed the
+previous pair's 120 lines); Premiere stayed up, no crash report. So after a new pair is placed, the lines of the earlier pair are
+removed in one step, only when its remembered signature (now with the English track too) still matches when read again; the
+emptied tracks stay and the panel says so. Hiding the old tracks (`CaptionTrack.setMute`) was the fallback, not needed.
+
+## 2026-11-04: lines keep phrases whole, wait for the cut; the 1.3B translator (0.9.97)
+- **Cuts.** The ReShape style shows a line 0.18 s before its first word; across a cut that put the line over the previous shot
+  and ended the previous line early (the user saw it). Every clip start is a cut; a line never starts before its cut.
+- **Phrases by cost, with the dictionary.** An adjective-noun pair (`agreement.bond`) costs 4 to split, „може да“ 3; ending on
+  „е“ is allowed (cost 2) only before such a pair; ReShape lines may be 25 characters (their longest). Tried and dropped
+  because they changed nothing on any saved run: a cost for ending on „просто“, „дори“, „които“ (the line limits leave no
+  better place). Checked on the ReShape video (8 cuts changed, all better) and 12 Ludi Glavi runs (none changed in their style).
+- **Translator: NLLB 1.3B over 600M.** Compared on the 14 ReShape sentences: 1.3B got the meaning where 600M did not (by just
+  losing weight / fat cells aren't just bigger / bruises easily), at about twice the time. The previous sentence as a forced
+  start (context) made both models return nothing for most sentences, so every sentence is still translated alone. 1.3B writes
+  "lipidemia" for липедема; an editor's English fix is remembered per line (learning).
+

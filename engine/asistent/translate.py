@@ -1,11 +1,16 @@
 """The English line under every Bulgarian subtitle line (2026-11-04, the user's reference style, docs/SUBTITLE_STYLE.md).
 
 The user's rule: one English line per Bulgarian line, the same number and the same times, translating the same words while still
-making sense. So every Bulgarian SENTENCE is translated whole (NLLB-200 600M, local, `<app>/models/nllb-600m-int8`; one sentence per
-call: given two, the model dropped the first), and the English sentence is then cut into as many pieces as the sentence has
+making sense. So every Bulgarian SENTENCE is translated whole (NLLB-200 1.3B, local, `<app>/models/nllb-1.3b-int8`; one sentence per
+call: given two, the model dropped the first, and the previous sentence given as a forced start made it stop early), and the
+English sentence is then cut into as many pieces as the sentence has
 Bulgarian lines. Where to cut comes from the model's attention (which Bulgarian words each English word was made from), and a cut
 after an English comma or full stop is preferred where the Bulgarian line ends with one. Without punctuation the cut can land one
 word early or late (measured on the ReShape reference): the editor fixes such a line by hand.
+
+1.3B since 0.9.97 (the user, 2026-11-04: "просто с отслабване" is "just by losing weight", not "just by weakening"). On the
+ReShape video it got the meaning right where 600M did not (also „мастните клетки не са просто по-големи“, „лесно синини“), at
+about twice the time. A computer that has only the 600M model keeps using it until the bigger one is downloaded.
 """
 from __future__ import annotations
 
@@ -18,17 +23,22 @@ import numpy as np
 
 from . import config
 
-MODEL_DIR = "nllb-600m-int8"
-MODEL_REPO = "JustFrederik/nllb-200-distilled-600M-ct2-int8"     # CC-BY-NC 4.0 (LICENSES.md); the CTranslate2 int8 conversion
+MODEL_DIR = "nllb-1.3b-int8"
+MODEL_REPO = "JustFrederik/nllb-200-distilled-1.3B-ct2-int8"     # CC-BY-NC 4.0 (LICENSES.md); the CTranslate2 int8 conversion
 MODEL_FILES = ("config.json", "model.bin", "sentencepiece.bpe.model", "shared_vocabulary.txt")
-MODEL_MB = 623
+MODEL_MB = 1390
+SMALL_DIR = "nllb-600m-int8"     # the model before 0.9.97: still used where the 1.3B one is not downloaded
 PUNCT = (",", ".", "?", "!", ":", ";")
 PUNCT_BONUS = 0.6               # attention mass a matching punctuation cut is worth (one English word carries about 1)
 LENGTH_WEIGHT = 0.35            # per word away from the length the Bulgarian line suggests (lone "the" / "an" lines, ReShape test)
 DANGLING_PENALTY = 0.8          # a piece may not end on a word that needs the next one
 DANGLING = {"the", "a", "an", "of", "to", "in", "on", "at", "for", "with", "by", "from", "into", "and", "or", "but", "as", "that",
             "is", "are", "was", "be", "will", "would", "can", "could", "should", "must", "has", "have", "my", "your", "his", "her",
-            "their", "our", "its", "this", "these", "those", "than", "very", "so", "if", "when", "what", "which", "who"}
+            "their", "our", "its", "this", "these", "those", "than", "very", "so", "if", "when", "what", "which", "who",
+            # „does not / mean“, „can / look different“, „not just / bigger“ (the user, 2026-11-04)
+            "not", "don't", "doesn't", "didn't", "isn't", "aren't", "wasn't", "won't", "can't", "cannot", "may", "might", "do",
+            "does", "did", "were", "been", "had", "just", "also", "even", "more", "most", "less", "really", "such", "some", "any",
+            "no", "every", "each", "about", "through", "without", "like", "because", "while", "where", "how", "it's", "they're"}
 SENTENCE_END = re.compile(r"[.?!…]+[»\"')]*$")
 
 _lock = threading.Lock()
@@ -36,8 +46,21 @@ _state: dict = {}
 _cache: dict = {}
 
 
+def _dir(name: str) -> str:
+    return os.path.join(config.app_dir(), "models", name)
+
+
 def model_dir() -> str:
-    return os.path.join(config.app_dir(), "models", MODEL_DIR)
+    """The 1.3B model's folder where it is downloaded, else the 600M one's (the download always goes to the 1.3B folder)."""
+    for name in (MODEL_DIR, SMALL_DIR):
+        if os.path.isfile(os.path.join(_dir(name), "model.bin")):
+            return _dir(name)
+    return _dir(MODEL_DIR)
+
+
+def better_available() -> bool:
+    """Only the 600M model is here: the panel offers the 1.3B one."""
+    return available() and model_dir() != _dir(MODEL_DIR)
 
 
 def available() -> bool:
@@ -61,7 +84,7 @@ def _bytes_on_disk(d: str) -> int:
 def download_model(progress, cancelled) -> dict:
     """Download the translator into `model_dir()` (resumable). Only from the panel's own button, like the speech model."""
     from huggingface_hub import snapshot_download
-    d = model_dir()
+    d = _dir(MODEL_DIR)
     os.makedirs(d, exist_ok=True)
     err: list = []
 
@@ -81,19 +104,21 @@ def download_model(progress, cancelled) -> dict:
         time.sleep(1.0)
     if err:
         raise RuntimeError(f"The download failed: {err[0]}")
-    if not available():
+    if not os.path.isfile(os.path.join(d, "model.bin")) or not available():
         raise RuntimeError("The download finished, but translator files are missing.")
     return {"translator": True}
 
 
 def _load():
     with _lock:
-        if "tr" not in _state:
+        d = model_dir()
+        if _state.get("dir") != d:                     # first use, or the 1.3B model was downloaded since
             import ctranslate2
             import sentencepiece as spm
-            d = model_dir()
             _state["sp"] = spm.SentencePieceProcessor(model_file=os.path.join(d, "sentencepiece.bpe.model"))
             _state["tr"] = ctranslate2.Translator(d, device="cpu", compute_type="int8", intra_threads=4)
+            _state["dir"] = d
+            _cache.clear()
         return _state["sp"], _state["tr"]
 
 
@@ -210,6 +235,8 @@ def english_lines(lines: list[str]) -> list[str]:
     """Bulgarian subtitle lines (in order) -> the English line for each, the same number. Line breaks inside a line are spaces."""
     flat = [" ".join(str(t).split()) for t in lines]
     out = [""] * len(flat)
+    if any(flat):
+        _load()                                        # a newly downloaded model empties the cache of the old one's lines
     for group in sentences(flat):
         key = tuple(flat[i] for i in group)
         if key not in _cache:

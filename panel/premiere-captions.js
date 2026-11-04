@@ -1,6 +1,6 @@
-// Puts the finished SRT on a caption track of the active sequence. Reading the caption tracks is UXP (read only);
-// creating the track is the engine's host (host/, ExtendScript), because UXP has no way to do it (probed on Premiere
-// 26.0.2). Nothing is removed or muted here: the rule is "never remove track items through UXP".
+// Puts the finished SRT on a caption track of the active sequence. Reading the caption tracks is UXP; creating the track is
+// the engine's host (host/, ExtendScript), because UXP has no way to do it (probed on Premiere 26.0.2). Since 0.9.97 a new
+// pair replaces Asistent's own earlier pair: its lines are removed (the one removal the rules allow, see removeLines).
 // Captions, not graphics (the user, 2026-11-04): all of them can be selected and restyled at once in the Properties panel
 // (font, size, outline, shadow, background) and saved as a Track Style; Asistent's After Effects template graphics
 // (placeGraphics, 0.9.80) expose only their text there, and Premiere's own text graphics cannot be written by a script.
@@ -45,13 +45,40 @@ async function readVideoTracks(sequence) {
   return out;
 }
 
+/**
+ * Removes every line of these caption tracks in one step (one Undo). The user's request (2026-11-04): a new pair replaces
+ * Asistent's earlier one. Removing track items through UXP crashed Premiere 26.0.2 as clone + remove while CEP panels ran
+ * ExtendScript (DECISIONS); removing caption lines was tested in NEW TEST (13 tracks of 60 lines, ExtendScript running the
+ * whole time, 2026-11-04) without a crash. The references are dropped at once. The empty tracks stay: no script deletes a
+ * caption track. Only for tracks findOwn recognises (placed by Asistent, unchanged since).
+ */
+async function removeLines(project, sequence, indexes) {
+  let items = [];
+  for (const i of indexes) items.push(...((await P.maybe(await sequence.getCaptionTrack(i), "getTrackItems", ppro.Constants.TrackItemType.CLIP, false)) || []));
+  const count = items.length;
+  if (!count) return 0;
+  const editor = ppro.SequenceEditor.getEditor(sequence);
+  let error = null;
+  await ppro.TrackItemSelection.createEmptySelection((sel) => {
+    try {
+      for (const ti of items) sel.addItem(ti, true);
+      P.transaction(project, "Asistent: remove the earlier subtitles", (c) => c.addAction(editor.createRemoveItemsAction(sel, false, ppro.Constants.MediaType.ANY)));
+    } catch (e) {
+      error = e;
+    }
+  });
+  items = null;
+  if (error) throw error;
+  return count;
+}
+
 /** result: the engine's /subtitles result. -> { status, ... } for captionplan.describePlacement */
 async function place(project, sequence, result, opts = {}) {
   const name = sequence.name || "";
   const before = await readTracks(sequence);
   const sig = await engine.captionsState(project.path, name);
   const own = sig && sig.kind !== "graphics" ? plan.findOwn(sig, before) : null;
-  if (own && !opts.again) return { status: "exists", track: own };       // "again": the user corrected words, the new set goes on a new track
+  const ownEnglish = own && sig.english ? plan.findOwn(sig.english, before) : null;
   let answer;
   try {
     answer = await engine.placeCaptions({ srt: result.srt, sequence: name, project: project.path });
@@ -63,9 +90,6 @@ async function place(project, sequence, result, opts = {}) {
   const after = await readTracks(sequence);
   const track = plan.addedTrack(before, after);
   const problems = plan.problems(track, result.captions);
-  if (track) {
-    await engine.recordCaptions(project.path, name, { index: track.index, count: track.count, first: track.start, last: track.end, srt: result.srt });
-  }
   engine.log("info", `captions: placed on C${track ? track.index + 1 : "?"}, ${track ? track.count : 0} items, problems: ${problems.join("; ") || "none"}`);
   if (!track) return { status: "error", message: problems[0] };
   // the English line: its own caption track, the same number of lines at the same times
@@ -83,7 +107,21 @@ async function place(project, sequence, result, opts = {}) {
       for (const x of plan.problems(english, result.captions)) problems.push(`English line: ${x}`);
     }
   }
-  return { status: "placed", track, english, problems, replaces: own || null };
+  const mark = (t) => ({ index: t.index, count: t.count, first: t.start, last: t.end });
+  await engine.recordCaptions(project.path, name, { ...mark(track), srt: result.srt, ...(english ? { english: mark(english) } : {}) });
+  // the new pair is in place: now the earlier one goes (read again, so only a track that is still exactly Asistent's is touched)
+  let removed = null;
+  if (own) {
+    const now = await readTracks(sequence);
+    const old = [plan.findOwn(sig, now), ownEnglish && plan.findOwn(sig.english, now)].filter((t) => t && t.index !== track.index && (!english || t.index !== english.index));
+    try {
+      removed = { tracks: old, count: old.length ? await removeLines(project, sequence, old.map((t) => t.index)) : 0 };
+    } catch (e) {
+      problems.push(`the earlier subtitles were not removed: ${(e && e.message) || e}`);
+    }
+    engine.log("info", `captions: earlier pair ${old.map((t) => `C${t.index + 1}`).join(", ") || "not found"}, ${removed ? removed.count : 0} lines removed`);
+  }
+  return { status: "placed", track, english, problems, replaces: own && !(removed && removed.count) ? own : null, removed };
 }
 
 /** Every line as a text graphic from Asistent's After Effects template (0.9.80, tested in NEW TEST; not used by the panel since the
@@ -93,7 +131,7 @@ async function placeGraphics(project, sequence, result, opts = {}) {
   const before = await readVideoTracks(sequence);
   const sig = await engine.captionsState(project.path, name);
   const own = sig && sig.kind === "graphics" ? plan.findOwn(sig, before) : null;
-  if (own && !opts.again) return { status: "exists", track: own };       // "again": the user corrected words, the new set goes on a new track
+  if (own && !opts.again) return { status: "exists", track: own };       // "again": the user corrected words, the new set goes on a new track (graphics are not removed)
   let answer;
   try {
     answer = await engine.placeGraphics({ captions: result.captions.map((c) => ({ start: c.start, end: c.end, text: c.text })),
@@ -114,4 +152,4 @@ async function placeGraphics(project, sequence, result, opts = {}) {
   return track ? { status: "placed", track, problems, replaces: own || null, graphics: true } : { status: "error", message: problems[0] };
 }
 
-module.exports = { readTracks, readVideoTracks, place, placeGraphics };
+module.exports = { readTracks, readVideoTracks, place, placeGraphics, removeLines };

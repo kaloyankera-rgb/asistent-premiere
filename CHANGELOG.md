@@ -6,6 +6,26 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.97 - A new pair replaces the old one, lines wait for the cut, phrases stay whole, a better translator, search
+The user's requests after the first learning test (2026-11-04).
+- Apply and rebuild (and Subtitles pressed again) replaces Asistent's own earlier pair: after the new pair is placed, every line
+  of the earlier Bulgarian and English tracks is removed in one step (one Undo). Only tracks Asistent placed and nobody changed
+  (the remembered signature, read again just before); the emptied tracks stay, since no script can delete a caption track
+  (right-click > Delete Track). The one exception to "never remove": tested in NEW TEST with the user's OK, 13 tracks of 60
+  lines removed while ExtendScript ran the whole time, then the panel's own placement three times in a row, no crash.
+- A line no longer appears before the cut it belongs to: the ReShape lead (0.18 s) showed the first line after a cut over the
+  end of the previous shot and took the previous line off early (up to 0.17 s on the ReShape video). Every clip start is a cut.
+- Lines keep phrases whole: an adjective stays with its noun („хронично заболяване“, „мастните клетки“, „съединителната
+  тъкан“; found with the dictionary, `agreement.bond`), a line may end on „е“ when the next one holds such a pair („Това е /
+  хронично заболяване“), „може да“ stays together; the ReShape style allows 25 characters (their own longest line), so
+  „Задържането на течности“ is one line. On the ReShape video 8 cuts changed, all better; 12 Ludi Glavi runs unchanged.
+- The English line uses NLLB-200 1.3B (about 1.4 GB, the user's OK): „просто с отслабване“ is "by just losing weight" (600M:
+  "just by weakening"), „мастните клетки не са просто по-големи“ "the fat cells aren't just bigger" (600M had the meaning
+  wrong). About twice the time (11 s for the ReShape video). A computer with only the 600M model keeps it until the bigger one
+  is downloaded from the same button. An English line no longer ends on "not", "may", "does", "just" and the like. Tried and
+  dropped: the previous sentence as context (both models often returned nothing).
+- Captions tab: a search box over the lines, Bulgarian and English; the other lines are hidden, not dropped.
+
 ## 0.9.96 - Who speaks per track, agreement marks, the Learned list, measuring (the plan's phases 5-8)
 - Captions tab, "Who speaks": per microphone track a man, a woman, or not set / both (per project, and the client's default
   for its next projects through the learning folder). First-person forms on a set track follow that person („съм свършил“

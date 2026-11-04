@@ -371,6 +371,48 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       return { method: a.method, outcome, before, after };
     },
     // caption tracks of the active sequence: items with their names and times, and the method names of one item
+    // 0.9.97 probe (the user's OK, 2026-11-04: Apply and rebuild should replace the old pair): remove every line of one caption
+    // track in one step. That is the call that crashed Premiere 26.0.2 while CEP panels ran ExtendScript (DECISIONS: "No track
+    // item removal through UXP"), so only here, in the test projects, and the references to the removed lines are dropped at once.
+    async caption_remove(a) {
+      const { p } = await project();
+      const ppro = require("premierepro");
+      const seq = await p.getActiveSequence();
+      let items = (await premiere.maybe(await seq.getCaptionTrack(a.track), "getTrackItems", ppro.Constants.TrackItemType.CLIP, false)) || [];
+      const count = items.length;
+      if (!count) throw new Error("That caption track has no lines.");
+      const editor = ppro.SequenceEditor.getEditor(seq);
+      const step = [];
+      let done = false;
+      await ppro.TrackItemSelection.createEmptySelection((sel) => {
+        try {
+          for (const ti of items) sel.addItem(ti, true);
+          premiere.transaction(p, "Asistent test: remove caption lines", (c) => c.addAction(editor.createRemoveItemsAction(sel, false, ppro.Constants.MediaType.ANY)));
+          done = true;
+        } catch (e) {
+          step.push((e && e.message) || String(e));
+        }
+      });
+      items = null;
+      const left = ((await premiere.maybe(await seq.getCaptionTrack(a.track), "getTrackItems", ppro.Constants.TrackItemType.CLIP, false)) || []).length;
+      return { done, step, count, left, tracks: await seq.getCaptionTrackCount() };
+    },
+    // the panel's own placement (premiere-captions.place) with a given SRT pair: a second call must replace the first pair
+    async place_test(a) {
+      const { p } = await project();
+      const seq = await p.getActiveSequence();
+      const r = await require("./premiere-captions.js").place(p, seq, { srt: a.srt, srt_en: a.srt_en || null, captions: a.captions || [] }, { again: true });
+      return { status: r.status, track: r.track, english: r.english, problems: r.problems, message: r.message, replaces: r.replaces,
+        removed: r.removed && { count: r.removed.count, tracks: r.removed.tracks.map((t) => t.index) } };
+    },
+    // the other way: hide a caption track (its eye), nothing removed
+    async caption_hide(a) {
+      const { p } = await project();
+      const tr = await (await p.getActiveSequence()).getCaptionTrack(a.track);
+      const before = await premiere.maybe(tr, "isMuted");
+      const r = await premiere.maybe(tr, "setMute", !!a.hide);
+      return { before, returned: r, after: await premiere.maybe(tr, "isMuted") };
+    },
     async captions_state() {
       const { p } = await project();
       const ppro = require("premierepro");

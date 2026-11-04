@@ -121,7 +121,7 @@
       </div>
       <div id="subtitleModel" class="warn" hidden></div>
       <div id="subtitleAsk" class="row buttons" hidden><div id="subtitleDownload" class="btn small" data-tip="Downloads the speech recognition model (about 3.1 GB). It starts only with this button.">Download the model (about 3.1 GB)</div></div>
-      <div id="translatorAsk" class="row buttons" hidden><div id="translatorDownload" class="btn small" data-tip="Downloads the English translator for the English line (about 620 MB, NLLB-200, runs on this computer). It starts only with this button.">Download the translator (about 620 MB)</div></div>
+      <div id="translatorAsk" class="row buttons" hidden><div id="translatorDownload" class="btn small" data-tip="Downloads the English translator for the English line (about 1.4 GB, NLLB-200 1.3B, runs on this computer). It starts only with this button.">Download the translator (about 1.4 GB)</div></div>
       <label for="notes" class="field">Corrections and names (one per line)</label>
       <textarea id="notes" rows="3" placeholder="раф => рафт&#10;Джи Строй"></textarea>
       <div id="notesState" class="hint" hidden></div>
@@ -168,10 +168,11 @@
   <div id="paneCaptions" class="pane" hidden>
     <p class="desc">Type a wrong word right, then press Apply. The corrected words are timed by the sound again, and the corrections are remembered for this project (they are added to the box in Subtitles).</p>
     <div id="captionEditActions" class="row buttons">
-      <div id="captionApply" class="btn action" data-tip="Adds what you changed to the corrections, rebuilds the subtitles (the speech is not recognised again, so it takes seconds) and puts them on a new caption track. Delete the old caption track afterwards.">Apply and rebuild</div>
+      <div id="captionApply" class="btn action" data-tip="Adds what you changed to the corrections, rebuilds the subtitles (the speech is not recognised again, so it takes seconds) and puts them on the timeline in place of the earlier ones.">Apply and rebuild</div>
     </div>
     <div id="captionEditState" class="muted"></div>
     <div id="speakerRow" class="speakers" hidden></div>
+    <div class="capsearch"><input id="captionSearch" placeholder="Search the lines (Bulgarian or English)" data-tip="Shows only the lines that hold these letters, in the Bulgarian or the English line. Empty: all lines."><span id="captionSearchCount" class="muted"></span></div>
     <div id="captionList"></div>
     <div id="learnedHead" class="btn link learnedhead" data-tip="Fixes the editors of this client made before, used on the next videos. Remove one that is wrong: it is removed for everyone." hidden>Learned</div>
     <div id="learnedList" hidden></div>

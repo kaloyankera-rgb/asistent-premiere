@@ -501,8 +501,12 @@ function renderSubtitleModel(st) {
       (st.bytes ? ` ${gb(st.bytes)} GB are already downloaded: the download continues from there.` : "");
   }
   // the English line needs the translator: offered only where the speech model is there and the line is wanted
-  const noTranslator = st.backend && st.model && st.translator === false && $("subtitleEnglish").checked;
-  if (noTranslator) text = `The English line needs the translator (about ${st.translator_mb || 620} MB), not downloaded yet.`;
+  const english = st.backend && st.model && $("subtitleEnglish").checked;
+  const noTranslator = english && (st.translator === false || st.translator_better === true);
+  const size = `about ${((st.translator_mb || 1390) / 1000).toFixed(1)} GB`;
+  if (english && st.translator === false) text = `The English line needs the translator (${size}), not downloaded yet.`;
+  else if (noTranslator) text = `A better English translator is available (${size}): it reads the meaning of the sentence, not word by word. The current one works until then.`;
+  $("translatorDownload").textContent = `Download the translator (${size})`;
   $("subtitleModel").textContent = text;
   show("subtitleModel", !!text);
   show("subtitleAsk", st.backend && !st.model);
@@ -589,6 +593,22 @@ function renderCaptionEditor(result) {
   }
   $("captionEditState").textContent = `${result.captions.length} lines. Lines with a yellow edge hold a word that is not certain.`;
   show("tabCaptions", true);
+  filterCaptions();
+}
+
+// The search above the lines (0.9.97): only the lines whose Bulgarian or English text holds what is typed stay visible, with
+// their English line under them. Hidden lines keep what was typed in them, so Apply still sees every change.
+function filterCaptions() {
+  const q = $("captionSearch").value.trim().toLowerCase();
+  let shown = 0;
+  captionEdit.inputs.forEach((input, i) => {
+    const en = captionEdit.enInputs[i];
+    const hit = !q || input.value.toLowerCase().includes(q) || (!!en && en.value.toLowerCase().includes(q));
+    input.parentNode.hidden = !hit;
+    if (en) en.parentNode.hidden = !hit;
+    if (hit) shown++;
+  });
+  $("captionSearchCount").textContent = q ? `${shown} of ${captionEdit.inputs.length}` : "";
 }
 
 // Who speaks on which microphone track (0.9.96): first-person forms („доволен/доволна“) follow that person. Remembered per
@@ -1283,6 +1303,7 @@ onTap($("sync"), onSync);
 onTap($("audio"), () => onAudio(null));
 onTap($("subtitles"), () => onSubtitles());
 onTap($("captionApply"), onCaptionApply);
+$("captionSearch").addEventListener("input", filterCaptions);
 onTap($("learnedHead"), () => {
   learnedView.open = !learnedView.open;
   if (learnedView.path) loadLearned(learnedView.path);
@@ -1366,5 +1387,5 @@ setInterval(() => {
 
 // browser preview only (preview/boot.js sets this; inside Premiere it never exists): sample results fill the views
 if (typeof window !== "undefined" && typeof window.__asistentPreview === "function") {
-  window.__asistentPreview({ finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab, renderSpeakers, renderLearned, learnedView });
+  window.__asistentPreview({ finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab, renderSpeakers, renderLearned, learnedView, filterCaptions });
 }
