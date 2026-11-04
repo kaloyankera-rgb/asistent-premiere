@@ -267,3 +267,18 @@ test("the Exposure toast says in plain words what was added or removed", () => {
   const css = fs.readFileSync(path.join(panel, "style.css"), "utf8");
   assert.match(css, /\.toast \{[^}]*background-color: var\(--ok-bg\)/);   // a coloured face: a one-sided border did not show in Premiere
 });
+
+test("the Captions tab shows the English line under its Bulgarian line, and typed English goes with every run", () => {
+  const ed = main.slice(main.indexOf("function renderCaptionEditor"), main.indexOf("async function onCaptionApply"));
+  assert.match(ed, /if \(c\.en !== undefined\)/);
+  assert.match(ed, /el\("div", "capline en"\)/);
+  const apply = main.slice(main.indexOf("async function onCaptionApply"), main.indexOf("async function onSubtitles"));
+  assert.match(apply, /saveEnglishFixed\(project\.path, map\)/);
+  assert.match(main, /payload\.english_fixed = englishFixed\(project\.path\);/);
+});
+
+test("a tooltip that would land on a text box goes above its button (native controls are drawn over it)", () => {
+  const tip = main.slice(main.indexOf("function overNative"), main.indexOf("function bindTips"));
+  assert.match(tip, /querySelectorAll\("input, textarea, select"\)/);
+  assert.match(tip, /overNative\(x, y, w, h\)\) y = Math\.max\(6, r\.top - h - 4\)/);
+});

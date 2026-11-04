@@ -6,6 +6,16 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.94 - English lines in the Captions tab; tooltips never under a text box
+- The user, 2026-11-04 (screenshots): "there is only a captions tab for the Bulgarian subtitles". With the English line on, every
+  Bulgarian line in the Captions tab now has its English line under it ("EN"), editable. Apply and rebuild keeps a typed English
+  line for its Bulgarian line as it reads after the rebuild (`english_fixed`, per project on this computer, sent with every run;
+  the engine uses it wherever that Bulgarian line is unchanged; a changed Bulgarian line gets a new translation). Only English
+  changed is enough to rebuild. Tried on the client reference 7698708: the typed line replaced the translation, all others same.
+- The user: "the info is displayed weirdly on top of the captions". Text boxes are drawn by Premiere over everything, so the
+  tooltip of "Apply and rebuild" sat under the caption lines. A tooltip that would cover a text box or dropdown now goes above
+  its button.
+
 ## 0.9.93 - Every button acts on the press
 - The user's screen recording 2026-11-04 10:26 (clicking the Tools / Log / Before-after tabs): clicks that did nothing were made
   with an arrow cursor instead of the hand, at any spot of a tab; the log has no click for them. As with Exposure ±0.5 (0.9.91,

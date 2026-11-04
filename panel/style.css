@@ -178,6 +178,10 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .capline input { flex: 1; min-width: 0; font-size: 12px; }
 .capline.flag input { border-color: var(--flag); }
 .capline.edited input { border-color: var(--accent); }
+/* the English line under its Bulgarian line (Captions tab, 0.9.94) */
+.capline.en { margin-top: 2px; }
+.capline.en .t { color: var(--text-2-soft); }
+.capline.en input { font-size: 11px; color: var(--text-2-soft); }
 
 /* tooltip: placed by main.js under the button (or above it near the bottom edge), kept inside the panel */
 /* The toast: the last answer for a few seconds over the header's text (nothing moves, no button covered), two lines at most; a

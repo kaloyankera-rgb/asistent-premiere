@@ -130,6 +130,15 @@ function hideTip() {
   show("tip", false);
 }
 
+function overNative(x, y, w, h) {
+  for (const n of document.querySelectorAll("input, textarea, select")) {
+    const b = n.getBoundingClientRect();
+    if (!b.width || !b.height) continue;                 // hidden
+    if (b.left < x + w && b.right > x && b.top < y + h && b.bottom > y) return true;
+  }
+  return false;
+}
+
 function showTip(node) {
   const box = $("tip");
   box.textContent = node.getAttribute("data-tip");
@@ -141,7 +150,9 @@ function showTip(node) {
   const h = box.offsetHeight;
   const x = Math.min(Math.max(6, r.left), Math.max(6, W - w - 6));
   let y = r.bottom + 4;
-  if (y + h > H - 6) y = Math.max(6, r.top - h - 4);
+  // text boxes and dropdowns are drawn by Premiere over everything, so a tip below a button can end up under them
+  // (2026-11-04: "Apply and rebuild" over the caption lines): then it goes above the button
+  if (y + h > H - 6 || overNative(x, y, w, h)) y = Math.max(6, r.top - h - 4);
   box.style.left = `${x}px`;
   box.style.top = `${y}px`;
 }
@@ -523,11 +534,32 @@ async function loadSubtitleSettings(path) {
 
 // The caption editor (the Captions tab): one field per line of the last subtitles. What the user changed becomes
 // correction lines (captionedit.js); the next run applies them and places the result on a NEW caption track.
-const captionEdit = { result: null, inputs: [] };
+const captionEdit = { result: null, inputs: [], enInputs: [] };
+
+// The editor's own English lines, per project on this computer: {Bulgarian line (normalised): English}. Sent with every
+// subtitles run; the engine keeps them wherever the Bulgarian line is still the same (subtitle_job.py, english_fixed).
+const lineKey = (s) => String(s || "").trim().split(/\s+/).join(" ").toLowerCase();
+
+function englishFixed(projectPath) {
+  try {
+    return JSON.parse(localStorage.getItem(`asistent.englishFixed.${projectPath}`) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveEnglishFixed(projectPath, map) {
+  try {
+    localStorage.setItem(`asistent.englishFixed.${projectPath}`, JSON.stringify(map));
+  } catch (e) {
+    /* no storage: the fixes last until the next rebuild only */
+  }
+}
 
 function renderCaptionEditor(result) {
   captionEdit.result = result;
   captionEdit.inputs = [];
+  captionEdit.enInputs = [];
   const list = $("captionList");
   while (list.firstChild) list.removeChild(list.firstChild);
   const unsure = new Set((result.review || []).map((r) => Math.round(r.at * 10)));
@@ -541,6 +573,19 @@ function renderCaptionEditor(result) {
     captionEdit.inputs.push(input);
     row.appendChild(input);
     list.appendChild(row);
+    if (c.en !== undefined) {                              // the English line under it, editable too
+      const enRow = el("div", "capline en");
+      enRow.appendChild(el("span", "t", "EN"));
+      const en = document.createElement("input");
+      en.value = String(c.en || "");
+      en.setAttribute("data-original", en.value);
+      en.addEventListener("input", () => { enRow.className = en.value !== en.getAttribute("data-original") ? "capline en edited" : "capline en"; });
+      captionEdit.enInputs.push(en);
+      enRow.appendChild(en);
+      list.appendChild(enRow);
+    } else {
+      captionEdit.enInputs.push(null);
+    }
   }
   $("captionEditState").textContent = `${result.captions.length} lines. Lines with a yellow edge hold a word that is not certain.`;
   show("tabCaptions", true);
@@ -550,12 +595,23 @@ async function onCaptionApply() {
   if (state.busy || !captionEdit.result) return;
   const edited = captionEdit.inputs.map((i) => i.value);
   const pairs = captionedit.pairsFromEdits(captionEdit.result.captions, edited);
-  if (!pairs.length) {
+  // English lines typed right: kept for their Bulgarian line as it will read after the rebuild (the edited one)
+  const enChanged = captionEdit.enInputs.map((en, i) => [en, i]).filter(([en]) => en && en.value.trim() !== en.getAttribute("data-original"));
+  if (!pairs.length && !enChanged.length) {
     $("captionEditState").textContent = "Nothing changed: type a word right in one of the lines first.";
     return;
   }
-  $("notes").value = captionedit.addToNotes($("notes").value, pairs);
-  $("captionEditState").textContent = `${pairs.length} ${pairs.length === 1 ? "correction" : "corrections"} added: ${pairs.map((p) => `${p.heard} → ${p.said}`).join("; ")}. Rebuilding…`;
+  if (enChanged.length) {
+    const project = await premiere.activeProject();
+    const map = englishFixed(project.path);
+    for (const [en, i] of enChanged) map[lineKey(edited[i])] = en.value.trim();
+    saveEnglishFixed(project.path, map);
+  }
+  if (pairs.length) $("notes").value = captionedit.addToNotes($("notes").value, pairs);
+  const said = [];
+  if (pairs.length) said.push(`${pairs.length} ${pairs.length === 1 ? "correction" : "corrections"} added: ${pairs.map((p) => `${p.heard} → ${p.said}`).join("; ")}`);
+  if (enChanged.length) said.push(`${enChanged.length} English ${enChanged.length === 1 ? "line" : "lines"} kept as typed`);
+  $("captionEditState").textContent = `${said.join(". ")}. Rebuilding…`;
   openTab("paneTools");
   await onSubtitles({ again: true });
 }
@@ -582,6 +638,7 @@ async function onSubtitles(opts = {}) {
     const { payload, plan } = await premiereSubtitles.readInput(project, [], $("notes").value);
     payload.english = $("subtitleEnglish").checked;                          // the English line under every Bulgarian line
     payload.preset = $("subtitleStyle").value;                               // auto, or a client's own style
+    payload.english_fixed = englishFixed(project.path);                      // English lines typed in the Captions tab
     engine.log("info", `subtitles: ${plan.use.length} clips, ${plan.skipped.length} skipped`);
     const { job } = await engine.startSubtitles(payload);
     const result = await runJob(job);
