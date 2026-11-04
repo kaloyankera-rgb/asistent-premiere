@@ -212,3 +212,4 @@
 - 2026-11-04: 0.9.89: Exposure ±0.5 skip the click guard and the grey-out, quick presses queue (user had to click several times).
 - 2026-11-04: 0.9.90: toast under the header for every answer (user's request).
 - 2026-11-04: 0.9.91: user's screen recording: clicks after a write never reached the panel (Premiere focus); Exposure ±0.5 act on pointerdown/mousedown; focus logged.
+- 2026-11-04: 0.9.92: toast green/red face (one-sided border does not render in Premiere 26.0.2), 'exposure added/removed' wording.

@@ -211,7 +211,7 @@ function toast(text, ok) {
 }
 
 function finish(text, ok, blocks, opts = {}) {
-  toast(text, ok);
+  toast(opts.toast || text, ok);
   show("result", true);                          // at the bottom of the panel (2026-11-03): the list does not need to scroll
   settle();
   $("summary").textContent = text;
@@ -814,8 +814,14 @@ async function onExposureNudge(delta) {
       });
       const steps = r.steps === 1 ? "one Undo step" : `${r.steps} Undo steps`;
       const one = done.length === 1 ? ` (now ${done[0].now > 0 ? "+" : ""}${done[0].now})` : "";
-      finish(done.length ? `Exposure ${step > 0 ? "+" : ""}${step} on ${done.length} ${done.length === 1 ? "clip" : "clips"}${one}, ${steps}` +
-        (skipped.length ? `; ${skipped.length} not touched.` : ".") : "Nothing changed: see the details.", done.length > 0, blocks);
+      const signed = (v) => `${v > 0 ? "+" : ""}${v}`;
+      // the toast in plain words: "+0.5 exposure added · C0728 now +1" / "0.5 exposure removed · 3 clips"
+      const short = !done.length ? "Exposure not changed: see the details"
+        : `${step > 0 ? `+${step} exposure added` : `${-step} exposure removed`} · ` +
+          (done.length === 1 ? `${done[0].clip.name} now ${signed(done[0].now)}` : `${done.length} clips`) +
+          (skipped.length ? ` · ${skipped.length} not touched` : "");
+      finish(done.length ? `Exposure ${signed(step)} on ${done.length} ${done.length === 1 ? "clip" : "clips"}${one}, ${steps}` +
+        (skipped.length ? `; ${skipped.length} not touched.` : ".") : "Nothing changed: see the details.", done.length > 0, blocks, { toast: short });
       engine.log("info", `exposure nudge ${step}: ${r.results.map((x) => `${x.clip.name} ${x.line}`).join(" | ")}`);
       step = state.nudgeQueued || 0;
       state.nudgeQueued = 0;
