@@ -1,4 +1,7 @@
-# Project status — Asistent 0.9.93 (2026-11-04)
+# Project status — Asistent 0.9.94 (2026-11-04)
+
+Captions tab with editable English lines and tooltips above text boxes (0.9.94); engine-tested on a reference, not pressed in Premiere.
+
 
 Every button acts on the mouse press (0.9.93, Premiere's focus took first clicks); the toast sits over the header text. The panel
 loads in Premiere (bridge ping); clicks not yet tried by the user.

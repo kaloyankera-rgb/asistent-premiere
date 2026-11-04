@@ -538,3 +538,13 @@ def test_voiced_sound_that_no_word_covers_is_reported_with_its_time():
     assert align.uncovered_speech(y, ws) == [(0.0, 1.0)] or align.uncovered_speech(y, ws)[0][0] <= 0.05
     assert align.uncovered_speech(y, [{"word": "а", "start": 0.0, "end": 1.0}, *ws]) == []             # covered by words: nothing to report
     assert align.uncovered_speech(y, ws, min_seconds=2.0) == []                                           # shorter than the limit
+
+
+def test_english_typed_in_the_captions_tab_is_keyed_by_its_bulgarian_line():
+    from asistent import subtitle_job as J
+    fixed = J._english_fixed({"Външно  липедема": "On the outside, lipedema ", "празно": "  "})
+    assert fixed == {"външно липедема": "On the outside, lipedema"}          # empty lines are not kept
+    assert J.line_key("Външно\nЛипедема") == "външно липедема"
+    assert J._english_fixed(None) == {}
+    with pytest.raises(ValueError):
+        J._english_fixed({"a": 1})

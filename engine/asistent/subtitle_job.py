@@ -95,7 +95,22 @@ def validate(body: dict) -> dict:
     return {"items": clean, "spoken": spoken, "preset": preset, "fps": _num(25.0 if body.get("fps") is None else body.get("fps"), "frames per second", 1.0),
             "width": body.get("width"), "height": body.get("height"), "out_dir": out_dir,
             "name": str(body.get("name") or "sequence"), "terms": terms, "skipped": skipped, "text": text,
-            "english": bool(body.get("english"))}
+            "english": bool(body.get("english")), "english_fixed": _english_fixed(body.get("english_fixed"))}
+
+
+def line_key(text: str) -> str:
+    """A Bulgarian line as the key of the editor's own English for it (case and line breaks do not matter)."""
+    return " ".join(str(text).split()).lower()
+
+
+def _english_fixed(raw) -> dict:
+    """The English lines the editor typed in the Captions tab: {Bulgarian line: English}; used as they are."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or len(raw) > 5000 or not all(isinstance(k, str) and isinstance(v, str) and len(v) < 500
+                                                               for k, v in raw.items()):
+        raise ValueError("Invalid English corrections.")
+    return {line_key(k): " ".join(v.split()) for k, v in raw.items() if v.strip()}
 
 
 def _words_key(audio, prompt: str) -> str:
@@ -405,6 +420,9 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
             english = translate.english_lines([" ".join(w["word"] for w in c["words"]) for c in captions])
             if subtitles.PRESETS[preset].get("bare"):
                 english = [translate.bare(e) for e in english]
+            # the editor's own English (Captions tab) wins wherever its Bulgarian line is still the same
+            fixed = p["english_fixed"]
+            english = [fixed.get(line_key(c["text"]), e) for c, e in zip(captions, english)]
             subtitles.write_srt([{**c, "text": e} for c, e in zip(captions, english)], stem + ".en.srt")
         else:
             english_note = "The English line needs the translator (models/nllb-600m-int8 and the sentencepiece package): see README."
