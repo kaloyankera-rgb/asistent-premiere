@@ -4,6 +4,10 @@ Work rule for every step: implement → tests → bump version (manifest + confi
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
 ## A. Fix known bugs
+- **Subtitle speed, next levers (need the user's choice, they change the words):** read one long window as several
+  pieces at once (the 91 s ReShape window is ~70 s of the 130 s), or Whisper on the Apple GPU (mlx-whisper, an install).
+  Smaller, identical output: one aligner process kept running instead of one per call (~1.7 s each).
+- **0.10.2, check from the panel:** a Beauty Sector clip shows "Beauty Sector", "Beauty Space", "workshop"; ReShape unchanged.
 - **0.10.0, check in NEW TEST**: select one POV on V1 with the V2 POV switched off, Auto color: only V1 corrected, V2 stays off
   (the log line "selection: … 1 selected parts" with no "[list, track unknown …]"); Fix audio on one A1 clip touches only A1.
 - **Export reveal (docs/EXPORT_REVEAL_PLAN.md)**: work in progress kept in `git stash` ("export reveal WIP"); phase 0 probes

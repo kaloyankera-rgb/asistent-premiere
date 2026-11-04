@@ -22,7 +22,7 @@ def test_the_map_has_one_entry_per_distinct_number_and_keys_match_what_the_align
 
 def test_parallel_readings_follow_the_machine(monkeypatch):
     monkeypatch.setattr(asr.os, "cpu_count", lambda: 14)
-    assert asr._parallelism("cpu") == (5, 2) and asr._parallelism("cuda") == (1, 0)
+    assert asr._parallelism("cpu") == (3, 4) and asr._parallelism("cuda") == (1, 0)      # measured best on the M4 Max (0.10.2)
     monkeypatch.setattr(asr.os, "cpu_count", lambda: 8)
     assert asr._parallelism("cpu") == (2, 3)
     monkeypatch.setattr(asr.os, "cpu_count", lambda: 4)

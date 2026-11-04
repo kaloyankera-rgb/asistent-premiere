@@ -98,12 +98,14 @@ def _device() -> tuple[str, str]:
 def _parallelism(device: str) -> tuple[int, int]:
     """(readings at the same time, CPU threads for each). One reading cannot use many cores (measured on the M4 Max:
     10 threads were SLOWER than 4), but several readings together can: 4 workers x 2 threads read 68 s of audio in 18 s,
-    one reading with 4 threads in 38 s. A GPU takes one reading at a time."""
+    one reading with 4 threads in 38 s. 0.10.2, cold runs on the M4 Max: 3 x 4 beat 5 x 2 (ReShape, one 91 s window and four
+    second opinions: 163 -> 130 s; Beauty Sector, two windows: 74 -> 53 s); the thread count does not change the words
+    (2, 4 and 8 threads gave identical readings). A GPU takes one reading at a time."""
     if device != "cpu":
         return 1, 0
     cores = os.cpu_count() or 4
     if cores >= 12:
-        return 5, 2                                        # M4 Max: 10 performance cores, 5 x 2 threads
+        return 3, 4                                        # M4 Max: 10 performance cores (+4 efficiency), 3 x 4 threads
     if cores >= 10:
         return 4, 2
     if cores >= 6:

@@ -255,7 +255,7 @@ PHRASE_COST = {"base": 1.0, "one_word": 1.4, "three_words": 0.3, "four_words": 3
                "over_soft": 0.3, "over_hard": 20.0, "ends_function": 40.0, "starts_enclitic": 1.2, "too_short": 1.5,
                "too_long": 4.0, "inner_sentence_end": 4.0, "inner_comma": 0.6, "inner_pause": 3.0, "ends_clitic": 1.0,
                "starts_li": 40.0, "splits_adjective": 4.0, "ends_copula": 2.0,
-               "splits_modal": 3.0}
+               "splits_modal": 3.0, "splits_name": 5.0}
 # A short pronoun after a noun or a verb belongs to it and may end a caption („бюста ви“, „колегите ми“, „благодаря ви“),
 # as may „ли“ („и прави ли“); after a function word it leans on the verb that follows („ще ви покажа“) and may not.
 TRAILING = {"ли", "ми", "ти", "му", "ѝ", "ни", "ви", "им", "си", "ги", "го", "ме", "се"}
@@ -296,6 +296,8 @@ def _break_cost(prev, nxt):
         cost += PHRASE_COST["splits_adjective"]
     if gap < PAUSE_SPLIT and _word_core(prev) in MODAL and _word_core(nxt) == "да":
         cost += PHRASE_COST["splits_modal"]
+    if prev.get("english") and nxt.get("english") and not re.search(r"[.,?!…]$", t):   # „Beauty / Sector“: one name
+        cost += PHRASE_COST["splits_name"]
     return cost
 
 

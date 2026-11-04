@@ -89,13 +89,13 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 
 ## Bulgarian subtitles: read the guide first
 `docs/BULGARIAN_TRANSCRIPTION_GUIDE.md` is the permanent reference for everything that touches the subtitle pipeline
-(`subtitle_job.py`, `subtitles.py`, `lexicon.py`, `consensus.py`, `corrections.py`, `suspects.py`, `agreement.py`,
+(`subtitle_job.py`, `subtitles.py`, `lexicon.py`, `consensus.py`, `corrections.py`, `suspects.py`, `agreement.py`, `english.py`,
 `align*.py`, `numbers.py`). Its rules, and where they live in the code:
 - verbatim by default; edits go in a separate layer with a log (`verbatim` + `edits` in the result JSON);
 - never rewrite a word on a hunch: only a dictionary-checked repair of a mis-heard word (`lexicon.repair`), the editor's
   own `чуто => казано` line (`corrections.py`), a fix editors made before that passed the trust rules and the sound check
-  (`learning.py`, `audiocheck.py`), a writing rule that changes only how a said word is written (`bgnorm.py`), or a
-  punctuation rule (`subtitles.tidy_words`); everything doubtful is
+  (`learning.py`, `audiocheck.py`), a writing rule that changes only how a said word is written (`bgnorm.py`; English words said in Bulgarian speech written
+  in English, `english.py`, 0.10.2), or a punctuation rule (`subtitles.tidy_words`); everything doubtful is
   marked and listed with a reason (`suspects.py`, `agreement.py`, the "unheard" check in `align.py`);
 - grammatical gender: no global male/female setting (the user removed it: both speakers are in one edit). Since 0.9.96 the
   editor may say who speaks on each microphone track (Captions tab, the user's decision 2026-11-04): first-person forms on a

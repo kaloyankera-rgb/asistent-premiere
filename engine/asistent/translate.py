@@ -18,6 +18,7 @@ import os
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
@@ -27,6 +28,7 @@ MODEL_DIR = "nllb-1.3b-int8"
 MODEL_REPO = "JustFrederik/nllb-200-distilled-1.3B-ct2-int8"     # CC-BY-NC 4.0 (LICENSES.md); the CTranslate2 int8 conversion
 MODEL_FILES = ("config.json", "model.bin", "sentencepiece.bpe.model", "shared_vocabulary.txt")
 MODEL_MB = 1390
+SLOTS = 3                       # sentences translated at the same time (3 x 4 threads; the M4 Max has 10 performance cores)
 SMALL_DIR = "nllb-600m-int8"     # the model before 0.9.97: still used where the 1.3B one is not downloaded
 PUNCT = (",", ".", "?", "!", ":", ";")
 PUNCT_BONUS = 0.6               # attention mass a matching punctuation cut is worth (one English word carries about 1)
@@ -122,7 +124,8 @@ def _load():
             import ctranslate2
             import sentencepiece as spm
             _state["sp"] = spm.SentencePieceProcessor(model_file=os.path.join(d, "sentencepiece.bpe.model"))
-            _state["tr"] = ctranslate2.Translator(d, device="cpu", compute_type="int8", intra_threads=4)
+            # SLOTS sentences at the same time, each with its own 4 threads (the same 4 as one at a time: the same English)
+            _state["tr"] = ctranslate2.Translator(d, device="cpu", compute_type="int8", intra_threads=4, inter_threads=SLOTS)
             _state["dir"] = d
             _cache.clear()
         return _state["sp"], _state["tr"]
@@ -295,10 +298,14 @@ def english_lines(lines: list[str], fixes: dict | None = None) -> list[str]:
     if any(flat):
         _load()                                        # a newly downloaded model empties the cache of the old one's lines
     fx = tuple(sorted((fixes or {}).items()))
-    for group in sentences(flat):
-        key = (tuple(flat[i] for i in group), fx)
-        if key not in _cache:
-            _cache[key] = _translate_sentence(list(key[0]), dict(fx))
+    groups = sentences(flat)
+    keys = [(tuple(flat[i] for i in group), fx) for group in groups]
+    todo = list(dict.fromkeys(k for k in keys if k not in _cache))
+    if todo:
+        with ThreadPoolExecutor(max_workers=SLOTS) as pool:
+            for k, en in zip(todo, pool.map(lambda k: _translate_sentence(list(k[0]), dict(k[1])), todo)):
+                _cache[k] = en
+    for group, key in zip(groups, keys):
         for i, en in zip(group, _cache[key]):
             out[i] = en
     return out
