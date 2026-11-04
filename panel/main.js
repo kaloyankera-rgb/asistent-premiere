@@ -30,11 +30,14 @@ function settle() {
   state.settleUntil = Date.now() + SETTLE_MS;
 }
 
-function onTap(button, fn) {
+// A button meant to be pressed several times in a row (Exposure ±0.5) passes { repeat: true }: since the 2026-11-03 layout
+// the answer appears at the bottom and nothing above it moves, and the guard was eating every quick second press
+// (2026-11-04: "I have to click multiple times").
+function onTap(button, fn, opts = {}) {
   button.addEventListener("click", () => {
     if (button.disabled) return;                     // own buttons are divs: a disabled one must not act (enable())
     const label = (button.textContent || "").trim();
-    if (Date.now() < state.settleUntil) {
+    if (!opts.repeat && Date.now() < state.settleUntil) {
       engine.log("info", `panel: click ignored (panel just changed): ${label}`);
       return;
     }
@@ -743,35 +746,46 @@ async function onColor(part = null) {
   }
 }
 
-// Exposure −0.5 / +0.5: the editor's own step, applied at once (premiere-color.js, nudgeExposure)
+// Exposure −0.5 / +0.5: the editor's own step, applied at once (premiere-color.js, nudgeExposure). Pressed in quick succession:
+// the panel is not greyed out for it (a press takes ~50 ms), and a press that comes while one is being written is added to
+// the next write, so no click is lost (2026-11-04).
 async function onExposureNudge(delta) {
-  if (state.busy) return;
+  if (state.busy) return;                                   // a long task is running: its buttons are greyed, so are these
   if (!state.online) return finish("No connection to the engine. See README.", false);
-  show("result", false);
-  setBusy(true);
-  progress(0, `Exposure ${delta > 0 ? "+" : ""}${delta}…`);
+  if (state.nudging) {
+    state.nudgeQueued = (state.nudgeQueued || 0) + delta;
+    return;
+  }
+  state.nudging = true;
   try {
     const project = await premiere.activeProject();
-    const sel = await premiereColor.readVideoSelection(project);
-    if (!sel.clips.length) throw new premiere.UserError("Select at least one video clip in the timeline.");
-    const r = await premiereColor.nudgeExposure(project, sel.clips, delta);
-    const done = r.results.filter((x) => !x.skipped);
-    const skipped = r.results.filter((x) => x.skipped);
-    const blocks = r.results.map((x) => {
-      const box = el("div", "group");
-      box.appendChild(el("div", "name", x.clip.name));
-      box.appendChild(el("div", x.skipped ? "warn" : "line", x.line));
-      return box;
-    });
-    const steps = r.steps === 1 ? "one Undo step" : `${r.steps} Undo steps`;
-    finish(done.length ? `Exposure ${delta > 0 ? "+" : ""}${delta} on ${done.length} ${done.length === 1 ? "clip" : "clips"} (${steps})` +
-      (skipped.length ? `, ${skipped.length} not touched.` : ".") : "Nothing changed: see the details.", done.length > 0, blocks);
-    engine.log("info", `exposure nudge ${delta}: ${r.results.map((x) => `${x.clip.name} ${x.line}`).join(" | ")}`);
+    let step = delta;
+    while (step) {
+      const sel = await premiereColor.readVideoSelection(project);
+      if (!sel.clips.length) throw new premiere.UserError("Select at least one video clip in the timeline.");
+      const r = await premiereColor.nudgeExposure(project, sel.clips, step);
+      const done = r.results.filter((x) => !x.skipped);
+      const skipped = r.results.filter((x) => x.skipped);
+      const blocks = r.results.map((x) => {
+        const box = el("div", "group");
+        box.appendChild(el("div", "name", x.clip.name));
+        box.appendChild(el("div", x.skipped ? "warn" : "line", x.line));
+        return box;
+      });
+      const steps = r.steps === 1 ? "one Undo step" : `${r.steps} Undo steps`;
+      const one = done.length === 1 ? ` (now ${done[0].now > 0 ? "+" : ""}${done[0].now})` : "";
+      finish(done.length ? `Exposure ${step > 0 ? "+" : ""}${step} on ${done.length} ${done.length === 1 ? "clip" : "clips"}${one}, ${steps}` +
+        (skipped.length ? `; ${skipped.length} not touched.` : ".") : "Nothing changed: see the details.", done.length > 0, blocks);
+      engine.log("info", `exposure nudge ${step}: ${r.results.map((x) => `${x.clip.name} ${x.line}`).join(" | ")}`);
+      step = state.nudgeQueued || 0;
+      state.nudgeQueued = 0;
+    }
   } catch (e) {
+    state.nudgeQueued = 0;
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `exposure nudge: ${e && e.stack ? e.stack : e}`);
   } finally {
-    setBusy(false);
+    state.nudging = false;
   }
 }
 
@@ -1011,8 +1025,8 @@ onTap($("shotmatch"), () => onShotMatch(null));
 onTap($("color"), () => onColor(null));
 onTap($("colorWhite"), () => onColor("white"));
 onTap($("colorExposure"), () => onColor("exposure"));
-onTap($("exposureDown"), () => onExposureNudge(-0.5));
-onTap($("exposureUp"), () => onExposureNudge(0.5));
+onTap($("exposureDown"), () => onExposureNudge(-0.5), { repeat: true });
+onTap($("exposureUp"), () => onExposureNudge(0.5), { repeat: true });
 onTap($("probe"), onProbeAsk);
 
 // ---------------------------------------------------------------- auto import
