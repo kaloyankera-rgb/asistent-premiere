@@ -55,8 +55,8 @@ def test_the_client_folder_is_found_from_the_project_and_names_the_client(office
 def test_a_deep_folder_mounted_as_its_own_volume_still_finds_the_client(office, monkeypatch):
     p = project(office, "ReShape", "Видео 1")
     deep = os.path.dirname(p)
-    monkeypatch.setattr(learning, "_mounts", lambda: [("192.168.31.147", "Production/ReShape/Контент план/Видео 1", "/Volumes/Видео 1"),
-                                                      ("192.168.31.147", "Production", str(office))])
+    monkeypatch.setattr(learning, "_mounts", lambda: [("fileserver", "Production/ReShape/Контент план/Видео 1", "/Volumes/Видео 1"),
+                                                      ("fileserver", "Production", str(office))])
     seen = learning._alternatives("/Volumes/Видео 1/Видео 1.prproj")
     assert seen[1] == os.path.join(deep, "Видео 1.prproj")
 
