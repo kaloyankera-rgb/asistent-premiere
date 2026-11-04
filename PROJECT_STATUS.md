@@ -1,4 +1,9 @@
-# Project status — Asistent 0.9.87 (2026-11-04)
+# Project status — Asistent 0.9.88 (2026-11-04)
+
+## Exposure −0.5 / +0.5 (0.9.88, user's request 2026-11-04)
+Two buttons in the Color card add a fixed Exposure step to the selected clips' Lumetri (new / neutral / Asistent's own only).
+Node-tested and seen in the browser preview; **not pressed in Premiere yet**: in NEW TEST select clips, press +0.5 twice, Cmd+Z
+once, check Lumetri shows the right Exposure; a clip with a hand-made Lumetri must be listed as not touched.
 
 ## Updates and installs (0.9.87, user's request 2026-11-04)
 Updater from the GitHub releases (panel line + Update button), engine in `<app>/current`, `install.py` for Mac and Windows, release

@@ -187,3 +187,16 @@ test("SUBTITLES: the panel puts a caption track (restyled all at once in Propert
   assert.match(host, /if \(name === "graphics"\) return as_graphics/);
   assert.doesNotMatch(host.slice(host.indexOf("function as_graphics"), host.indexOf("function as_run")), /\.remove\(|removeItem|deleteSequence/);
 });
+
+test("Exposure −0.5 / +0.5 add a fixed step through the same safe Lumetri choice as Apply (never a hand grade)", () => {
+  const color = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
+  assert.match(html, /id="exposureDown"[^>]*class="btn small"/);
+  assert.match(html, /id="exposureUp"[^>]*class="btn small"/);
+  assert.match(main, /onTap\(\$\("exposureDown"\), \(\) => onExposureNudge\(-0\.5\)\)/);
+  assert.match(main, /onTap\(\$\("exposureUp"\), \(\) => onExposureNudge\(0\.5\)\)/);
+  const fn = color.slice(color.indexOf("async function nudgeExposure"), color.indexOf("// ---------------------------------------------------------------- render check"));
+  assert.match(fn, /t = await target\(clip\)/);                 // new, neutral or Asistent's own Lumetri only
+  assert.match(fn, /if \(t\.skip\)/);
+  assert.match(fn, /await remember\(pl\)/);                     // recorded as Asistent's, so Auto color can update it
+  assert.match(fn, /\(pl\.t\.current\.exposure \|\| 0\) \+ delta/);
+});

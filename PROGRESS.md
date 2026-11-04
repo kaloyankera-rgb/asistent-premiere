@@ -208,3 +208,4 @@
 - 2026-11-04: 0.9.85: English line per Bulgarian line (same count and times, user's rule): translate.py (sentence translation + attention/length/punctuation cut), .en.srt, second caption track, checkbox; ReShape ref 69/69 identical times; user's English style settings recorded.
 - 2026-11-04: 0.9.86 pushed (e9d2e64). 0.9.87: updater (GitHub releases, panel Update), engine in <app>/current, install.py for Mac+Windows, release zip + double-click installers, setup_win.ps1 brought level with the Mac, translator download button; update tried end to end on this Mac with a local 0.9.88; Windows not run yet.
 - 2026-11-04: release v0.9.87 published on GitHub (zip 677 KB + latest.json); the engine's check reads it.
+- 2026-11-04: 0.9.88: Exposure −0.5 / +0.5 buttons (robot video without faces, measured exposure too careful); installed, not pressed in Premiere.
