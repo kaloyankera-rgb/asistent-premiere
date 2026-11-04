@@ -117,9 +117,10 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 - No AI voices, no paid tools, no cloud, nothing uploaded.
 
 ## Version control and documentation (GitHub)
-- The repo is `tools/asistent` (own git, branch `main`). Remote `origin` is `kaloyankera-rgb/asistent-premiere`. It was public
-  until 2026-11-04, then made PRIVATE by the user until the office install ("make it public tomorrow in the office"). The
-  updater needs it public: while private, every update check gets 404 and the panel shows no update line. Treat everything
+- The repo is `tools/asistent` (own git, branch `main`). Remote `origin` is `kaloyankera-rgb/asistent-premiere`. It is PUBLIC
+  (private for a few hours on 2026-11-04, public again the same day on the user's word "make it public for now"). The
+  updater needs it public: while private, every update check gets 404 and the panel shows no update line. If the user wants
+  it private again, offer updates from an office server folder (`updater._source`) instead of GitHub. Treat everything
   committed as public: nothing private in commits, ever.
   History is never rewritten: no force-push, no `reset --hard`, no history rewriting, no deleting branches or tags.
   Rename files with `git mv`. Never commit secrets, models, `dist/`, logs or client footage (`.gitignore` covers them).
