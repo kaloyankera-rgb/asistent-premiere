@@ -14,6 +14,8 @@ What is learned (one event per project, so rebuilding a project does not count a
 - `fix`: a correction line („heard => said“) that matched in the run, with the words around it;
 - `revert`: a correction that undoes a learned fix (the editor typed the original back): the fix starts over;
 - `term`: a name or term line of the corrections box; `english`: an English line the editor typed for a Bulgarian line;
+  `english_word`: the words the editor changed in an English line („lipidemia“ -> „lipedema“, 0.9.98), used for the whole
+  client from the first fix (typing the old word back takes it out);
 - `used`: a learned fix was used in a project (with its sound score): with the reverts, how often learned fixes are right;
 - `speaker`: who speaks on a microphone track (the client's default for its next projects);
 - `remove` / `restore`: the Learned list in the Captions tab.
@@ -290,12 +292,14 @@ def is_term(said: str) -> bool:
     return False
 
 
-def build(events: list[dict]) -> tuple[dict, dict, dict]:
-    """Events -> ({rule key: Rule}, {term: last time}, {Bulgarian line key: English}, {track: speaker})."""
+def build(events: list[dict]) -> tuple[dict, dict, dict, dict, dict]:
+    """Events -> ({rule key: Rule}, {term: last time}, {Bulgarian line key: English}, {track: speaker},
+    {English words as translated (lower case): as the editors write them})."""
     rules: dict = {}
     terms: dict = {}
     english: dict = {}
     speakers: dict = {}
+    en_words: dict = {}
     for ev in sorted(events, key=lambda e: e.get("t", 0)):
         kind = ev["kind"]
         if kind in ("fix", "revert", "remove", "restore", "used"):
@@ -328,17 +332,24 @@ def build(events: list[dict]) -> tuple[dict, dict, dict]:
             english[ev["line"]] = ev["en"]
         elif kind == "speaker" and isinstance(ev.get("speakers"), dict):
             speakers = {str(k): v for k, v in ev["speakers"].items() if v in ("m", "f", "")}
-    return rules, terms, english, speakers
+        elif kind == "english_word" and str(ev.get("heard", "")).strip() and str(ev.get("said", "")).strip():
+            heard, said = " ".join(str(ev["heard"]).lower().split()), " ".join(str(ev["said"]).split())
+            if en_words.get(said.lower(), "").lower() == heard:
+                del en_words[said.lower()]                    # the old word typed back: the fix is taken out, not reversed
+            else:
+                en_words[heard] = said
+    return rules, terms, english, speakers, en_words
 
 
 class Plan:
     """What one subtitles run uses: the active learned fixes, learned names for the prompt, learned English lines."""
 
     def __init__(self, project: str, client: str | None, folder: str, rules: list, terms: list, english: dict, known: dict,
-                 speakers: dict | None = None):
+                 speakers: dict | None = None, english_words: dict | None = None):
         self.project, self.client, self.folder = project, client, folder
         self.rules, self.terms, self.english, self.known = rules, terms, english, known
         self.speakers = speakers or {}
+        self.english_words = english_words or {}
         self.pairs = [(r.heard, r.said) for r in self.rules]
 
     def context_ok(self, words: list[dict], i: int, n: int, k: int) -> bool:
@@ -361,7 +372,7 @@ def plan_for(project: str, editor_pairs=()) -> Plan:
     found = find_folder(project)
     client, folder = found if found else (None, os.path.join(learning_dir(), "local"))
     me = computer()["id"]
-    rules, terms, english, speakers = build(_events_for(folder))
+    rules, terms, english, speakers, en_words = build(_events_for(folder))
     general: dict = {}
     if found:
         for other in _siblings(folder):
@@ -380,10 +391,10 @@ def plan_for(project: str, editor_pairs=()) -> Plan:
     use += [g for k, g in general.items() if k not in rules and k not in mine and k not in undone and g.general()]
     names = [t for t, _ in sorted(terms.items(), key=lambda x: -x[1])]
     names += [r.said for r in sorted(rules.values(), key=lambda r: -r.last) if r.term and r.active(me)]
-    return Plan(project, client, folder, use, names[:MAX_TERMS], english, rules, speakers)
+    return Plan(project, client, folder, use, names[:MAX_TERMS], english, rules, speakers, en_words)
 
 
-def record(plan: Plan, contexts: list[dict], terms=(), english=None, background: bool = True, used=()) -> None:
+def record(plan: Plan, contexts: list[dict], terms=(), english=None, background: bool = True, used=(), english_words=None) -> None:
     """After a run: the editor's correction lines that matched (`contexts`: [{"heard", "said", "left", "right",
     "example"}]), the name lines and the typed English lines become events of this project (once per project)."""
     me = computer()
@@ -413,6 +424,8 @@ def record(plan: Plan, contexts: list[dict], terms=(), english=None, background:
             add("used", r.key, heard=r.heard, said=r.said, margin=u.get("margin"))
     for line, en in (english or {}).items():
         add("english", line + "=>" + en, line=line, en=en)
+    for heard, said in (english_words or {}).items():
+        add("english_word", heard.lower() + "=>" + said, heard=heard, said=said)
 
     def work():
         try:

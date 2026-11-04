@@ -83,7 +83,7 @@ window.PREVIEW_SCENARIOS = (function () {
       run: (api) => {
         api.renderCaptionEditor(captions);
         document.getElementById("captionSearch").value = "ра";
-        api.filterCaptions();
+        api.runSearch();
         api.openTab("paneCaptions");
       },
     },

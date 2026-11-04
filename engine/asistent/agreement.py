@@ -137,7 +137,7 @@ NOT_ADJECTIVES = {"как", "така", "тук", "там", "сега", "сам�
                   "мой", "моя", "мое", "мои", "твой", "твоя", "свой", "своя", "наш", "наша", "ваш", "ваша", "един", "една",
                   "едно", "едни", "друг", "друга", "друго", "други", "цял", "цяла", "цяло", "цели", "сам", "сама", "само",
                   "сами", "всичко", "всички", "нищо", "никой", "къде", "кога", "защо", "колко", "дали", "самия", "самият",
-                  "самата", "самото", "самите"}
+                  "самата", "самото", "самите", "като"}
 _ADJ_ENDINGS = (("ият", "m"), ("ия", "m"), ("ата", "f"), ("ото", "n"), ("ите", "p"), ("а", "f"), ("я", "f"), ("о", "n"), ("и", "p"))
 _ADJ_FORM = {"m": "", "f": "а", "n": "о", "p": "и"}
 
@@ -169,12 +169,13 @@ def _noun_class(t: str) -> str | None:
 
 
 ARTICLED = ("ият", "ия", "ата", "ото", "ите")
+PASSIVE = re.compile(r"(?:[еая]н|[аяи]т)[аои]?$")       # „променени“, „направено“, „развит“: passive participles
 VERBAL_NOUN = ("ане", "яне", "ене", "ние", "ния")          # „заболяване“, „натрупвания“: nouns, though „заболявана“ is a word too
 
 
 def bond(a_word: str, n_word: str, known=None) -> bool:
-    """Is `a_word` the adjective of the noun right after it („хронично заболяване“, „мастните клетки“)? A subtitle line is not
-    cut between them (the user, 2026-11-04). Only plain words both known to the dictionary; False without the dictionary."""
+    """Is `a_word` the adjective of the noun right after it („хронично заболяване“, „мастните клетки“), or the adverb of the
+    adjective or participle after it („патологично променени“)? A subtitle line is not cut between them (the user, 2026-11-04). Only plain words both known to the dictionary; False without the dictionary."""
     known = known or _known()
     if known("и") is None or a_word.rstrip()[-1:] in ",.?!…;:":
         return False
@@ -183,10 +184,17 @@ def bond(a_word: str, n_word: str, known=None) -> bool:
         return False
     if re.search(r"[аеиоуъяю]л[аоие]?$", a) or known(a) is not True or known(n) is not True:
         return False                                       # „свършил днеска“: a participle, not an adjective
-    if not _gradable(a, known) or (_gradable(n, known) and not n.endswith(VERBAL_NOUN) and n not in FEM_CONSONANT):
+    if not _gradable(a, known):
+        return False
+    described = _gradable(n, known) and not n.endswith(VERBAL_NOUN) and n not in FEM_CONSONANT
+    if a.endswith("о") and ((described and n[-1] not in "еуюя") or PASSIVE.search(n)):   # not a verb („бързо отиде“)
+        return True                                        # „патологично променени“, „напълно нормално“: an adverb and its word
+    if described:
         return False
     if a.endswith(ARTICLED):                               # the article sits on the adjective, the noun after it is bare
         return not n.endswith(("та", "то", "те", "ът", "ят"))
+    if a.endswith("о") and not n.endswith(("о",) + VERBAL_NOUN):
+        return False                                       # „бързо отиде“: after an -о word, an -е word is mostly a verb
     ca, cn = _adj_class(a), _noun_class(n)
     return bool(ca and cn) and (ca == cn or (ca == "p" and cn == "f"))   # „характерни натрупвания“: plurals in -ия
 

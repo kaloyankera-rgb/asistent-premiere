@@ -65,3 +65,22 @@ def test_the_bigger_translator_is_used_where_it_is_downloaded(tmp_path, monkeypa
 def test_real_model_reads_the_meaning_not_the_word():
     en = " ".join(translate.english_lines(["Това не е проблем,", "който се решава", "просто с отслабване."])).lower()
     assert "weight" in en and "weakening" not in en
+
+
+def test_a_word_fix_keeps_case_and_punctuation_and_takes_the_attention_of_what_it_replaces():
+    words = "Externally, the Adipose tissue, lipidemia.".split()
+    M = np.array([[1, 0], [1, 0], [0, 1], [0, 1], [0.2, 0.8]], dtype=float)
+    out, M2 = translate.replace_words(words, M, {"adipose": "fat", "lipidemia": "lipedema", "the fat tissue": "fat tissue"})
+    assert out == ["Externally,", "the", "Fat", "tissue,", "lipedema."]
+    out, M2 = translate.replace_words(words, M, {"adipose tissue,": "fat tissue"})
+    assert out == ["Externally,", "the", "Fat", "tissue,", "lipidemia."] and M2.shape == (5, 2)
+    out, M2 = translate.replace_words(["forming", "clumps"], np.array([[1.0, 0.0], [0.0, 1.0]]), {"forming": "and form"})
+    assert out == ["and", "form", "clumps"] and M2[0].tolist() == M2[1].tolist() == [1.0, 0.0]
+
+
+@pytest.mark.skipif(not translate.available() or translate.better_available(), reason="the 1.3B translator is not here")
+def test_real_model_keeps_a_phrase_with_its_line_and_uses_plain_words():
+    en = [translate.bare(e) for e in translate.english_lines(["При липедема", "мастните клетки", "не са просто по-големи."])]
+    assert en[1].lower().endswith("fat cells")
+    en = " ".join(translate.english_lines(["Това е промяна в самата мастна тъкан."], {"change": "shift"})).lower()
+    assert "adipose" not in en and "shift" in en

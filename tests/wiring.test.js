@@ -319,7 +319,19 @@ test("the Captions tab has a search over the Bulgarian and English lines that hi
   assert.match(f, /input\.value\.toLowerCase\(\)\.includes\(q\)/);
   assert.match(f, /en\.value\.toLowerCase\(\)\.includes\(q\)/);
   assert.match(f, /input\.parentNode\.hidden = !hit/);
-  assert.match(main, /\$\("captionSearch"\)\.addEventListener\("input", filterCaptions\)/);
+  // 0.9.98: nothing changes while typing (Premiere took the keyboard back when most lines vanished at the third letter)
+  assert.doesNotMatch(main, /\$\("captionSearch"\)\.addEventListener\("input"/);
+  assert.match(main, /\$\("captionSearch"\)\.addEventListener\("keydown", \(e\) => \{\s*if \(e\.key === "Enter"\) runSearch\(\);/);
+  assert.match(main, /onTap\(\$\("captionFind"\), runSearch\)/);
+  assert.match(f, /const q = search\.applied;/);
   const ed = main.slice(main.indexOf("function renderCaptionEditor"), main.indexOf("function filterCaptions"));
   assert.match(ed, /filterCaptions\(\);/);                                         // a rebuild keeps the search
+});
+
+test("the words changed in an English line are kept per project, undone when typed back, and sent with every run", () => {
+  const apply = main.slice(main.indexOf("async function onCaptionApply"), main.indexOf("async function onSubtitles"));
+  assert.match(apply, /captionedit\.pairsFor\(en\.getAttribute\("data-original"\), en\.value\)/);
+  assert.match(apply, /delete words\[p\.said\.toLowerCase\(\)\]/);
+  assert.match(apply, /saveEnglishWords\(project\.path, words\)/);
+  assert.match(main, /payload\.english_words = englishWords\(project\.path\);/);
 });
