@@ -117,7 +117,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 - Never mute, reroute or rearrange tracks on the user's behalf.
 - Main microphone peak ≤ −6 dBFS; no compression or limiting by default.
 - Nothing uncertain is applied automatically (sync, routing, colour); zero correction is a valid result.
-- Colour: preview first; only Exposure/Temperature/Tint so far; never contrast/saturation/LUT unless the
+- Colour: one press analyses and applies high- and medium-confidence corrections at once, then the frame check takes back
+  what got worse, and Before / after shows it (the user, 2026-11-04, 0.9.99: no approval step; low confidence is never
+  applied); only Exposure/Temperature/Tint so far; never contrast/saturation/LUT unless the
   colour plan's modules are implemented and verified; never touch a manual Lumetri grade (a Lumetri counts as
   Asistent's own only when its full fingerprint matches one in `managed.json`).
 - Sync works from the timeline selection and builds a new `SYNC – <sequence>`; the user's sequence is read only.

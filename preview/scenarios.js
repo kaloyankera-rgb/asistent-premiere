@@ -49,11 +49,10 @@ window.PREVIEW_SCENARIOS = (function () {
       blocks.push(box);
       previews.push(api.previewBlock(name, { before: frame(warm), after: frame(false), portrait: false }, "before · after (approximate)", l));
     }
-    const actions = () => [
-      api.button("small", "Apply the sure ones (1)", "Puts only the high-confidence corrections into Lumetri.", () => {}),
-      api.button("small", "Apply the medium ones too (2)", "Also puts the medium-confidence corrections into Lumetri.", () => {}),
-    ];
-    api.finish('Only a proposal: nothing is in Lumetri yet. Press "Apply the sure ones (1)" below to apply it.', true, blocks, { actions, previews });
+    const done = api.el("div", "group");
+    done.appendChild(api.el("div", "name", "C0731.MP4 · corrected"));
+    done.appendChild(api.el("div", "line", "Exposure +1 · Temperature -8 · Tint +3"));
+    api.finish("Applied to 1 clip. One Cmd/Ctrl+Z undoes everything.", true, [done, ...blocks], { previews });
   }
 
   const captions = {

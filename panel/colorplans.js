@@ -1,6 +1,6 @@
-// What "Apply the sure ones" and "Apply the medium ones too" apply. Pure (no Premiere), so it is tested with node.
-// Counted per correction, not per clip: a clip with a high white balance and a medium exposure needs both
-// buttons (fx39024, 2026-11-01: counting clips hid "Apply the medium ones too" and the exposure could not be applied).
+// Which corrections a colour press applies: level "all" (high and medium confidence) since 0.9.99, when one press analyses and
+// applies (the user, 2026-11-04); "sure" (high only) is kept for the tests and a stricter use. Pure (no Premiere), tested
+// with node. Counted per correction, not per clip: a clip can have a high white balance and a medium exposure (fx39024).
 
 const ok = (level, c) => c === "high" || (level === "all" && c === "medium");
 
