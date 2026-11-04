@@ -260,6 +260,57 @@ function setActions(t, values) {
   return acts;
 }
 
+// ---------------------------------------------------------------- the editor's own ±0.5 on Exposure
+
+// The user, 2026-11-04 (a robot video with no faces: the measured Exposure was too careful): a fixed step added to the
+// Exposure slider of every selected clip, exactly what an editor types into Lumetri. Only a Lumetri Asistent may touch
+// (target(): a new one, a neutral one or Asistent's own; a hand grade is never touched), recorded as Asistent's like any
+// correction so Auto color can update it later. One Undo step (two when a Lumetri has to be added first). No render check:
+// the editor sees the result at once and presses again or Cmd+Z.
+async function nudgeExposure(project, clips, delta) {
+  const prepared = [];
+  const results = [];
+  for (const clip of clips) {
+    let t;
+    try {
+      t = await target(clip);
+    } catch (e) {
+      t = { skip: `did not work for this clip (${e && e.message ? e.message : e})` };
+    }
+    if (t.skip) results.push({ clip, skipped: true, line: t.skip });
+    else prepared.push({ clip, t });
+  }
+  let steps = 0;
+  const fresh = prepared.filter((pl) => pl.t.isNew);
+  if (fresh.length) {
+    transaction(project, "Asistent: Lumetri", (c) => {
+      for (const pl of fresh) c.addAction(pl.t.chain.createAppendComponentAction(pl.t.comp));
+    });
+    steps++;
+    for (const pl of fresh) await attached(pl.t);
+  }
+  const ready = [];
+  for (const pl of prepared) {
+    if (!pl.t.ps.exposure) results.push({ clip: pl.clip, skipped: true, line: "this Lumetri has no Exposure parameter" });
+    else ready.push(pl);
+  }
+  if (!ready.length) return { steps, results };
+  for (const pl of ready) pl.values = { exposure: Math.round(((pl.t.current.exposure || 0) + delta) * 100) / 100 };
+  transaction(project, `Asistent: Exposure ${delta > 0 ? "+" : ""}${delta}`, (c) => {
+    for (const pl of ready) for (const make of setActions(pl.t, pl.values)) c.addAction(make());
+  });
+  steps++;
+  for (const pl of ready) {
+    const was = pl.t.current.exposure || 0;
+    const now = await value(pl.t.ps.exposure);
+    const shown = Number.isFinite(now) ? Math.round(now * 100) / 100 : pl.values.exposure;
+    pl.final = { ...pl.t.current, exposure: shown };
+    await remember(pl);
+    results.push({ clip: pl.clip, was, now: shown, line: `Exposure ${was > 0 ? "+" : ""}${was} → ${shown > 0 ? "+" : ""}${shown}` });
+  }
+  return { steps, results };
+}
+
 // ---------------------------------------------------------------- render check (Premiere's own frames)
 
 async function frameSize(sequence, long = 480) {
@@ -693,4 +744,4 @@ async function copyLumetri(project, pairs) {
   return done;
 }
 
-module.exports = { readVideoSelection, apply, exportFrame, exportFrames, timelineFrames, lumetriState, applyShotMatch, readLumetri, copyLumetri, devWrite, devChain };
+module.exports = { readVideoSelection, apply, nudgeExposure, exportFrame, exportFrames, timelineFrames, lumetriState, applyShotMatch, readLumetri, copyLumetri, devWrite, devChain };

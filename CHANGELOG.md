@@ -6,6 +6,18 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.88 - Exposure −0.5 / +0.5
+- **Two buttons in the Color card** (the user, 2026-11-04: a robot video with no faces was underexposed and Exposure "didn't
+  really do much"): Exposure −0.5 and Exposure +0.5 add that step to the Exposure slider of every selected clip at once, as an
+  editor types it into Lumetri: no measuring, so they work without faces. Same Lumetri choice as Apply (a new one, a neutral
+  one or Asistent's own; a hand grade is never touched, the clip is listed as not touched), recorded as Asistent's so Auto color
+  can update it later. One Undo step (two when a Lumetri is added first). The answer lists each clip "Exposure +1.05 → +1.55".
+- Why Exposure did little on those clips (log of 2026-11-03 18:04-18:07, RoboHubPro "Сервизен робот"): the first press proposed
+  and applied +0.5 to +2 on most clips; fx30-2-1284 measured 0 (no faces: by the midtones), and the later presses read 0 because
+  they measure the timeline with the earlier correction in it. The midtone estimate is a guess without faces; the buttons are
+  the editor's way to finish it.
+- Engine 424, panel 116 tests passing. Not pressed in Premiere yet (Premiere was closed).
+
 ## 0.9.87 - Updates from the panel; Windows install brought up to date
 - **Updater** (the user, 2026-11-04: "install an updater so people don't need to download from GitHub every update"):
   `engine/asistent/updater.py` asks the GitHub releases for `latest.json` when the panel opens and every few hours (at most every

@@ -743,6 +743,38 @@ async function onColor(part = null) {
   }
 }
 
+// Exposure −0.5 / +0.5: the editor's own step, applied at once (premiere-color.js, nudgeExposure)
+async function onExposureNudge(delta) {
+  if (state.busy) return;
+  if (!state.online) return finish("No connection to the engine. See README.", false);
+  show("result", false);
+  setBusy(true);
+  progress(0, `Exposure ${delta > 0 ? "+" : ""}${delta}…`);
+  try {
+    const project = await premiere.activeProject();
+    const sel = await premiereColor.readVideoSelection(project);
+    if (!sel.clips.length) throw new premiere.UserError("Select at least one video clip in the timeline.");
+    const r = await premiereColor.nudgeExposure(project, sel.clips, delta);
+    const done = r.results.filter((x) => !x.skipped);
+    const skipped = r.results.filter((x) => x.skipped);
+    const blocks = r.results.map((x) => {
+      const box = el("div", "group");
+      box.appendChild(el("div", "name", x.clip.name));
+      box.appendChild(el("div", x.skipped ? "warn" : "line", x.line));
+      return box;
+    });
+    const steps = r.steps === 1 ? "one Undo step" : `${r.steps} Undo steps`;
+    finish(done.length ? `Exposure ${delta > 0 ? "+" : ""}${delta} on ${done.length} ${done.length === 1 ? "clip" : "clips"} (${steps})` +
+      (skipped.length ? `, ${skipped.length} not touched.` : ".") : "Nothing changed: see the details.", done.length > 0, blocks);
+    engine.log("info", `exposure nudge ${delta}: ${r.results.map((x) => `${x.clip.name} ${x.line}`).join(" | ")}`);
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `exposure nudge: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    setBusy(false);
+  }
+}
+
 // one JSON record per clip and press in the engine's audit log (colour plan B4); never blocks the panel
 function audit(pl, level) {
   const chk = (c) => (c ? { new_clipping: c.new_clipping, clipping_status: c.clipping_status, exposure_before: c.exposure_before,
@@ -979,6 +1011,8 @@ onTap($("shotmatch"), () => onShotMatch(null));
 onTap($("color"), () => onColor(null));
 onTap($("colorWhite"), () => onColor("white"));
 onTap($("colorExposure"), () => onColor("exposure"));
+onTap($("exposureDown"), () => onExposureNudge(-0.5));
+onTap($("exposureUp"), () => onExposureNudge(0.5));
 onTap($("probe"), onProbeAsk);
 
 // ---------------------------------------------------------------- auto import
