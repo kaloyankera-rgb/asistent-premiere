@@ -1,4 +1,8 @@
-# Project status — Asistent 0.9.89 (2026-11-04)
+# Project status — Asistent 0.9.90 (2026-11-04)
+
+Toast (0.9.90): every answer also shows for a few seconds under the header. Preview only; check in Premiere that it appears
+and hides by itself.
+
 
 ## Exposure −0.5 / +0.5 (0.9.88, user's request 2026-11-04)
 Two buttons in the Color card add a fixed Exposure step to the selected clips' Lumetri (new / neutral / Asistent's own only).

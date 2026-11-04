@@ -42,6 +42,7 @@ test("every press but Cancel goes through onTap (logged, ignored while the panel
   assert.deepStrictEqual(direct.map((l) => l.trim().slice(0, 40)), [
     'button.addEventListener("click", () => {',
     '$("cancel").addEventListener("click", ()',
+    '$("toast").addEventListener("click", () ',          // only hides the toast: not an action, nothing to log or guard
   ]);
 });
 
@@ -208,4 +209,12 @@ test("Exposure ±0.5 never greys the panel and queues a press that comes during 
   assert.doesNotMatch(fn, /setBusy\(/);
   assert.match(fn, /state\.nudgeQueued = \(state\.nudgeQueued \|\| 0\) \+ delta/);
   assert.match(fn, /step = state\.nudgeQueued \|\| 0/);
+});
+
+test("every answer also shows as a toast under the header, which never moves the buttons", () => {
+  const css = fs.readFileSync(path.join(panel, "style.css"), "utf8");
+  assert.match(html, /<div id="toast" class="toast" hidden><\/div>/);
+  assert.match(css, /\.toast \{ position: absolute;/);
+  const fin = main.slice(main.indexOf("function finish("), main.indexOf("function finish(") + 200);
+  assert.match(fin, /toast\(text, ok\);/);
 });

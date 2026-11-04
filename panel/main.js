@@ -171,7 +171,22 @@ function fillWith(id, nodes) {
  * text: one line; ok: green/red; blocks: the report (Log); opts.actions: () => [buttons] for the
  * decisions, shown under the summary and above the pictures; opts.previews: [nodes] for Before / after.
  */
+// The toast (2026-11-04: "a little pop up when something is added or removed, so we don't have to look at the bottom"):
+// every answer also shows for a few seconds under the header, visible wherever the list is scrolled.
+const TOAST_MS = { ok: 3500, err: 7000 };
+
+function toast(text, ok) {
+  const box = $("toast");
+  box.textContent = text;
+  box.className = ok ? "toast" : "toast err";
+  box.style.top = `${$("top").getBoundingClientRect().bottom + 2}px`;
+  box.hidden = false;
+  clearTimeout(state.toastTimer);
+  state.toastTimer = setTimeout(() => { box.hidden = true; }, ok ? TOAST_MS.ok : TOAST_MS.err);
+}
+
 function finish(text, ok, blocks, opts = {}) {
+  toast(text, ok);
   show("result", true);                          // at the bottom of the panel (2026-11-03): the list does not need to scroll
   settle();
   $("summary").textContent = text;
@@ -1168,6 +1183,7 @@ for (const t of document.querySelectorAll(".btn.more")) {
   onTap(t, () => set($(id).hidden));
 }
 bindTips(document);
+$("toast").addEventListener("click", () => { $("toast").hidden = true; });
 $("app").addEventListener("scroll", hideTip);
 
 refreshHeader();

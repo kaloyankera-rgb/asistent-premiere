@@ -210,3 +210,4 @@
 - 2026-11-04: release v0.9.87 published on GitHub (zip 677 KB + latest.json); the engine's check reads it.
 - 2026-11-04: 0.9.88: Exposure −0.5 / +0.5 buttons (robot video without faces, measured exposure too careful); installed, not pressed in Premiere.
 - 2026-11-04: 0.9.89: Exposure ±0.5 skip the click guard and the grey-out, quick presses queue (user had to click several times).
+- 2026-11-04: 0.9.90: toast under the header for every answer (user's request).

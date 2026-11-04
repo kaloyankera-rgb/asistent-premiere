@@ -6,6 +6,12 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.90 - The answer as a toast
+- The user, 2026-11-04: "a little pop up message when something is added or removed, somewhere visible but not taking much space,
+  so we don't have to look at the bottom". Every answer (`finish()`) now also shows for 3.5 s (a failure 7 s) as a toast under the
+  header, over the list, two lines at most, with a green or red edge; a click hides it. It floats (absolute, like the tooltips),
+  so no button moves; the full answer stays at the bottom and in Log. Seen in the browser preview; not yet in Premiere.
+
 ## 0.9.89 - Exposure ±0.5 react to every click
 - The user, 2026-11-04: "I have to click the +0,5 buttons multiple times before they work". The log (Masterhaus C0728, 10:10)
   shows every recorded press was written, but a quick second click was dropped by the "panel just changed" guard (700 ms after
