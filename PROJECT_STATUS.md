@@ -1,4 +1,8 @@
-# Project status — Asistent 0.9.95 (2026-11-04)
+# Project status — Asistent 0.9.96 (2026-11-04)
+
+Phases 5-8 of the subtitle learning (0.9.96): "Who speaks" per track, agreement marks, the Learned list, measuring. Engine
+tests and one real-audio check (Ludi Glavi); the panel seen in the browser preview only. The user tests 0.9.93-0.9.96 in
+Premiere at once.
 
 Subtitles learn from the editors' fixes (0.9.95): recorded in the client's office folder
 (`Production/ReShape/ReShape Subtitle Learning`), used in the next videos after the sound check; Bulgarian writing rules.

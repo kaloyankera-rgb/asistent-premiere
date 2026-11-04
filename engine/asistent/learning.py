@@ -14,6 +14,8 @@ What is learned (one event per project, so rebuilding a project does not count a
 - `fix`: a correction line („heard => said“) that matched in the run, with the words around it;
 - `revert`: a correction that undoes a learned fix (the editor typed the original back): the fix starts over;
 - `term`: a name or term line of the corrections box; `english`: an English line the editor typed for a Bulgarian line;
+- `used`: a learned fix was used in a project (with its sound score): with the reverts, how often learned fixes are right;
+- `speaker`: who speaks on a microphone track (the client's default for its next projects);
 - `remove` / `restore`: the Learned list in the Captions tab.
 
 When a learned fix applies (`Rule.active`):
@@ -260,7 +262,9 @@ class Rule:
         self.term = False
         self.removed = False
         self.reverted = 0
+        self.used: set = set()
         self.last = 0.0
+        self.seen = 0.0                                   # time of the newest event about this fix
         self.examples: list = []
 
     @property
@@ -287,19 +291,21 @@ def is_term(said: str) -> bool:
 
 
 def build(events: list[dict]) -> tuple[dict, dict, dict]:
-    """Events -> ({rule key: Rule}, {term: last time}, {Bulgarian line key: English})."""
+    """Events -> ({rule key: Rule}, {term: last time}, {Bulgarian line key: English}, {track: speaker})."""
     rules: dict = {}
     terms: dict = {}
     english: dict = {}
+    speakers: dict = {}
     for ev in sorted(events, key=lambda e: e.get("t", 0)):
         kind = ev["kind"]
-        if kind in ("fix", "revert", "remove", "restore"):
+        if kind in ("fix", "revert", "remove", "restore", "used"):
             heard, said = str(ev.get("heard", "")), str(ev.get("said", ""))
             if not phrase_key(heard) or not said.strip():
                 continue
             r = rules.get(rule_key(heard, said))
             if r is None:
                 r = rules[rule_key(heard, said)] = Rule(heard, said)
+            r.seen = max(r.seen, float(ev.get("t", 0) or 0))
             if kind == "fix":
                 r.projects.add(ev.get("project"))
                 r.computers.add(ev.get("computer"))
@@ -308,6 +314,8 @@ def build(events: list[dict]) -> tuple[dict, dict, dict]:
                 r.term = r.term or bool(ev.get("term"))
                 r.last = ev.get("t", 0)
                 r.examples = (r.examples + [ev.get("example")])[-3:] if ev.get("example") else r.examples
+            elif kind == "used":
+                r.used.add(ev.get("project"))
             elif kind == "revert":
                 r.projects.clear()
                 r.computers.clear()
@@ -318,15 +326,19 @@ def build(events: list[dict]) -> tuple[dict, dict, dict]:
             terms[str(ev["said"]).strip()] = ev.get("t", 0)
         elif kind == "english" and isinstance(ev.get("line"), str) and isinstance(ev.get("en"), str):
             english[ev["line"]] = ev["en"]
-    return rules, terms, english
+        elif kind == "speaker" and isinstance(ev.get("speakers"), dict):
+            speakers = {str(k): v for k, v in ev["speakers"].items() if v in ("m", "f", "")}
+    return rules, terms, english, speakers
 
 
 class Plan:
     """What one subtitles run uses: the active learned fixes, learned names for the prompt, learned English lines."""
 
-    def __init__(self, project: str, client: str | None, folder: str, rules: list, terms: list, english: dict, known: dict):
+    def __init__(self, project: str, client: str | None, folder: str, rules: list, terms: list, english: dict, known: dict,
+                 speakers: dict | None = None):
         self.project, self.client, self.folder = project, client, folder
         self.rules, self.terms, self.english, self.known = rules, terms, english, known
+        self.speakers = speakers or {}
         self.pairs = [(r.heard, r.said) for r in self.rules]
 
     def context_ok(self, words: list[dict], i: int, n: int, k: int) -> bool:
@@ -349,7 +361,7 @@ def plan_for(project: str, editor_pairs=()) -> Plan:
     found = find_folder(project)
     client, folder = found if found else (None, os.path.join(learning_dir(), "local"))
     me = computer()["id"]
-    rules, terms, english = build(_events_for(folder))
+    rules, terms, english, speakers = build(_events_for(folder))
     general: dict = {}
     if found:
         for other in _siblings(folder):
@@ -368,10 +380,10 @@ def plan_for(project: str, editor_pairs=()) -> Plan:
     use += [g for k, g in general.items() if k not in rules and k not in mine and k not in undone and g.general()]
     names = [t for t, _ in sorted(terms.items(), key=lambda x: -x[1])]
     names += [r.said for r in sorted(rules.values(), key=lambda r: -r.last) if r.term and r.active(me)]
-    return Plan(project, client, folder, use, names[:MAX_TERMS], english, rules)
+    return Plan(project, client, folder, use, names[:MAX_TERMS], english, rules, speakers)
 
 
-def record(plan: Plan, contexts: list[dict], terms=(), english=None, background: bool = True) -> None:
+def record(plan: Plan, contexts: list[dict], terms=(), english=None, background: bool = True, used=()) -> None:
     """After a run: the editor's correction lines that matched (`contexts`: [{"heard", "said", "left", "right",
     "example"}]), the name lines and the typed English lines become events of this project (once per project)."""
     me = computer()
@@ -395,6 +407,10 @@ def record(plan: Plan, contexts: list[dict], terms=(), english=None, background:
                 example=c.get("example", ""))
     for t in terms:
         add("term", t.lower(), said=t)
+    for u in used:
+        r = plan.known.get(u.get("key"))
+        if r is not None:
+            add("used", r.key, heard=r.heard, said=r.said, margin=u.get("margin"))
     for line, en in (english or {}).items():
         add("english", line + "=>" + en, line=line, en=en)
 
@@ -413,6 +429,52 @@ def record(plan: Plan, contexts: list[dict], terms=(), english=None, background:
         t.start()
     else:
         work()
+
+
+def _client(project: str) -> tuple[str | None, str]:
+    found = find_folder(project)
+    return found if found else (None, os.path.join(learning_dir(), "local"))
+
+
+def listing(project: str) -> dict:
+    """The Learned list of the Captions tab: the client's learned fixes, newest first, with how far each has come."""
+    client, folder = _client(project)
+    me = computer()["id"]
+    rules = build(_events_for(folder))[0]
+    out = []
+    for r in sorted(rules.values(), key=lambda r: -r.last):
+        if not r.projects and not r.removed and not r.reverted:
+            continue
+        out.append({"key": r.key, "heard": r.heard, "said": r.said, "projects": len(r.projects), "computers": len(r.computers),
+                    "used": len(r.used), "reverted": r.reverted, "removed": r.removed, "active": r.active(me),
+                    "examples": r.examples})
+    return {"client": client, "shared": client is not None, "rules": out}
+
+
+def set_removed(project: str, key: str, removed: bool) -> dict:
+    """Remove a learned fix for everyone (or bring it back): one event, written now."""
+    client, folder = _client(project)
+    rules = build(_events_for(folder))[0]
+    r = rules.get(key)
+    if r is None:
+        raise ValueError("That learned fix was not found.")
+    me = computer()
+    at = max(round(time.time(), 3), round(r.seen + 0.001, 3))   # after everything this editor saw, whatever the clocks say
+    ev = {"v": FORMAT, "id": uuid.uuid4().hex[:16], "t": at, "computer": me["id"], "name": me["name"],
+          "project": project_id(project), "client": client or "", "kind": "remove" if removed else "restore",
+          "heard": r.heard, "said": r.said}
+    _write(folder, [ev])
+    log.info("learning: %s %s => %s for %s", ev["kind"], r.heard, r.said, client or "this computer")
+    return listing(project)
+
+
+def record_speakers(project: str, speakers: dict) -> None:
+    """Who speaks on which track: the client's default for its next projects."""
+    client, folder = _client(project)
+    me = computer()
+    _write(folder, [{"v": FORMAT, "id": uuid.uuid4().hex[:16], "t": round(time.time(), 3), "computer": me["id"],
+                     "name": me["name"], "project": project_id(project), "client": client or "", "kind": "speaker",
+                     "speakers": speakers}])
 
 
 def wait(timeout: float = 10.0) -> None:

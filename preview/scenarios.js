@@ -79,6 +79,20 @@ window.PREVIEW_SCENARIOS = (function () {
     color: { run: colorProposal },
     beforeafter: { run: (api) => { colorProposal(api); api.openTab("panePreview"); } },
     captions: { run: (api) => { api.renderCaptionEditor(captions); api.openTab("paneCaptions"); } },
+    learned: {
+      run: (api) => {
+        api.renderCaptionEditor({ ...captions, tracks: [0, 1], speakers: { 0: "m" } });
+        api.renderSpeakers({ tracks: [0, 1], speakers: { 0: "m" } }, "/p/A.prproj");
+        api.learnedView.open = true;
+        api.renderLearned({ client: "ReShape", shared: true, rules: [
+          { key: "a", heard: "масоните", said: "мастните", projects: 3, computers: 2, used: 5, active: true, removed: false, examples: ["При липедема масните клетки"] },
+          { key: "b", heard: "Решейп", said: "ReShape", projects: 1, computers: 1, used: 0, active: true, removed: false, examples: [] },
+          { key: "c", heard: "при", said: "по", projects: 1, computers: 1, used: 0, active: false, removed: false, examples: [] },
+          { key: "d", heard: "компроментира", said: "компрометира", projects: 2, computers: 1, used: 1, active: false, removed: true, examples: [] },
+        ] });
+        api.openTab("paneCaptions");
+      },
+    },
     open: {
       engine: {
         model: { backend: true, model: false, expected_bytes: 3.1e9, bytes: 0, dir: "~/Library/Application Support/Asistent/models/whisper" },

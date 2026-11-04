@@ -134,6 +134,18 @@ function saveSubtitleSettings(project, text) {
   return call("POST", "/subtitles/settings", { project, text });
 }
 
+function saveSpeakers(project, speakers) {
+  return call("POST", "/subtitles/speakers", { project, speakers });
+}
+
+function learned(project) {
+  return call("GET", `/subtitles/learned?project=${encodeURIComponent(project)}`);
+}
+
+function setLearned(project, key, action) {
+  return call("POST", "/subtitles/learned", { project, key, action });
+}
+
 function captionsState(project, sequence) {
   return call("GET", `/captions/state?project=${encodeURIComponent(project)}&sequence=${encodeURIComponent(sequence)}`);
 }
@@ -179,4 +191,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, devPoll, devResult, job, cancel, log };

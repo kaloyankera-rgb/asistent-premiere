@@ -97,8 +97,12 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   (`learning.py`, `audiocheck.py`), a writing rule that changes only how a said word is written (`bgnorm.py`), or a
   punctuation rule (`subtitles.tidy_words`); everything doubtful is
   marked and listed with a reason (`suspects.py`, `agreement.py`, the "unheard" check in `align.py`);
-- grammatical gender: no global male/female setting (the user removed it: both speakers are in one edit); first-person
-  forms are only CHECKED (readings that disagree are flagged), never converted;
+- grammatical gender: no global male/female setting (the user removed it: both speakers are in one edit). Since 0.9.96 the
+  editor may say who speaks on each microphone track (Captions tab, the user's decision 2026-11-04): first-person forms on a
+  set track follow that person unless the sound clearly says the other form (then marked); on a track that is not set they
+  are only CHECKED (readings that disagree are flagged), never converted. Never guessed from the voice;
+- adjective and noun that disagree („нов стена“) are only marked, never changed: a one-letter ending is a near-miss the
+  sound check cannot hear (`agreement.mismatches`);
 - after any text change the affected words are re-aligned (corrections run before the aligner);
 - the table in guide §10 is `tests/test_guide_regressions.py`; never fix an example by hard-coding its replacement.
 

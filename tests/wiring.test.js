@@ -283,3 +283,22 @@ test("a tooltip that would land on a text box goes above its button (native cont
   assert.match(tip, /querySelectorAll\("input, textarea, select"\)/);
   assert.match(tip, /overNative\(x, y, w, h\)\) y = Math\.max\(6, r\.top - h - 4\)/);
 });
+
+test("the Captions tab says who speaks on each track and lists the learned fixes, collapsed, with remove for everyone", () => {
+  const eng = fs.readFileSync(path.join(panel, "engine.js"), "utf8");
+  assert.match(html, /id="speakerRow"/);
+  assert.match(html, /id="learnedHead"[^>]*hidden/);                              // nothing shows before a run
+  assert.match(html, /id="learnedList" hidden/);
+  assert.match(eng, /call\("POST", "\/subtitles\/speakers", \{ project, speakers \}\)/);
+  assert.match(eng, /call\("POST", "\/subtitles\/learned", \{ project, key, action \}\)/);
+  const sp = main.slice(main.indexOf("function renderSpeakers"), main.indexOf("const learnedView"));
+  assert.match(sp, /engine\.saveSpeakers\(projectPath, map\)/);
+  assert.match(sp, /captionEdit\.speakersChanged = true/);
+  const ln = main.slice(main.indexOf("function renderLearned"), main.indexOf("async function loadLearned"));
+  assert.match(ln, /engine\.setLearned\(learnedView\.path, x\.key, x\.removed \? "restore" : "remove"\)/);
+  assert.match(ln, /show\("learnedList", learnedView\.open\)/);
+  assert.match(main, /const learnedView = \{ open: false/);                        // collapsed until clicked
+  const apply = main.slice(main.indexOf("async function onCaptionApply"), main.indexOf("async function onSubtitles"));
+  assert.match(apply, /!captionEdit\.speakersChanged/);                           // a speaker change alone is enough to rebuild
+  assert.match(main, /renderSpeakers\(result, project\.path\);\n {4}loadLearned\(project\.path\);/);
+});

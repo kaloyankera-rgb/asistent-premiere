@@ -218,11 +218,18 @@ def test_caption_state_remembers_the_track_per_project_and_sequence(engine, tmp_
 def test_subtitle_settings_are_kept_per_project_and_validated(engine, tmp_path, monkeypatch):
     monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
     q = "project=%2Fp%2FA.prproj"
-    assert call("GET", f"/subtitles/settings?{q}")[1] == {"text": ""}
+    assert call("GET", f"/subtitles/settings?{q}")[1] == {"text": "", "speakers": {}}
     code, res = call("POST", "/subtitles/settings", {"project": "/p/A.prproj", "text": "раф => рафт\nлошо =>"})
     assert code == 200 and res["text"].startswith("раф") and len(res["errors"]) == 1
-    assert call("GET", f"/subtitles/settings?{q}")[1] == {"text": "раф => рафт\nлошо =>"}
-    assert call("GET", "/subtitles/settings?project=%2Fp%2FB.prproj")[1] == {"text": ""}
+    assert call("GET", f"/subtitles/settings?{q}")[1] == {"text": "раф => рафт\nлошо =>", "speakers": {}}
+    assert call("GET", "/subtitles/settings?project=%2Fp%2FB.prproj")[1] == {"text": "", "speakers": {}}
+    # who speaks on which track: kept next to the text, which stays
+    assert call("POST", "/subtitles/speakers", {"project": "/p/A.prproj", "speakers": {"0": "m", "1": "f"}})[0] == 200
+    assert call("GET", f"/subtitles/settings?{q}")[1] == {"text": "раф => рафт\nлошо =>", "speakers": {"0": "m", "1": "f"}}
+    assert call("POST", "/subtitles/speakers", {"project": "/p/A.prproj", "speakers": {"0": "male"}})[0] == 400
+    # the Learned list: empty for a project outside a client folder; a fix that does not exist cannot be removed
+    assert call("GET", f"/subtitles/learned?{q}")[1] == {"client": None, "shared": False, "rules": []}
+    assert call("POST", "/subtitles/learned", {"project": "/p/A.prproj", "key": "x=>y", "action": "remove"})[0] == 400
     assert call("POST", "/subtitles/settings", {"project": "", "text": ""})[0] == 400
 
 

@@ -25,7 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
 from . import (agreement, align, asr, audiocheck, bgnorm, config, consensus, corrections, dialoguemix, learning, lexicon,
-               subtitles, suspects, translate)
+               subtitle_settings, subtitles, suspects, translate)
 from .dialoguemix import ASR_SR, build_mix, read_segment
 from .sync import Cancelled
 
@@ -273,7 +273,7 @@ class Learned:
             _store(key, entry)
         heard = " ".join(w["word"] for w in words[i:i + n])
         with self.lock:
-            (self.used if audiocheck.fits(m) else self.vetoed).append({"heard": heard, "said": rule.said, "margin": m})
+            (self.used if audiocheck.fits(m) else self.vetoed).append({"heard": heard, "said": rule.said, "margin": m, "key": rule.key})
         return audiocheck.fits(m)
 
 
@@ -318,8 +318,40 @@ def _second_opinion(sg: dict, prompt: str, spoken: dict, pairs, progress, cancel
     return _clamp([dict(w, start=w["start"] - lead, end=w["end"] - lead) for w in words if _inside(w, lead, lead + dur)], dur)
 
 
+def _speaker_forms(checked: list[dict], gender: str, y, lo: float, entry: dict, key: str) -> tuple[list[dict], list, list]:
+    """A piece's words (seconds from the piece) and the gender of the person on its track -> (words, changes, doubts).
+    A first-person form of the other gender is changed unless Whisper finds the changed word clearly worse for the sound
+    (audiocheck.VETO); then it stays as heard and is listed for the editor (guide §2.3)."""
+    changes, doubts = [], []
+    out = [dict(w) for w in checked]
+    for i, g in agreement.speaker_forms(out):
+        if g == gender or out[i].get("fixed"):
+            continue
+        new = agreement.to_gender(out[i]["word"], gender)
+        if not new:
+            continue
+        mark = f"g|{round(out[i]['start'] + lo, 2)}|{out[i]['word']}|{gender}"
+        checks = entry.setdefault("checks", {})
+        m = checks.get(mark)
+        if m is None:
+            shifted = [dict(w, start=w["start"] + lo, end=w["end"] + lo) for w in out]
+            try:
+                m = round(audiocheck.margin(y, shifted, i, 1, new), 2)
+            except Exception as e:                             # noqa: BLE001 - no check: keep what was heard, mark it
+                log.warning("speaker forms: sound check failed: %s", e)
+                m = -999.0
+            checks[mark] = m
+            _store(key, entry)
+        if audiocheck.fits(m):
+            changes.append({"from": out[i]["word"], "to": new, "margin": m})
+            out[i] = dict(out[i], word=new, speaker=True)
+        else:
+            doubts.append((i, f"the speaker on this track is set as a {'man' if gender == 'm' else 'woman'}, but the other form is heard"))
+    return out, changes, doubts
+
+
 def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(), prompt="", progress=None, cancelled=None,
-                 learned=None) -> tuple[list[dict], dict]:
+                 learned=None, speakers=None) -> tuple[list[dict], dict]:
     """Words of every piece in a window, in SEQUENCE seconds, plus {"cached", "aligned", "weak", "align_error"?, "changed",
     "unsure", "changes", "applied", "trimmed", "second": [(sequence second, "A"|"B")]}.
 
@@ -339,6 +371,7 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
     second: list = []
     disputes: list = []
     verbatim: list = []
+    speaker_changes: list = []
     for sg in win["pieces"]:
         lo = sg["start"] - win["a"]
         hi = lo + (sg["end"] - sg["start"])
@@ -351,6 +384,7 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
                      for w in entry["words"] if _inside(w, lo, hi)]                    # what Whisper wrote, untouched
         mine = _clamp([dict(w, start=w["start"] - lo, end=w["end"] - lo) for w in words if _inside(w, lo, hi)], hi - lo)
         checked, votes = consensus.merge(mine, [], lexicon.known, repair)
+        gender = (speakers or {}).get(str(sg.get("track", "")))           # who speaks on this piece's track, if set
         if _unknown(checked) or agreement.forms(checked):
             alt = _second_opinion(sg, prompt, spoken, pairs, progress, cancelled, learned)
             alt_checked, alt_votes = consensus.merge(alt, [], lexicon.known, repair)
@@ -359,10 +393,18 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
             other = checked if better else alt_checked
             if better:
                 checked, votes = alt_checked, alt_votes
-            for i in agreement.disputed(checked, other):          # the two readings hear different genders: say so, change nothing
+            for i in ([] if gender in ("m", "f") else agreement.disputed(checked, other)):
+                # the two readings hear different genders and nobody said who speaks here: say so, change nothing
                 checked[i]["p"] = min(checked[i].get("p", 1.0), consensus.UNSURE_P)
                 votes["unsure"] += 1
                 disputes.append({"at": round(sg["at"] + checked[i]["start"], 2), "word": checked[i]["word"], "reason": "male or female form: the readings differ"})
+        if gender in ("m", "f"):
+            checked, said, doubts = _speaker_forms(checked, gender, y, lo, entry, key)
+            speaker_changes += said
+            for i, reason in doubts:
+                checked[i]["p"] = min(checked[i].get("p", 1.0), consensus.UNSURE_P)
+                votes["unsure"] += 1
+                disputes.append({"at": round(sg["at"] + checked[i]["start"], 2), "word": checked[i]["word"], "reason": reason})
         for w in checked:
             if w.get("unheard"):
                 w["p"] = min(w.get("p", 1.0), consensus.UNSURE_P)
@@ -372,7 +414,8 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
         unsure += votes["unsure"]
         changes += votes["changes"]
         out += [dict(w, start=round(sg["at"] + w["start"], 3), end=round(sg["at"] + w["end"], 3)) for w in checked]
-    info.update(changed=changed, unsure=unsure, changes=changes, second=second, disputes=disputes, verbatim=verbatim)
+    info.update(changed=changed, unsure=unsure, changes=changes, second=second, disputes=disputes, verbatim=verbatim,
+                speaker=speaker_changes)
     return out, info
 
 
@@ -398,6 +441,8 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         except Exception as e:                             # noqa: BLE001
             log.warning("learning: not available for this run: %s", e)
     prompt = subtitles.initial_prompt(p["terms"] + parsed["terms"] + (learned.plan.terms if learned else []))
+    # who speaks on which microphone track: the project's own choice, else the client's last one (Captions tab)
+    speakers = {**(learned.plan.speakers if learned else {}), **subtitle_settings.get(p["project"]).get("speakers", {})} if p["project"] else {}
     wins = plan_windows(segments)
     total = sum(w["b"] - w["a"] for w in wins) or 1.0
     words: list[dict] = []
@@ -410,6 +455,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     applied = [0] * len(parsed["pairs"])
     align_error = None
     norms: list = []
+    speaker_changes: list = []
     t_asr = time.time()
     shares = [(w["b"] - w["a"]) / total for w in wins]
     frac = [0.0] * len(wins)
@@ -434,7 +480,8 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     cached = all(r["cached"] for r in reads)
     vocab = vocabulary(reads, [t for _, b in parsed["pairs"] for t in b.split()])
     def finish_one(i: int):
-        return window_words(wins[i], reads[i], p["spoken"], parsed["pairs"], vocab, prompt, lambda f, m: None, cancelled, learned)
+        return window_words(wins[i], reads[i], p["spoken"], parsed["pairs"], vocab, prompt, lambda f, m: None, cancelled, learned,
+                            speakers)
     progress(0.86, "Aligning the words to the sound…")
     with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(wins)))) as pool:   # pass 2: corrections, alignment, spelling
         futures = [pool.submit(finish_one, i) for i in range(len(wins))]
@@ -456,6 +503,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         changes += info["changes"]
         applied = [a + b for a, b in zip(applied, info["applied"])]
         norms += info["norms"]
+        speaker_changes += info["speaker"]
         align_error = align_error or info.get("align_error")
     asr_s = time.time() - t_asr
     words.sort(key=lambda w: (w["start"], w["end"]))
@@ -465,6 +513,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
             unique.append(w)
     words, tidy = subtitles.tidy_words(unique)
     found = suspects.find(words)                           # reported and marked "?", never rewritten (guide §5)
+    found += [{"i": i, "word": words[i]["word"], "at": words[i]["start"], "reason": r} for i, r in agreement.mismatches(words)]
     for f in found:
         words[f["i"]]["p"] = min(words[f["i"]].get("p", 1.0), consensus.UNSURE_P)
     review = sorted(disputes + [{"at": round(f["at"], 2), "word": f["word"], "reason": f["reason"]} for f in found], key=lambda r: r["at"])
@@ -506,6 +555,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         "correction_errors": parsed["errors"],
         "review": review,
         "readings": {"windows": len(wins), "seconds": round(sum(w["b"] - w["a"] for w in wins), 1), "changed": changed, "changes": changes, "second_opinions": second, "commas": tidy["commas"], "joined": tidy["joined"], "unsure": unsure, "dictionary": lexicon.available()},
+        "tracks": sorted({int(sg.get("track", 0)) for sg in segments}), "speakers": speakers,
         "learning": ({"client": learned.plan.client, "shared": learned.plan.client is not None, "rules": len(learned.plan.rules),
                       "used": learned.used, "vetoed": learned.vetoed} if learned else None),
         "notes": mix["notes"], "duplicates": mix["duplicates"], "skipped": p["skipped"],
@@ -513,7 +563,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     }
     with open(stem + ".json", "w", encoding="utf-8") as f:
         # the verbatim layer (what Whisper wrote) is never edited; every change to it is listed in `edits`
-        edits = {"corrections": result["corrections"], "writing": norms, "spelling": changes, "commas": tidy["commas"],
+        edits = {"corrections": result["corrections"], "writing": norms, "speaker_forms": speaker_changes, "spelling": changes, "commas": tidy["commas"],
                  "joined_tokens": tidy["joined"], "second_opinions": second, "review": review,
                  "learned": learned.used if learned else [], "learned_refused": learned.vetoed if learned else []}
         json.dump({**result, "words": words, "verbatim": sorted(verbatim, key=lambda w: w["start"]), "edits": edits,
@@ -524,7 +574,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
              aligned, weak, f", {align_error}" if align_error else "", asr_s, " (cached)" if cached else "",
              time.time() - t0, preset, stem + ".srt")
     if learned:                                            # in the background: the editor does not wait for the server
-        learning.record(learned.plan, learned.contexts, parsed["terms"], p["english_fixed"])
+        learning.record(learned.plan, learned.contexts, parsed["terms"], p["english_fixed"], used=learned.used)
         log.info("learning: %s, %d learned fixes active, %d used, %d refused by the sound", learned.plan.client or "this computer",
                  len(learned.plan.rules), len(learned.used), len(learned.vetoed))
     progress(1.0, "Done")

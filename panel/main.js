@@ -534,7 +534,7 @@ async function loadSubtitleSettings(path) {
 
 // The caption editor (the Captions tab): one field per line of the last subtitles. What the user changed becomes
 // correction lines (captionedit.js); the next run applies them and places the result on a NEW caption track.
-const captionEdit = { result: null, inputs: [], enInputs: [] };
+const captionEdit = { result: null, inputs: [], enInputs: [], speakersChanged: false };
 
 // The editor's own English lines, per project on this computer: {Bulgarian line (normalised): English}. Sent with every
 // subtitles run; the engine keeps them wherever the Bulgarian line is still the same (subtitle_job.py, english_fixed).
@@ -591,16 +591,93 @@ function renderCaptionEditor(result) {
   show("tabCaptions", true);
 }
 
+// Who speaks on which microphone track (0.9.96): first-person forms („доволен/доволна“) follow that person. Remembered per
+// project, and as the client's default; used from the next Apply and rebuild.
+const SPEAKER_CHOICES = [["", "not set / both"], ["m", "a man"], ["f", "a woman"]];
+
+function renderSpeakers(result, projectPath) {
+  const row = $("speakerRow");
+  while (row.firstChild) row.removeChild(row.firstChild);
+  const tracks = result.tracks || [];
+  show("speakerRow", tracks.length > 0);
+  if (!tracks.length) return;
+  row.appendChild(el("span", "muted", "Who speaks:"));
+  const map = { ...(result.speakers || {}) };
+  for (const t of tracks) {
+    const sel = document.createElement("select");
+    sel.setAttribute("data-track", String(t));
+    for (const [v, label] of SPEAKER_CHOICES) {
+      const o = el("option", "", `A${t + 1}: ${label}`);
+      o.value = v;
+      if ((map[String(t)] || "") === v) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.addEventListener("change", async () => {
+      map[String(t)] = sel.value;
+      try {
+        await engine.saveSpeakers(projectPath, map);
+        captionEdit.speakersChanged = true;
+        toast(`A${t + 1}: ${SPEAKER_CHOICES.find((c) => c[0] === sel.value)[1]}. Press Apply and rebuild to use it.`, true);
+      } catch (e) {
+        toast(e.message || String(e), false);
+      }
+    });
+    row.appendChild(sel);
+  }
+}
+
+// The Learned list (0.9.96): the client's learned fixes, collapsed under the lines. Remove takes one back for everyone.
+const learnedView = { open: false, path: null };
+
+function renderLearned(r) {
+  const head = $("learnedHead");
+  const list = $("learnedList");
+  while (list.firstChild) list.removeChild(list.firstChild);
+  const rules = r.rules || [];
+  head.textContent = `${learnedView.open ? "▾" : "▸"} Learned ${r.shared ? `for ${r.client}` : "on this computer"} (${rules.filter((x) => x.active).length} in use)`;
+  show("learnedHead", true);
+  show("learnedList", learnedView.open);
+  if (!rules.length) list.appendChild(el("div", "muted", "Nothing yet: fixes typed in the lines above are learned when you press Apply and rebuild."));
+  for (const x of rules) {
+    const row = el("div", x.removed ? "learned off" : "learned");
+    const what = el("span", "what", `${x.heard} → ${x.said}`);
+    if (x.examples && x.examples.length) what.setAttribute("data-tip", `Fixed in: „${x.examples[x.examples.length - 1]}“`);
+    row.appendChild(what);
+    const how = x.removed ? "removed" : x.active ? `in use · ${x.projects} ${x.projects === 1 ? "project" : "projects"}` : `waiting · ${x.projects} ${x.projects === 1 ? "project" : "projects"}`;
+    row.appendChild(el("span", "how", how));
+    row.appendChild(button("link", x.removed ? "Restore" : "Remove", x.removed ? "Use this fix again, for everyone." : "Stop using this fix, for everyone.", async () => {
+      try {
+        renderLearned(await engine.setLearned(learnedView.path, x.key, x.removed ? "restore" : "remove"));
+        toast(`${x.removed ? "Restored" : "Removed"} for everyone: ${x.heard} → ${x.said}`, true);
+      } catch (e) {
+        toast(e.message || String(e), false);
+      }
+    }));
+    list.appendChild(row);
+  }
+}
+
+async function loadLearned(projectPath) {
+  learnedView.path = projectPath;
+  try {
+    renderLearned(await engine.learned(projectPath));
+  } catch (e) {
+    show("learnedHead", false);
+    show("learnedList", false);
+  }
+}
+
 async function onCaptionApply() {
   if (state.busy || !captionEdit.result) return;
   const edited = captionEdit.inputs.map((i) => i.value);
   const pairs = captionedit.pairsFromEdits(captionEdit.result.captions, edited);
   // English lines typed right: kept for their Bulgarian line as it will read after the rebuild (the edited one)
   const enChanged = captionEdit.enInputs.map((en, i) => [en, i]).filter(([en]) => en && en.value.trim() !== en.getAttribute("data-original"));
-  if (!pairs.length && !enChanged.length) {
+  if (!pairs.length && !enChanged.length && !captionEdit.speakersChanged) {
     $("captionEditState").textContent = "Nothing changed: type a word right in one of the lines first.";
     return;
   }
+  captionEdit.speakersChanged = false;
   if (enChanged.length) {
     const project = await premiere.activeProject();
     const map = englishFixed(project.path);
@@ -611,6 +688,7 @@ async function onCaptionApply() {
   const said = [];
   if (pairs.length) said.push(`${pairs.length} ${pairs.length === 1 ? "correction" : "corrections"} added: ${pairs.map((p) => `${p.heard} → ${p.said}`).join("; ")}`);
   if (enChanged.length) said.push(`${enChanged.length} English ${enChanged.length === 1 ? "line" : "lines"} kept as typed`);
+  if (!said.length) said.push("Who speaks changed");
   $("captionEditState").textContent = `${said.join(". ")}. Rebuilding…`;
   openTab("paneTools");
   await onSubtitles({ again: true });
@@ -654,6 +732,8 @@ async function onSubtitles(opts = {}) {
     }
     if (result.english_note) out.lines.unshift({ cls: "warn", text: result.english_note });
     renderCaptionEditor(result);
+    renderSpeakers(result, project.path);
+    loadLearned(project.path);
     finish(out.text, out.ok, out.lines.map((l) => el("div", l.cls, l.text)));
   } catch (e) {
     finish(e.message || String(e), false);
@@ -1203,6 +1283,10 @@ onTap($("sync"), onSync);
 onTap($("audio"), () => onAudio(null));
 onTap($("subtitles"), () => onSubtitles());
 onTap($("captionApply"), onCaptionApply);
+onTap($("learnedHead"), () => {
+  learnedView.open = !learnedView.open;
+  if (learnedView.path) loadLearned(learnedView.path);
+});
 onTap($("rough"), onRoughCut);
 onTap($("subtitleDownload"), onSubtitleDownload);
 onTap($("translatorDownload"), onTranslatorDownload);
@@ -1282,5 +1366,5 @@ setInterval(() => {
 
 // browser preview only (preview/boot.js sets this; inside Premiere it never exists): sample results fill the views
 if (typeof window !== "undefined" && typeof window.__asistentPreview === "function") {
-  window.__asistentPreview({ finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab });
+  window.__asistentPreview({ finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab, renderSpeakers, renderLearned, learnedView });
 }

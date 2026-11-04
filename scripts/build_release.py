@@ -19,7 +19,7 @@ FILES = ("requirements.txt", "requirements-asr.txt", "requirements-align.txt", "
 SKIP_DIRS = {"__pycache__", ".pytest_cache", "githooks"}
 SKIP_FILES = {".DS_Store", "devbridge.enabled"}
 INSTALLERS = ("Install Asistent (Mac).command", "Install Asistent (Windows).cmd")   # at the top of the zip, easy to find
-SKIP_SCRIPTS = set(INSTALLERS) | {"dev_cmd.py", "check_subtitles.py", "caption_template.jsx", "caption_template.sh", "build_release.py",
+SKIP_SCRIPTS = set(INSTALLERS) | {"dev_cmd.py", "check_subtitles.py", "measure_learning.py", "caption_template.jsx", "caption_template.sh", "build_release.py",
                 "publish_release.sh", "release_mac.sh"}
 EXECUTABLE = (".sh", ".command")
 

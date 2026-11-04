@@ -21,6 +21,8 @@ drive the engine. The Host header is checked against DNS rebinding.
                              sequence through the host; {"ok", "msg", ...} (503 with the reason when the host is away)
   GET  /subtitles/settings?project=   {text}: the corrections and names text (per project)
   POST /subtitles/settings   {project, text} -> saved + {errors} of the text; /subtitles also takes "text"
+  POST /subtitles/speakers   {project, speakers: {track: "m"|"f"|""}} -> saved per project, the client's default (learning.py)
+  GET  /subtitles/learned?project=   the client's learned fixes (Captions tab); POST {project, key, action: remove|restore}
   GET  /captions/state?project=&sequence=   the caption track Asistent placed there before ({} when none)
   POST /captions/record      {project, sequence, signature: {index, count, first, last, srt}}; POST /captions/forget
   GET  /dev/poll?wait=s      test bridge (only with devbridge.enabled): the next panel command
@@ -81,6 +83,7 @@ from . import devbridge
 from . import hostbridge
 from . import captionstate
 from . import subtitle_settings
+from . import learning
 from . import translate
 from . import updater
 
@@ -268,6 +271,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, updater.check(force=(parse_qs(url.query).get("force") or ["0"])[0] == "1"))
         if url.path == "/subtitles/settings":
             return self._send(200, subtitle_settings.get((parse_qs(url.query).get("project") or [""])[0]))
+        if url.path == "/subtitles/learned":
+            return self._send(200, learning.listing((parse_qs(url.query).get("project") or [""])[0]))
         if url.path == "/captions/state":
             q = parse_qs(url.query)
             return self._send(200, captionstate.get((q.get("project") or [""])[0], (q.get("sequence") or [""])[0]) or {})
@@ -366,6 +371,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, res)
             if self.path == "/subtitles/settings":
                 return self._send(200, subtitle_settings.put(str(body.get("project") or ""), body.get("text") or ""))
+            if self.path == "/subtitles/speakers":
+                proj = str(body.get("project") or "")
+                res = subtitle_settings.put_speakers(proj, body.get("speakers"))
+                try:
+                    learning.record_speakers(proj, res["speakers"])
+                except OSError as e:
+                    log.warning("learning: speakers not shared: %s", e)
+                return self._send(200, res)
+            if self.path == "/subtitles/learned":
+                key, action = body.get("key"), body.get("action")
+                if not isinstance(key, str) or action not in ("remove", "restore"):
+                    raise ValueError("Invalid learned fix.")
+                return self._send(200, learning.set_removed(str(body.get("project") or ""), key, action == "remove"))
             if self.path in ("/captions/record", "/captions/forget"):
                 proj, seq = body.get("project"), body.get("sequence")
                 if not isinstance(proj, str) or not isinstance(seq, str) or not seq:
