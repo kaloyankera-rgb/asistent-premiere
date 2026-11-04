@@ -198,7 +198,7 @@ test("SUBTITLES: the panel puts a caption track (restyled all at once in Propert
   assert.doesNotMatch(host.slice(host.indexOf("function as_graphics"), host.indexOf("function as_run")), /\.remove\(|removeItem|deleteSequence/);
 });
 
-test("Exposure −0.5 / +0.5 add a fixed step through the same safe Lumetri choice as Apply (never a hand grade)", () => {
+test("Exposure −0.5 / +0.5 add a fixed step; in a hand-set Lumetri only Exposure moves and it stays the editor's (0.10.1)", () => {
   const color = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
   assert.match(html, /id="exposureDown"[^>]*class="btn small"/);
   assert.match(html, /id="exposureUp"[^>]*class="btn small"/);
@@ -209,9 +209,10 @@ test("Exposure −0.5 / +0.5 add a fixed step through the same safe Lumetri choi
   assert.match(press, /\["pointerdown", "mousedown"\]/);
   assert.match(press, /if \(Date\.now\(\) - downAt < 1000\) return;/);
   const fn = color.slice(color.indexOf("async function nudgeExposure"), color.indexOf("// ---------------------------------------------------------------- render check"));
-  assert.match(fn, /t = await target\(clip\)/);                 // new, neutral or Asistent's own Lumetri only
+  assert.match(fn, /t = await target\(clip, \{ manual: true \}\)/);   // also the editor's own Lumetri (the user, 2026-11-04)
   assert.match(fn, /if \(t\.skip\)/);
-  assert.match(fn, /await remember\(pl\)/);                     // recorded as Asistent's, so Auto color can update it
+  assert.match(fn, /if \(!pl\.t\.manual\) await remember\(pl\);/);     // Asistent's own: recorded; the editor's grade: never
+  assert.equal((color.match(/target\([^)]*manual: true/g) || []).length, 1);  // only ±0.5 may touch a hand grade
   assert.match(fn, /\(pl\.t\.current\.exposure \|\| 0\) \+ delta/);
 });
 

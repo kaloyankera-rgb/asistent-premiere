@@ -121,7 +121,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   what got worse, and Before / after shows it (the user, 2026-11-04, 0.9.99: no approval step; low confidence is never
   applied); only Exposure/Temperature/Tint so far; never contrast/saturation/LUT unless the
   colour plan's modules are implemented and verified; never touch a manual Lumetri grade (a Lumetri counts as
-  Asistent's own only when its full fingerprint matches one in `managed.json`).
+  Asistent's own only when its full fingerprint matches one in `managed.json`). The one exception (the user, 2026-11-04,
+  0.10.1): the editor's own Exposure −0.5 / +0.5 buttons move Exposure in a hand-set Lumetri too, nothing else in it, never a
+  keyframed Exposure, and do not record it as Asistent's.
 - Sync works from the timeline selection and builds a new `SYNC – <sequence>`; the user's sequence is read only.
 - No AI voices, no paid tools, no cloud, nothing uploaded.
 

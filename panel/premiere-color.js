@@ -88,8 +88,9 @@ function clipKey(clip) {
 
 // Lumetri of the clip that we may set: an existing one still at 0 on our three sliders, Asistent's own one
 // exactly as it left it (managed correction, updated with the new differences), or a new one. A Lumetri
-// with any other changes is someone's grade and is never touched.
-async function target(clip) {
+// with any other changes is someone's grade and is never touched; only the editor's own ±0.5 asks for it
+// ({ manual: true }) and gets it back marked `manual`.
+async function target(clip, { manual = false } = {}) {
   const chain = await maybe(clip.ti, "getComponentChain");
   if (!chain) throw new Error(`${clip.name} has no effects.`);
   const count = await chain.getComponentCount();
@@ -105,6 +106,7 @@ async function target(clip) {
     const own = await engine.managedCheck(clipKey(clip), await snapshot(comp)).catch(() => null);
     debug(`color target ${clip.name}: Lumetri with ${used.join(", ")}, Asistent's own: ${!!(own && own.owned)}`);
     if (own && own.owned) return { chain, comp, ps, isNew: false, current, owned: true };
+    if (manual) return { chain, comp, ps, isNew: false, current, manual: true };
     return { skip: `already has a Lumetri with changes (${used.join(", ")}) that are not from Asistent or were changed by hand: not touched`,
       current };
   }
@@ -270,19 +272,23 @@ function setActions(t, values) {
 // ---------------------------------------------------------------- the editor's own ±0.5 on Exposure
 
 // The user, 2026-11-04 (a robot video with no faces: the measured Exposure was too careful): a fixed step added to the
-// Exposure slider of every selected clip, exactly what an editor types into Lumetri. Only a Lumetri Asistent may touch
-// (target(): a new one, a neutral one or Asistent's own; a hand grade is never touched), recorded as Asistent's like any
-// correction so Auto color can update it later. One Undo step (two when a Lumetri has to be added first). No render check:
-// the editor sees the result at once and presses again or Cmd+Z.
+// Exposure slider of every selected clip, exactly what an editor types into Lumetri. A new, neutral or Asistent's own
+// Lumetri is recorded as Asistent's like any correction, so Auto color can update it later. The editor's own grade gets the
+// step too (the user, 2026-11-04: "it overwrites if it's added from me"): only its Exposure moves, every other slider stays,
+// and it is NOT recorded as Asistent's, so Auto color still never touches it. A keyframed Exposure is left alone. One Undo
+// step (two when a Lumetri has to be added first). No render check: the editor sees the result at once and presses again or Cmd+Z.
 async function nudgeExposure(project, clips, delta) {
   const prepared = [];
   const results = [];
   for (const clip of clips) {
     let t;
     try {
-      t = await target(clip);
+      t = await target(clip, { manual: true });
     } catch (e) {
       t = { skip: `did not work for this clip (${e && e.message ? e.message : e})` };
+    }
+    if (!t.skip && t.manual && t.ps.exposure && (await maybe(t.ps.exposure, "isTimeVarying"))) {
+      t = { skip: "its Exposure has keyframes: not touched" };
     }
     if (t.skip) results.push({ clip, skipped: true, line: t.skip });
     else prepared.push({ clip, t });
@@ -312,8 +318,9 @@ async function nudgeExposure(project, clips, delta) {
     const now = await value(pl.t.ps.exposure);
     const shown = Number.isFinite(now) ? Math.round(now * 100) / 100 : pl.values.exposure;
     pl.final = { ...pl.t.current, exposure: shown };
-    await remember(pl);
-    results.push({ clip: pl.clip, was, now: shown, line: `Exposure ${was > 0 ? "+" : ""}${was} → ${shown > 0 ? "+" : ""}${shown}` });
+    if (!pl.t.manual) await remember(pl);                // the editor's grade stays the editor's
+    results.push({ clip: pl.clip, was, now: shown, line: `Exposure ${was > 0 ? "+" : ""}${was} → ${shown > 0 ? "+" : ""}${shown}` +
+      (pl.t.manual ? " (in your own Lumetri; the other sliders are as you left them)" : "") });
   }
   return { steps, results };
 }

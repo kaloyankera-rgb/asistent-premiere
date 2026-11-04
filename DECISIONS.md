@@ -277,3 +277,9 @@ never touched, the frame check after writing takes back what made the picture wo
 confidence is applied too (the user chose no approval step at all); it is said per clip in Details. Match POVs the same; the
 reference camera buttons now re-match at once.
 
+
+## 2026-11-04: Exposure ±0.5 may move Exposure in the editor's own Lumetri (0.10.1, narrows "never touch a manual grade")
+The user pressed +0.5 on a clip whose Lumetri they had set by hand and nothing happened. ±0.5 is the editor's own step, the same
+as typing into the slider, so it now changes Exposure there too; nothing else in that Lumetri, never a keyframed Exposure, and
+the Lumetri is not recorded as Asistent's, so the measuring buttons (Auto color, White balance, Exposure, Match POVs) still never
+touch a hand grade. The user asked for ±0.5 only "for now".

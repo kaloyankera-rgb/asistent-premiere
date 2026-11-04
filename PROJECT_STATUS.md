@@ -1,4 +1,8 @@
-# Project status — Asistent 0.10.0 (2026-11-04)
+# Project status — Asistent 0.10.1 (2026-11-04)
+
+0.10.1: Exposure ±0.5 moves only Exposure in a hand-set Lumetri too (not recorded as Asistent's; keyframed Exposure left
+alone); tests with a fake Lumetri; not yet pressed in Premiere. 0.10.0's selection fix seen working in the user's MASTERHAUS
+log (one press on V1 read one clip).
 
 0.10.0: the selection is matched by track as well as time, so a clip on V1 (or A1) no longer also selects the clip with the
 same cut on V2 (or A2, A3); colour leaves switched-off clips alone. Fixes the user's MASTERHAUS report (Auto color corrected

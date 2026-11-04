@@ -1,5 +1,5 @@
 // node --test tests/selection.test.js
-// Which timeline clips count as selected (premiere.js readTimeline) with a fake Premiere: after Sync every cut lines up on
+// Which timeline clips count as selected (premiere.js readTimeline) and what Exposure ±0.5 changes, with a fake Premiere: after Sync every cut lines up on
 // all tracks, and a clip matched by its time alone also selected the clips above and below it (the user, 2026-11-04:
 // Auto color on the POV on V1 went onto the switched-off POV on V2).
 const test = require("node:test");
@@ -12,7 +12,9 @@ const fakePpro = {
   ClipProjectItem: { cast: (raw) => raw },
   SequenceEditor: { getEditor: () => ({}) },
 };
-const fakeEngine = { log: (level, msg) => logged.push(msg) };
+const recorded = [];
+const fakeEngine = { log: (level, msg) => logged.push(msg), managedCheck: async () => ({ owned: false }),
+  managedRecord: async (key, snap, values) => recorded.push(values) };
 const load = Module._load;
 Module._load = function (request, parent, isMain) {
   if (request === "premierepro") return fakePpro;
@@ -82,4 +84,46 @@ test("colour leaves a switched-off clip alone, and says so when it was the only 
   assert.deepStrictEqual(sel.off, ["C0728.MP4"]);
   const off = [item("video", 1, "C0728.MP4", 0, 4.4, { selected: true, disabled: true })];
   await assert.rejects(PC.readVideoSelection(project(off)), /C0728\.MP4 is switched off/);
+});
+
+// a Lumetri the editor set by hand (Exposure, Tint, Saturation), as in the user's MASTERHAUS screenshot of 2026-11-04
+function lumetriClip(values, { keyframed = false } = {}) {
+  const param = (displayName) => {
+    const p = { displayName, v: values[displayName] ?? (displayName === "Saturation" ? 100 : 0),
+      getStartValue: async () => ({ value: p.v }), isTimeVarying: async () => keyframed && displayName === "Exposure",
+      createKeyframe: (v) => v, createSetValueAction: (v) => () => { p.v = v; } };
+    return p;
+  };
+  const ps = ["Exposure", "Contrast", "Temperature", "Tint", "Saturation"].map(param);
+  const comp = { getMatchName: async () => "AE.ADBE Lumetri", getParamCount: async () => ps.length, getParam: async (i) => ps[i] };
+  const chain = { getComponentCount: async () => 1, getComponentAtIndex: async () => comp };
+  const clip = { name: "fx31028.MP4", path: "/m/fx31028.MP4", inPt: 0, outPt: 4.4, ti: { getComponentChain: async () => chain } };
+  return { clip, ps: Object.fromEntries(ps.map((p) => [p.displayName, p])) };
+}
+const runs = { lockedAccess: (f) => f(), executeTransaction: (build) => { build({ addAction: (a) => a() }); return true; } };
+
+test("±0.5 moves only Exposure in the editor's own Lumetri and does not make it Asistent's", async () => {
+  recorded.length = 0;
+  const { clip, ps } = lumetriClip({ Exposure: 0.5, Tint: -1, Saturation: 111 });
+  const r = await PC.nudgeExposure(runs, [clip], 0.5);
+  assert.strictEqual(ps.Exposure.v, 1);
+  assert.deepStrictEqual([ps.Tint.v, ps.Saturation.v, ps.Temperature.v], [-1, 111, 0]);
+  assert.strictEqual(r.steps, 1);
+  assert.match(r.results[0].line, /Exposure \+0\.5 → \+1 \(in your own Lumetri/);
+  assert.deepStrictEqual(recorded, []);                                       // Auto color still never touches it
+  await PC.nudgeExposure(runs, [clip], -0.5);
+  await PC.nudgeExposure(runs, [clip], -0.5);
+  assert.strictEqual(ps.Exposure.v, 0);
+});
+
+test("±0.5 leaves a keyframed Exposure in the editor's Lumetri alone", async () => {
+  const { clip, ps } = lumetriClip({ Exposure: 0.5, Saturation: 111 }, { keyframed: true });
+  const r = await PC.nudgeExposure(runs, [clip], 0.5);
+  assert.strictEqual(ps.Exposure.v, 0.5);
+  assert.ok(r.results[0].skipped && /keyframes/.test(r.results[0].line));
+});
+
+test("Auto color still refuses the editor's own Lumetri", async () => {
+  const { clip } = lumetriClip({ Exposure: 0.5, Tint: -1, Saturation: 111 });
+  assert.deepStrictEqual(await PC.lumetriState(clip), { lumetri: "manual", current: { exposure: 0.5, temperature: 0, tint: -1, contrast: 0, saturation: 111 } });
 });
