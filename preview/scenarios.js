@@ -70,6 +70,7 @@ window.PREVIEW_SCENARIOS = (function () {
   return {
     idle: {},
     offline: { engine: { status: { error: "Failed to fetch" } } },
+    nudge: { run: (api) => api.finish("Exposure +0.5 on 1 clip (now +1.5), one Undo step.", true, []) },
     update: { engine: { update: { current: "0.9.87", latest: "0.9.88", newer: true, notes: "## 0.9.88 - Example" } } },
     busy: { run: (api) => { api.setBusy(true); api.progress(0.42, "Recognising the speech: piece 3 of 8…"); } },
     done: { run: roughDone },
