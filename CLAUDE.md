@@ -111,6 +111,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   never import, call or modify it.
 - One button press = one Undo step wherever Premiere allows; when it cannot, the panel says how many.
 - Never remove track items through UXP (crashed Premiere 26.0.2, see `DECISIONS.md`); the host never removes anything either unless the user approves a specific deletion.
+  The one approved exception (the user, 2026-11-04, 0.9.97): the lines of Asistent's OWN earlier caption pair (signature match,
+  read again just before) are removed after a new pair is placed (`premiere-captions.js` `removeLines`, one step); tested in
+  NEW TEST under ExtendScript load without a crash. Nothing else, and never a track the editor changed.
 - Never mute, reroute or rearrange tracks on the user's behalf.
 - Main microphone peak ≤ −6 dBFS; no compression or limiting by default.
 - Nothing uncertain is applied automatically (sync, routing, colour); zero correction is a valid result.

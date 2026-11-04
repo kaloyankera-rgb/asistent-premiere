@@ -128,14 +128,16 @@ def to_gender(word: str, gender: str, known=None) -> str | None:
 # (Phase 0, 2026-11-04: над/под, сини/синини passed it), so a change could rewrite what the speaker said.
 MASC_A = {"баща", "съдия", "колега", "слуга", "владика", "войвода", "чичо", "дядо", "татко", "кумо"}
 FEM_CONSONANT = {"нощ", "сол", "кръв", "любов", "есен", "пролет", "мисъл", "смърт", "вещ", "част", "власт", "пещ", "болест",
-                 "вест", "съвест", "повест", "прах", "радост", "младост", "старост", "област", "помощ", "мощ", "същност"}
+                 "вест", "съвест", "повест", "прах", "радост", "младост", "старост", "област", "помощ", "мощ", "същност", "тъкан",
+                 "кожа", "болка"}
 COUNTING = {"два", "три", "четири", "пет", "шест", "седем", "осем", "девет", "десет", "няколко", "колко", "толкова",
             "двата", "трите", "много", "малко"}
 NOT_ADJECTIVES = {"как", "така", "тук", "там", "сега", "само", "още", "вече", "все", "пак", "нещо", "някой", "всеки", "кой",
                   "какъв", "каква", "какво", "какви", "такъв", "такава", "такова", "такива", "този", "тази", "това", "тези",
                   "мой", "моя", "мое", "мои", "твой", "твоя", "свой", "своя", "наш", "наша", "ваш", "ваша", "един", "една",
                   "едно", "едни", "друг", "друга", "друго", "други", "цял", "цяла", "цяло", "цели", "сам", "сама", "само",
-                  "сами", "всичко", "всички", "нищо", "никой", "къде", "кога", "защо", "колко", "дали"}
+                  "сами", "всичко", "всички", "нищо", "никой", "къде", "кога", "защо", "колко", "дали", "самия", "самият",
+                  "самата", "самото", "самите"}
 _ADJ_ENDINGS = (("ият", "m"), ("ия", "m"), ("ата", "f"), ("ото", "n"), ("ите", "p"), ("а", "f"), ("я", "f"), ("о", "n"), ("и", "p"))
 _ADJ_FORM = {"m": "", "f": "а", "n": "о", "p": "и"}
 
@@ -164,6 +166,29 @@ def _noun_class(t: str) -> str | None:
     if last == "и":
         return "p"
     return "m" if last not in "уъю" else None
+
+
+ARTICLED = ("ият", "ия", "ата", "ото", "ите")
+VERBAL_NOUN = ("ане", "яне", "ене", "ние", "ния")          # „заболяване“, „натрупвания“: nouns, though „заболявана“ is a word too
+
+
+def bond(a_word: str, n_word: str, known=None) -> bool:
+    """Is `a_word` the adjective of the noun right after it („хронично заболяване“, „мастните клетки“)? A subtitle line is not
+    cut between them (the user, 2026-11-04). Only plain words both known to the dictionary; False without the dictionary."""
+    known = known or _known()
+    if known("и") is None or a_word.rstrip()[-1:] in ",.?!…;:":
+        return False
+    a, n = norm(re.sub(r"^\W*(по|най)-", "", a_word.lower())), norm(n_word)   # „по-пълни крака“: the same adjective
+    if len(a) < 3 or len(n) < 3 or not a.isalpha() or not n.isalpha() or a in NOT_ADJECTIVES or n in NOT_ADJECTIVES:
+        return False
+    if re.search(r"[аеиоуъяю]л[аоие]?$", a) or known(a) is not True or known(n) is not True:
+        return False                                       # „свършил днеска“: a participle, not an adjective
+    if not _gradable(a, known) or (_gradable(n, known) and not n.endswith(VERBAL_NOUN) and n not in FEM_CONSONANT):
+        return False
+    if a.endswith(ARTICLED):                               # the article sits on the adjective, the noun after it is bare
+        return not n.endswith(("та", "то", "те", "ът", "ят"))
+    ca, cn = _adj_class(a), _noun_class(n)
+    return bool(ca and cn) and (ca == cn or (ca == "p" and cn == "f"))   # „характерни натрупвания“: plurals in -ия
 
 
 def mismatches(words: list[dict], known=None) -> list[tuple[int, str]]:

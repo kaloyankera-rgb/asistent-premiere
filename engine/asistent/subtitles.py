@@ -18,6 +18,7 @@ TAIL_HOLD = 0.15
 CONTINUOUS_GAP = 0.35      # a gap to the next caption up to this is bridged (no blink), a longer one is a pause
 MIN_CLEAR = 0.2            # two captions never leave a blank screen shorter than this (it reads as a blink): the first stays
 LEAD = 0.03                # a caption appears this long before its first word (about one frame: it reads as in sync)
+CUT_SLACK = 0.1            # a word the aligner put this little before a cut still belongs to the clip after it
 # Whisper word probability below this is reported to the review list; the SRT text itself is never marked.
 LOW_P = 0.5
 
@@ -42,8 +43,9 @@ PRESETS = {
     "standard": {"max_words": None, "max_chars": 42, "soft_chars": 42, "lines": 2, "line_chars": 42,
                  "min_s": 1.0, "max_s": 6.0},
     # the ReShape client's own style (docs/SUBTITLE_STYLE.md, measured on 7 of its videos): 2-3 words, no punctuation, every
-    # line 0.18 s before its first word (their lines fade in over ~4 frames and are fully there as the word starts)
-    "reshape": {"max_words": 3, "max_chars": 14, "soft_chars": 16, "lines": 1, "line_chars": 22,
+    # line 0.18 s before its first word (their lines fade in over ~4 frames and are fully there as the word starts); 25
+    # characters is their longest line, so „Задържането на течности“ (23) stays one line
+    "reshape": {"max_words": 3, "max_chars": 14, "soft_chars": 16, "lines": 1, "line_chars": 25,
                 "min_s": 0.4, "max_s": 2.5, "phrases": True, "lead": 0.18, "bare": True},
 }
 
@@ -243,10 +245,17 @@ NON_FINAL = FUNCTION_WORDS | ENCLITIC | {"в", "с", "и", "а", "да", "не",
                                         "ту", "един", "една", "едно", "някой", "някоя", "някои", "всеки", "всяка", "всички", "този", "тази", "тези",
                                         "мой", "моя", "моята", "твой", "твоя", "негов", "неговия", "нейния", "наш", "нашия", "ваш", "вашия",
                                         "такъв", "такава", "такива", "още", "само", "много"}
+# a verb that takes „да“ stays with it: „може да изглежда“, „трябва да“
+MODAL = {"мога", "можеш", "може", "можем", "можете", "могат", "трябва", "искам", "искаш", "иска", "искаме", "искат", "започва",
+         "започват", "спре", "спрат", "успее", "успеят"}
+# the verb „съм“ may end a line when the next line holds an adjective with its noun („Това е / хронично заболяване“),
+# never before a participle („съм / направил“)
+COPULA = {"е", "са", "съм", "сме", "сте"}
 PHRASE_COST = {"base": 1.0, "one_word": 1.4, "three_words": 0.3, "four_words": 3.0, "four_words_function": 1.0,
                "over_soft": 0.3, "over_hard": 20.0, "ends_function": 40.0, "starts_enclitic": 1.2, "too_short": 1.5,
                "too_long": 4.0, "inner_sentence_end": 4.0, "inner_comma": 0.6, "inner_pause": 3.0, "ends_clitic": 1.0,
-               "starts_li": 40.0}
+               "starts_li": 40.0, "splits_adjective": 4.0, "ends_copula": 2.0,
+               "splits_modal": 3.0}
 # A short pronoun after a noun or a verb belongs to it and may end a caption („бюста ви“, „колегите ми“, „благодаря ви“),
 # as may „ли“ („и прави ли“); after a function word it leans on the verb that follows („ще ви покажа“) and may not.
 TRAILING = {"ли", "ми", "ти", "му", "ѝ", "ни", "ви", "им", "си", "ги", "го", "ме", "се"}
@@ -283,11 +292,25 @@ def _break_cost(prev, nxt):
         cost += PHRASE_COST["starts_enclitic"]
     if _word_core(nxt) == "ли":                                # „ли“ always leans on the word before it
         cost += PHRASE_COST["starts_li"]
+    if gap < PAUSE_SPLIT and _bond(t, nxt["word"]):           # „хронично / заболяване“: an adjective stays with its noun
+        cost += PHRASE_COST["splits_adjective"]
+    if gap < PAUSE_SPLIT and _word_core(prev) in MODAL and _word_core(nxt) == "да":
+        cost += PHRASE_COST["splits_modal"]
     return cost
 
 
-def _phrase_cost(units, cfg, forced_edges):
-    """Cost of showing these units as one caption (lower is better)."""
+_bonds: dict = {}
+
+
+def _bond(a, b):
+    if (a, b) not in _bonds:
+        from . import agreement
+        _bonds[(a, b)] = agreement.bond(a, b)
+    return _bonds[(a, b)]
+
+
+def _phrase_cost(units, cfg, forced_edges, after=()):
+    """Cost of showing these units as one caption (lower is better). after: the next two words, if any."""
     c = PHRASE_COST
     flat = [w for u in units for w in u]
     n = len(flat)
@@ -312,7 +335,12 @@ def _phrase_cost(units, cfg, forced_edges):
     cost += c["too_short"] if speech < 0.35 and n > 1 else c["too_short"] + 1.0 if speech < 0.3 and n == 1 else 0.0
     cost += c["too_long"] if speech > cfg["max_s"] else 0.0
     if not _can_end(units[-1]):
-        cost += c["ends_clitic"] if _ends_on_clitic(flat) else c["ends_function"]
+        if _ends_on_clitic(flat):
+            cost += c["ends_clitic"]
+        elif _word_core(flat[-1]) in COPULA and len(after) == 2 and _bond(after[0]["word"], after[1]["word"]):
+            cost += c["ends_copula"]
+        else:
+            cost += c["ends_function"]
     return cost
 
 
@@ -330,7 +358,8 @@ def _group_phrases(words, cfg):
             seg = units[i:j]
             before = i == 0 or re.search(r"[.?!…]$", units[i - 1][-1]["word"]) or units[i][0]["start"] - units[i - 1][-1]["end"] >= PAUSE_SPLIT
             after = j == n or re.search(r"[.?!…]$", units[j - 1][-1]["word"]) or units[j][0]["start"] - units[j - 1][-1]["end"] >= PAUSE_SPLIT
-            c = _phrase_cost(seg, cfg, bool(before and after))
+            nxt = [w for u in units[j:j + 2] for w in u][:2]
+            c = _phrase_cost(seg, cfg, bool(before and after), nxt)
             if c is None:
                 continue
             if i > 0:
@@ -355,8 +384,11 @@ def _shown(word, cfg):
     return BARE.sub("", word) or word if cfg.get("bare") else word
 
 
-def build_captions(words, preset="short", fps=25.0):
+def build_captions(words, preset="short", fps=25.0, cuts=()):
     """Words (sequence seconds, `p` optional) -> captions {"start", "end", "text", "words", "flags"}.
+
+    cuts: sequence times where a clip starts (an edit). A caption never appears before the cut its first word comes after:
+    the lead would show it over the end of the previous shot and take the previous line off early (the user, 2026-11-04).
 
     Spelling is fixed, lines follow the preset, every start/end is a whole frame at `fps`, the preset's
     min/max duration holds without overlapping the next caption, and no caption has zero length.
@@ -378,11 +410,16 @@ def build_captions(words, preset="short", fps=25.0):
     # A caption appears about one frame before its first word, but never before the previous caption's speech ended;
     # a preset with its own lead (a client's style) starts that early whatever the previous caption is doing.
     lead = cfg.get("lead", LEAD)
+    cuts = sorted(cuts)
     first = []
     for i, g in enumerate(groups):
-        t = g[0][0]["start"] - lead
+        s = g[0][0]["start"]
+        t = s - lead
         if i and "lead" not in cfg:
-            t = max(t, groups[i - 1][-1][-1]["end"] if groups[i - 1][-1][-1]["end"] < g[0][0]["start"] else t)
+            t = max(t, groups[i - 1][-1][-1]["end"] if groups[i - 1][-1][-1]["end"] < s else t)
+        edit = max((c for c in cuts if c <= s + CUT_SLACK), default=None)
+        if edit is not None:
+            t = max(t, edit)
         first.append(frame(max(t, 0.0)))
     # Starts strictly increase: two captions can never start on the same frame.
     for i in range(1, len(first)):

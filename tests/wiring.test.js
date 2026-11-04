@@ -95,15 +95,26 @@ test("the subtitle section has its own buttons: no data-force, pressed through o
   assert.match(html, /Download the model \(about 3\.1 GB\)/);
 });
 
-test("the subtitle press ends with placing the captions, and the panel never removes or mutes anything", () => {
+test("the subtitle press ends with placing the captions; the only removal is Asistent's own earlier caption lines", () => {
   const fs = require("node:fs");
   const read = (f) => fs.readFileSync(`${__dirname}/../panel/${f}`, "utf8");
   const main = read("main.js");
   assert.match(main, /premiereCaptions\.place\(/);
-  for (const f of ["premiere-captions.js", "captionplan.js", "premiere-subtitles.js", "main.js"]) {
-    const src = read(f);
-    assert.doesNotMatch(src, /createRemoveItemsAction|createRemoveItemAction|setMute|createSetDisabledAction/, `${f} must not remove or mute (permanent rule)`);
+  // the permanent rule: nothing removed or muted, except (0.9.97, the user's request, tested in NEW TEST) the lines of the caption
+  // pair Asistent placed itself and nobody changed; the test bridge (test projects only) may probe it
+  for (const f of fs.readdirSync(`${__dirname}/../panel`).filter((x) => x.endsWith(".js") && !["premiere-captions.js", "devbridge.js"].includes(x))) {
+    assert.doesNotMatch(read(f), /createRemoveItemsAction|createRemoveItemAction|setMute|createSetDisabledAction/, `${f} must not remove or mute (permanent rule)`);
   }
+  const cap = read("premiere-captions.js");
+  assert.doesNotMatch(cap, /createRemoveItemAction|setMute|createSetDisabledAction/);
+  assert.strictEqual(cap.match(/createRemoveItemsAction/g).length, 1);
+  const rm = cap.slice(cap.indexOf("async function removeLines"), cap.indexOf("async function place("));
+  assert.match(rm, /createRemoveItemsAction\(sel, false, ppro\.Constants\.MediaType\.ANY\)/);
+  assert.match(rm, /getCaptionTrack\(i\)/);                                         // caption tracks only
+  assert.strictEqual(cap.match(/await removeLines\(/g).length, 1);                    // one caller: place()
+  const place = cap.slice(cap.indexOf("async function place("), cap.indexOf("async function placeGraphics("));
+  assert.match(place, /const old = \[plan\.findOwn\(sig, now\), ownEnglish && plan\.findOwn\(sig\.english, now\)\]/);   // read again
+  assert.ok(place.indexOf("removeLines(project") > place.indexOf("engine.recordCaptions("));          // after the new pair is in place
 });
 
 test("the corrections box exists, are saved before a run and sent with it", () => {
@@ -174,7 +185,6 @@ test("SUBTITLES: the caption editor is a hidden tab that appears after a run; Ap
   assert.match(main, /onTap\(\$\("captionApply"\), onCaptionApply\)/);
   assert.match(main, /onSubtitles\(\{ again: true \}\)/);
   assert.match(main, /renderCaptionEditor\(result\)/);
-  assert.match(fs.readFileSync(path.join(__dirname, "..", "panel", "premiere-captions.js"), "utf8"), /own && !opts\.again/);
 });
 
 test("SUBTITLES: the panel puts a caption track (restyled all at once in Properties, the user 2026-11-04); the graphics way stays tested code", () => {
@@ -301,4 +311,15 @@ test("the Captions tab says who speaks on each track and lists the learned fixes
   const apply = main.slice(main.indexOf("async function onCaptionApply"), main.indexOf("async function onSubtitles"));
   assert.match(apply, /!captionEdit\.speakersChanged/);                           // a speaker change alone is enough to rebuild
   assert.match(main, /renderSpeakers\(result, project\.path\);\n {4}loadLearned\(project\.path\);/);
+});
+
+test("the Captions tab has a search over the Bulgarian and English lines that hides, never drops, the other lines", () => {
+  assert.match(html, /<input id="captionSearch"/);
+  const f = main.slice(main.indexOf("function filterCaptions"), main.indexOf("// Who speaks on which microphone track"));
+  assert.match(f, /input\.value\.toLowerCase\(\)\.includes\(q\)/);
+  assert.match(f, /en\.value\.toLowerCase\(\)\.includes\(q\)/);
+  assert.match(f, /input\.parentNode\.hidden = !hit/);
+  assert.match(main, /\$\("captionSearch"\)\.addEventListener\("input", filterCaptions\)/);
+  const ed = main.slice(main.indexOf("function renderCaptionEditor"), main.indexOf("function filterCaptions"));
+  assert.match(ed, /filterCaptions\(\);/);                                         // a rebuild keeps the search
 });

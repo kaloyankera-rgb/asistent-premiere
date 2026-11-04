@@ -520,7 +520,8 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     progress(0.96, "Arranging the lines…")
 
     preset = subtitles.preset_for(p["width"], p["height"]) if p["preset"] == "auto" else p["preset"]
-    captions = subtitles.build_captions(words, preset, p["fps"])
+    # every clip start is an edit: a line does not appear before the cut it belongs to
+    captions = subtitles.build_captions(words, preset, p["fps"], cuts={it["at"] for it in p["items"]})
 
     folder = os.path.join(p["out_dir"], "Asistent_subtitles")
     os.makedirs(folder, exist_ok=True)

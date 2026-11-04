@@ -1,4 +1,14 @@
-# Project status — Asistent 0.9.96 (2026-11-04)
+# Project status — Asistent 0.9.97 (2026-11-04)
+
+0.9.97 (the user's requests after the first learning test): a new subtitle pair replaces Asistent's own earlier pair (its lines
+removed in one step; VERIFIED in NEW TEST through the panel's own placement code, 3 presses, plus 13 removals of 60 lines under
+ExtendScript load, no crash; the emptied tracks stay); a line waits for its cut; lines keep adjective + noun, „може да“ and
+25-character ReShape phrases (checked on the ReShape and 12 Ludi Glavi runs); NLLB 1.3B English (downloaded on this Mac, the
+other computers get it from the Download button); a search box in the Captions tab (browser preview). Not yet pressed by the
+user in a real project: Apply and rebuild with Whisper, the search box, the translator offer on a computer with only 600M.
+
+The learning test passed in Premiere (the user, 2026-11-04): „масоните => мастните“ fixed in the Captions tab of the ReShape
+project was recorded in the office folder and shown in Learned.
 
 Phases 5-8 of the subtitle learning (0.9.96): "Who speaks" per track, agreement marks, the Learned list, measuring. Engine
 tests and one real-audio check (Ludi Glavi); the panel seen in the browser preview only. The user tests 0.9.93-0.9.96 in

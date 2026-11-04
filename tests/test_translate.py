@@ -46,3 +46,22 @@ def test_bare_drops_marks_but_keeps_a_question():
     assert translate.bare("made you proud of the team?") == "made you proud of the team?"
     assert translate.bare("At RE/SHAPE Clinic, we're there.") == "At RE/SHAPE Clinic we're there"
     assert translate.bare("a 360-degree result, 2.5 cm") == "a 360-degree result 2.5 cm"
+
+
+def test_the_bigger_translator_is_used_where_it_is_downloaded(tmp_path, monkeypatch):
+    from asistent import config
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    small = tmp_path / "models" / translate.SMALL_DIR
+    small.mkdir(parents=True)
+    (small / "model.bin").write_bytes(b"x")
+    assert translate.model_dir() == str(small)
+    big = tmp_path / "models" / translate.MODEL_DIR
+    big.mkdir(parents=True)
+    (big / "model.bin").write_bytes(b"x")
+    assert translate.model_dir() == str(big)
+
+
+@pytest.mark.skipif(not translate.available() or translate.better_available(), reason="the 1.3B translator is not here")
+def test_real_model_reads_the_meaning_not_the_word():
+    en = " ".join(translate.english_lines(["Това не е проблем,", "който се решава", "просто с отслабване."])).lower()
+    assert "weight" in en and "weakening" not in en

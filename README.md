@@ -25,7 +25,7 @@ double-click the installer for your system. It needs Python 3.12 and FFmpeg firs
   Startup; with an NVIDIA graphics card the speech recognition runs on it.
 
 Then restart Premiere once (it loads the host and sees the Montserrat font) and open `Window > UXP Plugins > Asistent`. The
-speech model (about 3.1 GB) and the English translator (about 620 MB) are downloaded with their own buttons in the Subtitles card.
+speech model (about 3.1 GB) and the English translator (about 1.4 GB) are downloaded with their own buttons in the Subtitles card.
 
 ## Updates
 
@@ -82,7 +82,7 @@ Select the cameras and the microphones with speech (the SYNC sequence works) and
 
 Select the audio clips with speech and press **Subtitles (Bulgarian)**. The speech is recognised on this computer only (Whisper large-v3, about 3.1 GB, downloaded only with the **Download the model** button), checked against a Bulgarian dictionary, aligned to the sound, and saved as an .srt in `Asistent_subtitles` next to the project; the panel puts it on a new caption track. To restyle them, open the Properties panel, select all the captions on that track and change font, size, outline or shadow for all at once; save the look as a Track Style. Right-click > Upgrade Caption to Graphic turns them into text graphics if needed.
 
-Fix a wrong word in the **Captions** tab and press **Apply and rebuild**: the fix is remembered and the next videos of the same client get it too, on every computer in the office. Nothing to press: a client folder on the server that holds a folder named "<Client> Subtitle Learning" (for example `ReShape/ReShape Subtitle Learning`) is where the fixes are shared; projects outside such a folder learn on that computer only. A word fix reaches the other editors after it was made in two projects; a fix is only used where the sound agrees with it; typing the original word back undoes it for everyone. Under the lines, **Learned** lists what was learned: **Remove** stops a fix for everyone. **Who speaks** (above the lines) sets a man or a woman per microphone track, so „доволен/доволна“ and „направил/направила“ follow the person; leave it on "not set / both" when two people share a microphone.
+Fix a wrong word in the **Captions** tab and press **Apply and rebuild**: the fix is remembered and the next videos of the same client get it too, on every computer in the office. Nothing to press: a client folder on the server that holds a folder named "<Client> Subtitle Learning" (for example `ReShape/ReShape Subtitle Learning`) is where the fixes are shared; projects outside such a folder learn on that computer only. A word fix reaches the other editors after it was made in two projects; a fix is only used where the sound agrees with it; typing the original word back undoes it for everyone. Under the lines, **Learned** lists what was learned: **Remove** stops a fix for everyone. **Who speaks** (above the lines) sets a man or a woman per microphone track, so „доволен/доволна“ and „направил/направила“ follow the person; leave it on "not set / both" when two people share a microphone. The search box above the lines finds a word in the Bulgarian or the English lines. A rebuild replaces Asistent's earlier subtitles: their lines are removed (one Undo brings them back) and their empty tracks stay, to be deleted by hand if you like (right-click > Delete Track); a track you changed yourself is never touched.
 
 ## Auto import
 

@@ -1,7 +1,7 @@
 // Pure logic of putting the SRT on a caption track (no Premiere here, so node can test it): is a caption track the one
 // Asistent placed earlier, which track did a placement add, did the track really receive the captions at the right
-// times, and what the panel tells the editor. Asistent never removes or mutes a track, so an own track from an earlier
-// press is reported, not replaced.
+// times, and what the panel tells the editor. Since 0.9.97 the lines of Asistent's own earlier caption pair are removed when
+// a new pair is placed (premiere-captions.js removeLines); the emptied tracks stay, as no script can delete a caption track.
 
 const TOL = 0.12;     // seconds: Premiere snaps caption times to its own grid
 
@@ -50,6 +50,11 @@ function describePlacement(p, srt, again) {
     const lines = [{ cls: "line", text: `The subtitles are ${p.graphics ? "text graphics" : "captions"} on track ${label(p.track)}: ${p.track.count} lines, ${clock(p.track.start)} to ${clock(p.track.end)}.` }];
     if (p.english) lines.push({ cls: "line", text: `The English line is on track ${label(p.english)}: ${p.english.count} lines at the same times.` });
     for (const x of p.problems || []) lines.push({ cls: "warn", text: `Check: ${x}.` });
+    if (p.removed && p.removed.count) {
+      const names = p.removed.tracks.map(label).join(" and ");
+      lines.push({ cls: "line", text: `The earlier subtitles are replaced: their ${p.removed.count} lines on ${names} are removed (one Undo brings them back).` });
+      lines.push({ cls: "hint", text: `${names} ${p.removed.tracks.length === 1 ? "is" : "are"} empty now: right-click > Delete Track to tidy up (Premiere has no command for it).` });
+    }
     if (p.replaces) lines.push({ cls: "warn", text: `The earlier subtitles are still on track ${label(p.replaces)}: delete that track (right-click ${label(p.replaces)} > Delete Track), or the two sets show on top of each other.` });
     lines.push({ cls: "hint", text: p.graphics ? "Retype, move or restyle any line in Essential Graphics. Undo: delete the track (each line was its own step)."
       : "To restyle all of them: select every caption on the track and change font, size, outline or shadow in the Properties panel; " +
