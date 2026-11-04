@@ -6,6 +6,16 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.9.89 - Exposure ±0.5 react to every click
+- The user, 2026-11-04: "I have to click the +0,5 buttons multiple times before they work". The log (Masterhaus C0728, 10:10)
+  shows every recorded press was written, but a quick second click was dropped by the "panel just changed" guard (700 ms after
+  each answer; made for answers that used to appear at the top and move the buttons, which no longer happens), and a click during
+  a write (~50 ms, panel greyed) was dropped too. Now the two Exposure buttons skip the guard (`onTap(..., { repeat: true })`),
+  do not grey the panel, and a press that arrives during a write is added to the next write, so no click is lost. The answer shows
+  the clip's new value ("Exposure +0.5 on 1 clip (now +1.5), one Undo step").
+- The same log has two presses that started from 0 again (10:10:18, 10:10:32): the Exposure had been put back by Undo between
+  them (each press is one Undo step); nothing in Asistent resets it.
+
 ## 0.9.88 - Exposure −0.5 / +0.5
 - **Two buttons in the Color card** (the user, 2026-11-04: a robot video with no faces was underexposed and Exposure "didn't
   really do much"): Exposure −0.5 and Exposure +0.5 add that step to the Exposure slider of every selected clip at once, as an

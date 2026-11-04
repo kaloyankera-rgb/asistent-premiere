@@ -192,11 +192,20 @@ test("Exposure −0.5 / +0.5 add a fixed step through the same safe Lumetri choi
   const color = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
   assert.match(html, /id="exposureDown"[^>]*class="btn small"/);
   assert.match(html, /id="exposureUp"[^>]*class="btn small"/);
-  assert.match(main, /onTap\(\$\("exposureDown"\), \(\) => onExposureNudge\(-0\.5\)\)/);
-  assert.match(main, /onTap\(\$\("exposureUp"\), \(\) => onExposureNudge\(0\.5\)\)/);
+  // pressed several times in a row: never eaten by the "panel just changed" guard
+  assert.match(main, /onTap\(\$\("exposureDown"\), \(\) => onExposureNudge\(-0\.5\), \{ repeat: true \}\)/);
+  assert.match(main, /onTap\(\$\("exposureUp"\), \(\) => onExposureNudge\(0\.5\), \{ repeat: true \}\)/);
+  assert.match(main, /if \(!opts\.repeat && Date\.now\(\) < state\.settleUntil\)/);
   const fn = color.slice(color.indexOf("async function nudgeExposure"), color.indexOf("// ---------------------------------------------------------------- render check"));
   assert.match(fn, /t = await target\(clip\)/);                 // new, neutral or Asistent's own Lumetri only
   assert.match(fn, /if \(t\.skip\)/);
   assert.match(fn, /await remember\(pl\)/);                     // recorded as Asistent's, so Auto color can update it
   assert.match(fn, /\(pl\.t\.current\.exposure \|\| 0\) \+ delta/);
+});
+
+test("Exposure ±0.5 never greys the panel and queues a press that comes during a write", () => {
+  const fn = main.slice(main.indexOf("async function onExposureNudge"), main.indexOf("// one JSON record per clip and press"));
+  assert.doesNotMatch(fn, /setBusy\(/);
+  assert.match(fn, /state\.nudgeQueued = \(state\.nudgeQueued \|\| 0\) \+ delta/);
+  assert.match(fn, /step = state\.nudgeQueued \|\| 0/);
 });
