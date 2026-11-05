@@ -62,10 +62,11 @@ async function frameRate(sequence) {
   return null;
 }
 
-async function readItem(ti, kind, track, muted = false) {
+async function readItem(ti, kind, track, muted = false, hidden = false) {
   const item = { ti, kind, track, start: secs(await ti.getStartTime()), end: secs(await ti.getEndTime()),
     selected: false, path: null, clip: null, projectItem: null, name: "", speed: 1, reversed: false,
-    unused: muted || !!(await maybe(ti, "isDisabled")) };          // on a muted track, or switched off: the editor does not use it
+    unused: muted || !!(await maybe(ti, "isDisabled")),           // on a muted track, or switched off: the editor does not use it
+    hidden };                                                      // on a video track with its eye off: it shows nothing
   item.inPt = secs(await maybe(ti, "getInPoint")) || 0;
   item.outPt = secs(await maybe(ti, "getOutPoint"));
   item.name = (await maybe(ti, "getName")) || "";
@@ -95,6 +96,7 @@ async function readItem(ti, kind, track, muted = false) {
 
 async function readItems(sequence) {
   let apiNote = false;
+  let videoNote = false;
   const counts = { video: await sequence.getVideoTrackCount(), audio: await sequence.getAudioTrackCount() };
   const items = [];
   for (const [kind, count, getTrack] of [["video", counts.video, (i) => sequence.getVideoTrack(i)],
@@ -102,12 +104,19 @@ async function readItems(sequence) {
     for (let t = 0; t < count; t++) {
       const track = await getTrack(t);
       const muted = kind === "audio" && !!(await maybe(track, "isMuted"));
+      // a video track's eye (Toggle Track Output) is isMuted too: a hidden safety-margin template on V4 is not a layer
+      // over the clips (the user, 2026-11-05: it made every colour press measure the file and apply nothing)
+      const hidden = kind === "video" && !!(await maybe(track, "isMuted"));
       const list = (await track.getTrackItems(Constants.TrackItemType.CLIP, false)) || [];
+      if (kind === "video" && !videoNote && list.length) {
+        videoNote = true;
+        debug(`hidden check: video track isMuted ${has(track, "isMuted") ? "exists" : "MISSING"}`);
+      }
       if (kind === "audio" && !apiNote && list.length) {                 // the first run in a new Premiere version says whether the mute check can work
         apiNote = true;
         debug(`mute check: audio track isMuted ${has(track, "isMuted") ? "exists" : "MISSING"}, track item isDisabled ${has(list[0], "isDisabled") ? "exists" : "MISSING"}`);
       }
-      for (const ti of list) items.push(await readItem(ti, kind, t, muted));
+      for (const ti of list) items.push(await readItem(ti, kind, t, muted, hidden));
     }
   }
   return { counts, items };

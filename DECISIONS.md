@@ -278,6 +278,13 @@ confidence is applied too (the user chose no approval step at all); it is said p
 reference camera buttons now re-match at once.
 
 
+## 2026-11-05: a covered clip measured on its file counts when nothing on the clip changes its colour (0.10.4)
+The user wants Auto color to work in every situation. Measuring the file was marked "low" because a correction on the clip would
+not show in it; when the clip carries none (only the fixed effects and an untouched or Asistent's own Lumetri), the file is exactly
+what lies under the layer, so the measurement keeps its confidence and its values are written as absolute ones. Ownership of a
+Lumetri follows the media file, not the piece: a cut must not turn Asistent's correction into "a hand grade". The rule that a hand
+grade is never touched stays.
+
 ## 2026-11-05: Show exports finds the Export tab's folder in Premiere's preferences (0.10.3)
 The office exports into Production/Exported Videos/<client>/<plan>, never next to the project, so watching the project's folder
 alone (the plan) would miss every export. Premiere keeps the Export tab's last output file and folder in its preferences file;

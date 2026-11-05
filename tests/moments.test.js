@@ -24,6 +24,13 @@ test("a clip fully under an adjustment layer has nothing to measure (engine fall
   assert.deepStrictEqual(analysisMoments({ items: [clip, adj] }, clip), []);
 });
 
+test("a hidden track (eye off) or a switched-off clip covers nothing (the user's safety template on V4, 2026-11-05)", () => {
+  const safety = { kind: "video", track: 3, start: 0, end: 60, hidden: true };
+  const off = { kind: "video", track: 1, start: 0, end: 60, unused: true };
+  assert.deepStrictEqual(analysisMoments({ items: [clip, safety, off] }, clip), [12, 14, 16, 18]);
+  assert.deepStrictEqual(analysisMoments({ items: [clip, { ...safety, hidden: false }] }, clip), []);   // shown: it covers
+});
+
 const { cameras, shotMoments } = require("../panel/moments.js");
 
 test("cameras by folder, as Sync uses them", () => {

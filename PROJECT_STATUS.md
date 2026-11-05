@@ -1,4 +1,9 @@
-# Project status — Asistent 0.10.3 (2026-11-05)
+# Project status — Asistent 0.10.4 (2026-11-05)
+
+0.10.4: colour no longer gives up when a track above the clip is hidden (the user's safety template) or a visible layer covers a
+clip with no other colour effects; Asistent's own Lumetri is recognised on cut pieces of the same file; Fix audio's L/R copies keep
+the clip's label (a cut piece no longer turns green; a new press relabels older copies). Tests only (node + pytest); not yet pressed
+in Premiere.
 
 0.10.3: Show exports (Export tab only, the user's choice): the engine reads Premiere's preferences for the Export tab's folder,
 watches it and shows a finished export selected in Finder; a queue shows its last file; Log lists them with Show again. Off by

@@ -492,6 +492,22 @@ def test_no_timeline_frames_falls_back_to_the_file_as_review_needed(frames_dir, 
     assert any("not on the timeline" in w for w in r["warnings"])
 
 
+def test_a_covered_clip_with_nothing_else_on_it_is_measured_on_the_file_for_real(frames_dir, tmp_path):
+    """A visible layer over the clip, and the panel says the file shows the same picture (`plain`): the measurement keeps
+    its confidence, so it can be applied (the user, 2026-11-05: Auto color did nothing under a safety template)."""
+    import subprocess as sp
+    clip = tmp_path / "C0706.MP4"
+    sp.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:d=2", "-c:v", "libx264",
+            str(clip)], check=True)
+    plain = C.analyze_items([{"path": str(clip), "frames": [], "plain": True}], with_preview=False)["items"][0]
+    review = C.analyze_items([{"path": str(clip), "frames": []}], with_preview=False)["items"][0]
+    assert plain["measured_on"] == "source" and plain.get("status") != "REVIEW_NEEDED"
+    assert any("Measured on the file" in x for x in plain["reasons"])
+    assert (plain["exposure"]["confidence"], plain["white"]["confidence"]) == \
+        (C.decide(C.read_frames(str(clip)))["exposure"]["confidence"], C.decide(C.read_frames(str(clip)))["white"]["confidence"])
+    assert review["exposure"]["confidence"] == "low"
+
+
 def test_frames_outside_the_engine_folder_are_ignored(frames_dir, tmp_path):
     import subprocess as sp
     clip = tmp_path / "C0003.MP4"

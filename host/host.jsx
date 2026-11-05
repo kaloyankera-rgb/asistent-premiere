@@ -1,7 +1,7 @@
 ﻿// Asistent host: the ExtendScript (ES3) side. main.js evaluates this file for every command and calls as_run(name, args).
 // Every function answers with a JSON string {ok, msg, ...}; nothing here throws out of as_run.
 
-var AS_HOST_VERSION = "0.10.3";
+var AS_HOST_VERSION = "0.10.4";
 
 function as_json(v) {
     if (v === null || v === undefined) return "null";
@@ -259,6 +259,27 @@ function as_side_clip(bin, pi, c, side) {
     return sub;
 }
 
+// A subclip that takes only the audio gets Premiere's default Audio label (green), while the pieces Asistent placed show
+// the clip's own colour; a razor cut makes the new piece from the subclip, so it came out green (the user, 2026-11-05).
+// The L/R subclips get the label of the clip they come from. Returns the label index set, or null when Premiere has no
+// label methods (the result says so).
+function as_same_label(sub, from) {
+    try {
+        if (!sub || !from || typeof from.getColorLabel !== "function" || typeof sub.setColorLabel !== "function") return null;
+        var want = from.getColorLabel();
+        if (sub.getColorLabel() !== want) sub.setColorLabel(want);
+        return want;
+    } catch (e) { return null; }
+}
+
+// the clip the L/R subclips were made from: the linked video's project item (the audio's own item is the subclip itself
+// on a second press)
+function as_source_item(c) {
+    var li = c.getLinkedItems();
+    for (var k = 0; li && k < li.numItems; k++) if (String(li[k].mediaType) === "Video" && li[k].projectItem) return li[k].projectItem;
+    return null;
+}
+
 function as_deselect_all(seq) {
     var sel = seq.getSelection();
     for (var i = 0; i < sel.length; i++) sel[i].setSelected(false, i === sel.length - 1);
@@ -268,17 +289,26 @@ function as_where(c) {
     return { track: c.parentTrackIndex, start: c.start.seconds, end: c.end.seconds, name: String(c.name) };
 }
 
-// one clip: {track, start, end, route: "split" | "split_rl" | "use_left" | "use_right"}
+// one clip: {track, start, end, route: "split" | "split_rl" | "use_left" | "use_right" | "label"}; "label" only gives an
+// earlier L/R copy the clip's own label and never splits anything
 function as_route_one(seq, bin, a) {
     var track = seq.audioTracks[a.track];
     if (!track) return { ok: false, msg: "no audio track A" + (a.track + 1) };
     var c = as_tracks_clip(track, a.start, a.end);
     if (!c) return { ok: false, msg: "the clip is not in its place (was it moved?)" };
     var pi = c.projectItem;
+    if (a.route === "label" && !as_in_bin(bin, pi)) return { ok: true, status: "skip" };
     if (as_in_bin(bin, pi)) {
         var mine = /\s(L|R)\s[\d.]+-[\d.]+$/.exec(String(pi.name));
         if (!mine) return { ok: false, msg: "the clip is from the bin \"" + AS_LR_BIN + "\", but its name does not say L or R: not touched" };
-        return { ok: true, status: "already", side: mine[1], upper: as_where(c) };
+        // an earlier press (before 0.10.4) left the subclips with the green Audio label: give them the clip's own one
+        var srcItem = as_source_item(c), lbl = null;
+        if (srcItem) {
+            var other = /\sL\s/.test(String(pi.name)) ? String(pi.name).replace(/\sL\s/, " R ") : String(pi.name).replace(/\sR\s/, " L ");
+            lbl = as_same_label(pi, srcItem);
+            for (var b = 0; b < bin.children.numItems; b++) if (bin.children[b].name === other) as_same_label(bin.children[b], srcItem);
+        }
+        return { ok: true, status: "already", side: mine[1], upper: as_where(c), label: lbl };
     }
     var map = pi.getAudioChannelMapping;
     if (!map || map.audioChannelsType !== 1 || map.audioClipsNumber !== 1) {
@@ -305,6 +335,8 @@ function as_route_one(seq, bin, a) {
     }
     var up = as_side_clip(bin, pi, c, upperSide);
     var low = split ? as_side_clip(bin, pi, c, lowerSide) : null;
+    var label = as_same_label(up, pi);
+    if (low) as_same_label(low, pi);
     var at = c.start.seconds, inPt = c.inPoint.seconds;
     if (low && !seq.audioTracks[below].overwriteClip(low, at)) return { ok: false, msg: "Premiere did not put the copy on A" + (below + 1) };
     if (!track.overwriteClip(up, at)) return { ok: false, msg: "Premiere did not put " + upperSide + "/" + upperSide + " on A" + (a.track + 1) };
@@ -330,7 +362,7 @@ function as_route_one(seq, bin, a) {
         as_deselect_all(seq);
     } catch (e) { linked = false; }
     return { ok: true, status: "done", upperSide: upperSide, upper: as_where(u), lower: l ? as_where(l) : null,
-        lowerSide: l ? lowerSide : null, linked: linked, relinked: keep.length };
+        lowerSide: l ? lowerSide : null, linked: linked, relinked: keep.length, label: label };
 }
 
 // args: {project, sequence, items: [...]} -> {ok, items: [result per item, in order]}
