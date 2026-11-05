@@ -223,3 +223,4 @@
 - 2026-11-04: 0.10.0: selection matched by track + name + time (getTrackIndex), not time alone (V1 selected V2 after Sync; A1 selected A2/A3); colour skips switched-off clips; tests/selection.test.js.
 - 2026-11-04: 0.10.1: Exposure ±0.5 moves Exposure in the editor's own Lumetri (target manual option, not remembered, keyframes skipped); CLAUDE.md rule exception; 0.10.0 selection fix seen in the user's log.
 - 2026-11-04: 0.10.2: subtitle speed (parallel second opinions, prefetched sound checks, translator 3 slots + preload, Whisper 3x4): ReShape cold 256->130 s identical SRTs; english.py + CMUdict index (Beauty Sector, Space, workshop), names not split across lines.
+- 2026-11-05: 0.10.3: Show exports for the Export tab (stash restored; Premiere prefs SaveAsFile/Media.Path as the folder source, flat watch, MP4 box completeness, case/NFC-insensitive paths); switched on on the user's Mac.

@@ -278,6 +278,13 @@ confidence is applied too (the user chose no approval step at all); it is said p
 reference camera buttons now re-match at once.
 
 
+## 2026-11-05: Show exports finds the Export tab's folder in Premiere's preferences (0.10.3)
+The office exports into Production/Exported Videos/<client>/<plan>, never next to the project, so watching the project's folder
+alone (the plan) would miss every export. Premiere keeps the Export tab's last output file and folder in its preferences file;
+the engine reads it (only when it changes) and watches that folder without its subfolders. Chosen over waiting for the UXP
+export events (not probed: a client project was open) and over asking the editor to add folders. The events stay the plan for
+Media Encoder and Quick Export.
+
 ## 2026-11-04: Exposure ±0.5 may move Exposure in the editor's own Lumetri (0.10.1, narrows "never touch a manual grade")
 The user pressed +0.5 on a clip whose Lumetri they had set by hand and nothing happened. ±0.5 is the editor's own step, the same
 as typing into the slider, so it now changes Exposure there too; nothing else in that Lumetri, never a keyframed Exposure, and

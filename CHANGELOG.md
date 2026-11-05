@@ -6,6 +6,23 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.10.3 - Show exports: a finished export from the Export tab is shown in Finder
+The user, 2026-11-05: "for now just do the export mode" (Media Encoder and Quick Export later). New card "Show exports"
+(off by default; on, on the user's Mac): when an export from the Export tab is finished, Finder opens with the file selected
+(Explorer on Windows, untested). A queue shows only its last file; the Log tab lists every export with "Show again".
+- **Where it looks** (`exports.py`): the office exports into a tree of its own (Production/Exported Videos/<client>/<plan>),
+  not next to the project, so the engine reads Premiere's preferences (`ExportSettings.Info.SaveAsFile` OutPath and
+  `MZ.Prefs.Export.Media.Path`, the newest Premiere version's file) and watches the folder the Export tab writes to, only the
+  files directly in it (a "Към клиент - компресирано" copy made afterwards does not count). When Premiere rewrites its
+  preferences, the file they name is checked too if it was written after watching started (an export to a new place). Also
+  watched: the project's folder, folders added with "Add export folder…". Paths compared without case or Unicode form.
+- **When it is finished** (`settle.py`, now shared with Smart Folder Sync): size and time unchanged for 3 s, the file opens,
+  an MP4 / MOV has all its boxes inside the file (Premiere writes ftyp, moov, uuid, mdat; checked on a real 1.26 GB export),
+  FFprobe reads a duration. Previews, Auto-Save, Media Cache, temp files and Asistent's own frames never count.
+- Not probed in Premiere yet: whether Premiere writes the export under its final name from the start (the checks cover both).
+  The UXP / ExtendScript export events (phase 0 of `docs/EXPORT_REVEAL_PLAN.md`) are left for Media Encoder / Quick Export;
+  the bridge commands `export_listen` / `export_events` for them are in `devbridge.js`.
+
 ## 0.10.2 - Faster subtitles; English words written in English
 The user, 2026-11-04: subtitles are slow; and an English word a Bulgarian speaker says should be written in English
 („Бюти сектор“ = "Beauty Sector", „спей се“ = "Space").

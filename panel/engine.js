@@ -186,9 +186,26 @@ function devResult(id, ok, data) {
   return call("POST", "/dev/result", { id, ok, data });
 }
 
+// show exported files in Finder / Explorer (engine exports.py)
+function exportSettings(change) {
+  return change ? call("POST", "/exports/settings", change) : call("GET", "/exports/settings");
+}
+
+function exportsRecent() {
+  return call("GET", "/exports/recent");
+}
+
+function exportDone(path, kind, source) {
+  return call("POST", "/exports/done", { path: path || null, kind, source });
+}
+
+function exportReveal(id) {
+  return call("POST", "/exports/reveal", { id });
+}
+
 function log(level, message) {
   return call("POST", "/log", { level, message }).catch(() => {});
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, devPoll, devResult, job, cancel, log };

@@ -55,6 +55,11 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /import/bind          {"project", "folder"?}  switch on (default folder: ~/Downloads)
   POST /import/unbind        {"project"}
   POST /import/result        {"id", "ok", "note"?}   the panel reports each import
+  GET  /exports/settings     {enabled, project, folders: [{path, why: project|added|learned}], app: Finder|Explorer}
+  POST /exports/settings     {"project"?, "enabled"?, "add"?: folder, "remove"?: folder} -> the same (exports.py)
+  POST /exports/done         {"path"?, "kind": complete|error|cancel, "source"} an export event from the panel or host
+  GET  /exports/recent       {items: [{id, name, path, at, shown, note}]} for the Log tab
+  POST /exports/reveal       {"id"} show an export from the list again (only files the engine itself recorded)
 """
 from __future__ import annotations
 
@@ -75,6 +80,7 @@ from .audio import analyze_items
 from . import color as COLOR
 from .groups import sync_groups
 from .importer import Store, Watcher
+from .exports import ExportWatcher, Settings as ExportSettings
 from .managed import ManagedStore
 from . import shotmatch as SHOT
 from . import asr
@@ -95,7 +101,15 @@ log = logging.getLogger("asistent")
 JOBS = JobManager()
 STORE: Store | None = None
 WATCHER: Watcher | None = None
+EXPORTS: ExportWatcher | None = None
 BRIDGE = devbridge.Bridge()
+
+
+def _exports() -> ExportWatcher:
+    global EXPORTS
+    if EXPORTS is None:
+        EXPORTS = ExportWatcher(ExportSettings())
+    return EXPORTS
 
 
 def _store() -> Store:
@@ -279,6 +293,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, captionstate.get((q.get("project") or [""])[0], (q.get("sequence") or [""])[0]) or {})
         if url.path == "/host/status":
             return self._send(200, hostbridge.status())
+        if url.path == "/exports/settings":
+            return self._send(200, _exports().status())
+        if url.path == "/exports/recent":
+            return self._send(200, {"items": _exports().recent()})
         if url.path == "/host/poll":
             q = parse_qs(url.query)
             hostbridge.touch(self.headers.get("X-Asistent-Host"))
@@ -541,6 +559,18 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/import/result":
                 it = _store().result(str(body.get("id")), bool(body.get("ok")), str(body.get("note") or ""))
                 return self._send(200, {"state": it["state"]})
+            if self.path == "/exports/settings":
+                add, remove = body.get("add"), body.get("remove")
+                res = _exports().configure(str(body.get("project") or "") or None,
+                                           None if body.get("enabled") is None else bool(body.get("enabled")),
+                                           add if isinstance(add, str) else None, remove if isinstance(remove, str) else None)
+                return self._send(200, res)
+            if self.path == "/exports/done":
+                path = body.get("path")
+                return self._send(200, _exports().done(path if isinstance(path, str) else None,
+                                                       str(body.get("kind") or "complete"), str(body.get("source") or "")))
+            if self.path == "/exports/reveal":
+                return self._send(200, _exports().again(str(body.get("id") or "")))
             m = re.fullmatch(r"/jobs/([0-9a-f]{12})/cancel", self.path)
             if m:
                 job = JOBS.get(m.group(1))
@@ -592,6 +622,10 @@ def main():
     except Exception:
         log.exception("folder watching could not start")
         WATCHER = None
+    try:
+        _exports().refresh()                           # on only when the editor switched it on
+    except Exception:
+        log.exception("export watching could not start")
     httpd.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
     try:
         COLOR.prune_frames(os.path.join(config.app_dir(), "frames"))

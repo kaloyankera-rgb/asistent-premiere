@@ -1,0 +1,346 @@
+"""Show the exported file in Finder / Explorer (exports.py, reveal.py): only finished new exports in watched folders,
+a queue shows only its last file, nothing while the setting is off, and showing never takes a path from a request."""
+import os
+import subprocess
+import time
+
+import pytest
+
+from asistent import exports as E
+from asistent import reveal
+from test_importer import video, wav
+
+
+@pytest.fixture(autouse=True)
+def no_premiere_prefs(monkeypatch):
+    """The tests never read this Mac's real Premiere preferences (they would start watching the office drive)."""
+    monkeypatch.setattr(E, "prefs_files", lambda: [])
+
+
+PREFS = """<?xml version="1.0" encoding="UTF-8"?>
+<PremiereData Version="3">
+<MZ.Prefs.Export.Media.Path>{folder}/
+</MZ.Prefs.Export.Media.Path>
+<ExportSettings.Info.Vimeo>{{"DoExport":false,"OutPath":"/elsewhere/x_Vimeo.x"}}
+</ExportSettings.Info.Vimeo>
+<ExportSettings.Info.SaveAsFile>{{"DoExport":true,"OutPath":"{file}","Range":4}}
+</ExportSettings.Info.SaveAsFile>
+</PremiereData>
+"""
+
+
+def prefs(path, folder, file):
+    path.write_text(PREFS.format(folder=folder, file=file), encoding="utf-8")
+    t = time.time() + 1                                   # a new stamp even within the same second
+    os.utime(path, (t, t))
+
+
+@pytest.fixture
+def setup(tmp_path, monkeypatch):
+    monkeypatch.setattr(E.config, "app_dir", lambda: str(tmp_path / "appdata"))
+    project_dir = tmp_path / "Project"
+    project_dir.mkdir()
+    settings = E.Settings(str(tmp_path / "exports.json"))
+    settings.data.update(enabled=True, project=str(project_dir / "A.prproj"))
+    shown = []
+    w = E.ExportWatcher(settings, show=shown.append)
+    w.since[str(project_dir)] = time.time() - 1          # watching, without the file events (the scan finds files)
+    return project_dir, w, shown
+
+
+def run(w, start, seconds, step=0.5):
+    """The checker as if `seconds` passed (no real waiting)."""
+    t = start
+    while t <= start + seconds:
+        w.check(t)
+        t += step
+    return t
+
+
+def test_a_finished_export_is_shown_once_after_the_quiet_time(setup):
+    folder, w, shown = setup
+    out = video(folder / "Video 7.mp4")
+    t = time.time()
+    run(w, t, E.STABLE + 1)
+    assert shown == []                                   # finished, but a queue may still follow
+    run(w, t + E.STABLE + 1.5, E.QUIET + 1)
+    assert shown == [out]
+    run(w, t + 30, 10)
+    assert shown == [out]                                # never twice
+    assert w.recent()[0]["shown"] and w.recent()[0]["name"] == "Video 7.mp4"
+
+
+def test_a_queue_shows_only_its_last_export(setup):
+    folder, w, shown = setup
+    t = time.time()
+    video(folder / "a.mp4")
+    t = run(w, t, E.STABLE + 1)
+    video(folder / "b.mp4")                              # the next job of the queue, 2 s later
+    t = run(w, t, 2)
+    third = wav(folder / "c.wav", 1)                     # audio-only exports count too
+    run(w, t, E.STABLE + E.QUIET + 3)
+    assert shown == [third]
+    notes = {i["name"]: i for i in w.recent()}
+    assert set(notes) == {"a.mp4", "b.mp4", "c.wav"}
+    assert not notes["a.mp4"]["shown"] and "queue" in notes["a.mp4"]["note"]
+
+
+def test_nothing_is_shown_while_another_export_is_still_being_written(setup):
+    folder, w, shown = setup
+    video(folder / "done.mp4")
+    growing = folder / "growing.mp4"
+    growing.write_bytes(b"\0" * 1000)
+    t = time.time()
+    for k in range(30):                                  # 15 s: done.mp4 finished long ago, growing.mp4 keeps growing
+        with open(growing, "ab") as f:
+            f.write(b"\0" * 1000)
+        w.check(t + k * 0.5)
+    assert shown == []
+    growing.unlink()                                     # cancelled and removed by the encoder
+    run(w, t + 15, E.QUIET + 1)
+    assert [os.path.basename(p) for p in shown] == ["done.mp4"]
+
+
+def test_a_cancelled_export_is_never_shown(setup):
+    folder, w, shown = setup
+    whole = (folder / "x.mp4")
+    video(whole)
+    data = whole.read_bytes()
+    cut = folder / "cancelled.mp4"
+    cut.write_bytes(data[: len(data) // 2])              # the index (written last) is missing
+    whole.unlink()
+    run(w, time.time(), E.STABLE * (E.MAX_TRIES + 2) + E.QUIET)
+    assert shown == [] and w.recent() == []
+
+
+@pytest.mark.parametrize("rel", [
+    "Adobe Premiere Pro Video Previews/A.PRV/render.mov", "Adobe Premiere Pro Auto-Save/a.mp4",
+    "Media Cache Files/a.mp4", "export.mp4.tmp", ".hidden.mp4", "notes.txt",
+])
+def test_previews_auto_save_cache_and_temp_files_are_ignored(setup, rel):
+    folder, w, shown = setup
+    path = folder / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    video(str(path) + ".mov")
+    os.rename(str(path) + ".mov", path)
+    run(w, time.time(), E.STABLE + E.QUIET + 3)
+    assert shown == []
+
+
+def test_asistents_own_data_folder_is_ignored(setup, tmp_path):
+    assert E.ignored(str(tmp_path / "appdata" / "frames" / "a.mp4"))
+    assert not E.ignored(str(tmp_path / "Exports" / "a.mp4"))
+
+
+def test_a_file_older_than_watching_is_not_an_export(setup):
+    folder, w, shown = setup
+    old = video(folder / "old.mp4")
+    os.utime(old, (time.time() - 3600, time.time() - 3600))
+    run(w, time.time(), E.STABLE + E.QUIET + 3)
+    assert shown == []
+
+
+def test_off_means_nothing_is_watched_and_events_are_not_counted(tmp_path, monkeypatch):
+    monkeypatch.setattr(E.config, "app_dir", lambda: str(tmp_path / "appdata"))
+    (tmp_path / "P").mkdir()
+    shown = []
+    w = E.ExportWatcher(E.Settings(str(tmp_path / "e.json")), show=shown.append)
+    st = w.configure(project=str(tmp_path / "P" / "A.prproj"))
+    assert st["enabled"] is False and w.observer is None and st["watching"] == []
+    path = video(tmp_path / "P" / "a.mp4")
+    assert w.done(path)["counted"] is False
+
+
+def test_settings_folders_project_added_learned(tmp_path):
+    s = E.Settings(str(tmp_path / "e.json"))
+    (tmp_path / "P").mkdir()
+    (tmp_path / "Exports").mkdir()
+    project = str(tmp_path / "P" / "A.prproj")
+    s.data["project"] = project
+    assert s.add(project, str(tmp_path / "Exports"))
+    assert not s.add(project, str(tmp_path / "Exports"))          # once
+    with pytest.raises(ValueError):
+        s.add(project, str(tmp_path / "missing"))
+    assert [(f["why"], os.path.basename(f["path"])) for f in s.folders()] == [("project", "P"), ("added", "Exports")]
+    s.remove(project, str(tmp_path / "Exports"))
+    assert [f["why"] for f in E.Settings(str(tmp_path / "e.json")).folders(project)] == ["project"]
+
+
+def test_an_event_path_in_a_new_folder_is_learned_and_shown(setup, tmp_path):
+    folder, w, shown = setup
+    other = tmp_path / "Desktop exports"
+    other.mkdir()
+    out = video(other / "final.mp4")
+    try:
+        assert w.done(out, "complete", "panel")["counted"]
+        assert str(other) in [f["path"] for f in w.status()["folders"] if f["why"] == "learned"]
+        run(w, time.time(), E.QUIET + 3)
+        assert shown == [out] and w.recent()[0]["how"] == "event"
+    finally:
+        w.configure(enabled=False)
+    assert w.observer is None
+
+
+def test_showing_again_takes_only_a_recorded_id(setup):
+    folder, w, shown = setup
+    out = video(folder / "a.mp4")
+    run(w, time.time(), E.STABLE + E.QUIET + 3)
+    item = w.recent()[0]
+    w.again(item["id"])
+    assert shown == [out, out]
+    with pytest.raises(ValueError):
+        w.again(out)                                     # a path is not an id
+    os.remove(out)
+    w.show = reveal.reveal
+    with pytest.raises(ValueError, match="not there any more"):
+        w.again(item["id"])
+
+
+def test_reveal_commands(monkeypatch, tmp_path):
+    assert reveal.command("/a b/x.mp4", "darwin") == ["open", "-R", "/a b/x.mp4"]
+    assert reveal.command("C:/Exports/x y.mp4", "win32") == ["explorer.exe", "/select,", "C:\\Exports\\x y.mp4"]
+    with pytest.raises(OSError):
+        reveal.command("/x.mp4", "linux")
+    calls = []
+    monkeypatch.setattr(subprocess, "Popen", lambda cmd, **kw: calls.append(cmd))
+    monkeypatch.setattr(reveal.sys, "platform", "darwin")
+    f = tmp_path / "x.mp4"
+    f.write_bytes(b"1")
+    reveal.reveal(str(f))
+    assert calls == [["open", "-R", str(f)]]
+    with pytest.raises(FileNotFoundError):
+        reveal.reveal(str(tmp_path / "missing.mp4"))
+
+
+def test_real_watchdog_end_to_end(tmp_path, monkeypatch):
+    monkeypatch.setattr(E.config, "app_dir", lambda: str(tmp_path / "appdata"))
+    monkeypatch.setattr(E, "STABLE", 0.5)
+    monkeypatch.setattr(E, "QUIET", 0.5)
+    monkeypatch.setattr(E, "SCAN_EVERY", 999)            # the file event alone must find it
+    project = tmp_path / "P"
+    project.mkdir()
+    shown = []
+    w = E.ExportWatcher(E.Settings(str(tmp_path / "e.json")), show=shown.append)
+    w.configure(project=str(project / "A.prproj"), enabled=True)
+    try:
+        (project / "Exports").mkdir()
+        out = video(project / "Exports" / "final.mp4")
+        for _ in range(60):
+            if shown:
+                break
+            time.sleep(0.25)
+        assert shown == [out]
+    finally:
+        w.configure(enabled=False)
+
+
+def test_premiere_prefs_name_the_export_folder_and_file(tmp_path):
+    p = tmp_path / "Adobe Premiere Pro Prefs"
+    prefs(p, "/Volumes/Production/Exported Videos/Екопак/Контент план 8", "/Volumes/Production/Exported Videos/Екопак/"
+          "Контент план 8/ЕКОПАК КП-8 &amp; Видео 8.mp4")
+    got = E.read_prefs(p.read_text(encoding="utf-8"))
+    assert got["file"] == "/Volumes/Production/Exported Videos/Екопак/Контент план 8/ЕКОПАК КП-8 & Видео 8.mp4"
+    assert got["folders"] == ["/Volumes/Production/Exported Videos/Екопак/Контент план 8"]     # once, Vimeo not
+    assert E.read_prefs("<PremiereData/>") == {"file": None, "folders": []}
+
+
+@pytest.fixture
+def office(tmp_path, monkeypatch):
+    """The office layout: the project in .../Assets, exports in a separate Exported Videos tree that Premiere names."""
+    monkeypatch.setattr(E.config, "app_dir", lambda: str(tmp_path / "appdata"))
+    project = tmp_path / "Production" / "Client" / "Video 8" / "Assets"
+    exported = tmp_path / "Production" / "Exported Videos" / "Client" / "Plan 8"
+    project.mkdir(parents=True)
+    exported.mkdir(parents=True)
+    pf = tmp_path / "Prefs"
+    prefs(pf, exported, exported / "Video 8.mp4")
+    settings = E.Settings(str(tmp_path / "exports.json"))
+    settings.data.update(enabled=True, project=str(project / "A.prproj"))
+    shown = []
+    w = E.ExportWatcher(settings, show=shown.append, premiere=E.PremierePrefs(lambda: [str(pf)]))
+    w.premiere.read()
+    w.observer = object()                                 # watching, without the file events (the scan finds files)
+    for f in w.folders():
+        w.since[f["path"]] = time.time() - 1
+        if f["why"] == "premiere":
+            w.flat.add(f["path"])
+    w.started = time.time() - 1
+    return exported, pf, w, shown
+
+
+def test_an_export_into_premieres_export_folder_is_shown(office):
+    exported, _, w, shown = office
+    assert [f["why"] for f in w.status()["folders"]] == ["premiere", "project"]
+    out = video(exported / "Video 8.mp4")
+    run(w, time.time(), E.STABLE + E.QUIET + 4)
+    assert shown == [out]
+
+
+def test_a_file_event_may_spell_the_folder_differently(office):
+    exported, _, w, _ = office
+    upper = os.path.join(str(exported).upper(), "Видео 8.mp4")
+    assert w._folder(upper) == str(exported)
+    assert w._folder(os.path.join(str(exported), "sub", "x.mp4")) is None
+
+
+def test_only_files_directly_in_premieres_export_folder_count(office):
+    exported, _, w, shown = office
+    (exported / "Към клиент - компресирано").mkdir()
+    video(exported / "Към клиент - компресирано" / "small.mp4")        # a compressed copy made afterwards: not an export
+    run(w, time.time(), E.STABLE + E.QUIET + 4)
+    assert shown == []
+
+
+def test_a_file_the_prefs_name_later_is_shown_even_in_a_new_folder(office, tmp_path, monkeypatch):
+    _, pf, w, shown = office
+    monkeypatch.setattr(w, "refresh", lambda: None)        # no real watching in this test
+    elsewhere = tmp_path / "Desktop"
+    elsewhere.mkdir()
+    out = video(elsewhere / "new place.mp4")
+    prefs(pf, elsewhere, out)                              # Premiere rewrote its preferences after the export
+    run(w, time.time(), E.STABLE + E.QUIET + 6)
+    assert shown == [out] and w.recent()[0]["how"] == "event"
+    prefs(pf, elsewhere, out)                              # rewritten again, same file: never twice
+    run(w, time.time() + 30, E.STABLE + E.QUIET + 6)
+    assert shown == [out]
+
+
+def test_a_file_the_prefs_name_from_before_watching_is_not_shown(office):
+    exported, pf, w, shown = office
+    old = video(exported / "old.mp4")
+    os.utime(old, (time.time() - 3600, time.time() - 3600))
+    prefs(pf, exported, old)
+    run(w, time.time(), E.STABLE + E.QUIET + 6)
+    assert shown == []
+
+
+def test_complete_checks_the_mp4_boxes(tmp_path):
+    whole = video(tmp_path / "a.mp4")
+    assert E.complete(whole)
+    with open(whole, "rb") as f:
+        data = f.read()
+    cut = tmp_path / "cut.mp4"
+    cut.write_bytes(data[:-100])
+    assert not E.complete(str(cut))
+    open_ended = tmp_path / "open.mp4"
+    open_ended.write_bytes(b"\0\0\0\x10ftypisom\0\0\0\0" + b"\0\0\0\0mdat" + b"x" * 50)
+    assert not E.complete(str(open_ended))
+    assert E.complete(str(tmp_path / "x.wav")) is True                 # not a boxed format: FFprobe decides
+
+
+def test_a_long_export_that_pauses_often_is_still_shown(setup):
+    folder, w, shown = setup
+    whole = video(folder / "src.mov")
+    with open(whole, "rb") as f:
+        data = f.read()
+    os.remove(whole)
+    out = folder / "long.mov"
+    t = time.time()
+    step = max(1, len(data) // (E.MAX_TRIES + 3))
+    for k in range(E.MAX_TRIES + 2):                       # more pauses than MAX_TRIES, each longer than STABLE
+        out.write_bytes(data[: step * (k + 1)])
+        t = run(w, t, E.STABLE * 2 + 1)
+    assert shown == []
+    out.write_bytes(data)
+    run(w, t, E.STABLE * 2 + E.QUIET + 4)
+    assert shown == [str(out)]
