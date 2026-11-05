@@ -34,6 +34,7 @@
     model: { backend: true, model: true },
     notes: "раф => рафт\nДжи Строй",
     import: { enabled: false, folder: null, pending: [], recent: [] },
+    exports: { enabled: false, app: "Finder", folders: [], items: [] },
   }, S.engine || {});
 
   const fakeEngine = new Proxy({
@@ -44,6 +45,8 @@
     subtitleSettings: async () => ({ text: engineState.notes }),
     saveSubtitleSettings: async () => ({ errors: [] }),
     importStatus: async () => engineState.import,
+    exportSettings: async () => engineState.exports,
+    exportsRecent: async () => ({ items: engineState.exports.items || [] }),
     devPoll: () => Promise.reject(new Error("bridge off in the preview")),
   }, { get: (t, k) => (k in t ? t[k] : async () => ({})) });
 

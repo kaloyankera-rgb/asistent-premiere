@@ -1,4 +1,9 @@
-# Project status — Asistent 0.10.2 (2026-11-04)
+# Project status — Asistent 0.10.3 (2026-11-05)
+
+0.10.3: Show exports (Export tab only, the user's choice): the engine reads Premiere's preferences for the Export tab's folder,
+watches it and shows a finished export selected in Finder; a queue shows its last file; Log lists them with Show again. Off by
+default, switched on on the user's Mac. Engine tests (26) and a dry run on the real preferences and the user's 12:38 export
+(found, whole, 125.9 s); not yet seen working on a real export. Media Encoder and Quick Export: later.
 
 0.10.2: subtitles about 1.7x faster on a first run (ReShape 256 -> 130 s, Beauty Sector 89 -> 53 s, cold, same output on
 ReShape) and English words written in English (Beauty Sector, Space, workshop). Measured on saved jobs outside Premiere (a copy

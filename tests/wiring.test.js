@@ -348,3 +348,17 @@ test("a colour press and Match POVs apply at once, with Before / after, no appro
   assert.match(shot, /onShotMatch\(cam\)/);                                   // another reference: matched again
 });
 
+
+test("Show exports: off until switched on, the engine is told the project, and Show again sends only an id", () => {
+  const card = html.slice(html.indexOf('<div class="card" id="secExports">'), html.indexOf('<div class="card quiet" id="secDev">'));
+  assert.match(card, /id="exportsToggle" class="btn small"/);
+  assert.match(card, /id="exportsFolder" class="btn small"/);
+  const ex = main.slice(main.indexOf("// ---------------------------------------------------------------- show exports"), main.indexOf("exportsLoop();"));
+  assert.match(ex, /const exp = \{ enabled: false,/);
+  assert.match(ex, /engine\.exportSettings\(project\.path !== exp\.project \? \{ project: project\.path \} : null\)/);
+  assert.match(ex, /exportsChange\(\{ enabled: !exp\.enabled \}\)/);
+  assert.match(ex, /engine\.exportReveal\(id\)/);
+  assert.match(ex, /exportShowAgain\(it\.id\)/);
+  const eng = fs.readFileSync(path.join(panel, "engine.js"), "utf8");
+  assert.match(eng, /call\("POST", "\/exports\/reveal", \{ id \}\)/);                  // never a path
+});

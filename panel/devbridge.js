@@ -64,6 +64,8 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     in: +(x.inPt || 0).toFixed(3), out: x.outPt === undefined ? null : +x.outPt.toFixed(3), selected: !!x.selected,
     file: x.path ? x.path.split(/[\\/]/).slice(-2).join("/") : null, speed: x.speed });
 
+  const exportProbe = { events: [] };
+
   const commands = {
     async ping() {
       const pr = await project().catch((e) => ({ name: null, ok: false, error: String(e && e.message || e) }));
@@ -459,6 +461,54 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
         }
       }
       return { clip: brief(x), tries };
+    },
+    // export reveal, phase 0 (docs/EXPORT_REVEAL_PLAN.md): which render / export events this Premiere sends to UXP for
+    // exports the editor starts by hand, and what they carry. Listens to every EVENT_ constant of EncoderManager (and any
+    // other ppro class whose constant names say export / render / encode), both globally and on the manager.
+    async export_listen() {
+      const ppro = require("premierepro");
+      const consts = [];
+      for (const cls of Object.getOwnPropertyNames(ppro)) {
+        const o = ppro[cls];
+        if (!o || (typeof o !== "object" && typeof o !== "function")) continue;
+        for (const n of Object.getOwnPropertyNames(o)) {
+          if (/^EVENT_/.test(n) && (cls === "EncoderManager" || /EXPORT|RENDER|ENCOD/i.test(n))) consts.push({ cls, name: n, value: o[n] });
+        }
+      }
+      const manager = await premiere.maybe(ppro.EncoderManager, "getManager");
+      const attached = [];
+      const fieldsOf = (e) => {
+        const fields = {};
+        for (let q = e; q && q !== Object.prototype; q = Object.getPrototypeOf(q)) {
+          for (const k of Object.getOwnPropertyNames(q)) {
+            if (k === "constructor" || k in fields) continue;
+            try { const v = e[k]; if (typeof v !== "function") fields[k] = typeof v === "object" && v !== null ? String(v) : v; } catch (err) { fields[k] = "?" + err; }
+          }
+        }
+        return fields;
+      };
+      for (const c of consts) {
+        for (const how of manager ? ["global", "manager"] : ["global"]) {
+          const handler = (e) => {
+            const fields = fieldsOf(e);
+            exportProbe.events.push({ at: new Date().toISOString(), event: `${c.cls}.${c.name}`, value: c.value, how, fields });
+            engineApi.log("info", `export probe: ${c.cls}.${c.name} (${how}) ${JSON.stringify(fields).slice(0, 1500)}`);
+          };
+          try {
+            if (how === "global") await ppro.EventManager.addGlobalEventListener(c.value, handler);
+            else await ppro.EventManager.addEventListener(manager, c.value, handler);
+            attached.push(`${c.cls}.${c.name} ${how}`);
+          } catch (e) {
+            attached.push(`${c.cls}.${c.name} ${how} FAILED ${(e && e.message) || e}`);
+          }
+        }
+      }
+      return { constants: consts, manager: !!manager, manager_methods: manager ? Object.getOwnPropertyNames(Object.getPrototypeOf(manager)) : [], attached };
+    },
+    async export_events(a) {
+      const out = exportProbe.events.slice();
+      if (a.clear) exportProbe.events.length = 0;
+      return { events: out };
     },
     // method names of an object, to find what this Premiere offers
     async api(a) {

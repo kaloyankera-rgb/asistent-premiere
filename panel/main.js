@@ -1301,6 +1301,89 @@ onTap($("importFolder"), async () => {
 });
 importLoop();
 
+// ---------------------------------------------------------------- show exports
+// The engine watches the project's folder (and the added ones) and shows a finished export in Finder / Explorer; the
+// panel only switches it, tells the engine which project is open, and lists the exports in Log.
+
+const exp = { enabled: false, app: "Finder", project: null, last: null };
+
+function renderExports(st) {
+  exp.enabled = !!st.enabled;
+  exp.app = st.app || exp.app;
+  for (const n of document.querySelectorAll(".revealApp")) n.textContent = exp.app;
+  $("exportsToggle").textContent = st.enabled ? "Stop showing" : `Show in ${exp.app}`;
+  const folders = st.folders || [];
+  const premiereFolder = folders.find((f) => f.why === "premiere");
+  const extra = folders.filter((f) => f.why === "added" || f.why === "learned").length;
+  const where = premiereFolder ? `“${premiereFolder.path.split(/[\\/]/).pop()}” (Premiere's export folder)` : "the project's folder";
+  $("exportsStatus").textContent = st.enabled
+    ? `On: a finished export in ${where}${extra ? ` or ${extra} more` : ""} is shown in ${exp.app}.`
+    : `Off. When on, a finished export is shown in ${exp.app}.`;
+}
+
+function renderExportList(items) {
+  if (!items.length) {
+    $("exportsList").textContent = "None yet.";
+    return;
+  }
+  fillWith("exportsList", items.slice(0, 10).map((it) => {
+    const t = new Date(it.at * 1000);
+    const row = el("div", "history-item", `${t.getHours()}:${String(t.getMinutes()).padStart(2, "0")}  Exported ${it.name}` +
+      (it.note ? `, ${it.note}` : ""));
+    row.appendChild(button("link", "Show again", `Shows ${it.name} in ${exp.app} again.`, () => exportShowAgain(it.id)));
+    return row;
+  }));
+}
+
+async function exportShowAgain(id) {
+  try {
+    await engine.exportReveal(id);
+  } catch (e) {
+    finish(e.message || String(e), false);
+  }
+}
+
+async function exportsLoop() {
+  for (;;) {
+    let pause = 3000;
+    try {
+      if (!state.online) {
+        pause = 1000;
+      } else {
+        const project = await premiere.activeProject();
+        const st = await engine.exportSettings(project.path !== exp.project ? { project: project.path } : null);
+        exp.project = project.path;
+        renderExports(st);
+        const { items } = await engine.exportsRecent();
+        const newest = items.length ? items[0].id : null;
+        if (newest !== exp.last) {
+          exp.last = newest;
+          renderExportList(items);
+        }
+      }
+    } catch (e) {
+      if (!(e instanceof premiere.UserError)) engine.log("error", `exports: ${e && e.stack ? e.stack : e}`);
+    }
+    await wait(pause);
+  }
+}
+
+async function exportsChange(change) {
+  try {
+    const project = await premiere.activeProject();
+    renderExports(await engine.exportSettings({ project: project.path, ...change }));
+  } catch (e) {
+    finish(e.message || String(e), false);
+  }
+}
+
+onTap($("exportsToggle"), () => exportsChange({ enabled: !exp.enabled }));
+onTap($("exportsFolder"), async () => {
+  const folder = await premiereImport.pickFolder().catch(() => null);
+  if (folder) exportsChange({ add: folder });
+});
+exportsLoop();
+
 onTap($("sync"), onSync);
 onTap($("audio"), () => onAudio(null));
 onTap($("subtitles"), () => onSubtitles());

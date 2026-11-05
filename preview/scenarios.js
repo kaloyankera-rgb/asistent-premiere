@@ -100,6 +100,20 @@ window.PREVIEW_SCENARIOS = (function () {
         api.openTab("paneCaptions");
       },
     },
+    exports: {
+      engine: {
+        exports: { enabled: true, app: "Finder", folders: [{ path: "/Volumes/Production/Exported Videos/Екопак/Контент план 8", why: "premiere" }, { path: "/Users/editor/Projects", why: "project" }],
+          items: [
+            { id: "c", name: "Видео 7 - final.mp4", at: Date.now() / 1000 - 60, shown: true, note: "shown in Finder" },
+            { id: "b", name: "Видео 7 - 9x16.mp4", at: Date.now() / 1000 - 70, shown: false, note: "in a queue: the last export was shown" },
+            { id: "a", name: "Видео 6.mp4", at: Date.now() / 1000 - 3600, shown: false, note: "could not be shown: moved" },
+          ] },
+      },
+      run: (api) => {
+        document.querySelector('[data-more="aboutExports"]').click();
+        setTimeout(() => api.openTab("paneLog"), 400);
+      },
+    },
     open: {
       engine: {
         model: { backend: true, model: false, expected_bytes: 3.1e9, bytes: 0, dir: "~/Library/Application Support/Asistent/models/whisper" },

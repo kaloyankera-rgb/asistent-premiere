@@ -10,8 +10,10 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - **0.10.2, check from the panel:** a Beauty Sector clip shows "Beauty Sector", "Beauty Space", "workshop"; ReShape unchanged.
 - **0.10.0, check in NEW TEST**: select one POV on V1 with the V2 POV switched off, Auto color: only V1 corrected, V2 stays off
   (the log line "selection: … 1 selected parts" with no "[list, track unknown …]"); Fix audio on one A1 clip touches only A1.
-- **Export reveal (docs/EXPORT_REVEAL_PLAN.md)**: work in progress kept in `git stash` ("export reveal WIP"); phase 0 probes
-  need NEW TEST.prproj open.
+- **0.10.3 Show exports, check while working:** an export from the Export tab opens Finder with the file selected, a few
+  seconds after it ends; the Log tab lists it. If nothing happens: `grep exports ~/Library/Application\ Support/Asistent/logs/engine.log`.
+- **Show exports for Media Encoder and Quick Export** (later, the user 2026-11-05): phase 0 probes of
+  `docs/EXPORT_REVEAL_PLAN.md` in NEW TEST.prproj (`export_listen` / `export_events`), where Quick Export writes, AME's queue.
 Done in 0.9.9 (Volume scale, `/color/probe` docstring).
 
 ## B. Colour engine, per `COLOR_CORRECTION_PLAN.md` (current focus of the user)

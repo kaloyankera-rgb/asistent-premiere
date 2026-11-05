@@ -21,7 +21,9 @@ import time
 import uuid
 
 from . import config
-from .media import MediaError, _run, _tool
+from .media import MediaError
+from .settle import MOVED_STABLE, STABLE_SECONDS, TEMP_SUFFIXES, Settle, is_temp, opens, temp_sibling  # noqa: F401
+from .settle import probe as _probe
 
 log = logging.getLogger("asistent")
 
@@ -31,11 +33,6 @@ IMAGE = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".heic", ".bmp", ".g
 GRAPHIC = {".psd", ".ai", ".svg", ".eps"}
 MEDIA = AUDIO | VIDEO | IMAGE | GRAPHIC
 CATEGORIES = ("MUSIC", "SFX", "BROLL", "IMAGES", "GRAPHICS", "OTHER")
-
-# browsers and copy tools write under a temporary name first
-TEMP_SUFFIXES = (".crdownload", ".part", ".partial", ".download", ".tmp", ".opdownload", ".!ut", ".aria2", ".filepart")
-STABLE_SECONDS = 1.5      # copied in some other way: size and time unchanged this long
-MOVED_STABLE = 0.3         # renamed from a browser temp name: the browser itself says it is complete
 
 _W = lambda *ws: re.compile(r"(?:^|[^a-zа-я0-9])(?:" + "|".join(ws) + r")(?:[^a-zа-я0-9]|$)", re.I)  # noqa: E731
 SFX_WORDS = _W("sfx", "sound ?effects?", "whoosh\\w*", "swoosh\\w*", "swish\\w*", "swipe", "hits?", "impacts?",
@@ -49,26 +46,6 @@ GRAPHIC_WORDS = _W("overlays?", "lower ?thirds?", "titles?", "logos?", "alpha", 
 FOLDER_CATEGORY = {"music": "MUSIC", "музика": "MUSIC", "sfx": "SFX", "ефекти": "SFX", "звуци": "SFX",
                    "broll": "BROLL", "b-roll": "BROLL", "b_roll": "BROLL", "images": "IMAGES", "снимки": "IMAGES",
                    "graphics": "GRAPHICS", "графики": "GRAPHICS"}
-
-
-def is_temp(path: str) -> bool:
-    name = os.path.basename(path).lower()
-    return name.startswith((".", "~$")) or name.endswith(TEMP_SUFFIXES) or ".download/" in path.lower() + "/"
-
-
-def temp_sibling(path: str) -> bool:
-    """A browser still writing this file (Firefox keeps the final name at 0 bytes next to a .part)."""
-    return any(os.path.exists(path + s) for s in TEMP_SUFFIXES)
-
-
-def _probe(path: str) -> dict | None:
-    p = _run([_tool("ffprobe"), "-v", "error", "-print_format", "json", "-show_format", "-show_streams", path])
-    if p.returncode != 0:
-        return None
-    try:
-        return json.loads(p.stdout or b"{}")
-    except ValueError:
-        return None
 
 
 def classify(path: str, folder_root: str | None = None, probe: dict | None = None) -> tuple[str, str]:
@@ -230,9 +207,8 @@ class Watcher:
 
     def __init__(self, store: Store):
         self.store = store
-        self.pending: dict[str, dict] = {}         # path -> {size, mtime, since, moved}
+        self.settle = Settle()
         self.fails: dict[str, int] = {}            # path -> unreadable attempts
-        self.lock = threading.Lock()
         self.observer = None
         self.watched: dict[str, object] = {}
         self._stop = threading.Event()
@@ -289,46 +265,23 @@ class Watcher:
     def touch(self, path: str, moved: bool = False):
         if is_temp(path) or os.path.splitext(path)[1].lower() not in MEDIA:
             return
-        with self.lock:
-            state = self.pending.setdefault(path, {"size": -1, "mtime": -1, "since": time.time(), "moved": False})
-            state["moved"] = state["moved"] or moved
+        self.settle.touch(path, moved)
 
     # -- completion
     def check(self, now: float | None = None):
-        now = now or time.time()
-        with self.lock:
-            paths = list(self.pending)
-        for path in paths:
-            state = self.pending.get(path)
-            try:
-                st = os.stat(path)
-            except OSError:
-                self.pending.pop(path, None)            # gone (renamed by the browser): the new name comes as an event
-                continue
-            own = self.store.owner(path)
-            if not own:
-                self.pending.pop(path, None)
-                continue
-            folder, binding = own
-            if st.st_mtime < binding["since"] - 1:     # older than switching on: not ours
-                self.pending.pop(path, None)
-                continue
-            if temp_sibling(path) or st.st_size == 0 or st.st_size != state["size"] or st.st_mtime != state["mtime"]:
-                state.update(size=st.st_size, mtime=st.st_mtime, since=now)
-                continue
-            if now - state["since"] < (MOVED_STABLE if state.get("moved") else STABLE_SECONDS):
-                continue
-            self.pending.pop(path, None)
-            self._finish(path, st, folder, binding)
+        owners = {}
+
+        def keep(path, st):
+            own = owners[path] = self.store.owner(path)
+            return bool(own) and st.st_mtime >= own[1]["since"] - 1      # older than switching on: not ours
+        for path, st in self.settle.ready(now, keep):
+            self._finish(path, st, *owners[path])
 
     def _finish(self, path: str, st: os.stat_result, folder: str, binding: dict):
         key = Store.key(path, st)
         if self.store.known(key):
             return
-        try:
-            with open(path, "rb") as f:
-                f.read(1)
-        except OSError:
+        if not opens(path):
             self.touch(path)                            # still locked by the writer: try again later
             return
         try:
