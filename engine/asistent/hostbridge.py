@@ -110,7 +110,7 @@ def place_graphics(captions: list, preset: str, sequence: str, project: str | No
                             "project": project, "track_name": "Asistent subtitles"}, wait=60.0 + 1.5 * len(lines))
 
 
-ROUTES = ("split", "split_rl", "use_left", "use_right")
+ROUTES = ("split", "split_rl", "use_left", "use_right", "label")   # "label": only an earlier copy's label (host.jsx)
 
 
 def route_audio(items: list, sequence: str, project: str | None) -> dict:

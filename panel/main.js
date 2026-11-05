@@ -434,10 +434,12 @@ async function onAudio(force) {
 
     // the channels: the host makes the L/L and R/R copies and puts them where the clip is (ExtendScript)
     const todo = plans.map((p) => ({ p, route: audioplan.routeFor(p.it, p.res, force) })).filter((x) => x.route);
-    if (todo.length) {
-      progress(0.9, `Splitting the channels: ${todo.length} ${todo.length === 1 ? "clip" : "clips"}…`);
+    // copies split by an earlier press: the host only gives them the clip's own label (a cut piece came out green)
+    const relabel = plans.filter((p) => p.it.side).map((p) => ({ track: p.it.track, start: p.it.start, end: p.it.end, route: "label" }));
+    if (todo.length || relabel.length) {
+      if (todo.length) progress(0.9, `Splitting the channels: ${todo.length} ${todo.length === 1 ? "clip" : "clips"}…`);
       const answer = await engine.routeAudio({ sequence: sel.timeline.sequence.name, project: project.path,
-        items: todo.map((x) => ({ track: x.p.it.track, start: x.p.it.start, end: x.p.it.end, route: x.route })) });
+        items: [...todo.map((x) => ({ track: x.p.it.track, start: x.p.it.start, end: x.p.it.end, route: x.route })), ...relabel] });
       if (!answer.ok) throw new premiere.UserError(answer.msg || "Premiere did not split the channels.");
       todo.forEach((x, i) => { x.p.routed = answer.items[i] || { ok: false, msg: "no answer" }; });
       engine.log("info", `audio route: ${JSON.stringify(answer.items)}`);
@@ -943,6 +945,8 @@ async function onColor(part = null) {
     const tl = dir ? await premiereColor.timelineFrames(sel.timeline, sel.clips, dir,
       (done, total) => progress((0.4 * done) / total, `Frames from the timeline: ${done} of ${total}…`)) : sel.clips.map(() => ({ frames: [] }));
     const items = sel.clips.map((c, i) => ({ path: c.path, start: c.inPt, end: c.outPt, frames: tl[i].frames }));
+    // fewer than two frames: a visible layer covers the clip, the engine measures the file (`plain`: it shows the same picture)
+    for (const [i, it] of items.entries()) if (it.frames.length < 2) it.plain = await premiereColor.fileShowsClip(sel.clips[i]);
     const { job } = await engine.startColor(items);
     const result = await runJob(job);
     Object.assign(colorState, { project, sel, results: result.items, part });

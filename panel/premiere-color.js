@@ -114,6 +114,36 @@ async function target(clip, { manual = false } = {}) {
   return { chain, comp, ps: null, isNew: true, current: { ...DEFAULTS } };
 }
 
+// A clip under a visible layer (a logo, a title, a safety template left on) cannot be measured on the timeline, so the
+// engine measures the file. That is the same picture when nothing on the clip changes its colour: only the fixed effects
+// (Motion, Opacity, Time Remapping) and a Lumetri that is untouched or Asistent's own. Then the measurement counts like a
+// timeline one and its values are written as they are (absolute), replacing Asistent's earlier ones. Anything else (another
+// effect, a hand grade): the file is not what the viewer sees, a proposal only.
+const FIXED_EFFECTS = /motion|opacity|time ?remap/i;
+async function fileShowsClip(clip) {
+  try {
+    const chain = await maybe(clip.ti, "getComponentChain");
+    if (!chain) return false;
+    const others = [];
+    const count = await chain.getComponentCount();
+    for (let i = 0; i < count; i++) {
+      const comp = await chain.getComponentAtIndex(i);
+      const match = (await maybe(comp, "getMatchName")) || "";
+      const name = (await maybe(comp, "getDisplayName")) || "";
+      if (/lumetri/i.test(match) || FIXED_EFFECTS.test(match) || FIXED_EFFECTS.test(name)) continue;
+      others.push(name || match || "?");
+    }
+    if (others.length) {
+      debug(`color ${clip.name}: other effects on the clip (${others.join(", ")}): the file is not what the viewer sees`);
+      return false;
+    }
+    return !(await target(clip)).skip;
+  } catch (e) {
+    debug(`color ${clip.name}: effects not read (${e && e.message ? e.message : e})`);
+    return false;
+  }
+}
+
 // Lumetri neutral values of the parameters Asistent writes
 const DEFAULTS = { exposure: 0, temperature: 0, tint: 0, contrast: 0, saturation: 100 };
 
@@ -465,7 +495,8 @@ async function apply(project, timeline, plans) {
       debug(`color apply ${pl.clip.name}: skipped, ${t.skip}`);
       continue;
     }
-    const { values, applied } = mergeValues(t.current, pl.exposure, sliders);
+    // measured on the file (a layer covers the clip): the values are absolute, not added to what is on the clip
+    const { values, applied } = mergeValues(pl.res.measured_on === "source" ? {} : t.current, pl.exposure, sliders);
     pl.applied = applied;
     if (!Object.keys(values).length) {
       pl.nothing = true;
@@ -758,4 +789,4 @@ async function copyLumetri(project, pairs) {
   return done;
 }
 
-module.exports = { readVideoSelection, apply, nudgeExposure, exportFrame, exportFrames, timelineFrames, lumetriState, applyShotMatch, readLumetri, copyLumetri, devWrite, devChain };
+module.exports = { readVideoSelection, apply, fileShowsClip, nudgeExposure, exportFrame, exportFrames, timelineFrames, lumetriState, applyShotMatch, readLumetri, copyLumetri, devWrite, devChain };

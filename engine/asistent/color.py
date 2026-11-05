@@ -595,7 +595,14 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
             else:
                 frames = read_frames(path, start=float(it.get("start") or 0), end=it.get("end"))
                 r = decide(frames, gamma)
-                review_needed(r)
+                if it.get("plain"):
+                    # a layer covers the clip, but nothing on the clip changes its colour (panel fileShowsClip): the
+                    # file is what the viewer would see under the layer, so the measurement keeps its confidence
+                    r["measured_on"] = "source"
+                    r["reasons"].append("Measured on the file: a layer covers the clip on the timeline, and the clip has "
+                                        "no other colour effects, so the file shows the same picture.")
+                else:
+                    review_needed(r)
                 shown, shown_gamma = None, gamma
             r.update(path=path, name=os.path.basename(path))
             # what to write into Lumetri for these stops at this brightness (Exposure has a highlight shoulder)
@@ -641,14 +648,14 @@ def timeline_frames(paths: list) -> list[np.ndarray]:
 
 
 def review_needed(r: dict) -> None:
-    """Measured on the source file, not on the timeline: an existing correction on the clip is not seen, so
-    the suggestion may repeat it. Shown, never applied (confidence low)."""
+    """Measured on the source file, not on the timeline, and the clip has a correction or effect the file does not show
+    (or the panel could not tell): the suggestion may repeat it. Shown, never applied (confidence low)."""
     r["measured_on"] = "source"
     r["status"] = "REVIEW_NEEDED"
     r["exposure"]["confidence"] = "low"
     r["white"]["confidence"] = "low"
-    r["warnings"].append("Measured on the file, not on the timeline (no exported frames, or the clip is covered by another "
-                         "layer): a correction already on the clip does not show. A proposal only.")
+    r["warnings"].append("Measured on the file, not on the timeline (a visible layer covers the clip), and the clip has "
+                         "other effects or a hand grade the file does not show: a proposal only, not applied.")
 
 
 class Calibration:

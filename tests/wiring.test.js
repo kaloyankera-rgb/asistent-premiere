@@ -362,3 +362,19 @@ test("Show exports: off until switched on, the engine is told the project, and S
   const eng = fs.readFileSync(path.join(panel, "engine.js"), "utf8");
   assert.match(eng, /call\("POST", "\/exports\/reveal", \{ id \}\)/);                  // never a path
 });
+
+test("a covered clip: the panel asks whether the file shows the clip, and a file measurement is written as absolute values", () => {
+  const col = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
+  assert.match(main, /if \(it\.frames\.length < 2\) it\.plain = await premiereColor\.fileShowsClip\(sel\.clips\[i\]\)/);
+  assert.match(col, /mergeValues\(pl\.res\.measured_on === "source" \? \{\} : t\.current, pl\.exposure, sliders\)/);
+  assert.match(col, /return !\(await target\(clip\)\)\.skip;/);                  // a hand grade: the file is not what shows
+});
+
+test("Fix audio: the L/R copies get the clip's own label, and copies from an earlier press are relabelled, never split again", () => {
+  const host = fs.readFileSync(path.join(__dirname, "..", "host", "host.jsx"), "utf8");
+  assert.match(host, /var label = as_same_label\(up, pi\);\n\s+if \(low\) as_same_label\(low, pi\);/);
+  assert.match(host, /if \(a\.route === "label" && !as_in_bin\(bin, pi\)\) return \{ ok: true, status: "skip" \};/);
+  assert.ok(host.indexOf('a.route === "label"') < host.indexOf("var map = pi.getAudioChannelMapping"));   // before any split
+  assert.match(main, /plans\.filter\(\(p\) => p\.it\.side\)\.map\(\(p\) => \(\{ track: p\.it\.track, start: p\.it\.start, end: p\.it\.end, route: "label" \}\)\)/);
+  assert.match(main, /items: \[\.\.\.todo\.map\(/);                            // the split clips first: their answers keep their index
+});

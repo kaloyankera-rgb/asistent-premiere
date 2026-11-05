@@ -15,6 +15,15 @@ def test_only_the_exact_lumetri_asistent_wrote_is_its_own(tmp_path):
     assert not s.owned("/media/other.MP4|0.000|5.000", SNAP)         # the same values on another clip
 
 
+def test_a_cut_or_trimmed_piece_of_the_same_file_keeps_asistents_lumetri(tmp_path):
+    s = ManagedStore(str(tmp_path / "managed.json"))
+    s.record("/Volumes/Видео 7/кам2/fx31028.MP4|36.036|50.550", SNAP)            # Match POVs on the uncut clip
+    assert s.owned("/Volumes/Видео 7/кам2/fx31028.MP4|42.100|50.550", SNAP)      # the right half after a cut
+    assert s.owned("/Volumes/Production/X/кам2/fx31028.MP4|36.036|44.000", SNAP)  # the same drive under another path
+    assert not s.owned("/Volumes/Видео 7/кам2/fx31028.MP4|42.100|50.550", SNAP.replace("Tint=12.8000", "Tint=13.0000"))
+    assert not s.owned("/Volumes/Видео 7/кам2/fx31029.MP4|0.000|5.000", SNAP)    # another file: still a grade
+
+
 def test_first_write_and_step_back_both_count(tmp_path):
     s = ManagedStore(str(tmp_path / "managed.json"))
     key = "k"

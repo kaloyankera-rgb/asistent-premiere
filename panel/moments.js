@@ -1,8 +1,9 @@
 // Where on the timeline a clip can be measured. Pure (no Premiere), so it is tested with node.
 
-// a picture with something on top of the clip (a title, a logo, an adjustment layer) cannot be measured
+// a picture with something on top of the clip (a title, a logo, an adjustment layer) cannot be measured; a clip on a
+// hidden track (eye off) or switched off shows nothing and covers nothing
 function covered(timeline, clip, t) {
-  return timeline.items.some((x) => x.kind === "video" && x.track > clip.track && x.start <= t && x.end > t);
+  return timeline.items.some((x) => x.kind === "video" && !x.hidden && !x.unused && x.track > clip.track && x.start <= t && x.end > t);
 }
 
 // Moments inside the clip to measure: evenly spread, away from the cuts, none covered by an upper layer

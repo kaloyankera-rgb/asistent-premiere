@@ -6,6 +6,24 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.10.4 - Colour works under a hidden or visible overlay and on cut clips; Fix audio copies keep the clip's label
+The user, 2026-11-05 (MASTERHAUS КП-3, C0706): Auto color and White balance said "nothing was touched" while Before / after
+showed a change; and after Fix audio a razor cut turned the audio piece green.
+- **A hidden track covered every clip.** The safety-margin template sat on V4 with its eye off; the panel counted any clip on
+  a higher track as a layer over the picture, so it measured the file, and a file measurement was always "low" and never
+  applied. A video track's eye (`isMuted`) is now read: a hidden track or a switched-off clip covers nothing (`moments.covered`).
+- **A visible layer no longer blocks the correction.** When a clip under a logo / title / template has no colour effects of its
+  own (only Motion, Opacity, Time Remapping and an untouched or Asistent's own Lumetri, `fileShowsClip`), the file shows the
+  same picture: the engine keeps the measurement's confidence and the panel writes the values as they are (absolute), replacing
+  Asistent's earlier ones. Another effect or a hand grade: still a proposal only, said in the warning.
+- **Asistent's own Lumetri on a cut clip.** Ownership was kept per clip piece (media + in/out), so after a cut or trim Match POVs'
+  Lumetri (fx31028: Tint −1, Saturation 111) counted as a hand grade and was refused. Now the same snapshot written on any piece of
+  the same media file (matched by file name) is Asistent's; any hand change still makes it the editor's (`managed.owned`).
+- **Fix audio labels.** The L/R subclips took Premiere's default Audio label (green) while the placed pieces showed the clip's
+  colour, so a razor cut made a green piece. The subclips now get the label of the clip they come from (`as_same_label`), and a
+  Fix audio press over copies from an earlier press only relabels them (route "label", never split again).
+- Not yet pressed in Premiere (the user's client project was open): the video `isMuted` read is logged once as "hidden check".
+
 ## 0.10.3 - Show exports: a finished export from the Export tab is shown in Finder
 The user, 2026-11-05: "for now just do the export mode" (Media Encoder and Quick Export later). New card "Show exports"
 (off by default; on, on the user's Mac): when an export from the Export tab is finished, Finder opens with the file selected
