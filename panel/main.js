@@ -1319,10 +1319,10 @@ function renderExports(st) {
   const folders = st.folders || [];
   const premiereFolder = folders.find((f) => f.why === "premiere");
   const extra = folders.filter((f) => f.why === "added" || f.why === "learned").length;
-  const where = premiereFolder ? `“${premiereFolder.path.split(/[\\/]/).pop()}” (Premiere's export folder)` : "the project's folder";
-  $("exportsStatus").textContent = st.enabled
-    ? `On: a finished export in ${where}${extra ? ` or ${extra} more` : ""} is shown in ${exp.app}.`
-    : `Off. When on, a finished export is shown in ${exp.app}.`;
+  const where = premiereFolder ? `“${premiereFolder.path.split(/[\\/]/).pop()}” (Premiere's export folder)` : null;
+  $("exportsStatus").textContent = !st.enabled ? `Off. When on, a finished export is shown in ${exp.app}.`
+    : where || extra ? `On: a finished export in ${where || ""}${where && extra ? " or " : ""}${extra ? `${extra} added ${extra === 1 ? "folder" : "folders"}` : ""} is shown in ${exp.app}.`
+      : `On: export once from the Export tab (or add a folder) and Asistent knows where to look.`;
 }
 
 function renderExportList(items) {
