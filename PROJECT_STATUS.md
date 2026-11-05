@@ -1,4 +1,8 @@
-# Project status — Asistent 0.10.4 (2026-11-05)
+# Project status — Asistent 0.10.5 (2026-11-05)
+
+0.10.5: Show exports seen on a real export (late, ~10 s, and missed by the user; an older same-name file counted first; downloads in
+Assets shown): now Finder within ~2-3 s, only Premiere's export folder and added folders, an older same-name file never counted.
+Show again verified (Finder came to the front over Premiere). The faster timing not yet seen on a real export.
 
 0.10.4: colour no longer gives up when a track above the clip is hidden (the user's safety template) or a visible layer covers a
 clip with no other colour effects; Asistent's own Lumetri is recognised on cut pieces of the same file; Fix audio's L/R copies keep

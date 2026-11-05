@@ -13,7 +13,7 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - **0.10.4, check while working:** Auto color with the safety template track hidden and shown (both should apply; log line
   "hidden check: video track isMuted exists"); a cut clip with Asistent's Lumetri updates; after Fix audio a razor cut keeps the
   clip's colour, and pressing Fix audio over older green copies makes them the clip's colour.
-- **0.10.3 Show exports, check while working:** an export from the Export tab opens Finder with the file selected, a few
+- **0.10.5 Show exports, check while working:** an export from the Export tab opens Finder with the file selected, 2-3
   seconds after it ends; the Log tab lists it. If nothing happens: `grep exports ~/Library/Application\ Support/Asistent/logs/engine.log`.
 - **Show exports for Media Encoder and Quick Export** (later, the user 2026-11-05): phase 0 probes of
   `docs/EXPORT_REVEAL_PLAN.md` in NEW TEST.prproj (`export_listen` / `export_events`), where Quick Export writes, AME's queue.

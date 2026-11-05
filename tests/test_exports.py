@@ -161,9 +161,9 @@ def test_settings_folders_project_added_learned(tmp_path):
     assert not s.add(project, str(tmp_path / "Exports"))          # once
     with pytest.raises(ValueError):
         s.add(project, str(tmp_path / "missing"))
-    assert [(f["why"], os.path.basename(f["path"])) for f in s.folders()] == [("project", "P"), ("added", "Exports")]
+    assert [(f["why"], os.path.basename(f["path"])) for f in s.folders()] == [("added", "Exports")]   # not the project's own
     s.remove(project, str(tmp_path / "Exports"))
-    assert [f["why"] for f in E.Settings(str(tmp_path / "e.json")).folders(project)] == ["project"]
+    assert E.Settings(str(tmp_path / "e.json")).folders(project) == []
 
 
 def test_an_event_path_in_a_new_folder_is_learned_and_shown(setup, tmp_path):
@@ -219,12 +219,12 @@ def test_real_watchdog_end_to_end(tmp_path, monkeypatch):
     monkeypatch.setattr(E, "SCAN_EVERY", 999)            # the file event alone must find it
     project = tmp_path / "P"
     project.mkdir()
+    (tmp_path / "Exports").mkdir()
     shown = []
     w = E.ExportWatcher(E.Settings(str(tmp_path / "e.json")), show=shown.append)
-    w.configure(project=str(project / "A.prproj"), enabled=True)
+    w.configure(project=str(project / "A.prproj"), enabled=True, add=str(tmp_path / "Exports"))
     try:
-        (project / "Exports").mkdir()
-        out = video(project / "Exports" / "final.mp4")
+        out = video(tmp_path / "Exports" / "final.mp4")
         for _ in range(60):
             if shown:
                 break
@@ -270,7 +270,7 @@ def office(tmp_path, monkeypatch):
 
 def test_an_export_into_premieres_export_folder_is_shown(office):
     exported, _, w, shown = office
-    assert [f["why"] for f in w.status()["folders"]] == ["premiere", "project"]
+    assert [f["why"] for f in w.status()["folders"]] == ["premiere"]
     out = video(exported / "Video 8.mp4")
     run(w, time.time(), E.STABLE + E.QUIET + 4)
     assert shown == [out]
@@ -298,10 +298,51 @@ def test_a_file_the_prefs_name_later_is_shown_even_in_a_new_folder(office, tmp_p
     elsewhere.mkdir()
     out = video(elsewhere / "new place.mp4")
     prefs(pf, elsewhere, out)                              # Premiere rewrote its preferences after the export
-    run(w, time.time(), E.STABLE + E.QUIET + 6)
+    run(w, time.time(), E.LATER + E.STABLE + E.QUIET + 6)
     assert shown == [out] and w.recent()[0]["how"] == "event"
     prefs(pf, elsewhere, out)                              # rewritten again, same file: never twice
-    run(w, time.time() + 30, E.STABLE + E.QUIET + 6)
+    run(w, time.time() + 30, E.LATER + E.STABLE + E.QUIET + 6)
+    assert shown == [out]
+
+
+def test_a_sound_downloaded_into_the_project_folder_is_not_an_export(tmp_path, monkeypatch):
+    monkeypatch.setattr(E.config, "app_dir", lambda: str(tmp_path / "appdata"))
+    (tmp_path / "Assets").mkdir()
+    w = E.ExportWatcher(E.Settings(str(tmp_path / "e.json")))
+    w.settings.data.update(enabled=True, project=str(tmp_path / "Assets" / "A.prproj"))
+    assert w.folders() == []                              # the ES_*.mp3 in Assets were "shown" in 0.10.3
+
+
+def test_an_older_file_of_the_same_name_is_not_the_new_export(office, monkeypatch):
+    """Premiere wrote its preferences when the export started; the file it named was still the earlier export of the same
+    video, about to be replaced (2026-11-05 13:53). Only the new file is shown."""
+    exported, pf, w, shown = office
+    monkeypatch.setattr(w, "refresh", lambda: None)
+    out = exported / "Видео 7.mp4"
+    video(out)
+    t = time.time()
+    os.utime(out, (t - 60, t - 60))                       # the earlier export (after watching started)
+    w.started = t - 120
+    w.since[str(exported)] = t + 999                      # the folder events do not count it: only the preferences could
+    prefs(pf, exported, out)                              # stamped t + 1: the new export starts
+    w.check(t)
+    assert str(out) not in w.settle and str(out) in w.later
+    os.remove(out)                                        # Premiere replaces it
+    run(w, t, E.LATER + E.STABLE + E.QUIET + 3)
+    assert shown == [] and w.later == {}
+
+
+def test_a_file_named_after_its_export_ended_is_still_shown(office, monkeypatch):
+    """The other order (12:38 export, 12:40 preferences): the named file is older but nothing replaces it."""
+    exported, pf, w, shown = office
+    monkeypatch.setattr(w, "refresh", lambda: None)
+    out = video(exported / "Видео 8.mp4")
+    t = time.time()
+    os.utime(out, (t - 60, t - 60))
+    w.started = t - 120
+    w.since[str(exported)] = t + 999
+    prefs(pf, exported, out)
+    run(w, t, E.LATER + E.STABLE + E.QUIET + 3)
     assert shown == [out]
 
 

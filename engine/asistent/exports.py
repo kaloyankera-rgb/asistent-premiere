@@ -1,12 +1,15 @@
 """Show an exported video in Finder / Explorer once the export is finished (0.10.0, the user's plan 2026-11-04).
 
 Which folders: the folder Export mode last wrote to (Premiere keeps it in its preferences, read again whenever they
-change; only the files directly in it), the open project's folder, folders the editor added for that project, and
-folders an export event showed (learned). Off by default; while it is off nothing is watched at all.
+change; only the files directly in it), folders the editor added for the open project, and folders an export event showed
+(learned). Not the project's own folder (0.10.5): sound effects downloaded into Assets were shown as exports, and the
+office never exports there. Off by default; while it is off nothing is watched at all.
 
 Exports go to a folder of their own (the office: Production/Exported Videos/<client>/<plan>), not next to the project,
-so the preferences are the main source. They also name the last exported file: when they change after watching
-started, that file is checked even in a folder nobody watched yet (the editor chose a new place).
+so the preferences are the main source. They also name the export's file. Premiere wrote them when an export STARTED (2026-11-05: preferences 13:53:40, file created
+13:53:46; a file of that name from before was an older export about to be replaced) and once well after one ended (12:38
+export, 12:40 preferences). So a named file older than the preferences waits LATER seconds: replaced by then, the watched
+folder sees the new one; unchanged, it was an export that ended before Premiere wrote them, and it counts.
 
 What counts: a video or audio file that appeared or changed after watching started, inside a watched folder, not in
 Premiere's preview / Auto-Save / Media Cache folders or Asistent's own data folder, and finished by the same rules as
@@ -38,12 +41,15 @@ from .settle import Settle, is_temp, opens, probe
 log = logging.getLogger("asistent")
 
 EXPORTED = VIDEO | AUDIO
-STABLE = 3.0              # an encoder can pause on a heavy frame: wait longer than for a download
-QUIET = 5.0               # a queue: wait this long after the last finished export before showing it
-SCAN_EVERY = 3.0          # network drives and some external disks send no file events: look for new files this often
+# The user, 2026-11-05: Finder came ~10 s after the export ended and was missed. An MP4 / MOV is proven whole by its boxes
+# and FFprobe, so a pause in writing cannot pass for the end; the waits only need to see the size stop.
+STABLE = 1.5              # size and time unchanged this long
+QUIET = 1.5               # a queue: wait this long after the last finished export before showing it
+SCAN_EVERY = 1.5          # network drives and some external disks send no file events: look for new files this often
 SCAN_DEPTH = 2            # ... in the folder and two levels below it
 MAX_TRIES = 10            # FFprobe cannot read it after this many settled checks: damaged or cancelled, never shown
 RECENT = 20
+LATER = 10.0              # a named file older than Premiere's preferences: this long to see whether it is being replaced
 IGNORED = ("adobe premiere pro video previews", "adobe premiere pro audio previews", "adobe premiere pro auto-save",
            "media cache files", "media cache", "adobe premiere pro captured audio", "analysis files")
 
@@ -188,13 +194,13 @@ class Settings:
         return self.data["projects"].setdefault(project, {"added": [], "learned": []})
 
     def folders(self, project: str | None = None) -> list[dict]:
-        """[{path, why}] for the project: its own folder, added, learned; each folder once, existing ones only."""
+        """[{path, why}] for the project: added, learned; each folder once, existing ones only."""
         project = self.data["project"] if project is None else project
         if not project:
             return []
         p = self.data["projects"].get(project, {})
         out, seen = [], set()
-        for path, why in [(os.path.dirname(project), "project")] + [(f, "added") for f in p.get("added", [])] + \
+        for path, why in [(f, "added") for f in p.get("added", [])] + \
                 [(f, "learned") for f in p.get("learned", [])]:
             path = os.path.normpath(path)
             if path not in seen and os.path.isdir(path):
@@ -247,6 +253,7 @@ class ExportWatcher:
         self.batch: list[dict] = []                 # finished, not shown yet
         self.last_done = 0.0
         self.last_scan = 0.0
+        self.later: dict[str, tuple[float, float]] = {}   # path -> (its mtime when the preferences named it, when to decide)
         self.lock = threading.RLock()
         self.observer = None
         self.watched: dict[str, object] = {}
@@ -339,6 +346,7 @@ class ExportWatcher:
         self.batch.clear()
         self.retry.clear()
         self.confirmed.clear()
+        self.later.clear()
 
     def _handler(self):
         from watchdog.events import FileSystemEventHandler
@@ -391,8 +399,9 @@ class ExportWatcher:
         now = now or time.time()
         if now - self.last_scan >= SCAN_EVERY:
             self.last_scan = now
-            self.from_prefs()
+            self.from_prefs(now)
             self.scan()
+        self._decide_later(now)
 
         def keep(path, st):
             if path in self.confirmed:
@@ -410,7 +419,7 @@ class ExportWatcher:
                     self.fails.pop(path, None)
         self._maybe_show(now)
 
-    def from_prefs(self):
+    def from_prefs(self, now: float | None = None):
         """Premiere rewrote its preferences: watch the export folder they name now, and check the file they name when it
         was written after watching started (an export into a folder nobody watched yet)."""
         if not self.settings.data["enabled"]:
@@ -421,14 +430,34 @@ class ExportWatcher:
         if {f["path"] for f in self.folders()} != set(self.since):
             self.refresh()
         path = state["file"]
+        written = (self.premiere.stamp or (None, 0))[1]           # when Premiere wrote them
         try:
-            fresh = bool(path) and not ignored(path) and os.stat(path).st_mtime >= self.started - 1
+            mtime = os.stat(path).st_mtime if path and not ignored(path) else None
         except OSError:
-            fresh = False
-        if fresh:
-            log.info("exports: Premiere's preferences name %s", os.path.basename(path))
-            self.confirmed.add(path)
-            self.settle.touch(path)
+            mtime = None                                          # not written yet: the watched folder will see it
+        if mtime is None or mtime < self.started - 1:
+            return
+        if mtime >= written - 1:
+            self._named(path)
+        else:
+            self.later[path] = (mtime, (now or time.time()) + LATER)
+
+    def _named(self, path: str):
+        log.info("exports: Premiere's preferences name %s", os.path.basename(path))
+        self.confirmed.add(path)
+        self.settle.touch(path)
+
+    def _decide_later(self, now: float):
+        for path, (mtime, due) in list(self.later.items()):
+            if now < due:
+                continue
+            del self.later[path]
+            try:
+                same = os.stat(path).st_mtime == mtime
+            except OSError:
+                same = False
+            if same:                                              # not replaced: an export that ended before the preferences
+                self._named(path)
 
     def _finished(self, path: str, st: os.stat_result, now: float):
         key = f"{path}|{st.st_size}|{int(st.st_mtime)}"

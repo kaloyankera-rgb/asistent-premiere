@@ -278,6 +278,11 @@ confidence is applied too (the user chose no approval step at all); it is said p
 reference camera buttons now re-match at once.
 
 
+## 2026-11-05: Show exports no longer watches the project's folder (0.10.5)
+The user's answer of 2026-11-04 was to watch the project's folder automatically. In use it showed sound effects downloaded into
+Assets as exports, and the office exports into Exported Videos, which Premiere's preferences name; so only that folder and the
+added ones are watched.
+
 ## 2026-11-05: a covered clip measured on its file counts when nothing on the clip changes its colour (0.10.4)
 The user wants Auto color to work in every situation. Measuring the file was marked "low" because a correction on the clip would
 not show in it; when the clip carries none (only the fixed effects and an untouched or Asistent's own Lumetri), the file is exactly

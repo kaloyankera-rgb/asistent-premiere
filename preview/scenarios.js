@@ -102,7 +102,7 @@ window.PREVIEW_SCENARIOS = (function () {
     },
     exports: {
       engine: {
-        exports: { enabled: true, app: "Finder", folders: [{ path: "/Volumes/Production/Exported Videos/Екопак/Контент план 8", why: "premiere" }, { path: "/Users/editor/Projects", why: "project" }],
+        exports: { enabled: true, app: "Finder", folders: [{ path: "/Volumes/Production/Exported Videos/Екопак/Контент план 8", why: "premiere" }],
           items: [
             { id: "c", name: "Видео 7 - final.mp4", at: Date.now() / 1000 - 60, shown: true, note: "shown in Finder" },
             { id: "b", name: "Видео 7 - 9x16.mp4", at: Date.now() / 1000 - 70, shown: false, note: "in a queue: the last export was shown" },

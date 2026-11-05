@@ -6,6 +6,19 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.10.5 - Show exports: Finder within ~2 s, no older file, no downloads
+The user's first real export (MASTERHAUS КП-3 Видео 7, 13:53): "it didn't open the folder". The log: Premiere wrote its
+preferences when the export started (13:53:40) naming a file that still held the earlier export of the same video, which was
+counted at once; the new file was written 13:53:46-13:54:09 and Finder was asked only at ~13:54:19. Earlier, sound effects
+downloaded into the project's Assets folder had been "shown" as exports.
+- The waits are 1.5 s (size steady) + 1.5 s (queue) instead of 3 + 5, and the folder is looked at every 1.5 s: an MP4 / MOV is
+  proven whole by its boxes and FFprobe, so a pause in writing cannot pass for the end.
+- A file the preferences name that is older than the preferences waits 10 s: replaced by then (an export starting), only the
+  new file counts; unchanged (an export that ended before Premiere wrote them), it is shown.
+- The project's own folder is no longer watched (the office never exports there; downloads land there). Watched: Premiere's
+  export folder and folders added with "Add export folder…".
+- Checked: Show again on that export brought Finder to the front over Premiere with the file selected.
+
 ## 0.10.4 - Colour works under a hidden or visible overlay and on cut clips; Fix audio copies keep the clip's label
 The user, 2026-11-05 (MASTERHAUS КП-3, C0706): Auto color and White balance said "nothing was touched" while Before / after
 showed a change; and after Fix audio a razor cut turned the audio piece green.
