@@ -4,6 +4,11 @@
 
 ## Open bugs
 
+- **Fixed in 0.10.7: Show exports watched nothing after the engine started before the office drive was mounted**, and an export
+  into a new plan folder waited for Premiere's preferences (+10 s). Limits that stay: an export into a brand-new folder OUTSIDE
+  the learned tree (and outside Premiere's last export folder) is still found only through the preferences; the tree is
+  learned only after exports of 3 clients were seen; Windows has no tree (share notifications include other computers).
+
 - **Audit of 0.10.1 (2026-11-08): all valid findings fixed in 0.10.6** (CHANGELOG). Still open from it: sync pair pruning (no
   criterion proven safe: camera clocks can be years off), caption TEXT edits that keep every line's time are not seen (no API
   reads caption text in 26.0.2; timing edits are), Windows CUDA pins and the Windows lock file untried, UXP right-click/long

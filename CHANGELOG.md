@@ -6,6 +6,30 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.10.7 - Show exports: works after the office drive mounts, and fast in a new plan folder
+The user, 2026-11-08: a finished export did not open its folder, and when it did it took up to ~30 s.
+- **Nothing was watched after a restart.** The engine starts at login, before `/Volumes/Production` is mounted; the watcher
+  started only on the folders that existed then (none) and looked again only when the editor switched projects. The log showed
+  no "exports: watching" line at all since the 10:18 restart. Now the checker keeps running while Show exports is on and starts
+  (or stops) watching a folder within ~1.5 s of it appearing (a drive mounted, back from sleep). Test with a real file watcher.
+- **An export into a new plan folder waited for Premiere's preferences.** Premiere names the Export tab's folder in its
+  preferences only when it gets round to writing them, sometimes after the export ended, and a named file older than them then
+  waited another 10 s. Now Asistent learns the office's export tree (a folder whose children held exports of 3 different
+  clients: here `Production/Exported Videos`, learned from the recent list) and catches a video written exactly
+  `<client>/<plan>/` deep in it through the Mac's file events. Verified on this Mac: a Premiere export (host
+  `exportAsMediaDirect`, NEW TEST, 8 s) into a new plan folder of a test tree was shown selected in Finder ~3 s after it ended,
+  with Premiere's preferences naming another folder. The tree is never scanned and only file events count: macOS reports only
+  this Mac's own writes, so a colleague's export on the shared drive is never shown; no trees on Windows (its share
+  notifications include other computers). A whole drive or the home folder is never a tree.
+- **Premiere's export events are used when they come.** The panel listens to `EncoderManager.EVENT_RENDER_COMPLETE / _ERROR /
+  _CANCEL` and `OperationCompleteEvent.EVENT_EXPORT_MEDIA_COMPLETE` (all present in 26.0.2, probed through the bridge) and tells
+  the engine an export ended; with a path it is checked at once, without one the preferences are read again for 30 s and a file
+  they name that was written within 60 s before the event counts with no wait. Every event is written to the engine log. Probe
+  result: an export started by ExtendScript (`exportAsMediaDirect`) fires none of them; whether the Export tab does is unknown.
+- `panel/exportevents.js` (new, node tests), bridge command `export_try` (EncoderManager.exportSequence into a given file).
+- Tests: 7 new pytest (drive mounted late, export event with and without a path, preferences written after the event, tree
+  learning, tree file events, tree never scanned), 4 node tests; 573 pytest + 166 node pass.
+
 ## 0.10.6 - Existing edits protected, correctness, speed, safe updates (the independent audit of 0.10.1)
 An outside audit of 0.10.1 listed 24 problems; each was checked against the code (report in the session of 2026-11-08), every
 valid one fixed here. "NEW TEST" = checked in Premiere 26.0.2 in NEW TEST.prproj through the test bridge on 2026-11-08.

@@ -385,3 +385,153 @@ def test_a_long_export_that_pauses_often_is_still_shown(setup):
     out.write_bytes(data)
     run(w, t, E.STABLE * 2 + E.QUIET + 4)
     assert shown == [str(out)]
+
+
+def test_the_export_folder_is_watched_once_its_drive_is_mounted(tmp_path, monkeypatch):
+    """0.10.7: the engine starts at login, before the office drive is mounted. Nothing was watched until the editor
+    switched projects; now the checker keeps running and starts watching the folder as soon as it exists."""
+    monkeypatch.setattr(E.config, "app_dir", lambda: str(tmp_path / "appdata"))
+    monkeypatch.setattr(E, "STABLE", 0.5)
+    monkeypatch.setattr(E, "QUIET", 0.5)
+    monkeypatch.setattr(E, "SCAN_EVERY", 0.3)
+    exported = tmp_path / "Production" / "Exported Videos" / "Client" / "Plan 8"
+    pf = tmp_path / "Prefs"
+    prefs(pf, exported, exported / "Video 8.mp4")
+    settings = E.Settings(str(tmp_path / "e.json"))
+    settings.data.update(enabled=True, project=str(tmp_path / "A.prproj"))
+    shown = []
+    w = E.ExportWatcher(settings, show=shown.append, premiere=E.PremierePrefs(lambda: [str(pf)]))
+    w.refresh()                                            # what the engine does at start
+    try:
+        assert w.observer is not None and w.watched == {}  # running, nothing to watch yet
+        exported.mkdir(parents=True)                       # the drive is mounted
+        for _ in range(40):
+            if str(exported) in w.watched:
+                break
+            time.sleep(0.1)
+        assert str(exported) in w.watched
+        out = video(exported / "Video 8.mp4")
+        for _ in range(60):
+            if shown:
+                break
+            time.sleep(0.1)
+        assert shown == [out]
+    finally:
+        w.configure(enabled=False)
+    assert w.observer is None
+
+
+def _ended(office, monkeypatch, tmp_path):
+    """An export into a folder nobody watches yet; Premiere rewrote its preferences only after the export ended."""
+    _, pf, w, shown = office
+    monkeypatch.setattr(w, "refresh", lambda: None)
+    elsewhere = tmp_path / "Exported Videos" / "Other client"
+    elsewhere.mkdir(parents=True)
+    out = video(elsewhere / "Видео 3.mp4")
+    t = time.time()
+    os.utime(out, (t - 2, t - 2))
+    return pf, w, shown, out, elsewhere, t
+
+
+def test_premieres_export_event_shows_the_export_at_once(office, monkeypatch, tmp_path):
+    """0.10.7: the export-complete event makes the preferences count at once: no LATER, no settling, no quiet wait."""
+    pf, w, shown, out, elsewhere, t = _ended(office, monkeypatch, tmp_path)
+    prefs(pf, elsewhere, out)                              # stamped after the file
+    assert w.done(None, "complete", "panel:RenderCompleteEvent")["hint"]
+    end = run(w, time.time(), 1.0, step=0.25)
+    assert shown == [out] and w.recent()[0]["how"] == "event"
+    run(w, end, 3)                                         # read again while the hint lasts: never twice
+    assert shown == [out]
+
+
+def test_the_event_waits_for_preferences_written_a_moment_later(office, monkeypatch, tmp_path):
+    pf, w, shown, out, elsewhere, t = _ended(office, monkeypatch, tmp_path)
+    w.done(None, "complete", "panel")
+    now = run(w, time.time(), 1.0, step=0.25)
+    assert shown == []                                     # the preferences still name the earlier folder
+    prefs(pf, elsewhere, out)
+    run(w, now, 1.0, step=0.25)
+    assert shown == [out]
+
+
+def test_an_event_with_a_path_is_shown_without_waiting(setup, tmp_path):
+    folder, w, shown = setup
+    other = tmp_path / "Exports"
+    other.mkdir()
+    out = video(other / "final.mp4")
+    try:
+        w.done(out, "complete", "panel")
+        run(w, time.time(), 0.5, step=0.25)
+        assert shown == [out]
+    finally:
+        w.configure(enabled=False)
+
+
+def _tree(tmp_path):
+    root = tmp_path / "Production" / "Exported Videos"
+    for client in ("Credissimo", "Beauty Sector", "ReShape"):
+        (root / client / "Plan 1").mkdir(parents=True)
+    return root
+
+
+@pytest.mark.skipif(os.name == "nt", reason="no export trees on Windows (share notifications include other computers)")
+def test_an_export_tree_is_learned_from_three_clients(tmp_path, monkeypatch):
+    monkeypatch.setattr(E.config, "app_dir", lambda: str(tmp_path / "appdata"))
+    root = _tree(tmp_path)
+    s = E.Settings(str(tmp_path / "e.json"))
+    s.data["recent"] = [{"id": "a", "folder": str(root / "Credissimo" / "Plan 1")},
+                        {"id": "b", "folder": str(root / "Beauty Sector" / "Plan 1")}]
+    assert not s.learn_roots() and s.roots() == []                  # two clients: not yet
+    assert s.learn_roots([str(root / "ReShape" / "Plan 1")])        # the third (Premiere's export folder)
+    assert s.roots() == [{"path": str(root), "why": "tree"}]
+    assert E.Settings(str(tmp_path / "e.json")).data["roots"] == [str(root)]       # kept
+    assets = tmp_path / "Production" / "Client" / "Plan 12"
+    s.data["recent"] = [{"id": str(k), "folder": str(assets / f"Video {k}" / "Assets")} for k in range(2)]
+    assert not s.learn_roots()                                      # two videos' Assets: not a tree
+
+
+@pytest.mark.skipif(os.name == "nt", reason="no export trees on Windows")
+def test_a_new_plan_folder_in_the_tree_is_caught_by_its_file_event(tmp_path, monkeypatch):
+    """0.10.7: Premiere's preferences still name the last plan folder; the export goes into a new one. Seen at once
+    through the file event; a deeper copy, a sound file and a scan-only find never count."""
+    monkeypatch.setattr(E.config, "app_dir", lambda: str(tmp_path / "appdata"))
+    monkeypatch.setattr(E, "STABLE", 0.5)
+    monkeypatch.setattr(E, "QUIET", 0.5)
+    root = _tree(tmp_path)
+    s = E.Settings(str(tmp_path / "e.json"))
+    s.data.update(enabled=True, project=str(tmp_path / "A.prproj"), roots=[str(root)])
+    shown = []
+    w = E.ExportWatcher(s, show=shown.append)
+    assert w._folder(str(root / "X" / "Plan 2" / "a.mp4")) is None    # not watching yet
+    w.refresh()
+    try:
+        assert str(root) in w.trees and str(root) in w.watched
+        assert w._folder(str(root / "X" / "Plan 2" / "a.mp4")) == str(root)
+        assert w._folder(str(root / "X" / "Plan 2" / "a.wav")) is None
+        assert w._folder(str(root / "X" / "Plan 2" / "compressed" / "a.mp4")) is None
+        assert w._folder(str(root / "X" / "a.mp4")) is None
+        new = root / "Екопак" / "Контент план 9"
+        new.mkdir(parents=True)
+        out = video(new / "ЕКОПАК КП-9 - Видео 1.mp4")
+        for _ in range(80):
+            if shown:
+                break
+            time.sleep(0.1)
+        assert shown == [out]
+    finally:
+        w.configure(enabled=False)
+
+
+def test_the_tree_is_never_scanned(tmp_path, monkeypatch):
+    """A file nobody's file event reported (a colleague's export on the shared drive) is not shown."""
+    monkeypatch.setattr(E.config, "app_dir", lambda: str(tmp_path / "appdata"))
+    root = _tree(tmp_path)
+    s = E.Settings(str(tmp_path / "e.json"))
+    s.data.update(enabled=True, project=str(tmp_path / "A.prproj"))
+    shown = []
+    w = E.ExportWatcher(s, show=shown.append)
+    w.since[str(root)] = time.time() - 1
+    w.trees.add(str(root))
+    video(root / "Credissimo" / "Plan 1" / "colleague.mp4")
+    run(w, time.time(), E.STABLE + E.QUIET + 4)
+    assert shown == []

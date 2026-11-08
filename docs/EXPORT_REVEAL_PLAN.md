@@ -23,6 +23,10 @@ Nothing in Asistent listens to exports yet. Three parts can carry this feature:
 So the work starts with probes, and the engine does the revealing in every design.
 
 ## Phase 0: probes in NEW TEST.prproj (through the bridge, nothing changed in the project)
+Result 2026-11-08 (0.10.7): Premiere 26.0.2 offers `EncoderManager.EVENT_RENDER_COMPLETE / _ERROR / _CANCEL / _QUEUE /
+_PROGRESS` and `OperationCompleteEvent.EVENT_EXPORT_MEDIA_COMPLETE`; listeners attach globally and on the manager. An
+ExtendScript `exportAsMediaDirect` fired none of them. The panel now listens anyway and logs every event; the Export tab,
+Media Encoder and Quick Export are still to be tried by hand.
 1. **UXP events**: log what `ppro.EncoderManager` and `ppro.EventManager` expose in 26.0.2 (method and constant
    names), attach a listener for every render-complete/error/cancel event found, then export a short sequence three
    ways: Export mode in Premiere, Send to Media Encoder, Quick Export. Record which events fire and whether the payload

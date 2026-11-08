@@ -1,4 +1,12 @@
-# Project status — Asistent 0.10.6 (2026-11-08)
+# Project status — Asistent 0.10.7 (2026-11-08)
+
+0.10.7: Show exports fixed for the user's report (no Finder, or up to ~30 s late): the watcher now starts on a folder as soon as
+it exists (the office drive mounts after the engine starts; before, nothing was watched until a project switch), and the office's
+export tree `Production/Exported Videos` is watched through this Mac's file events, so an export into a new plan folder is shown
+without waiting for Premiere's preferences. Verified on this Mac with a real Premiere export (ExtendScript direct export from NEW
+TEST into a test tree): Finder showed the file ~3 s after the export ended. Not yet seen: an export from the Export tab into the
+real office drive; whether Premiere's UXP export events fire for the Export tab (they do not for an ExtendScript export). The
+running panel in Premiere is still 0.10.6 until the panel is reopened (the engine-side fixes work without it).
 
 0.10.6: every valid finding of the independent audit of 0.10.1 fixed (CHANGELOG 0.10.6: BUG-001…014, PERF-001/002, ARCH-001…004,
 UX-001, SEC-001/002). Checked in NEW TEST through the bridge: caption pair replacement by line times and sequence guid, subtitles
