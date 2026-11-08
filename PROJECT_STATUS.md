@@ -1,5 +1,10 @@
 # Project status — Asistent 0.10.8 (2026-11-08)
 
+Branch `improvements/2026-11` (the user's implementation prompt of 2026-11-08, priorities 1-6; nothing installed or
+pushed yet): protected backup done and verified (tag `backup/pre-improvements-2026-11-08`, private backup, `docs/ROLLBACK.md`);
+ReShape baseline in place (guard script, byte-exact baseline test, golden full-job check on the client's recording:
+identical on a second cold run). Next: native-graphics probes, benchmark, review, ASR backend evaluation.
+
 0.10.8: a covered clip measured on its file gets only high-confidence corrections (an unchecked +2 stops went in on fx31030 in
 NEW TEST); same values are not rewritten. Verified in NEW TEST through the bridge by Claude: 0.10.0 selection by track and
 switched-off clips left alone, 0.10.4 hidden track above, cut piece with Asistent's Lumetri, Fix audio labels and relabel,
