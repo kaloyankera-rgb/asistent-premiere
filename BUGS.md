@@ -4,6 +4,12 @@
 
 ## Open bugs
 
+- **Fixed in 0.10.8: a covered clip measured on its file got a medium-confidence +2 stops with no frame check.** Open: the file
+  and the timeline give different answers for the same clip (exposure by different anchors, Temperature 24.3 vs 18): see TODO.
+- **Test project leftovers (2026-11-08, 0.10.7-0.10.8 tests, NEW TEST.prproj):** "ROUGH – SYNC – кам2 (safe) v1": V1 fx31030 razor-cut
+  at 8 s, its Lumetri changed (Exposure 0.6, Temperature 24.3/18); "кам2": C0735 on A1 split into L/L (A1) + R/R (A2) with levels
+  and limiters; subclips in "Asistent L-R".
+
 - **Fixed in 0.10.7: Show exports watched nothing after the engine started before the office drive was mounted**, and an export
   into a new plan folder waited for Premiere's preferences (+10 s). Limits that stay: an export into a brand-new folder OUTSIDE
   the learned tree (and outside Premiere's last export folder) is still found only through the preferences; the tree is

@@ -12,11 +12,10 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
   pieces at once (the 91 s ReShape window is ~70 s of the 130 s), or Whisper on the Apple GPU (mlx-whisper, an install).
   (Done in 0.10.6: the aligner stays loaded, ~0.9 s per window instead of ~2.1 s.)
 - **0.10.2, check from the panel:** a Beauty Sector clip shows "Beauty Sector", "Beauty Space", "workshop"; ReShape unchanged.
-- **0.10.0, check in NEW TEST**: select one POV on V1 with the V2 POV switched off, Auto color: only V1 corrected, V2 stays off
-  (the log line "selection: … 1 selected parts" with no "[list, track unknown …]"); Fix audio on one A1 clip touches only A1.
-- **0.10.4, check while working:** Auto color with the safety template track hidden and shown (both should apply; log line
-  "hidden check: video track isMuted exists"); a cut clip with Asistent's Lumetri updates; after Fix audio a razor cut keeps the
-  clip's colour, and pressing Fix audio over older green copies makes them the clip's colour.
+- (0.10.0 and 0.10.4 checks done by Claude in NEW TEST on 2026-11-08, CHANGELOG 0.10.8.)
+- **Colour: two anchors disagree by 2 stops on the same clip** (fx31030: timeline midtones "on target", file skin +2.7): the
+  timeline frame found no face where the file frame did. Look at why the face is missed on the timeline frame (9:16 crop, frame
+  size) and whether the skin target 0.62 is too bright (B9).
 - **0.10.7 Show exports, check while working (reopen the Asistent panel once to load 0.10.7):** at the office, an export from
   the Export tab into a NEW plan folder of Exported Videos opens Finder with the file selected ~3 s after it ends; the log should
   show "exports: watching …/Exported Videos" after the drive mounts and "exports: Premiere event …" if the Export tab fires

@@ -558,11 +558,17 @@ async function apply(project, timeline, plans) {
     const { values, applied } = mergeValues(pl.res.measured_on === "source" ? {} : t.current, pl.exposure, sliders);
     const keyed = Object.keys(values).filter((k) => (t.animated || []).includes(k));
     for (const k of keyed) delete values[k];
+    // a value the clip already has is not written (0.10.8: a file measurement on a covered clip wrote the same Temperature
+    // and Tint again and said "Applied to 1 clip")
+    const current = t.current || {};
+    const same = Object.keys(values).filter((k) => Math.abs(values[k] - (current[k] !== undefined ? current[k] : DEFAULTS[k])) < 0.05);
+    for (const k of same) delete values[k];
     pl.applied = applied;
     if (!Object.keys(values).length) {
       pl.nothing = true;
       pl.lines = [keyed.length ? `${keyed.map((k) => NAMES[k]).join(", ")} ${keyed.length === 1 ? "has" : "have"} keyframes: not changed`
-        : pl.keptWhite ? "the white balance is already neutral (within the check's limit): nothing to apply" : "nothing to apply"];
+        : pl.keptWhite ? "the white balance is already neutral (within the check's limit): nothing to apply"
+          : same.length ? "already at these values: nothing to apply" : "nothing to apply"];
       continue;
     }
     pl.t = t;
