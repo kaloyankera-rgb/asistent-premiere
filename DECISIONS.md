@@ -1,5 +1,11 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-08: whisper.cpp (Metal, beam 5) measured: 7x faster, not adopted yet
+The candidate left by the speed decision below. On the same 143 s (docs/BENCHMARK.md): 20.8 s against 152.2 s, but it invented a
+line („Абонирайте се!“), wrote „млн.“ for „мм“ and its word times sit further from the aligned ones (median 0.53 s against
+0.23 s). Speed is not bought with words: it stays an experiment in `<app>/experiments` until the verified references show no
+more meaning errors than Classic; then only as an optional backend, never for ReShape.
+
 ## 2026-11-08: no native-graphics subtitle output in Premiere 26.0.2 (probed again)
 The user asked for an optional output as native, editable text graphics styled from a client profile (no MOGRT). New probes
 on the same Premiere 26.0.2 (docs/NATIVE_GRAPHICS.md): ExtendScript can store a string in Source Text, but the graphic then draws

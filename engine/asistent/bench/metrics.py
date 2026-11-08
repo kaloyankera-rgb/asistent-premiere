@@ -111,8 +111,11 @@ def score(ref_text: str, hyp_text: str, ref_words=None, hyp_words=None, names=()
 
 def timing(ref_words, hyp_words) -> dict:
     """Start error (hyp - ref, seconds) of the words that match in the raw-token alignment."""
-    ref = [raw_tokens(w["word"])[0] if raw_tokens(w["word"]) else "" for w in ref_words]
-    hyp = [raw_tokens(w["word"])[0] if raw_tokens(w["word"]) else "" for w in hyp_words]
+    # words with no letters or digits once normalized (a lone dialogue dash "-") are not words: left out of both sides
+    ref_words = [w for w in ref_words if raw_tokens(w["word"])]
+    hyp_words = [w for w in hyp_words if raw_tokens(w["word"])]
+    ref = [raw_tokens(w["word"])[0] for w in ref_words]
+    hyp = [raw_tokens(w["word"])[0] for w in hyp_words]
     _, ops = _ops(ref, hyp)
     errs = [hyp_words[h]["start"] - ref_words[r]["start"] for op, r, h in ops if op == "equal"]
     if not errs:
