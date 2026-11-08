@@ -29,14 +29,24 @@ if ($Subtitles -or $hasAsr) {
   & $venvPy -m pip install -q -r (Join-Path $Src "requirements-asr.txt")
   if ($LASTEXITCODE) { Write-Host "pip could not install requirements-asr.txt"; exit 1 }
   # cuBLAS/cuDNN for large-v3 on the GPU; without them the engine falls back to the CPU (int8)
-  if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) { & $venvPy -m pip install -q nvidia-cublas-cu12 nvidia-cudnn-cu12 }
+  # pinned (0.10.6, SEC-002); not yet tried on the office PC with an NVIDIA card
+  if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) { & $venvPy -m pip install -q "nvidia-cublas-cu12==12.9.2.10" "nvidia-cudnn-cu12==9.26.1.1" }
   # Bulgarian word list (LibreOffice dictionaries/bg_BG, GPL v2; see LICENSES.md): not part of the repository
   $lex = Join-Path $App "models\lexicon"
   New-Item -ItemType Directory -Force -Path $lex | Out-Null
+  # pinned to one commit and checked by SHA-256 (0.10.6, SEC-002: it used to follow "master")
+  $dictCommit = "612bdcc5364508e3fb7795c9b95559ca6e328570"
+  $dictHash = @{ "bg_BG.dic" = "416f956a6e8f607565113eafc8bd35a4a5720df28c100b20e023845868b963cb";
+                 "bg_BG.aff" = "cb6bfc56d6b1e70c812061086d7ec5ad6aaf6d35acd927a035f1cee0188ea477";
+                 "COPYING" = "100035c1d3964e5528165e539619e2c5c01a421771daa43329809e06d779d692" }
   foreach ($f in @("bg_BG.dic", "bg_BG.aff", "COPYING")) {
     $out = Join-Path $lex $f
     if (-not (Test-Path $out) -or (Get-Item $out).Length -eq 0) {
-      Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/bg_BG/$f" -OutFile $out
+      Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/LibreOffice/dictionaries/$dictCommit/bg_BG/$f" -OutFile "$out.part"
+      if ((Get-FileHash -Algorithm SHA256 "$out.part").Hash.ToLower() -ne $dictHash[$f]) {
+        Remove-Item "$out.part"; Write-Host "The Bulgarian dictionary $f does not match its checksum: not installed."; exit 1
+      }
+      Move-Item -Force "$out.part" $out
     }
   }
 }

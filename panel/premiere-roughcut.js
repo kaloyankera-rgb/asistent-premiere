@@ -7,7 +7,7 @@ const P = require("./premiere.js");
 const engine = require("./engine.js");
 const premiereAudio = require("./premiere-audio.js");
 const premiereColor = require("./premiere-color.js");
-const { planRoughCut, verify } = require("./roughcutplan.js");
+const { planRoughCut, verify, verifyPieces } = require("./roughcutplan.js");
 const { sideOf } = require("./audioplan.js");
 const { sizeFrom, dirOf } = require("./subtitleplan.js");
 
@@ -44,7 +44,7 @@ async function readInput(project, opts) {
         Object.assign(m, { gain_db: fx.gain_db, limiter: fx.limiter, others: fx.others, keyframed: fx.keyframed, side });
       } else {
         const lum = await premiereColor.readLumetri(x);
-        if (lum) Object.assign(m, { lum: lum.values ? lum : null, others: lum.others });
+        if (lum) Object.assign(m, { lum: lum.values ? lum : null, others: lum.others, lumExtra: lum.extra, lumAnimated: lum.animated, name: x.name });
       }
     } catch (e) {
       engine.log("warn", `roughcut: effects of ${x.name} not read: ${e && e.message ? e.message : e}`);
@@ -83,7 +83,7 @@ async function place(project, result, meta) {
     got[it.kind][key] = (got[it.kind][key] || 0) + 1;
     got.end = Math.max(got.end, it.end);
   }
-  const problems = verify(result.check, got);
+  const problems = [...verify(result.check, got), ...verifyPieces(result.pieces, items, result.check.fps)];
   P.debug(`roughcut verify ${result.name}: ${problems.length ? problems.join(" | ") : "as written"}`);
   const notes = [];
   try {
@@ -150,7 +150,13 @@ async function carry(project, sequence, result, meta) {
   const others = [...new Set(meta.flatMap((m) => m.others || []))];
   if (others.length) notes.push({ cls: "warn", text: `Not carried over (not possible through XML): ${others.join(", ")}.` });
   if (meta.some((m) => m.keyframed)) notes.push({ cls: "warn", text: "The level keyframes (Even out phrases) were not carried over: apply them again on the new sequence." });
-  if (meta.some((m) => m.lum && !m.lum.owned)) notes.push({ cls: "warn", text: "A clip has a manual Lumetri grade: only Exposure, Temperature, Tint, Contrast and Saturation were carried over; the other settings were not." });
+  // per clip, what of its Lumetri did not arrive (0.10.6: a Highlights-only grade used to vanish without a word)
+  for (const m of meta) {
+    if (m.lumExtra) {
+      notes.push({ cls: "warn", text: `${m.name}: ${m.lum ? "only Exposure, Temperature, Tint, Contrast and Saturation of its Lumetri were carried over" : "its Lumetri was not carried over"}; any other Lumetri settings (Highlights, Curves, a LUT…) were not.` });
+    }
+    if (m.lumAnimated && m.lumAnimated.length) notes.push({ cls: "warn", text: `${m.name}: its Lumetri keyframes (${m.lumAnimated.join(", ")}) were not carried over, only the first value.` });
+  }
   return notes;
 }
 

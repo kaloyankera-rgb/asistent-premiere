@@ -26,15 +26,34 @@ command -v ffmpeg >/dev/null 2>&1 || [ -x /opt/homebrew/bin/ffmpeg ] || { echo "
 
 [ -x "$APP/venv/bin/python" ] || "$PY" -m venv "$APP/venv"
 "$APP/venv/bin/pip" install -q --upgrade pip
-"$APP/venv/bin/pip" install -q -r "$SRC/requirements.txt"
+# hash-locked (0.10.6, SEC-002): every package at one version, a changed or substituted file is refused
+if [ -f "$SRC/requirements-lock-mac.txt" ]; then
+  "$APP/venv/bin/pip" install -q --require-hashes -r "$SRC/requirements-lock-mac.txt"
+else
+  "$APP/venv/bin/pip" install -q -r "$SRC/requirements.txt"
+fi
 # speech recognition for subtitles (about 250 MB; the ~3 GB model and the translator are downloads from the panel);
 # an install that already has it keeps it up to date
 if [ "$SUBTITLES" = "1" ] || "$APP/venv/bin/python" -c "import faster_whisper" >/dev/null 2>&1; then
-  "$APP/venv/bin/pip" install -q -r "$SRC/requirements-asr.txt"
+  if [ -f "$SRC/requirements-asr-lock-mac.txt" ]; then
+    "$APP/venv/bin/pip" install -q --require-hashes -r "$SRC/requirements-asr-lock-mac.txt"
+  else
+    "$APP/venv/bin/pip" install -q -r "$SRC/requirements-asr.txt"
+  fi
   # Bulgarian word list (LibreOffice dictionaries/bg_BG, GPL v2; see LICENSES.md): not part of the repository
+  # pinned to one commit and checked by SHA-256 (0.10.6, SEC-002: it used to follow "master")
   mkdir -p "$APP/models/lexicon"
-  for f in bg_BG.dic bg_BG.aff COPYING; do
-    [ -s "$APP/models/lexicon/$f" ] || curl -sSfL -o "$APP/models/lexicon/$f" "https://raw.githubusercontent.com/LibreOffice/dictionaries/master/bg_BG/$f"
+  DICT_COMMIT=612bdcc5364508e3fb7795c9b95559ca6e328570
+  for pair in "bg_BG.dic 416f956a6e8f607565113eafc8bd35a4a5720df28c100b20e023845868b963cb" \
+              "bg_BG.aff cb6bfc56d6b1e70c812061086d7ec5ad6aaf6d35acd927a035f1cee0188ea477" \
+              "COPYING 100035c1d3964e5528165e539619e2c5c01a421771daa43329809e06d779d692"; do
+    f=${pair%% *}; want=${pair##* }
+    if [ ! -s "$APP/models/lexicon/$f" ]; then
+      curl -sSfL -o "$APP/models/lexicon/$f.part" "https://raw.githubusercontent.com/LibreOffice/dictionaries/$DICT_COMMIT/bg_BG/$f"
+      got=$(shasum -a 256 "$APP/models/lexicon/$f.part" | cut -d" " -f1)
+      if [ "$got" != "$want" ]; then rm -f "$APP/models/lexicon/$f.part"; echo "The Bulgarian dictionary $f does not match its checksum: not installed."; exit 1; fi
+      mv "$APP/models/lexicon/$f.part" "$APP/models/lexicon/$f"
+    fi
   done
 fi
 

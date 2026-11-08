@@ -84,6 +84,7 @@ from .exports import ExportWatcher, Settings as ExportSettings
 from .managed import ManagedStore
 from . import shotmatch as SHOT
 from . import asr
+from . import install
 from . import subtitle_job
 from . import roughcut_job
 from . import devbridge
@@ -460,7 +461,7 @@ class Handler(BaseHTTPRequestHandler):
                 def work(job):
                     def progress(f, msg):
                         job.progress, job.message = f, msg
-                    res = SHOT.run(items, reference, progress=progress)
+                    res = SHOT.run(items, reference, progress=progress, cancelled=lambda: job.cancelled)
                     SHOT_REFS[job.id] = res["reference_look"]
                     log.info("shot match: reference %s scores %s %s", res["reference"], res["scores"],
                              [(c["name"], c["role"], c.get("proposal"), c["flags"]) for c in res["clips"]])
@@ -632,6 +633,10 @@ def main():
     except OSError:
         log.exception("old frames could not be removed")
     log.info("Asistent engine %s listening on %s:%s", config.VERSION, config.HOST, config.PORT)
+    try:
+        install.boot_ok()                              # an update that got this far stands (0.10.6, run_engine.py)
+    except OSError:
+        log.exception("the update mark could not be removed")
     try:
         httpd.serve_forever(poll_interval=0.5)
     except KeyboardInterrupt:

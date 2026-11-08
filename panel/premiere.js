@@ -318,6 +318,10 @@ async function buildSyncSequence(project, timeline, lay) {
     if (!hit) bad.push(p.name);
     else worst = Math.max(worst, Math.abs((hit.start - hit.inPt) - p.zero));
   }
+  // 0.10.6 (ARCH-004): nothing more on the picture tracks than what was placed (a duplicate insert used to pass)
+  const videoWanted = lay.placements.filter((p) => p.hasVideo).length;
+  const videoGot = items.filter((x) => x.kind === "video").length;
+  if (videoGot > videoWanted) bad.push(`${videoGot - videoWanted} more video ${videoGot - videoWanted === 1 ? "clip" : "clips"} than placed`);
   debug(`verify ${name}: ${lay.placements.length} clips, bad ${JSON.stringify(bad)}, worst ${(worst * 1000).toFixed(2)} ms`);
   await maybe(project, "openSequence", sequence);
   return { name, bad, worstMs: worst * 1000, fps };

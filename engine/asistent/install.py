@@ -24,7 +24,7 @@ HOST_ID = "com.contentstudio.asistent.host"
 PANEL_NAME = "Asistent"
 CSXS_VERSIONS = (10, 11, 12, 13)          # CEP loads an unsigned extension only with PlayerDebugMode=1 (as Quick Search)
 PARTS = ("engine", "host", "scripts", "fonts")
-FILES = ("requirements.txt", "requirements-asr.txt", "requirements-align.txt", "requirements-dev.txt", "LICENSES.md",
+FILES = ("panel.ccx", "requirements.txt", "requirements-asr.txt", "requirements-lock-mac.txt", "requirements-asr-lock-mac.txt", "requirements-align.txt", "requirements-dev.txt", "LICENSES.md",
          "README.md")
 SKIP = shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", "tests")
 FONTS = ("Montserrat-Bold.ttf",)          # the ReShape style's Bulgarian line (OFL, fonts/OFL.txt)
@@ -113,15 +113,24 @@ def _flag(name: str) -> str:
     return ("/" if sys.platform == "win32" else "--") + name
 
 
+def _listed(agent: str, version: str) -> bool:
+    listed = subprocess.run([agent, _flag("list"), "all"], capture_output=True, text=True, timeout=120).stdout
+    return any(PANEL_NAME in ln and version in ln for ln in listed.splitlines())
+
+
 def install_panel(ccx: str, version: str) -> None:
-    """Remove, then install (an open Premiere unloads the old panel and loads the new one). Raises with a message."""
+    """Install over the old panel; only when Adobe does not then list the new version, remove and install (an open Premiere
+    unloads the old panel and loads the new one). 0.10.6 (ARCH-002): the old panel used to be removed first, so a failed
+    install left no panel at all. Raises with a message."""
     agent = upia()
     if not agent:
         raise RuntimeError("Adobe's plugin installer was not found (Creative Cloud): double-click " + os.path.basename(ccx))
+    r = subprocess.run([agent, _flag("install"), ccx], capture_output=True, text=True, timeout=300)
+    if _listed(agent, version):
+        return
     subprocess.run([agent, _flag("remove"), PANEL_NAME], capture_output=True, timeout=120)
     r = subprocess.run([agent, _flag("install"), ccx], capture_output=True, text=True, timeout=300)
-    listed = subprocess.run([agent, _flag("list"), "all"], capture_output=True, text=True, timeout=120).stdout
-    if not any(PANEL_NAME in ln and version in ln for ln in listed.splitlines()):
+    if not _listed(agent, version):
         raise RuntimeError(f"Adobe does not report {PANEL_NAME} {version} as installed: {(r.stdout or r.stderr).strip()[-300:]}")
 
 
@@ -159,16 +168,102 @@ def find_ccx(src: str) -> str | None:
     return found[-1] if found else None
 
 
-def install_all(src: str, ccx: str | None = None, panel: bool = True) -> dict:
-    """The release at `src` -> installed. Returns what was done, for the caller to say."""
+def install_all(src: str, ccx: str | None = None, panel: bool = True, stages: list | None = None) -> dict:
+    """The release at `src` -> installed. Returns what was done, for the caller to say. `stages` (optional) collects the
+    steps begun, so a failed update knows what to put back (rollback)."""
+    stages = stages if stages is not None else []
+    stages.append("files")
     cur = sync(src)
+    stages.append("host")
     out = {"current": cur, "host_new": install_host(os.path.join(cur, "host"))}
     out["fonts"] = install_fonts(os.path.join(cur, "fonts")) if os.path.isdir(os.path.join(cur, "fonts")) else []
     ccx = ccx or find_ccx(src)
+    if ccx:                                    # kept with the files, so the next update can put this panel back (0.10.6)
+        shutil.copy2(ccx, os.path.join(cur, PANEL_COPY))
     if panel and ccx:
+        stages.append("panel")
         install_panel(ccx, ccx_version(ccx))
         out["panel"] = os.path.basename(ccx)
     return out
+
+
+# ---------------------------------------------------------------- the way back (0.10.6, ARCH-002)
+# An update used to change the packages in place, delete the old files at once and remove the old panel before the new one
+# was in: anything failing half way left a broken Asistent. Now the installed version is copied to <app>/previous first
+# (files, the panel package, the list of Python packages); a failed update puts it back, and an engine that does not start
+# after an update three times in a row is put back by run_engine.py (boot check, standard library only).
+
+PANEL_COPY = "panel.ccx"
+PENDING = "update_pending.json"
+
+
+def previous_dir() -> str:
+    return os.path.join(config.app_dir(), "previous")
+
+
+def snapshot(venv_python: str | None = None) -> str:
+    """The installed version -> <app>/previous (replacing an older copy). Returns its folder."""
+    prev = previous_dir()
+    cur = current_dir()
+    tmp = prev + ".new"
+    shutil.rmtree(tmp, ignore_errors=True)
+    if os.path.isdir(cur):
+        shutil.copytree(cur, tmp, ignore=SKIP)
+    else:
+        os.makedirs(tmp)
+    if venv_python and os.path.isfile(venv_python):
+        r = subprocess.run([venv_python, "-m", "pip", "freeze", "--exclude-editable"], capture_output=True, text=True, timeout=300)
+        if r.returncode == 0:
+            with open(os.path.join(tmp, "venv-freeze.txt"), "w", encoding="utf-8") as f:
+                f.write(r.stdout)
+    shutil.rmtree(prev, ignore_errors=True)
+    os.replace(tmp, prev)
+    return prev
+
+
+def rollback(stages: list, venv_python: str | None = None) -> list[str]:
+    """Put the copy in <app>/previous back for the steps that were begun -> what could not be put back (said to the editor)."""
+    prev = previous_dir()
+    failed = []
+    if not os.path.isdir(prev):
+        return ["the earlier version was not kept"]
+    if "packages" in stages and venv_python and os.path.isfile(os.path.join(prev, "venv-freeze.txt")):
+        r = subprocess.run([venv_python, "-m", "pip", "install", "-q", "-r", os.path.join(prev, "venv-freeze.txt")],
+                           capture_output=True, text=True, timeout=1800)
+        if r.returncode:
+            failed.append("the Python packages")
+    if "files" in stages:
+        try:
+            sync(prev, current_dir())
+        except OSError:
+            failed.append("the files")
+    if "host" in stages:
+        try:
+            install_host(os.path.join(current_dir(), "host"))
+        except OSError:
+            failed.append("the Premiere helper")
+    if "panel" in stages:
+        ccx = os.path.join(prev, PANEL_COPY)
+        try:
+            if not os.path.isfile(ccx):
+                raise RuntimeError("no copy")
+            install_panel(ccx, ccx_version(ccx))
+        except (OSError, RuntimeError, subprocess.SubprocessError):
+            failed.append("the panel (install it from the release zip)")
+    return failed
+
+
+def mark_pending(version: str, previous_version: str) -> None:
+    with open(os.path.join(config.app_dir(), PENDING), "w", encoding="utf-8") as f:
+        json.dump({"version": version, "previous": previous_version, "attempts": 0}, f)
+
+
+def boot_ok() -> None:
+    """The new engine is listening: the update stands."""
+    try:
+        os.remove(os.path.join(config.app_dir(), PENDING))
+    except FileNotFoundError:
+        pass
 
 
 def ccx_version(ccx: str) -> str:

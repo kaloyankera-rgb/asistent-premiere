@@ -87,14 +87,15 @@ test("colour leaves a switched-off clip alone, and says so when it was the only 
 });
 
 // a Lumetri the editor set by hand (Exposure, Tint, Saturation), as in the user's MASTERHAUS screenshot of 2026-11-04
-function lumetriClip(values, { keyframed = false } = {}) {
+function lumetriClip(values, { keyframed = false, extra = {} } = {}) {
   const param = (displayName) => {
     const p = { displayName, v: values[displayName] ?? (displayName === "Saturation" ? 100 : 0),
       getStartValue: async () => ({ value: p.v }), isTimeVarying: async () => keyframed && displayName === "Exposure",
       createKeyframe: (v) => v, createSetValueAction: (v) => () => { p.v = v; } };
     return p;
   };
-  const ps = ["Exposure", "Contrast", "Temperature", "Tint", "Saturation"].map(param);
+  const ps = ["Exposure", "Contrast", "Temperature", "Tint", "Saturation", ...Object.keys(extra)].map(param);
+  for (const [k, v] of Object.entries(extra)) ps.find((p) => p.displayName === k).v = v;
   const comp = { getMatchName: async () => "AE.ADBE Lumetri", getParamCount: async () => ps.length, getParam: async (i) => ps[i] };
   const chain = { getComponentCount: async () => 1, getComponentAtIndex: async () => comp };
   const clip = { name: "fx31028.MP4", path: "/m/fx31028.MP4", inPt: 0, outPt: 4.4, ti: { getComponentChain: async () => chain } };
@@ -126,4 +127,51 @@ test("±0.5 leaves a keyframed Exposure in the editor's Lumetri alone", async ()
 test("Auto color still refuses the editor's own Lumetri", async () => {
   const { clip } = lumetriClip({ Exposure: 0.5, Tint: -1, Saturation: 111 });
   assert.deepStrictEqual(await PC.lumetriState(clip), { lumetri: "manual", current: { exposure: 0.5, temperature: 0, tint: -1, contrast: 0, saturation: 111 } });
+});
+
+// 0.10.6 (BUG-006, BUG-007): "neutral" is the whole Lumetri, and keyframes are checked whoever's the Lumetri is
+const store = {};
+global.localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
+
+test("a Highlights-only grade (the five sliders at 0) is the editor's: ±0.5 moves Exposure and does not adopt it", async () => {
+  delete store["asistent.lumetriFresh.v1"];
+  recorded.length = 0;
+  const { clip, ps } = lumetriClip({}, { extra: { Highlights: 20 } });
+  const r = await PC.nudgeExposure(runs, [clip], 0.5);
+  assert.strictEqual(ps.Exposure.v, 0.5);
+  assert.strictEqual(ps.Highlights.v, 20);
+  assert.match(r.results[0].line, /in your own Lumetri/);
+  assert.deepStrictEqual(recorded, []);
+  assert.strictEqual((await PC.lumetriState(clip)).lumetri, "manual");
+});
+
+test("only an exactly untouched Lumetri counts as neutral: then the change is Asistent's", async () => {
+  recorded.length = 0;
+  const untouched = lumetriClip({}, { extra: { Highlights: 0 } });
+  // what Asistent saw the first time it added a Lumetri itself
+  const snapOf = async (clip) => {
+    const chain = await clip.ti.getComponentChain();
+    const comp = await chain.getComponentAtIndex(0);
+    const n = await comp.getParamCount();
+    const parts = [];
+    for (let i = 0; i < n; i++) {
+      const p = await comp.getParam(i);
+      const v = (await p.getStartValue()).value;
+      parts.push(`${i}:${p.displayName}=${typeof v === "number" ? v.toFixed(4) : JSON.stringify(v)}${(await p.isTimeVarying()) ? "~" : ""}`);
+    }
+    return parts.join("|");
+  };
+  store["asistent.lumetriFresh.v1"] = await snapOf(untouched.clip);
+  assert.strictEqual((await PC.lumetriState(untouched.clip)).lumetri, "none");
+  await PC.nudgeExposure(runs, [untouched.clip], 0.5);
+  assert.strictEqual(recorded.length, 1);
+  const graded = lumetriClip({}, { extra: { Highlights: 20 } });
+  assert.strictEqual((await PC.lumetriState(graded.clip)).lumetri, "manual");
+});
+
+test("a keyframed Exposure at 0 in an untouched or Asistent's Lumetri is never written (BUG-007)", async () => {
+  const { clip, ps } = lumetriClip({}, { keyframed: true });
+  const r = await PC.nudgeExposure(runs, [clip], 0.5);
+  assert.strictEqual(ps.Exposure.v, 0);
+  assert.ok(r.results[0].skipped && /keyframes/.test(r.results[0].line));
 });

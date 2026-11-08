@@ -1,7 +1,7 @@
 ﻿// Asistent host: the ExtendScript (ES3) side. main.js evaluates this file for every command and calls as_run(name, args).
 // Every function answers with a JSON string {ok, msg, ...}; nothing here throws out of as_run.
 
-var AS_HOST_VERSION = "0.10.5";
+var AS_HOST_VERSION = "0.10.6";
 
 function as_json(v) {
     if (v === null || v === undefined) return "null";
@@ -243,17 +243,45 @@ function as_busy(track, start, end) {
     return false;
 }
 
+// a short tag of the media file, so C0001.MP4 of two cameras never shares a subclip (0.10.6, BUG-004)
+function as_tag(path) {
+    var h = 5381, s = String(path || "").toLowerCase();
+    for (var i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) & 0xffffff;
+    var t = h.toString(16);
+    while (t.length < 6) t = "0" + t;
+    return t;
+}
+
+function as_media(item) {
+    try { return String(item.getMediaPath() || ""); } catch (e) { return ""; }
+}
+
+// a subclip found by name is reused only when it is really this media's range and side
+function as_same_source(sub, pi, c) {
+    if (as_norm(as_media(sub)) !== as_norm(as_media(pi))) return false;
+    try {
+        var i = sub.getInPoint(), o = sub.getOutPoint();
+        if (i && o && (Math.abs(i.seconds - c.inPoint.seconds) > 0.0005 || Math.abs(o.seconds - c.outPoint.seconds) > 0.0005)) return false;
+    } catch (e) { /* in/out not readable in this Premiere: the media and the name (ticks of the range) decide */ }
+    return true;
+}
+
 function as_side_clip(bin, pi, c, side) {
-    // one subclip per media range and side, reused on a second press (no duplicates in the bin)
+    // one subclip per media file, range and side, reused on a second press (no duplicates in the bin). The name carries a tag
+    // of the media path; a found one is checked against the media and the range before it is reused.
     var base = String(pi.name).replace(/\.[^.]*$/, "");
-    var name = base + " " + side + " " + c.inPoint.seconds.toFixed(2) + "-" + c.outPoint.seconds.toFixed(2);
-    for (var i = 0; i < bin.children.numItems; i++) if (bin.children[i].name === name) return bin.children[i];
+    var name = base + " " + as_tag(as_media(pi)) + " " + side + " " + c.inPoint.seconds.toFixed(2) + "-" + c.outPoint.seconds.toFixed(2);
+    for (var i = 0; i < bin.children.numItems; i++) {
+        if (bin.children[i].name === name && as_same_source(bin.children[i], pi, c)) return bin.children[i];
+    }
     var sub = pi.createSubClip(name, c.inPoint.ticks, c.outPoint.ticks, 0, 0, 1);
     if (!sub) throw new Error("Premiere did not make a copy of " + pi.name + ".");
     sub.moveBin(bin);
     var m = sub.getAudioChannelMapping;
     var src = side === "L" ? 0 : 1;
     if (!m.setMappingForChannel(0, src) || !m.setMappingForChannel(1, src) || !sub.setAudioChannelMapping(m)) {
+        // a copy without the right channels must never be found and reused by a later press
+        try { sub.name = name + " FAILED"; } catch (e) { /* the name stays: as_same_source cannot tell, so say it */ }
         throw new Error("Premiere did not accept the channels " + side + "/" + side + " for " + name + ".");
     }
     return sub;
@@ -339,7 +367,10 @@ function as_route_one(seq, bin, a) {
     if (low) as_same_label(low, pi);
     var at = c.start.seconds, inPt = c.inPoint.seconds;
     if (low && !seq.audioTracks[below].overwriteClip(low, at)) return { ok: false, msg: "Premiere did not put the copy on A" + (below + 1) };
-    if (!track.overwriteClip(up, at)) return { ok: false, msg: "Premiere did not put " + upperSide + "/" + upperSide + " on A" + (a.track + 1) };
+    if (!track.overwriteClip(up, at)) {
+        return { ok: false, msg: "Premiere did not put " + upperSide + "/" + upperSide + " on A" + (a.track + 1) +
+            (low ? "; the " + lowerSide + "/" + lowerSide + " copy on A" + (below + 1) + " stays there (Cmd/Ctrl+Z takes it back)" : "") };
+    }
     // check: both sides exactly where the original was, the same part of the media
     var u = as_tracks_clip(seq.audioTracks[a.track], a.start, a.end);
     var l = low ? as_tracks_clip(seq.audioTracks[below], a.start, a.end) : null;

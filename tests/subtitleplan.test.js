@@ -104,3 +104,13 @@ test("describeResult: corrections and an unmatched correction", () => {
   assert.match(all, /The correction "нещо друго" → "x" did not find these words/);
   assert.match(all, /Not understood: line 4/);
 });
+
+test("switched-off or muted audio is not recognised, and a side copy says which channel it plays (0.10.6, BUG-008)", () => {
+  const p = planDialogue([
+    item({ name: "off", unused: true }),
+    item({ name: "C0001 3fa2b1 L 3.84-13.28", track: 1 }),
+    item({ name: "plain", track: 2, start: 20, end: 30 }),
+  ]);
+  assert.deepStrictEqual(p.skipped, ["off (switched off or on a muted track: not used)"]);
+  assert.deepStrictEqual(p.use.map((x) => x.side || null), ["L", null]);
+});

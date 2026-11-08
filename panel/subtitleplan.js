@@ -8,21 +8,28 @@
  * selected}, seconds). Returns { use: [{path, start, end, at, name, track}], skipped: [text], selected: n }.
  * `start`/`end` are the media in/out seconds, `at` the sequence second where the item starts.
  */
+const SIDE = /\s(L|R)\s\d+\.\d{2}-\d+\.\d{2}$/;      // an Asistent side copy (host.jsx as_side_clip; audioplan.sideOf)
+
 function planDialogue(items) {
   const picked = items.filter((x) => x.kind === "audio" && x.selected);
   const skipped = [];
   const usable = [];
   for (const x of picked) {
     const name = x.name || "clip";
-    if (!x.path) skipped.push(`${name} (offline media or nested sequence)`);
+    if (x.unused) skipped.push(`${name} (switched off or on a muted track: not used)`);      // 0.10.6, as the rough cut
+    else if (!x.path) skipped.push(`${name} (offline media or nested sequence)`);
     else if (Math.abs((x.speed || 1) - 1) >= 0.01) skipped.push(`${name} (changed speed)`);
     else if (x.reversed) skipped.push(`${name} (reversed)`);
     else if (!(x.end > x.start)) skipped.push(`${name} (no length)`);
     else usable.push(x);
   }
   usable.sort((a, b) => a.start - b.start || a.track - b.track);
-  const use = usable.map((x) => ({ path: x.path, start: x.inPt || 0, end: (x.inPt || 0) + (x.end - x.start), at: x.start,
-    name: x.name || "clip", track: x.track }));
+  // an Asistent L/L or R/R copy plays one channel of the file: the engine must hear only that one (0.10.6)
+  const use = usable.map((x) => {
+    const side = SIDE.exec(x.name || "");
+    return { path: x.path, start: x.inPt || 0, end: (x.inPt || 0) + (x.end - x.start), at: x.start, name: x.name || "clip", track: x.track,
+      ...(side ? { side: side[1] } : {}) };
+  });
   return { use, skipped, selected: picked.length };
 }
 

@@ -41,12 +41,16 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `devbridge.py` test bridge: the panel runs commands from the engine (`scripts/dev_cmd.py`), only in TEST.prproj / NEW TEST.prproj, off without the flag file `devbridge.enabled`; `select` can select clips (26.0.2 quirks in CHANGELOG 0.9.74-0.9.79)
   - `speechmap.py` + `vad.py` + `pauses.py` + `edl.py` + `xmeml.py` + `takes.py` (repeated takes: a plain repeat is cut, the last full take stays) + `roughcut_job.py` Phase 8 rough cut: label every 10 ms (word / voiced / low / silent), cut pauses, same cuts on every selected item, write FCP7 XML that the panel imports as a new sequence (`docs/ROUGHCUT_PLAN.md`)
   - `faces.py` face detector (YuNet through OpenCV, model in `models/`); no OpenCV/model → no skin anchor
-  - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`)
+  - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`; one lock per file, 0.10.6)
+  - `pins.py` the model commits and SHA-256 of what Asistent downloads (0.10.6); `requirements-*-lock-mac.txt` hash-locked packages
+    (`scripts/lock_requirements.py`), used by setup and updates; `media.decode_f32` streams FFmpeg's sound into place (half the memory)
   - `color.py` exposure/white-balance analysis, previews, render check, Lumetri calibration, probe measurement
   - `profiles.py`, `prepare.py`: Phase 5 draft, NOT wired, NOT tested
   - `install.py` puts a release in place on Mac and Windows (files into `<app>/current`, host into the CEP folder with
     PlayerDebugMode, fonts, panel via UnifiedPluginInstallerAgent); `updater.py` checks the GitHub releases (`latest.json`) and
-    installs the newest one from the panel's Update button (SHA-256 checked, pip only for changed requirements, engine restart)
+    installs the newest one from the panel's Update button (SHA-256 checked, pip only for changed requirements, engine restart;
+    since 0.10.6 the installed version is kept in `<app>/previous` and put back when a step fails, and `run_engine.py` puts it back
+    when the new engine does not start three times)
 - **Installed layout (0.9.87)**: the engine runs from `<app>/current/engine/run_engine.py` (LaunchAgent / Windows Startup
   shortcut), not from the repo. `scripts/release_mac.sh` copies the repo there on the development Mac; other computers get it
   from a release zip (`scripts/build_release.py`: engine, host, scripts, fonts, requirements, `.ccx`, double-click installers)
@@ -73,9 +77,11 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   `scripts/release_mac.sh` (packs `.ccx`, removes + installs it with Adobe's UnifiedPluginInstallerAgent
   without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
-  (211 tests; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere) and
-  `node --test tests/layout.test.js tests/channels.test.js tests/wiring.test.js tests/moments.test.js tests/colorplans.test.js` (50 tests);
+  (575 tests at 0.10.6; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
+  some tests write into the real app folder, so run them with `HOME` pointed at a scratch folder holding a copy of `models/lexicon`) and
+  `node --test tests/*.test.js` (161 tests);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
+- Fix audio never splits a clip that carries effects or keyframes: overwriteClip drops them (measured 2026-11-08, DECISIONS).
 - Premiere tests only in the user's test projects `TEST.prproj` or `NEW TEST.prproj` (Ludi Glavi/Projects; the user's choice
   2026-11-04: use NEW TEST for future tests, Claude may run them itself through the bridge), never in client projects; never close or
   restart Premiere without asking. Client footage stays local; never look at client frames as images (measure them with numbers, delete any overlay you wrote).
@@ -115,7 +121,8 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 - Never remove track items through UXP (crashed Premiere 26.0.2, see `DECISIONS.md`); the host never removes anything either unless the user approves a specific deletion.
   The one approved exception (the user, 2026-11-04, 0.9.97): the lines of Asistent's OWN earlier caption pair (signature match,
   read again just before) are removed after a new pair is placed (`premiere-captions.js` `removeLines`, one step); tested in
-  NEW TEST under ExtendScript load without a crash. Nothing else, and never a track the editor changed.
+  NEW TEST under ExtendScript load without a crash. Nothing else, and never a track the editor changed (0.10.6: every line's time
+  must match the record, kept by sequence guid, and only after the whole new pair is placed and checked).
 - Never mute, reroute or rearrange tracks on the user's behalf.
 - Main microphone peak ≤ −6 dBFS; no compression or limiting by default.
 - Nothing uncertain is applied automatically (sync, routing, colour); zero correction is a valid result.
@@ -125,7 +132,8 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   colour plan's modules are implemented and verified; never touch a manual Lumetri grade (a Lumetri counts as
   Asistent's own only when its full fingerprint matches one in `managed.json`). The one exception (the user, 2026-11-04,
   0.10.1): the editor's own Exposure −0.5 / +0.5 buttons move Exposure in a hand-set Lumetri too, nothing else in it, never a
-  keyframed Exposure, and do not record it as Asistent's.
+  keyframed Exposure, and do not record it as Asistent's. "Untouched" means the whole Lumetri equals the untouched snapshot
+  Asistent learns when it adds one itself (0.10.6), never just the five sliders at 0; a keyframed parameter is never written.
 - Sync works from the timeline selection and builds a new `SYNC – <sequence>`; the user's sequence is read only.
 - No AI voices, no paid tools, no cloud, nothing uploaded.
 

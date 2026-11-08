@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from fractions import Fraction
@@ -39,9 +40,106 @@ def _tool(name: str) -> str:
     raise MediaError(f"{name} was not found. Install FFmpeg (see README).")
 
 
-def _run(cmd: list[str]) -> subprocess.CompletedProcess:
+PROBE_TIMEOUT = 120.0          # ffprobe on a file that never answers (a dead network drive) gives up after this
+DECODE_TIMEOUT = 1800.0        # a decode that hangs this long is stopped (a two-hour file decodes in well under a minute)
+
+
+class Interrupted(Exception):
+    """The subprocess was stopped because the job was cancelled (sync.Cancelled is raised by the caller)."""
+
+
+def _run(cmd: list[str], timeout: float | None = None, cancelled=None) -> subprocess.CompletedProcess:
+    """Run FFmpeg/FFprobe and collect its output. 0.10.6 (BUG-014): stops the process when `cancelled()` turns true or after
+    `timeout` seconds (default: PROBE_TIMEOUT for ffprobe, DECODE_TIMEOUT otherwise), instead of waiting for ever."""
     flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-    return subprocess.run(cmd, capture_output=True, creationflags=flags)
+    if timeout is None:
+        timeout = PROBE_TIMEOUT if "ffprobe" in os.path.basename(cmd[0]).lower() else DECODE_TIMEOUT
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, creationflags=flags)
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            out, err = p.communicate(timeout=0.25)       # output is kept across the retries (subprocess docs)
+            return subprocess.CompletedProcess(cmd, p.returncode, out, err)
+        except subprocess.TimeoutExpired:
+            stop = "cancelled" if cancelled and cancelled() else "timeout" if time.monotonic() > deadline else None
+            if stop:
+                p.kill()
+                p.communicate()
+                if stop == "cancelled":
+                    raise Interrupted()
+                raise MediaError(f"{os.path.basename(cmd[0])} did not finish within {int(timeout)} s and was stopped.")
+
+
+CHUNK_BYTES = 1 << 22           # 4 MB of FFmpeg output at a time
+
+
+def decode_f32(cmd: list[str], channels: int, expected: int, cancelled=None, timeout: float | None = None) -> np.ndarray:
+    """Run an FFmpeg command that writes interleaved float32 to stdout -> (channels, samples), C-contiguous.
+
+    0.10.6 (PERF-001): the output is read in 4 MB chunks straight into its place in the result, so the decode is held once;
+    before, stdout (one full copy) and the de-interleaved copy coexisted (twice the size: ~2.8 GB for an hour of 48 kHz
+    stereo). The samples are exactly the same. `expected`: samples per channel (a little over is best; the array grows if
+    FFmpeg gives more). Stops on `cancelled()` (Interrupted) or after `timeout` seconds (MediaError), like `_run`; a failed
+    FFmpeg raises MediaError with its message."""
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    timeout = DECODE_TIMEOUT if timeout is None else timeout
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, creationflags=flags)
+    err: list[bytes] = []
+    t = threading.Thread(target=lambda: err.append(p.stderr.read()), daemon=True)      # stderr never fills its pipe
+    t.start()
+    cap = max(1, int(expected))
+    flat = np.empty(channels * cap, dtype=np.float32)           # row c lives at flat[c*cap : c*cap + n]
+    frame = 4 * channels
+    chunk = bytearray(CHUNK_BYTES - CHUNK_BYTES % frame)
+    view = memoryview(chunk)
+    filled = 0
+    n = 0
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            if cancelled and cancelled():
+                raise Interrupted()
+            if time.monotonic() > deadline:
+                raise MediaError(f"{os.path.basename(cmd[0])} did not finish within {int(timeout)} s and was stopped.")
+            got = p.stdout.readinto(view[filled:])
+            if got:
+                filled += got
+            whole = filled - filled % frame
+            if whole:
+                block = np.frombuffer(chunk, dtype=np.float32, count=whole // 4).reshape(-1, channels)
+                k = block.shape[0]
+                if n + k > cap:                                       # FFmpeg gave more than expected: grow (rare)
+                    new_cap = max(cap * 3 // 2, n + k)
+                    grown = np.empty(channels * new_cap, dtype=np.float32)
+                    for c in range(channels):
+                        grown[c * new_cap:c * new_cap + n] = flat[c * cap:c * cap + n]
+                    flat, cap = grown, new_cap
+                for c in range(channels):
+                    flat[c * cap + n:c * cap + n + k] = block[:, c]
+                n += k
+                rest = filled - whole
+                view[:rest] = view[whole:filled]
+                filled = rest
+            if not got:
+                break
+        p.wait(timeout=max(1.0, deadline - time.monotonic()))
+    except BaseException:
+        p.kill()
+        p.wait()
+        raise
+    finally:
+        t.join(timeout=5)
+        for pipe in (p.stdout, p.stderr):
+            try:
+                pipe.close()
+            except OSError:
+                pass
+    if p.returncode != 0:
+        raise MediaError((b"".join(err)).decode(errors="replace").strip()[:200] or f"exit code {p.returncode}")
+    # rows to the front (row c from c*cap to c*n; c*n <= c*cap, so nothing unread is overwritten): one contiguous array
+    for c in range(1, channels):
+        flat[c * n:(c + 1) * n] = flat[c * cap:c * cap + n].copy() if (c + 1) * n > c * cap else flat[c * cap:c * cap + n]
+    return flat[:channels * n].reshape(channels, n)
 
 
 def _rate(text: str | None) -> float | None:
@@ -209,17 +307,21 @@ def _when(text: str | None) -> float | None:
     return t.timestamp() if t.year >= 1980 else None
 
 
-def read_audio(path: str, stream: int, channels: int, sr: int) -> np.ndarray:
+def read_audio(path: str, stream: int, channels: int, sr: int, cancelled=None, expected: int | None = None) -> np.ndarray:
     """Decode one audio stream to float32 at `sr`, shape (channels, samples). No downmix."""
-    p = _run([_tool("ffmpeg"), "-v", "error", "-nostdin", "-i", path, "-map", f"0:a:{stream}",
-              "-af", "aresample=filter_size=64:cutoff=0.95", "-ar", str(sr), "-ac", str(channels),
-              "-f", "f32le", "-"])
-    if p.returncode != 0:
-        raise MediaError(f"FFmpeg cannot decode the sound of {os.path.basename(path)}: "
-                         f"{p.stderr.decode(errors='replace').strip()[:200]}")
-    x = np.frombuffer(p.stdout, dtype=np.float32)
-    n = len(x) // channels
-    return x[: n * channels].reshape(n, channels).T.copy()
+    cmd = [_tool("ffmpeg"), "-v", "error", "-nostdin", "-i", path, "-map", f"0:a:{stream}",
+           "-af", "aresample=filter_size=64:cutoff=0.95", "-ar", str(sr), "-ac", str(channels), "-f", "f32le", "-"]
+    if expected is None:
+        try:
+            expected = int((probe(path).duration or 0) * sr) + sr
+        except MediaError:
+            expected = sr * 60
+    try:
+        return decode_f32(cmd, channels, expected, cancelled)
+    except Interrupted:
+        raise
+    except MediaError as e:
+        raise MediaError(f"FFmpeg cannot decode the sound of {os.path.basename(path)}: {e}") from e
 
 
 @dataclass

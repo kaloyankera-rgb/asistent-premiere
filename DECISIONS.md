@@ -1,5 +1,16 @@
 # Decisions (and the reasons behind them)
 
+## Audit of 0.10.1 (2026-11-08, 0.10.6)
+- **When ownership cannot be proven, the editor's work wins.** Caption pairs need every line's time (records from older
+  versions are never trusted for removal), a Lumetri is untouched only when its whole snapshot equals the one Asistent learnt
+  (unknown = the editor's), and an unreadable managed.json owns nothing.
+- **Fix audio refuses rather than loses.** overwriteClip was measured in NEW TEST to drop the original's Volume keyframes, and
+  no API copies an effect chain: a clip carrying effects or keyframes is not split, with the reason.
+- **Updates can always go back.** A copy of the installed version is kept before anything changes; the packages are not staged
+  in a second venv (several hundred MB per update) but put back from a pip freeze.
+- **Speed changes stay bit-identical** (decode streamed into place, the aligner kept loaded); sync pair pruning was not done
+  because no pruning rule could be shown to keep every true pair.
+
 ## Architecture
 - **Hybrid: UXP panel + local Python engine.** UXP cannot run FFmpeg/NumPy/Whisper or spawn processes; a
   standalone app cannot import into bins or edit sequences. Rejected: CEP/ExtendScript as the main side (legacy, and the

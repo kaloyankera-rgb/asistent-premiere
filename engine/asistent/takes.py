@@ -35,6 +35,43 @@ CHATTER_S = 25.0                    # ... and at most this much talk: then every
 RESTART_GAP = 0.25                  # a restart inside a sentence: the first copy ends with a pause or filler this long
 RESTART_SPAN = 8                    # ... and the second copy starts within this many words
 
+# words that change what a sentence means when only one take has them (0.10.6, BUG-012: „не е подходящ“ and „е подходящ“
+# were a safe near repeat and one was cut). A near repeat that differs in any of these is only listed, never cut.
+NEGATIONS = {"не", "ни", "нито", "без", "няма", "нямаше", "нямам", "нямаш", "нямат", "никак", "нищо", "никой", "никога", "никъде",
+             "not", "no", "never"}
+_NUM_WORDS = None
+
+
+def _number_words() -> set:
+    global _NUM_WORDS
+    if _NUM_WORDS is None:
+        from . import numbers as N
+        words = set(N._UNITS + N._TEENS + N._TENS + N._HUNDREDS)
+        for forms in N._FORMS.values():
+            words.update(forms.values())
+        words.update({"нула", "хиляда", "хиляди", "милион", "милиона", "милиард", "половин", "половина", "първи", "втори", "трети",
+                      "едната", "двата", "двете", "трите", "петте"})
+        _NUM_WORDS = {w for w in words if w}
+    return _NUM_WORDS
+
+
+def _meaning(take: dict) -> set:
+    """The words of a take that carry meaning a near repeat must not lose: negations, numbers (digits or words) and names
+    (a capital letter that does not start a sentence)."""
+    out = set()
+    nums = _number_words()
+    for t in take["_tokens"]:
+        if t in NEGATIONS or t in nums or _is_number(t):
+            out.add(t)
+    prev_end = True
+    for w in take["text"].split():
+        core = norm(w)
+        if core and not prev_end and w.lstrip("\"„“'(")[:1].isupper():
+            out.add(core)
+        prev_end = w.strip().endswith(SENTENCE_END)
+    return out
+
+
 FILLERS = {"ъъ", "ъ", "ъм", "ми", "мм", "ммм", "ами", "ех", "аа", "ээ", "uh", "um", "hm", "хм", "така", "де"}
 KIND_LABEL = {"exact": "repeated take", "near": "repeated take (nearly the same)", "false_start": "false start", "restart": "repeated start"}
 
@@ -283,6 +320,15 @@ def find(words: list[dict]) -> list[dict]:
                 if (len(x) >= CONTENT_MIN or _is_number(x)) and x not in lost and not any(_word_like(x, y) for y in said):
                     lost.append(x)
         safe = len(lost) <= max(LOST_WORDS, LOST_SHARE * len(keep)) and not any(_is_number(x) for x in lost)
+        # meaning words that only some takes have (either way: the winner may ADD a „не“ the others lack)
+        win_meaning = _meaning(takes[rec])
+        for k, t in enumerate(takes):
+            if k == rec:
+                continue
+            for x in sorted(win_meaning ^ _meaning(t)):
+                if x not in lost:
+                    lost.append(x)
+                safe = False
         cut, whole = _cut_plan(sent, takes, rec) if safe and takes[rec]["ends"] else ([], False)
         for t in takes:
             t.pop("_tokens")

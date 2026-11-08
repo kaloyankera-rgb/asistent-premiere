@@ -14,7 +14,11 @@ import threading
 import time
 import uuid
 
+import logging
+
 from . import config
+
+log = logging.getLogger("asistent")
 
 FLAG = "devbridge.enabled"
 KEEP = 50                      # answers kept for reading
@@ -25,40 +29,56 @@ def enabled() -> bool:
 
 
 class Bridge:
+    """Commands for the other side (the panel or the CEP host) with a lifecycle (0.10.6, ARCH-001): queued -> taken -> done.
+    A command whose waiter gave up while it was still queued is withdrawn and never runs; one that was already taken may
+    still finish (Premiere is busy, not dead): its late answer is logged and the waiter was told so."""
+
     def __init__(self):
         self._cv = threading.Condition()
         self._queue: collections.deque = collections.deque()
         self._results: collections.OrderedDict = collections.OrderedDict()
+        self._taken: dict = {}                  # id -> time the other side took it
+        self._abandoned: set = set()            # ids whose waiter gave up after they were taken
 
-    def submit(self, name: str, args: dict | None = None) -> str:
+    def submit(self, name: str, args: dict | None = None, deadline: float | None = None) -> str:
         if not isinstance(name, str) or not name or len(name) > 40:
             raise ValueError("Invalid command.")
         cid = uuid.uuid4().hex[:12]
         with self._cv:
-            self._queue.append({"id": cid, "name": name, "args": args or {}})
+            self._queue.append({"id": cid, "name": name, "args": args or {}, "_deadline": deadline})
             self._cv.notify_all()
         return cid
 
     def poll(self, wait: float) -> dict | None:
-        """The next command for the panel, or None after `wait` seconds."""
+        """The next command for the panel, or None after `wait` seconds. Commands past their deadline are dropped."""
         end = time.time() + max(0.0, min(wait, 25.0))
         with self._cv:
-            while not self._queue:
+            while True:
+                while self._queue and self._queue[0].get("_deadline") and self._queue[0]["_deadline"] < time.time():
+                    old = self._queue.popleft()
+                    log.warning("bridge: %s %s expired before it was taken: never run", old["name"], old["id"])
+                if self._queue:
+                    cmd = self._queue.popleft()
+                    self._taken[cmd["id"]] = time.time()
+                    return {k: v for k, v in cmd.items() if not k.startswith("_")}
                 left = end - time.time()
                 if left <= 0:
                     return None
                 self._cv.wait(left)
-            return self._queue.popleft()
 
     def result(self, cid: str, ok: bool, data) -> None:
         with self._cv:
+            self._taken.pop(cid, None)
+            if cid in self._abandoned:
+                self._abandoned.discard(cid)
+                log.warning("bridge: a late answer for %s (the waiter had given up): ok=%s %s", cid, ok, str(data)[:300])
             self._results[cid] = {"id": cid, "ok": bool(ok), "data": data, "at": time.time()}
             while len(self._results) > KEEP:
                 self._results.popitem(last=False)
             self._cv.notify_all()
 
     def wait_result(self, cid: str, wait: float) -> dict | None:
-        end = time.time() + max(0.0, min(wait, 120.0))
+        end = time.time() + max(0.0, min(wait, 600.0))
         with self._cv:
             while cid not in self._results:
                 left = end - time.time()
@@ -66,3 +86,16 @@ class Bridge:
                     return None
                 self._cv.wait(left)
             return self._results[cid]
+
+    def give_up(self, cid: str) -> str:
+        """The waiter stops waiting -> "withdrawn" (it was still queued: it never runs) or "running" (already taken: it may
+        still finish; its answer is logged when it comes) or "done" (the answer arrived meanwhile)."""
+        with self._cv:
+            if cid in self._results:
+                return "done"
+            for cmd in list(self._queue):
+                if cmd["id"] == cid:
+                    self._queue.remove(cmd)
+                    return "withdrawn"
+            self._abandoned.add(cid)
+            return "running"

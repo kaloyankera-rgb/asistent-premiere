@@ -119,3 +119,17 @@ test("an audio-only recorder gets its own track", () => {
   assert.strictEqual(placements[seed].zero, 2);
 });
 
+
+test("two cameras whose files share one folder never overlap on one track (0.10.6, BUG-011)", () => {
+  const one = engineOf([["/m/all/A001.MP4", 20], ["/m/all/B001.MP4", 20], ["/m/all/A002.MP4", 10]],
+    [{ anchor: 0, members: [{ clip: 0, offset: 0 }, { clip: 1, offset: 2 }] }], [2]);
+  const { placements, uncertain } = syncLayout(one, {});
+  const byTrack = {};
+  for (const p of placements) (byTrack[p.track] = byTrack[p.track] || []).push([p.zero, p.zero + p.duration]);
+  for (const spans of Object.values(byTrack)) {
+    spans.sort((a, b) => a[0] - b[0]);
+    for (let i = 1; i < spans.length; i++) assert.ok(spans[i][0] >= spans[i - 1][1] - 1e-9);
+  }
+  assert.deepStrictEqual(placements.filter((p) => p.group === 1).map((p) => p.track).sort(), [0, 1]);
+  assert.ok(uncertain.some((u) => /shares a folder/.test(u.reason)));
+});

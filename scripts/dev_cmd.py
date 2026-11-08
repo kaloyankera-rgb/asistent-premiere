@@ -3,7 +3,8 @@
 
   dev_cmd.py on | off                   create / remove the flag file (the bridge is off without it)
   dev_cmd.py ping | state | selection | timeline [json args]
-  dev_cmd.py click "Auto color"                       press a panel button by its label
+  dev_cmd.py click "Auto color"                       press a panel button by its label (waits until the panel is idle)
+  dev_cmd.py click "Cancel" now                       press it at once, while a job runs
   dev_cmd.py fill '{"id": "notes", "value": "раф => рафт"}'   fill the corrections box
   dev_cmd.py wait_idle [seconds]                     wait until the panel is not busy, print its answer
   dev_cmd.py select '{"kind": "any"}'               select clips on the timeline (kind video|audio|any, names, track, from, to)
@@ -65,7 +66,7 @@ def main(argv):
         return 0 if code == 200 and res.get("ok") else 1
     args = {}
     if name == "click":
-        args = {"text": rest[0]}
+        args = {"text": rest[0], **({"now": True} if "now" in rest[1:] else {})}      # click "Cancel" now: while busy
     elif name == "wait_idle":
         args = {"timeout": float(rest[0]) if rest else 120}
     elif rest:

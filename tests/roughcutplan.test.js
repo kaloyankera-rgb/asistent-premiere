@@ -97,3 +97,29 @@ test("the summary names time removed for lack of sound, closed gaps and what was
   const holes = describeResult({ ...r, hole_speech_s: 6.5 }, { problems: [] });
   assert.ok(holes.lines.some((l) => l.cls === "warn" && /6\.5 s have only one camera/.test(l.text)));
 });
+
+test("rough cut: a track the plan did not have fails the check, and every piece is checked (0.10.6, ARCH-004)", () => {
+  const { verifyPieces } = require("../panel/roughcutplan.js");
+  const want = { video: { 1: 1 }, audio: { 1: 1 }, frames: 250, fps: 25 };
+  assert.match(verify(want, { video: { 1: 1, 3: 9 }, audio: { 1: 1 }, end: 10 }).join(), /Video track 3 has 9 pieces/);
+  const pieces = [{ kind: "video", track: 0, path: "/m/a.mp4", src_in: 50, start: 0 }, { kind: "audio", track: 0, path: "/m/a.mp4", src_in: 50, start: 0 }];
+  const ok = [{ kind: "video", track: 0, path: "/m/a.mp4", inPt: 2, start: 0 }, { kind: "audio", track: 0, path: "/m/a.mp4", inPt: 2, start: 0 }];
+  assert.deepStrictEqual(verifyPieces(pieces, ok, 25), []);
+  const wrong = [{ ...ok[0], path: "/m/b.mp4" }, { ...ok[1], inPt: 3 }];
+  const bad = verifyPieces(pieces, wrong, 25);
+  assert.match(bad[0], /V1 at 0:00: another file \(b\.mp4\)/);
+  assert.match(bad[1], /A1 at 0:00: another part of the file/);
+  assert.match(verifyPieces(pieces, [], 25)[0], /missing/);
+});
+
+test("rough cut: a switched-off clip or a hidden video track is left out and named (0.10.6, BUG-009)", () => {
+  const items = [
+    { kind: "video", track: 0, path: "/a.mp4", start: 0, end: 5, inPt: 0, name: "A", selected: true, speed: 1 },
+    { kind: "video", track: 1, path: "/b.mp4", start: 0, end: 5, inPt: 0, name: "B", selected: true, speed: 1, unused: true },
+    { kind: "video", track: 2, path: "/c.mp4", start: 0, end: 5, inPt: 0, name: "C", selected: true, speed: 1, hidden: true },
+    { kind: "audio", track: 0, path: "/a.mp4", start: 0, end: 5, inPt: 0, name: "A", selected: true, speed: 1 },
+  ];
+  const p = planRoughCut(items);
+  assert.deepStrictEqual(p.layout.map((x) => x.name), ["A", "A"]);
+  assert.ok(p.skipped.some((s) => /B \(switched off/.test(s)) && p.skipped.some((s) => /C \(on V3, whose output is off/.test(s)));
+});

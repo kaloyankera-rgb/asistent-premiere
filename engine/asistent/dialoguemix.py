@@ -35,11 +35,25 @@ QUIET_DB = -50.0                     # a speech level below this is penalised: f
 READERS = max(2, min(8, (os.cpu_count() or 4) - 2))
 
 
-def mono_for_asr(x: np.ndarray, c: dict) -> np.ndarray:
+MIX_BUDGET = 2_000_000_000          # bytes of decoded sound held at once by the parallel readers (0.10.6, PERF-001)
+
+
+def readers_for(items: list[dict]) -> int:
+    """How many items are decoded at the same time: READERS, fewer when the longest items would together hold more than
+    MIX_BUDGET (48 kHz float32, two channels assumed; plus the 16 kHz copy). The result does not depend on it."""
+    longest = max((float(it["end"]) - float(it["start"]) for it in items), default=0.0)
+    per = max(1.0, longest) * audio.SR * 2 * 4 * 1.2
+    return max(1, min(READERS, int(MIX_BUDGET // per)))
+
+
+def mono_for_asr(x: np.ndarray, c: dict, side: str | None = None) -> np.ndarray:
     """(channels, samples) + its classification -> one channel. Never a polarity-inverted sum: for an inverted pair
-    the classification already chose one side."""
+    the classification already chose one side. `side` ("L"/"R"): the timeline clip plays only that channel (an Asistent L/L
+    or R/R copy), so only that channel is heard, whatever the file's other channel holds (0.10.6, BUG-008)."""
     if x.shape[0] == 1:
         return x[0]
+    if side in ("L", "R"):
+        return x[0] if side == "L" else x[1]
     action = c.get("action")
     if action == "use_left":
         return x[0]
@@ -136,14 +150,14 @@ def build_mix(items: list[dict], progress: Callable[[float, str], None] | None =
     def read(it):                                        # one item: its sound as one 16 kHz channel (None: empty)
         if cancelled():
             raise Cancelled()
-        x = audio.read_range(it["path"], float(it["start"]), float(it["end"]))
+        x = audio.read_range(it["path"], float(it["start"]), float(it["end"]), cancelled=cancelled)
         if x.shape[1] == 0:
             return None
         c = audio.classify(x)
-        y = signal.resample_poly(mono_for_asr(x, c), 1, _DECIM).astype(np.float32)
+        y = signal.resample_poly(mono_for_asr(x, c, it.get("side")), 1, _DECIM).astype(np.float32)
         return c, y, _envelope(y)
 
-    with ThreadPoolExecutor(max_workers=READERS, thread_name_prefix="mix") as pool:
+    with ThreadPoolExecutor(max_workers=readers_for(items), thread_name_prefix="mix") as pool:
         futures = [pool.submit(read, it) for it in items]
         try:
             done = [None] * len(items)
@@ -161,6 +175,7 @@ def build_mix(items: list[dict], progress: Callable[[float, str], None] | None =
             continue
         c, y, env = got
         parts.append({"name": name, "path": it["path"], "start": float(it["start"]), "at": float(it["at"]), "y": y, "env": env,
+                      "side": it.get("side"),
                       "dur": len(y) / ASR_SR,
                       "track": int(it.get("track", 0)), "q": quality(env), "kind": c["kind"], "action": c["action"]})
     if not parts:
@@ -171,7 +186,7 @@ def build_mix(items: list[dict], progress: Callable[[float, str], None] | None =
     segments: list[dict] = []                            # the same pieces as media ranges, for per-piece recognition
 
     def segment(p, a, b):                                # samples a..b of part p (speed 1, so media time = item time)
-        segments.append({"path": p["path"], "name": p["name"], "track": p["track"],
+        segments.append({"path": p["path"], "name": p["name"], "track": p["track"], "action": p["action"], "side": p.get("side"),
                          "start": p["start"] + a / ASR_SR, "end": p["start"] + b / ASR_SR, "at": p["at"] + a / ASR_SR})
 
     for group in _groups(parts):
@@ -217,5 +232,7 @@ def read_segment(seg: dict, pad: float) -> tuple[np.ndarray, float]:
     Returns (samples, seconds of lead-in actually available before the piece)."""
     a = max(0.0, seg["start"] - pad)
     x = audio.read_range(seg["path"], a, seg["end"] + pad)
-    y = signal.resample_poly(mono_for_asr(x, audio.classify(x)), 1, _DECIM).astype(np.float32)
+    # the channels the mix chose for this piece (0.10.6): classifying the padded piece again could pick other ones
+    c = {"action": seg["action"]} if seg.get("action") else audio.classify(x)
+    y = signal.resample_poly(mono_for_asr(x, c, seg.get("side")), 1, _DECIM).astype(np.float32)
     return y, seg["start"] - a

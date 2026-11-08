@@ -53,9 +53,8 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
         tick(0.3, 0.0, len(paths), "Reading the sound: {} of {}")
         return clip
 
-    old_workers = sync.FFT_WORKERS
-    sync.FFT_WORKERS = 1                      # parallel pairs instead of parallel FFTs
-    pool = ThreadPoolExecutor(max_workers=WORKERS, thread_name_prefix="pair")
+    # parallel pairs instead of parallel FFTs: one FFT thread per pool thread, set in those threads only (0.10.6)
+    pool = ThreadPoolExecutor(max_workers=WORKERS, thread_name_prefix="pair", initializer=sync.set_fft_workers, initargs=(1,))
     try:
         clips: list[Clip] = list(pool.map(load, paths))
         folders = [_folder(p) for p in paths]
@@ -80,7 +79,6 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
         edges = [e for e in pool.map(compare, pairs) if e]
     finally:
         pool.shutdown(wait=True, cancel_futures=True)
-        sync.FFT_WORKERS = old_workers
 
     rec = [c.info.recorded for c in clips]
     src = [c.info.recorded_from for c in clips]

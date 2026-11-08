@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import ntpath
 import os
+import tempfile
 import threading
 import time
 
@@ -27,34 +27,70 @@ def _sha(snapshot: str) -> str:
 
 
 def _media(key: str) -> str:
-    """"/Volumes/x/кам2/fx31028.MP4|36.036|50.550" -> "fx31028.mp4" (Mac or Windows path)."""
-    return ntpath.basename(key.rsplit("|", 2)[0]).lower()
+    """"/Volumes/x/кам2/fx31028.MP4|36.036|50.550" -> "кам2/fx31028.mp4" (Mac or Windows path).
+
+    The file's folder and name: a drive mounted under two paths still matches, but C0001.MP4 of another camera (another
+    folder) does not (0.10.6; by the name alone a snapshot of camera A's C0001 counted as Asistent's on camera B's)."""
+    path = key.rsplit("|", 2)[0].replace("\\", "/").rstrip("/")
+    parts = [x for x in path.split("/") if x]
+    return "/".join(parts[-2:]).lower()
+
+
+_LOCKS: dict = {}
+_LOCKS_GUARD = threading.Lock()
+
+
+def _lock_for(path: str) -> threading.Lock:
+    """One lock per file for the whole engine: every request makes its own store, and a lock per store protected nothing
+    (two records at once lost one, or left managed.json half written, 0.10.6, ARCH-003)."""
+    key = os.path.normcase(os.path.abspath(path))
+    with _LOCKS_GUARD:
+        return _LOCKS.setdefault(key, threading.Lock())
 
 
 class ManagedStore:
     def __init__(self, path: str):
         self.path = path
-        self._lock = threading.Lock()
+        self._lock = _lock_for(path)
 
     def _load(self) -> dict:
         try:
             with open(self.path, encoding="utf-8") as f:
-                return json.load(f)
-        except (OSError, ValueError):
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except FileNotFoundError:
             return {}
+        except (OSError, ValueError) as e:
+            # a damaged file is kept aside, never silently replaced by one new record (every ownership would be lost)
+            bad = f"{self.path}.corrupt-{int(time.time())}"
+            try:
+                os.replace(self.path, bad)
+            except OSError:
+                pass
+            raise ValueError(f"managed.json could not be read ({e}); it was kept as {os.path.basename(bad)}") from e
 
     def _save(self, data: dict) -> None:
-        tmp = self.path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
-        os.replace(tmp, self.path)
+        fd, tmp = tempfile.mkstemp(prefix=os.path.basename(self.path) + ".", suffix=".tmp", dir=os.path.dirname(self.path) or ".")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+            os.replace(tmp, self.path)
+        except BaseException:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            raise
 
     def owned(self, key: str, snapshot: str) -> bool:
         if not key or not snapshot:
             return False
         h = _sha(snapshot)
         with self._lock:
-            data = self._load()
+            try:
+                data = self._load()
+            except ValueError:
+                return False                    # unreadable: nothing counts as Asistent's (the editor's grade is safe)
         if h in ((data.get(key) or {}).get("hashes") or []):
             return True
         name = _media(key)

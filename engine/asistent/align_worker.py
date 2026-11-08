@@ -2,6 +2,7 @@
 Python (torch is too big to put in the engine's own environment), started by `align.py`:
 
     python align_worker.py <dir>      <dir>/audio.npy (float32, 16 kHz mono), words.json, spoken.json -> out.json
+    python align_worker.py --serve    the same for one <dir> per line on stdin, the model loaded once (align.py's pool)
 
 Adapted from tools/autoedit/asr.py `align` (the method behind the 4a1a subtitles; same author). Whisper's word
 times lead the speech by a median 0.12 s and up to 0.5 s (measured 2026-11-01); the alignment places each word where
@@ -24,6 +25,15 @@ def roman(text):
     return re.sub(r"[^a-z' ]", " ", s).split()
 
 
+_MODEL = []          # the model, loaded once per process (--serve keeps the process for many windows, 0.10.6)
+
+
+def _model(bundle):
+    if not _MODEL:
+        _MODEL.append(bundle.get_model())
+    return _MODEL[0]
+
+
 def align(audio, words, spoken):
     """words: [{"text", "start", "end"}]. Returns [{"start", "end", "align"}] (same order); a word without letters
     (a digit string not in `spoken`) comes back with start None and is placed by the caller."""
@@ -36,7 +46,7 @@ def align(audio, words, spoken):
     if not flat:
         return out
     wav = torch.from_numpy(audio)[None]
-    model = bundle.get_model()
+    model = _model(bundle)
     with torch.inference_mode():
         emission, _ = model(wav)
         spans = bundle.get_aligner()(emission[0], bundle.get_tokenizer()(flat))
@@ -63,5 +73,22 @@ def main(folder):
         json.dump(res, f)
 
 
+def serve():
+    """One folder per line on stdin -> "ok" or "error <text>" per line on stdout, until stdin closes (align.py's pool)."""
+    for line in sys.stdin:
+        folder = line.strip()
+        if not folder:
+            continue
+        try:
+            main(folder)
+            sys.stdout.write("ok\n")
+        except Exception as e:                                   # noqa: BLE001 - the engine falls back to Whisper's times
+            sys.stdout.write("error " + str(e).replace("\n", " ")[:300] + "\n")
+        sys.stdout.flush()
+
+
 if __name__ == "__main__":
-    main(sys.argv[1])
+    if sys.argv[1] == "--serve":
+        serve()
+    else:
+        main(sys.argv[1])

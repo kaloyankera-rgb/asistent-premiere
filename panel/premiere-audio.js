@@ -221,6 +221,32 @@ async function readEffects(ti) {
   return out;
 }
 
+// What on this timeline clip a split would lose: the host puts audio-only copies over it (overwriteClip), and a new clip
+// starts with no effects and no keyframes of its own. So a clip that carries anything beyond what Asistent sets again
+// afterwards (static level, its own limiter) is not split (0.10.6, BUG-005). -> [reason] (empty: safe to split). Read only.
+async function routeBlockers(ti) {
+  const out = [];
+  try {
+    const fx = await readEffects(ti);
+    if (fx.keyframed) out.push("Volume keyframes");
+    if (fx.others.length) out.push(`effects (${fx.others.join(", ")})`);
+    const dyn = await dynamicsOf(ti);
+    const lim = limiterState(dyn.map((d) => ({ params: d.values })));
+    if (lim.state === "foreign") out.push(`a Dynamics with its own settings (${lim.why})`);
+    for (const c of (await components(ti)).list) {
+      if (!/^channel volume$|^panner$/i.test(c.name)) continue;
+      const n = (await maybe(c.comp, "getParamCount")) || 0;
+      for (let i = 0; i < n; i++) {
+        const prm = await c.comp.getParam(i);
+        if (await maybe(prm, "isTimeVarying")) out.push(`${c.name} keyframes`);
+      }
+    }
+  } catch (e) {
+    out.push(`its effects could not be read (${(e && e.message) || e})`);
+  }
+  return [...new Set(out)];
+}
+
 async function createEffect(name, ti) {
   const comp = await ppro.AudioFilterFactory.createComponentByDisplayName(name, ti);
   if (!comp) throw new Error(`Premiere did not make the effect ${name}`);
@@ -331,4 +357,4 @@ async function addEffectProbe(project, x, name) {
   await step("append", () => transaction(project, `Asistent: probe ${name}`, (c) => c.addAction(chain.createAppendComponentAction(comp))));
 }
 
-module.exports = { readAudioSelection, applyLevels, readEffects, readLevelDb, dumpChain, addEffectProbe };
+module.exports = { readAudioSelection, applyLevels, readEffects, routeBlockers, readLevelDb, dumpChain, addEffectProbe };

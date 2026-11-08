@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -59,7 +60,17 @@ LOOSE_SHARE = 0.8          # of ALL windows checked, and of the informative ones
 
 QUICK_WINDOWS = 4          # quick look: this many windows on the best two candidates before the full check
 QUICK_CANDIDATES = 2
-FFT_WORKERS = -1           # set to 1 when many pairs run side by side
+FFT_WORKERS = -1           # default: all cores; groups.py runs many pairs side by side with 1 each
+_fft = threading.local()   # 0.10.6: per thread, so a many-clip job no longer changes the setting for a job running beside it
+
+
+def fft_workers() -> int:
+    return getattr(_fft, "workers", FFT_WORKERS)
+
+
+def set_fft_workers(n: int) -> None:
+    """For the calling thread only (a pool's initializer)."""
+    _fft.workers = n
 
 ProgressFn = Callable[[float, str], None]
 
@@ -123,7 +134,7 @@ def _fft_len(la: int, lb: int) -> int:
 
 
 def _spec(x: np.ndarray, n: int) -> np.ndarray:
-    return sfft.rfft(x, n, workers=FFT_WORKERS)
+    return sfft.rfft(x, n, workers=fft_workers())
 
 
 def _xcorr_spec(A: np.ndarray, B: np.ndarray, n: int, la: int, lb: int, beta: float) -> tuple[np.ndarray, int]:
@@ -132,7 +143,7 @@ def _xcorr_spec(A: np.ndarray, B: np.ndarray, n: int, la: int, lb: int, beta: fl
     if beta > 0:
         mag = np.abs(R)
         R = R / (mag ** beta + 1e-9 * (mag.max() + 1e-30))
-    r = sfft.irfft(R, n, workers=FFT_WORKERS)
+    r = sfft.irfft(R, n, workers=fft_workers())
     r = np.concatenate([r[n - (lb - 1):], r[: la]]) if lb > 1 else r[: la]
     return r, lb - 1
 

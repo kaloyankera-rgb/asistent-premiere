@@ -105,6 +105,19 @@ function syncLayout(engine, order) {
     p.hasVideo = clips[p.clip].has_video !== false;
     p.duration = clips[p.clip].duration;
   }
+  // 0.10.6 (BUG-011): the engine may sync two cameras whose files share one folder (a single-folder selection compares every
+  // pair), but by folder both got the same track and lay on top of each other. A clip that would overlap another on its
+  // track moves to the next track where it fits; "one folder = one camera" stays the rule whenever it works.
+  const busy = {};
+  const fits = (t, p) => !(busy[t] || []).some(([a, b]) => Math.min(b, p.zero + p.duration) - Math.max(a, p.zero) > 1e-6);
+  const seedFirst = seed >= 0 ? [placements[seed], ...placements.filter((_, i) => i !== seed)] : placements;   // the seed keeps V1
+  for (const p of seedFirst) {
+    let t = p.track;
+    if (p !== placements[seed]) while (!fits(t, p)) t += 1;
+    if (t !== p.track) uncertain.push({ name: p.name, reason: `shares a folder with another camera: put on track ${t + 1}` });
+    p.track = t;
+    (busy[t] = busy[t] || []).push([p.zero, p.zero + p.duration]);
+  }
   return { placements, cameras, seed, uncertain };
 }
 

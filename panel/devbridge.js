@@ -127,7 +127,7 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       return { id: a.id, value: e.value };
     },
     async click(a) {
-      await idle(120);
+      if (!a.now) await idle(120);                       // { now: true }: press while the panel is busy (Cancel during a job)
       const want = String(a.text || "").trim().toLowerCase();
       const all = buttons();
       const hit = a.id ? [$(a.id)].filter(Boolean)

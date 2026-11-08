@@ -6,6 +6,68 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.10.6 - Existing edits protected, correctness, speed, safe updates (the independent audit of 0.10.1)
+An outside audit of 0.10.1 listed 24 problems; each was checked against the code (report in the session of 2026-11-08), every
+valid one fixed here. "NEW TEST" = checked in Premiere 26.0.2 in NEW TEST.prproj through the test bridge on 2026-11-08.
+**Existing edits**
+- Subtitles: a caption track counts as Asistent's only when every line still has the time Asistent gave it (count + first/last
+  let an edit inside the track pass, and the next press deleted it); records are kept by the sequence's guid, not its name; a
+  record from before 0.10.6 is never trusted for removal, only named. NEW TEST: a press replaced its own earlier pair (C23 -> C24),
+  the guid key logged. (BUG-001)
+- Subtitles: nothing is recorded or removed unless the whole new pair (Bulgarian and English) is placed and checked; an English
+  line the host refused or that timed out keeps the earlier pair and says so (it used to remove the earlier English track and
+  report success). Mock tests. (BUG-002)
+- Subtitles go only onto the sequence they were made from: switched sequence or project during the job -> "moved", nothing
+  placed. NEW TEST: switched to "кам2" mid-job, nothing placed, the message named both. (BUG-003)
+- Fix audio: a subclip is reused only when it is the same media file and range (a tag of the media path in the name, the path
+  and in/out checked); a copy whose channels failed is renamed "… FAILED" and never reused; a half-done split says which copy
+  stayed. NEW TEST: a split, and a second split of the same range reused the subclips. (BUG-004)
+- Fix audio: a clip with Volume / Channel Volume / Panner keyframes, another effect or a Dynamics with its own settings is not
+  split (the copies replace it without them). NEW TEST: overwriteClip DOES drop the original's Volume keyframes (measured), and
+  such a clip is now refused with the reason; a plain clip still splits. (BUG-005)
+- Colour: "untouched" means the whole Lumetri equals the untouched one Asistent learns when it adds one itself (it meant only the
+  five sliders at 0, so a Highlights-only grade got values and became "Asistent's"); ±0.5 records only a new, untouched or own
+  Lumetri; Asistent's ownership of a cut piece now needs the same folder + file name (0.10.4 matched the name alone). NEW TEST:
+  the untouched snapshot is the same on two clips; a Highlights-only grade got only Exposure, was not recorded, Auto color
+  refused it. (BUG-006)
+- Colour: a parameter with keyframes is never written, in any Lumetri and by any button, read again just before the write.
+  NEW TEST: keyframed Exposure in Asistent's Lumetri left alone. (BUG-007)
+- Managed Lumetri records: one lock per file for the whole engine, a unique temporary file, a damaged file kept aside (two
+  requests at once lost a record or left invalid JSON, which then counted every grade as unknown). (ARCH-003)
+**Correctness**
+- Rough cut: a near repeat that differs in a negation („не“), a number (also in words: пет/шест) or a name is "said
+  differently" and never cut, in either direction. (BUG-012)
+- Cancel: a job cancelled while its last step ignored the request ends "cancelled" and its result is dropped; FFmpeg/FFprobe
+  stop on cancel or after a time limit; Shot Match can be cancelled; the panel never applies a result after Cancel. (BUG-014)
+- Subtitles: switched-off and muted audio is not recognised; an L/L or R/R copy is heard on its own channel only, and the second
+  reading of a piece uses the channels the mix chose. NEW TEST: subtitles from an L/L copy. (BUG-008)
+- Rough cut: a switched-off video clip or a video track with its eye off is left out and named. (BUG-009)
+- Rough cut: per clip, what of a Lumetri was not carried (settings beyond the five, keyframes). NEW TEST: both notes shown.
+  (BUG-010)
+- English word fixes taken back are revoked for the client too (they came back from the shared learning). (BUG-013)
+- Sync: two cameras whose files share one folder never land on top of each other on one track. (BUG-011)
+- Checks: the rough cut checks every piece (file, part of the file, place) and fails on a track the plan did not have; Sync fails
+  on extra picture clips. NEW TEST: a rough cut and a Sync passed with no false alarm. (ARCH-004)
+- Buttons: only the main mouse button acts, and a press held longer than 1 s no longer acts twice. Node tests; UXP's own event
+  order not checked. (UX-001)
+**Speed** (measured, identical output)
+- FFmpeg's sound is streamed into place: 20 min of 48 kHz stereo peaked at 724 MB instead of 1644 MB, bit-identical (also on
+  real FX3 footage), slightly faster; long items are decoded fewer at a time (2 GB budget); the FFT thread setting is per thread.
+  `scripts/bench_decode.py`. (PERF-001; pair pruning not done: no criterion proven safe yet)
+- Word alignment: up to two aligner processes stay loaded (stopped after 60 s unused) instead of one Python + model per window:
+  ~0.9 s per window instead of ~2.1 s, bit-identical. (PERF-002)
+**Updates and reliability**
+- Host commands: one Premiere did not take in time is withdrawn (it used to run later, after the editor's retry); one already
+  taken is said to maybe still finish; waits up to 600 s. (ARCH-001)
+- Updates keep the installed version in `<app>/previous` (files, panel package, package list) and put it back when pip, the files,
+  the host or the panel fail; the panel is installed over the old one before any removal; an engine that does not start three
+  times after an update is put back by `run_engine.py`. Failure tests on a private app folder. (ARCH-002)
+- sentencepiece 0.2.1 (CVE-2026-1260 / GHSA-38vq-g6vr-w8wf): same tokens and same English on a test set. (SEC-001)
+- Downloads pinned: Whisper and the translator at one commit with SHA-256 checks, the Bulgarian dictionary at one commit with
+  SHA-256, CUDA wheels pinned (untried on the PC); hash-locked requirement files for the Mac (`scripts/lock_requirements.py`)
+  used by setup and updates. (SEC-002)
+- Test bridge: `click` with `now: true` presses while the panel is busy (to test Cancel).
+
 ## 0.10.5 - Show exports: Finder within ~2 s, no older file, no downloads
 The user's first real export (MASTERHAUS КП-3 Видео 7, 13:53): "it didn't open the folder". The log: Premiere wrote its
 preferences when the export started (13:53:40) naming a file that still held the earlier export of the same video, which was

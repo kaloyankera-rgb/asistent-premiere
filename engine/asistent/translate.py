@@ -22,7 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
-from . import config
+from . import config, pins
 
 MODEL_DIR = "nllb-1.3b-int8"
 MODEL_REPO = "JustFrederik/nllb-200-distilled-1.3B-ct2-int8"     # CC-BY-NC 4.0 (LICENSES.md); the CTranslate2 int8 conversion
@@ -98,7 +98,7 @@ def download_model(progress, cancelled) -> dict:
 
     def run():
         try:
-            snapshot_download(MODEL_REPO, local_dir=d, allow_patterns=list(MODEL_FILES))
+            snapshot_download(MODEL_REPO, local_dir=d, allow_patterns=list(MODEL_FILES), revision=pins.NLLB_REVISION)   # one commit
         except BaseException as e:                              # noqa: BLE001 - reported below
             err.append(e)
 
@@ -112,6 +112,9 @@ def download_model(progress, cancelled) -> dict:
         time.sleep(1.0)
     if err:
         raise RuntimeError(f"The download failed: {err[0]}")
+    bad = pins.verify(d, pins.NLLB_SHA256)                      # 0.10.6: exactly the files Asistent was tested with
+    if bad:
+        raise RuntimeError(f"The downloaded translator does not match its checksum ({', '.join(bad)}): press Download again.")
     if not os.path.isfile(os.path.join(d, "model.bin")) or not available():
         raise RuntimeError("The download finished, but translator files are missing.")
     return {"translator": True}

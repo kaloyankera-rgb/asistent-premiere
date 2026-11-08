@@ -40,7 +40,7 @@ test("the probe and import buttons have their own handlers", () => {
 test("every press but Cancel goes through onTap (logged, ignored while the panel moves)", () => {
   const direct = main.split("\n").filter((l) => /addEventListener\("click"/.test(l));
   assert.deepStrictEqual(direct.map((l) => l.trim().slice(0, 40)), [
-    'button.addEventListener("click", () => {',         // onTap: acts on the press, the click only when no press came
+    'button.addEventListener("click", (e) => ',         // onTap: acts on the press, the click only when no press came
     '$("toast").addEventListener("click", () ',          // only hides the toast: not an action, nothing to log or guard
   ]);
 });
@@ -77,7 +77,8 @@ test("a white refine that would write the same sliders is skipped (fx39026 16:24
 test("Shot Match writes only the components the engine changed, into new or Asistent-owned Lumetri", () => {
   const color = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
   const apply = color.slice(color.indexOf("async function applyShotMatch"), color.indexOf("const NAMES ="));
-  assert.match(apply, /for \(const k of e\.r\.changed \|\| \[\]\) values\[k\] = e\.r\.proposal\[k\];/);
+  assert.match(apply, /for \(const k of e\.r\.changed \|\| \[\]\) if \(!\(t\.animated \|\| \[\]\)\.includes\(k\)\) values\[k\] = e\.r\.proposal\[k\];/);
+  assert.match(apply, /await dropAnimated\(prepared\);\n  transaction\(project, "Asistent: match cameras"/);   // keyframes read again just before (0.10.6)
   assert.match(apply, /t = await target\(e\.clip\)/);                 // the manual-grade guard of Auto color
   assert.match(apply, /engine\.shotMatchCheck\(jobId, pl\.before, after/);   // checked on Premiere's frame
   assert.match(html, /<div id="shotmatch" class="btn small"[^>]*>Match POVs<\/div>/);
@@ -207,11 +208,13 @@ test("Exposure −0.5 / +0.5 add a fixed step; in a hand-set Lumetri only Exposu
   assert.match(main, /onTap\(\$\("exposureUp"\), \(\) => onExposureNudge\(0\.5\), \{ repeat: true \}\)/);
   const press = main.slice(main.indexOf("function onTap"), main.indexOf("function show("));
   assert.match(press, /\["pointerdown", "mousedown"\]/);
-  assert.match(press, /if \(Date\.now\(\) - downAt < 1000\) return;/);
+  assert.match(press, /const endOfPress = pressed && \(now - downAt < 1000 \|\| now - upAt < RELEASE_MS\);/);   // the whole press (0.10.6)
+  assert.match(press, /if \(!primary\(e\)\) return;/);                                // the main button only
   const fn = color.slice(color.indexOf("async function nudgeExposure"), color.indexOf("// ---------------------------------------------------------------- render check"));
   assert.match(fn, /t = await target\(clip, \{ manual: true \}\)/);   // also the editor's own Lumetri (the user, 2026-11-04)
   assert.match(fn, /if \(t\.skip\)/);
-  assert.match(fn, /if \(!pl\.t\.manual\) await remember\(pl\);/);     // Asistent's own: recorded; the editor's grade: never
+  assert.match(fn, /if \(pl\.t\.added \|\| pl\.t\.neutral \|\| pl\.t\.owned\) await remember\(pl\);/);   // new, untouched or own only (0.10.6)
+  assert.match(fn, /\(t\.animated \|\| \[\]\)\.includes\("exposure"\)/);   // keyframes checked whoever's the Lumetri is
   assert.equal((color.match(/target\([^)]*manual: true/g) || []).length, 1);  // only ±0.5 may touch a hand grade
   assert.match(fn, /\(pl\.t\.current\.exposure \|\| 0\) \+ delta/);
 });
@@ -332,9 +335,10 @@ test("the Captions tab has a search over the Bulgarian and English lines that hi
 test("the words changed in an English line are kept per project, undone when typed back, and sent with every run", () => {
   const apply = main.slice(main.indexOf("async function onCaptionApply"), main.indexOf("async function onSubtitles"));
   assert.match(apply, /captionedit\.pairsFor\(en\.getAttribute\("data-original"\), en\.value\)/);
-  assert.match(apply, /delete words\[p\.said\.toLowerCase\(\)\]/);
-  assert.match(apply, /saveEnglishWords\(project\.path, words\)/);
+  assert.match(apply, /delete words\[said\];\n\s*off\[heard\] = p\.said;/);            // taken back = revoked (0.10.6)
+  assert.match(apply, /saveEnglishWords\(project\.path, words, off\)/);
   assert.match(main, /payload\.english_words = englishWords\(project\.path\);/);
+  assert.match(main, /payload\.english_words_off = englishWordsOff\(project\.path\);/);
 });
 
 test("a colour press and Match POVs apply at once, with Before / after, no approval step (the user, 2026-11-04)", () => {

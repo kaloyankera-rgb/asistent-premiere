@@ -1,4 +1,14 @@
-# Project status — Asistent 0.10.5 (2026-11-05)
+# Project status — Asistent 0.10.6 (2026-11-08)
+
+0.10.6: every valid finding of the independent audit of 0.10.1 fixed (CHANGELOG 0.10.6: BUG-001…014, PERF-001/002, ARCH-001…004,
+UX-001, SEC-001/002). Checked in NEW TEST through the bridge: caption pair replacement by line times and sequence guid, subtitles
+not placed after a sequence switch, Fix audio refusing a keyframed clip (overwriteClip measured to drop Volume keyframes), a
+plain split and subclip reuse with the media tag, Highlights-only grade treated as the editor's, keyframed Exposure left alone,
+the untouched Lumetri snapshot stable across clips, rough cut and Sync checks without false alarms, per-clip Lumetri notes.
+Tests only: English line failing (BUG-002), take safety (BUG-012), English word revocation (BUG-013), same-folder Sync (BUG-011),
+cancel (BUG-014: a real subtitle job cancelled through the engine stopped in 6.8 s with no result and no file; the panel half by a node test; the bridge cannot deliver a Cancel press while a job runs, so the button itself is unchecked), right-click / long press in UXP (UX-001), update rollback (ARCH-002, private
+app folder), CUDA pins on Windows. Speed: decode peak 1644 -> 724 MB on 20 min stereo, aligner ~2.1 -> 0.9 s per window, both
+bit-identical.
 
 0.10.5: Show exports seen on a real export (late, ~10 s, and missed by the user; an older same-name file counted first; downloads in
 Assets shown): now Finder within ~2-3 s, only Premiere's export folder and added folders, an older same-name file never counted.

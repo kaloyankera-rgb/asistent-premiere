@@ -324,3 +324,15 @@ def test_english_word_fixes_count_for_the_whole_client_at_once_and_go_when_typed
     learning.record(learning.plan_for(p2), [], english_words={"lipedema": "lipidemia"}, background=False)
     learning.reset()
     assert learning.plan_for(p1).english_words == {"adipose": "fat"}
+
+
+def test_a_taken_back_english_word_fix_is_recorded_and_left_out():
+    """0.10.6 (BUG-013): the client's learned „lipidemia -> lipedema“ stops once the editor typed the original back."""
+    from asistent import learning, subtitle_job
+    learned = {"lipidemia": "lipedema"}
+    assert subtitle_job.merge_english_words(learned, {}, {"lipedema": "lipidemia"}) == {}
+    assert subtitle_job.merge_english_words(learned, {}, {}) == learned
+    assert subtitle_job.merge_english_words(learned, {"lipidemia": "lipoedema"}, {"lipedema": "lipidemia"}) == {"lipidemia": "lipoedema"}
+    events = [{"kind": "english_word", "heard": "lipidemia", "said": "lipedema", "t": 1},
+              {"kind": "english_word", "heard": "lipedema", "said": "lipidemia", "t": 2}]     # what record() writes for `off`
+    assert learning.build(events)[4] == {}

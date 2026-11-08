@@ -241,3 +241,55 @@ def test_audio_route_is_validated_before_it_reaches_premiere():
     with pytest.raises(ValueError, match="No clips"):
         hostbridge.route_audio([], "S", None)
     assert "audio_route" in hostbridge.COMMANDS
+
+
+def test_a_job_cancelled_while_its_last_stage_ignored_it_ends_cancelled_not_done():
+    """0.10.6 (BUG-014): the result of work the editor cancelled is never handed to the panel."""
+    import threading
+    import time as _t
+    from asistent.jobs import JobManager
+    jm = JobManager(workers=1)
+    started = threading.Event()
+
+    def work(job):
+        started.set()
+        _t.sleep(0.3)                                   # a stage that never looks at job.cancelled
+        return {"applied": True}
+    job = jm.submit("x", work)
+    started.wait(2)
+    job.cancel()
+    for _ in range(50):
+        if job.state not in ("queued", "running"):
+            break
+        _t.sleep(0.05)
+    assert job.state == "cancelled" and job.result is None
+
+
+def test_ffmpeg_is_stopped_when_the_job_is_cancelled():
+    import sys as _sys
+    import pytest
+    from asistent import media
+    t0 = __import__("time").monotonic()
+    with pytest.raises(media.Interrupted):
+        media._run([_sys.executable, "-c", "import time; time.sleep(30)"], cancelled=lambda: __import__("time").monotonic() - t0 > 0.3)
+    assert __import__("time").monotonic() - t0 < 5
+    with pytest.raises(media.MediaError, match="did not finish"):
+        media._run([_sys.executable, "-c", "import time; time.sleep(30)"], timeout=0.5)
+
+
+def test_a_host_command_given_up_while_queued_never_runs_and_a_taken_one_is_logged():
+    """0.10.6 (ARCH-001): no stale command runs after the editor's retry."""
+    from asistent.devbridge import Bridge
+    b = Bridge()
+    a = b.submit("captions", {"n": 1})
+    assert b.wait_result(a, 0.05) is None
+    assert b.give_up(a) == "withdrawn"
+    assert b.poll(0.05) is None                                   # never handed to Premiere
+    c = b.submit("captions", {"n": 2})
+    assert b.poll(0.05)["id"] == c
+    assert b.give_up(c) == "running"
+    b.result(c, True, {"ok": True})                               # the late answer is kept and logged
+    assert b.wait_result(c, 0)["ok"]
+    d = b.submit("captions", {}, deadline=time.time() - 1)
+    assert b.poll(0.05) is None                                   # past its deadline: dropped
+    assert d
