@@ -14,6 +14,7 @@ const premiereSubtitles = require("./premiere-subtitles.js");
 const premiereCaptions = require("./premiere-captions.js");
 const { describeResult } = require("./subtitleplan.js");
 const { describePlacement } = require("./captionplan.js");
+const reviewplan = require("./reviewplan.js");
 const captionedit = require("./captionedit.js");
 const premiereRough = require("./premiere-roughcut.js");
 const roughcutplan = require("./roughcutplan.js");
@@ -571,7 +572,7 @@ async function loadSubtitleSettings(path) {
 
 // The caption editor (the Captions tab): one field per line of the last subtitles. What the user changed becomes
 // correction lines (captionedit.js); the next run applies them and places the result on a NEW caption track.
-const captionEdit = { result: null, inputs: [], enInputs: [], speakersChanged: false };
+const captionEdit = { result: null, inputs: [], enInputs: [], whys: [], review: null, onlyCheck: false, speakersChanged: false };
 
 // The editor's own English lines, per project on this computer: {Bulgarian line (normalised): English}. Sent with every
 // subtitles run; the engine keeps them wherever the Bulgarian line is still the same (subtitle_job.py, english_fixed).
@@ -623,10 +624,68 @@ function saveEnglishFixed(projectPath, map) {
   }
 }
 
+// Review helpers (2026-11 improvements, switchable in the Captions tab, on by default): a Play button per line (the passage
+// with 1.5 s around it, played on this computer, and Premiere's playhead moved there), the reasons to check a line under it
+// (engine review.py: words or timing, what changed from what), and "Lines to check". They only read the run; the lines,
+// words and times are exactly what the subtitle job made.
+function reviewHelpersOn() {
+  try {
+    return reviewplan.helpersOn(localStorage.getItem("asistent.reviewHelpers"));
+  } catch (e) {
+    return true;
+  }
+}
+
+async function playLine(c) {
+  const result = captionEdit.result;
+  if (!result || !result.json) return;
+  try {
+    const project = await premiere.activeProject();
+    const seq = await project.getActiveSequence();
+    const ppro = require("premierepro");
+    if (seq) await premiere.maybe(seq, "setPlayerPosition", ppro.TickTime.createWithSeconds(c.start));
+  } catch (e) {
+    engine.log("info", `review: playhead not moved: ${e && e.message ? e.message : e}`);
+  }
+  try {
+    const r = await engine.listen(result.json, c.start, c.end);
+    toast(`Playing ${r.seconds.toFixed(1)} s around the line.`, true);
+  } catch (e) {
+    toast(e.message || String(e), false);
+  }
+}
+
+async function loadReview(result) {
+  captionEdit.review = null;
+  if (!result.json) return;
+  try {
+    const review = await engine.review(result.json);
+    if (captionEdit.result !== result) return;            // a newer run replaced the list meanwhile
+    captionEdit.review = review;
+    captionEdit.whys.forEach((box, i) => {
+      while (box.firstChild) box.removeChild(box.firstChild);
+      for (const r of reviewplan.reasonRows(review.lines[i])) box.appendChild(el("div", r.cls, r.text));
+      box.hidden = !box.firstChild;
+    });
+    $("captionEditState").textContent = reviewplan.summaryText(review, result.captions.length);
+    show("captionToCheck", true);
+    filterCaptions();
+  } catch (e) {
+    engine.log("info", `review: not available: ${e && e.message ? e.message : e}`);
+  }
+}
+
 function renderCaptionEditor(result) {
   captionEdit.result = result;
   captionEdit.inputs = [];
   captionEdit.enInputs = [];
+  captionEdit.whys = [];
+  captionEdit.review = null;
+  captionEdit.onlyCheck = false;
+  const helpers = reviewHelpersOn();
+  show("captionToCheck", false);
+  $("captionToCheck").textContent = "Lines to check";
+  $("captionHelpers").checked = helpers;
   const list = $("captionList");
   while (list.firstChild) list.removeChild(list.firstChild);
   const unsure = new Set((result.review || []).map((r) => Math.round(r.at * 10)));
@@ -639,6 +698,7 @@ function renderCaptionEditor(result) {
     input.addEventListener("input", () => { row.className = row.className.replace(" edited", "") + (input.value !== input.getAttribute("data-original") ? " edited" : ""); });
     captionEdit.inputs.push(input);
     row.appendChild(input);
+    if (helpers) row.appendChild(button("small play", "▶", "Play this line with 1.5 s before and after it, on this computer (the microphone the subtitles were made from), and move Premiere's playhead there.", () => playLine(c)));
     list.appendChild(row);
     if (c.en !== undefined) {                              // the English line under it, editable too
       const enRow = el("div", "capline en");
@@ -653,10 +713,15 @@ function renderCaptionEditor(result) {
     } else {
       captionEdit.enInputs.push(null);
     }
+    const why = el("div", "whys");
+    why.hidden = true;
+    captionEdit.whys.push(why);
+    list.appendChild(why);
   }
   $("captionEditState").textContent = `${result.captions.length} lines. Lines with a yellow edge hold a word that is not certain.`;
   show("tabCaptions", true);
   filterCaptions();
+  if (helpers) loadReview(result);
 }
 
 // The search above the lines (0.9.97): only the lines whose Bulgarian or English text holds the word stay visible, with their
@@ -671,9 +736,12 @@ function filterCaptions() {
   let shown = 0;
   captionEdit.inputs.forEach((input, i) => {
     const en = captionEdit.enInputs[i];
-    const hit = !q || input.value.toLowerCase().includes(q) || (!!en && en.value.toLowerCase().includes(q));
+    const found = !q || input.value.toLowerCase().includes(q) || (!!en && en.value.toLowerCase().includes(q));
+    const hit = found && (!captionEdit.onlyCheck || reviewplan.toCheck(captionEdit.review, i));
     input.parentNode.hidden = !hit;
     if (en) en.parentNode.hidden = !hit;
+    const why = captionEdit.whys[i];
+    if (why) why.hidden = !hit || !why.firstChild;
     if (hit) shown++;
   });
   $("captionSearchCount").textContent = q ? `${shown} of ${captionEdit.inputs.length}` : "";
@@ -1475,6 +1543,20 @@ $("captionSearch").addEventListener("keydown", (e) => {
   if (e.key === "Enter") runSearch();
 });
 onTap($("captionFind"), runSearch);
+onTap($("captionToCheck"), () => {
+  captionEdit.onlyCheck = !captionEdit.onlyCheck;
+  $("captionToCheck").textContent = captionEdit.onlyCheck ? "All lines" : "Lines to check";
+  filterCaptions();
+});
+$("captionHelpers").addEventListener("change", () => {
+  try {
+    localStorage.setItem("asistent.reviewHelpers", $("captionHelpers").checked ? "1" : "0");
+  } catch (e) {
+    /* no storage: on for this session */
+  }
+  engine.listen(null, 0, 0, true).catch(() => {});
+  if (captionEdit.result) renderCaptionEditor(captionEdit.result);
+});
 onTap($("captionClear"), () => {
   $("captionSearch").value = "";
   runSearch();
