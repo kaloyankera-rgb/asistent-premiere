@@ -54,9 +54,35 @@ fx31028 is slow on every run (103-108 s): the whole-file call spends its time on
 app's subtitle job reads speech windows instead, so its time differs). Total 152 s against the 123 s of the 2026-11-08
 measurement on the same three files.
 
+## whisper.cpp against Classic (2026-11-08; no verified reference yet, so differences, not accuracy)
+whisper.cpp v1.9.5 (MIT; tag published 2026-10-06), built with Metal in `<app>/experiments/whisper.cpp` (outside the repo and
+the app), model `ggml-large-v3.bin` (multilingual large-v3, SHA-256 `64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2`),
+`-l bg -bs 5 -bo 5 -t 8 -ml 1 -sow` (beam 5 like Classic; one word per segment for word times).
+
+| | Classic (faster-whisper int8, CPU) | whisper.cpp (Metal) |
+|---|---|---|
+| Recognition time, 3 clips (143 s) | 152.2 s (103.6 + 21.6 + 27.0) | 20.8 s (14.9 + 2.5 + 3.3): 7.3x faster |
+| Model load | 1.8 s | 0.7 s |
+| Peak memory (RSS) | 4.3-6.6 GB | 4.0-4.1 GB |
+| Words differing from the other backend | 18-30 % (normalized) | (same comparison) |
+| Word starts vs Asistent's MMS_FA-aligned times (fx31031, 27 matched words; machine alignment, not truth) | median 0.23 s, p90 0.91 s | median 0.53 s, p90 1.62 s |
+| Cancel | per segment (asr.py) | TERM stops it in 0.04 s, no partial output |
+
+Seen in the texts (read, not measured; to be scored once the references are verified): whisper.cpp ends fx31028 with an
+invented „Абонирайте се!“ (the known Whisper hallucination from YouTube subtitles, not said), writes „500 млн.“ where Classic
+has „500 мм“ (a measuring-tool size), „пусока“ for „посока“, and puts a dialogue dash before every sentence; it also kept
+words Classic dropped („Много добре“). Classic misreads too („Ричу лице ви“, „хаоти“).
+
+**Decision: not wired into Asistent.** Faster, but with an invented line, a unit error and rougher word times, and no
+verified reference to show it makes fewer meaning errors. Next step: once the user verifies the three references, `score`
+both; only if whisper.cpp has no more meaning errors (numbers, negations, names, invented or dropped passages) than Classic,
+add it as an optional, experimental backend (setting `asr_backend`, default classic, never for ReShape, own cache key). A
+hallucination guard (whisper.cpp's VAD with the Silero GGML model, or dropping known YouTube phrases) would be measured the
+same way. MLX (greedy only, clearly worse words, 2026-11-08) is not re-run.
+
 ## Commands
 ```
-python3 scripts/bench_asr.py hyp   --backend classic            # recognise all clips (app's Python)
+python3 scripts/bench_asr.py hyp   --backend classic            # recognise all clips (app's Python); --backend whispercpp too
 python3 scripts/bench_asr.py draft --from classic               # drafts for a person to correct
 python3 scripts/bench_asr.py score --backend classic --set dev  # table (venv-bench), --json out.json for details
 python3 scripts/bench_asr.py agree --a classic --b whispercpp   # difference between two backends, not accuracy

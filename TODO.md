@@ -14,8 +14,9 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
   (fx31031/28/32, lavalier R, Asistent's own `asr.transcribe`): today's CPU int8 beam 5 123 s; CPU float32 148 s and 18 % of words
   different, not better (noise stretches both wrong, „пусока“ for „посока“); mlx-whisper 0.4.2 fp16 on the GPU 10 s (12x) but
   greedy only (no beam search) and clearly worse (гелче -> дядче, с периферия -> спириферият, invented lines), 41 % different.
-  Neither is both, so nothing changed. Next candidate: whisper.cpp with Metal AND beam 5 (needs the user's permission to clone
-  and build it; cmake is not installed). Splitting a long window into pieces only buys speed (less context), not tried.
+  Neither is both, so nothing changed. whisper.cpp Metal beam 5 built and measured 2026-11-08 (docs/BENCHMARK.md): 7.3x faster,
+  but an invented line and a unit error seen; not adopted. **Needs the user:** verify the three Masterhaus references
+  (`~/Kaloyan/02_RESOURCES/Asistent benchmark/refs/*.draft.txt`), then `bench_asr.py score` both backends and decide. Splitting a long window into pieces only buys speed (less context), not tried.
   (Done in 0.10.6: the aligner stays loaded, ~0.9 s per window instead of ~2.1 s.)
 - **0.10.2, check from the panel:** a Beauty Sector clip shows "Beauty Sector", "Beauty Space", "workshop"; ReShape unchanged.
 - (0.10.0 and 0.10.4 checks done by Claude in NEW TEST on 2026-11-08, CHANGELOG 0.10.8.)
@@ -29,6 +30,41 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - **Show exports for Media Encoder and Quick Export** (later, the user 2026-11-05): phase 0 probes of
   `docs/EXPORT_REVEAL_PLAN.md` in NEW TEST.prproj (`export_listen` / `export_events`), where Quick Export writes, AME's queue.
 Done in 0.9.9 (Volume scale, `/color/probe` docstring).
+
+## I. 2026-11 improvements, later stages (the user's implementation prompt of 2026-11-08, sections 6-13)
+Each one: behind its own switch, Classic stays the default, ReShape never changed (`reshape_guard`, golden check), its own commit,
+a row in docs/ROLLBACK.md, measured against Classic on the same inputs before it is offered. Order by measured benefit.
+- **I0. Needs the user first:** verify the three Masterhaus references (docs/BENCHMARK.md), then score Classic and whisper.cpp;
+  try 0.10.9 in NEW TEST after the install OK.
+- **I6. Colour accuracy and camera calibration.** First validate `color.py` (BT.1886, S-Log3/S-Gamut3.Cine, legal range) against
+  colour-science (pin the exact PyPI version, BSD-3) on synthetic patches: same numbers within 1e-4, or a documented reason; no
+  duplicate log transform (read `getInputLUTID` per clip). Then camera calibration as a 3x3 matrix from chart patches or verified
+  shared samples (never assuming synced angles share pixels), profiles saved with camera, picture profile, input/output spaces
+  and conditions; checked on unseen shots, skin, shadows, highlights, saturated colours. Probe in NEW TEST whether Lumetri's Input
+  LUT / Look (params 6-7, 34-35, 128-129) accept a .cube path before promising automatic LUTs; else a labelled manual .cube export.
+  camera-match only after reading its license and pinning a released version. OpenColorIO only if more cameras need it.
+  Accept: fewer Shot Match retries or smaller ΔE on held-out pairs than Classic Shot Match, which stays.
+- **I7. Timeline identification.** Probe first: ExtendScript `Track.name` writable? (UXP `VideoTrack` has no rename; clips have
+  `createSetNameAction`; project items have `setColorLabel`, already used by Fix audio). Then optional "Camera A — FX3" / "Subtitles —
+  Bulgarian" names and configurable camera label colours, remembered old values for undo, editor names kept by default, applied in
+  Sync, Fix audio and rough cut. Accept: names/colours survive a Sync + rough cut rebuild in NEW TEST; one Undo restores them.
+- **I8. Client workflow presets.** Extend `subtitle_settings` + the client learning folder (not the unfinished profiles.py draft)
+  with: subtitle style choice, English on/off, terminology, audio target, aspect/safe margins, naming and export preferences; new
+  keys only, the ReShape preset untouched. Accept: a second project of the same client opens with the same choices.
+- **I9. Transcript editing and rough-cut review.** The Review tab of docs/ROUGHCUT_PLAN.md: keep/remove per passage with ▶ (reuse
+  listen.py), compare takes, restore a removed passage, the reason for each cut, rebuild as ROUGH vN+1 (new sequence). Number,
+  negation, name protections stay (takes.py); never cut on similarity alone. Accept: an editor's override survives the rebuild.
+- **I10. Marketing variants.** Editor-marked hook/body/CTA regions (markers), chosen combinations built as named new sequences
+  (FCP7 XML like the rough cut); no wording chosen by Asistent. Probe Media Encoder / `EncoderManager.exportSequence` before batch export.
+- **I11. Reframing and face-aware placement.** YuNet (already bundled) first: smoothed vertical crop suggestions and the planned
+  "Move off faces" for upgraded caption graphics (Position via PointF, one Undo, verified 2026-11-04); safe margins, editor
+  overrides, no jumps. MediaPipe only with a measured benefit (landmarks). Outside the ReShape preset; opt-in.
+- **I12. Pre-export checks.** Report: offline media, black gaps (not intentional ones), caption overlaps/overflow/unsafe placement,
+  missing fonts (where the API tells), peaks over −6 dBFS on the main mic; each marked confirmed / warning / not measurable through
+  the API.
+- **I13. Later experiments** (each with its license and local-only check): pyannote (local, telemetry off, gated model needs a
+  token: ask), Opus-MT bg→en against NLLB on terminology/numbers/negations (never replacing ReShape's English), PySceneDetect for
+  B-roll index, open_clip (needs multilingual model or local query translation), music ducking, multicam suggestions.
 
 ## B. Colour engine, per `COLOR_CORRECTION_PLAN.md` (current focus of the user)
 0. **Auto Shot Match: face-aware since 0.9.30, verified by the user at 0.9.32 on the GStroy pairs (more clients: on request)**

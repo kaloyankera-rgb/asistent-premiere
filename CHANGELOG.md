@@ -25,6 +25,10 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   names, dropped passages, word timing, word edits, time and peak memory. Private store with dev and held-out clips; scores only
   against references a person verified. Starter set: three Masterhaus clips (143 s), drafts written, none verified yet, so no
   accuracy numbers. Tests: 6 in any venv, 13 with jiwer.
+- **whisper.cpp evaluated (dev only, not wired)**: v1.9.5 with Metal and `ggml-large-v3` (multilingual), beam 5, in
+  `<app>/experiments/whisper.cpp`; `bench_asr.py hyp --backend whispercpp`. 7.3x faster than Classic on the 143 s, but an invented
+  „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
+  Word timing now ignores lone dialogue dashes.
 
 ## 0.10.9 - Captions tab: reasons under the lines to check, Play with the sound around a line (branch improvements/2026-11)
 The user's implementation prompt, stage 4 (faster, clearer subtitle review). Not installed yet (each install needs the user's OK).

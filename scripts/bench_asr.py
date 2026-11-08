@@ -113,8 +113,47 @@ def cmd_hyp_classic(args) -> int:
     return 0
 
 
+WHISPERCPP = os.path.join(APP, "experiments", "whisper.cpp")   # pinned v1.9.5, built with Metal (docs/BENCHMARK.md)
+
+
+def cmd_hyp_whispercpp(args) -> int:
+    """whisper.cpp large-v3 (multilingual GGML) on the Apple GPU, beam 5, one word per segment for word times."""
+    import re
+    import tempfile
+
+    clip = json.loads(args.clip_json)
+    pan = {"L": "pan=mono|c0=c0", "R": "pan=mono|c0=c1"}.get(clip.get("channel"), "pan=mono|c0=0.5*c0+0.5*c1")
+    tmp = tempfile.mkdtemp(prefix="bench-wcpp-")
+    wav = os.path.join(tmp, "clip.wav")
+    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-ss", str(clip["start"]), "-to", str(clip["end"]), "-i", clip["media"],
+                    "-vn", "-af", pan, "-ac", "1", "-ar", "16000", "-acodec", "pcm_s16le", wav], check=True)
+    settings = ["-l", "bg", "-bs", "5", "-bo", "5", "-t", "8", "-ml", "1", "-sow", "-oj", "-of", os.path.join(tmp, "out")]
+    model = os.path.join(WHISPERCPP, "models", "ggml-large-v3.bin")
+    t0 = time.time()
+    r = subprocess.run(["/usr/bin/time", "-l", os.path.join(WHISPERCPP, "build", "bin", "whisper-cli"), "-m", model, "-f", wav, *settings],
+                       capture_output=True, text=True)
+    wall = time.time() - t0
+    if r.returncode:
+        print(r.stderr[-2000:])
+        return r.returncode
+    ms = lambda name: float((re.search(name + r" time =\s*([\d.]+) ms", r.stderr) or [0, 0])[1]) / 1000.0
+    rss = int((re.search(r"(\d+)\s+maximum resident set size", r.stderr) or [0, 0])[1])
+    with open(os.path.join(tmp, "out.json"), encoding="utf-8") as f:
+        segs = json.load(f)["transcription"]
+    words = [{"word": s["text"].strip(), "start": s["offsets"]["from"] / 1000.0, "end": s["offsets"]["to"] / 1000.0}
+             for s in segs if s["text"].strip()]
+    load = ms("load")
+    out = {"backend": "whispercpp", "model": "ggml-large-v3 (multilingual), whisper.cpp v1.9.5 Metal", "settings": " ".join(settings[:12]),
+           "words": words, "text": " ".join(w["word"] for w in words), "seconds": round(max(wall - load, 0.0), 2),
+           "load_seconds": round(load, 2), "audio_seconds": round(clip["end"] - clip["start"], 2),
+           "peak_rss_mb": round(rss / (1 << 20), 1)}
+    with open(args.out, "w", encoding="utf-8") as f:
+        json.dump(out, f, ensure_ascii=False, indent=1)
+    return 0
+
+
 def cmd_hyp(args) -> int:
-    runners = {"classic": APP_PY}
+    runners = {"classic": APP_PY, "whispercpp": APP_PY}
     if args.backend not in runners:
         print(f"Unknown backend {args.backend}; known: {', '.join(runners)}")
         return 2
@@ -206,7 +245,7 @@ def cmd_agree(args) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("action", choices=["init", "hyp", "draft", "score", "agree", "_hyp_classic"])
+    ap.add_argument("action", choices=["init", "hyp", "draft", "score", "agree", "_hyp_classic", "_hyp_whispercpp"])
     ap.add_argument("--store", default=STORE)
     ap.add_argument("--backend", default="classic")
     ap.add_argument("--set", default="all", choices=["dev", "heldout", "all"])
@@ -223,7 +262,7 @@ def main() -> int:
         return _rerun(BENCH_PY, sys.argv[1:])
     sys.path.insert(0, os.path.join(REPO, "engine"))
     return {"init": cmd_init, "hyp": cmd_hyp, "draft": cmd_draft, "score": cmd_score, "agree": cmd_agree,
-            "_hyp_classic": cmd_hyp_classic}[args.action](args)
+            "_hyp_classic": cmd_hyp_classic, "_hyp_whispercpp": cmd_hyp_whispercpp}[args.action](args)
 
 
 if __name__ == "__main__":

@@ -38,3 +38,5 @@ Later phases will add, after a license check at that time: faster-whisper (MIT).
 | jiwer 4.0.0 | Apache-2.0 | recognition benchmark scoring, in `<app>/venv-bench` (`requirements-bench.txt`) |
 | RapidFuzz 3.14.6 | MIT | jiwer's edit-distance backend, same venv |
 | click 8.5.1 | BSD-3-Clause | jiwer's dependency, same venv |
+| whisper.cpp v1.9.5 | MIT | recognition backend experiment, built in `<app>/experiments/whisper.cpp`, not part of the app |
+| `ggml-large-v3.bin` | MIT (OpenAI Whisper weights, GGML conversion by the whisper.cpp project) | its model, same folder |
