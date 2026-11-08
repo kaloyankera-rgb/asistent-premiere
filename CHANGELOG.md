@@ -14,6 +14,11 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   `tests/test_reshape_baseline.py` (preset, constants, byte-exact captions of 36 synthetic inputs made by the tag's code; a
   0.01 s lead change fails 15 of them), `scripts/reshape_golden.py` (the whole job on the client's own ReShape recording,
   byte for byte against the run recorded at the tag; private store outside the repo; two cold runs identical, ~75 s).
+- **Native-graphics probes (docs/NATIVE_GRAPHICS.md, raw results in docs/probes/)**: in Premiere 26.0.2 no script can write or
+  read a native text graphic's words (an ExtendScript write leaves the graphic drawing nothing; UXP reads null) or its font,
+  size, fill and stroke (not parameters); only position/scale/rotation/opacity and timing are writable. The optional
+  "Native graphics" output is therefore not built; captions stay. The probe blanked the old "Your Title Here" test graphic in
+  NEW TEST (three Undo steps or delete it).
 
 ## 0.10.8 - A covered clip gets only what needs no frame check (found by testing in NEW TEST)
 Claude ran the open Premiere checks through the test bridge in NEW TEST.prproj (2026-11-08) and found one real problem.
