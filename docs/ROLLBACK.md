@@ -26,3 +26,4 @@ that each one can be switched off, reverted or have its data restored on its own
 | Feature | Switch off | Revert code | Data it adds (restore) |
 |---|---|---|---|
 | ReShape guard, baseline test, golden harness (dev only) | not part of the app | revert its commit | golden store outside the repo; delete it only if the baseline is no longer wanted |
+| Recognition benchmark (dev only) | not part of the app | revert its commit | `<app>/venv-bench` (delete to remove), private store `~/Kaloyan/02_RESOURCES/Asistent benchmark/` (references a person verified: keep) |

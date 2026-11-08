@@ -31,3 +31,10 @@ onset curve is shared with Quick Search (`tools/premiere-barzo/.../sync.js`, sam
 `tools/_vendor/wearenocode/youtube-edit/scripts/sync-tracks.py` (MIT), neither of which is imported.
 
 Later phases will add, after a license check at that time: faster-whisper (MIT).
+
+## Development only (never installed for editors)
+| Component | License | How it is used |
+|---|---|---|
+| jiwer 4.0.0 | Apache-2.0 | recognition benchmark scoring, in `<app>/venv-bench` (`requirements-bench.txt`) |
+| RapidFuzz 3.14.6 | MIT | jiwer's edit-distance backend, same venv |
+| click 8.5.1 | BSD-3-Clause | jiwer's dependency, same venv |

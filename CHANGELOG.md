@@ -19,6 +19,12 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   size, fill and stroke (not parameters); only position/scale/rotation/opacity and timing are writable. The optional
   "Native graphics" output is therefore not built; captions stay. The probe blanked the old "Your Title Here" test graphic in
   NEW TEST (three Undo steps or delete it).
+- **Bulgarian recognition benchmark (dev only, docs/BENCHMARK.md)**: `engine/asistent/bench` (normalization that keeps ъ, ь, й, ѝ
+  and hyphenated words; digits and numerals compared as spoken) and `scripts/bench_asr.py` (backends run with their own Python,
+  scoring with jiwer 4.0.0 in its own `<app>/venv-bench`): WER/CER raw and normalized, numbers, negations (also inserted ones),
+  names, dropped passages, word timing, word edits, time and peak memory. Private store with dev and held-out clips; scores only
+  against references a person verified. Starter set: three Masterhaus clips (143 s), drafts written, none verified yet, so no
+  accuracy numbers. Tests: 6 in any venv, 13 with jiwer.
 
 ## 0.10.8 - A covered clip gets only what needs no frame check (found by testing in NEW TEST)
 Claude ran the open Premiere checks through the test bridge in NEW TEST.prproj (2026-11-08) and found one real problem.

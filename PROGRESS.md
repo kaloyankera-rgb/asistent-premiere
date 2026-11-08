@@ -232,3 +232,4 @@
 - 2026-11-08: subtitle speed measured (int8 123 s, float32 148 s, mlx greedy 10 s but worse words): kept int8 beam 5; whisper.cpp Metal build blocked pending the user's permission.
 - 2026-11-08: improvements/2026-11 stage 0-1: protected backup (tag, bundle, worktree, app data, Adobe folders, model hashes; restore check green) and ReShape baseline (guard, 36-case byte-exact test, golden full-job check identical twice).
 - 2026-11-08: native-graphics probes in NEW TEST (26.0.2): ES Source Text write stores the string but the graphic draws nothing (650 -> 0 lit px, also two JSON forms); UXP reads null; style not exposed. Not built; docs/NATIVE_GRAPHICS.md.
+- 2026-11-08: benchmark: bench/normalize+metrics (jiwer 4.0.0 in venv-bench), bench_asr.py init/hyp/draft/score/agree; Masterhaus starter set (dev fx31028/31031, held-out fx31032), Classic 103.6/21.6/27.0 s, peak 6.6/4.3/4.8 GB; drafts await verification.
