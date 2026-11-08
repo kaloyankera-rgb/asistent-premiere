@@ -203,13 +203,17 @@ function exportReveal(id) {
   return call("POST", "/exports/reveal", { id });
 }
 
-// Captions tab review (engine review.py, listen.py): what to check per line; play a passage on this computer (stop: true stops)
+// Captions tab review (engine review.py): what to check per line; ▶ plays in Premiere's Program Monitor through the host (0.10.11)
 function review(json) {
   return call("POST", "/subtitles/review", { json });
 }
 
-function listen(json, at, end, stop = false) {
-  return call("POST", "/subtitles/listen", stop ? { stop: true } : { json, at, end });
+function playFrom(start) {
+  return call("POST", "/subtitles/play", { start });
+}
+
+function playStop(from, until) {
+  return call("POST", "/subtitles/play", { stop: true, from, until });
 }
 
 function log(level, message) {
@@ -217,4 +221,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, review, listen, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, review, playFrom, playStop, devPoll, devResult, job, cancel, log };

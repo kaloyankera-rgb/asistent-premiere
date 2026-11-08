@@ -624,8 +624,8 @@ function saveEnglishFixed(projectPath, map) {
   }
 }
 
-// Review helpers (2026-11 improvements, switchable in the Captions tab, on by default): a Play button per line (the passage
-// with 1.5 s around it, played on this computer, and Premiere's playhead moved there), the reasons to check a line under it
+// Review helpers (2026-11 improvements, switchable in the Captions tab, on by default): a Play button per line (Premiere plays
+// the line in the Program Monitor from 1.5 s before it and stops 1.5 s after it; 0.10.11), the reasons to check a line under it
 // (engine review.py: words or timing, what changed from what), and "Lines to check". They only read the run; the lines,
 // words and times are exactly what the subtitle job made.
 function reviewHelpersOn() {
@@ -636,20 +636,18 @@ function reviewHelpersOn() {
   }
 }
 
+// 0.10.11 (the user): the line plays in Premiere's Program Monitor, not in a second player beside it (that one was heard
+// twice when the timeline played too). The stop after the line leaves alone playback the editor started elsewhere.
+const PLAY_PAD = 1.5;
+let playStopTimer = null;
+
 async function playLine(c) {
-  const result = captionEdit.result;
-  if (!result || !result.json) return;
+  const from = Math.max(0, c.start - PLAY_PAD);
+  const until = c.end + PLAY_PAD;
+  clearTimeout(playStopTimer);
   try {
-    const project = await premiere.activeProject();
-    const seq = await project.getActiveSequence();
-    const ppro = require("premierepro");
-    if (seq) await premiere.maybe(seq, "setPlayerPosition", ppro.TickTime.createWithSeconds(c.start));
-  } catch (e) {
-    engine.log("info", `review: playhead not moved: ${e && e.message ? e.message : e}`);
-  }
-  try {
-    const r = await engine.listen(result.json, c.start, c.end);
-    toast(`Playing ${r.seconds.toFixed(1)} s around the line.`, true);
+    await engine.playFrom(from);
+    playStopTimer = setTimeout(() => { engine.playStop(from, until).catch(() => {}); }, (until - from) * 1000 + 400);
   } catch (e) {
     toast(e.message || String(e), false);
   }
@@ -698,7 +696,7 @@ function renderCaptionEditor(result) {
     input.addEventListener("input", () => { row.className = row.className.replace(" edited", "") + (input.value !== input.getAttribute("data-original") ? " edited" : ""); });
     captionEdit.inputs.push(input);
     row.appendChild(input);
-    if (helpers) row.appendChild(button("small play", "▶", "Play this line with 1.5 s before and after it, on this computer (the microphone the subtitles were made from), and move Premiere's playhead there.", () => playLine(c)));
+    if (helpers) row.appendChild(button("small play", "▶", "Play this line in the Program Monitor, from 1.5 s before it to 1.5 s after it.", () => playLine(c)));
     list.appendChild(row);
     if (c.en !== undefined) {                              // the English line under it, editable too
       const enRow = el("div", "capline en");
@@ -1554,7 +1552,6 @@ $("captionHelpers").addEventListener("change", () => {
   } catch (e) {
     /* no storage: on for this session */
   }
-  engine.listen(null, 0, 0, true).catch(() => {});
   if (captionEdit.result) renderCaptionEditor(captionEdit.result);
 });
 onTap($("captionClear"), () => {

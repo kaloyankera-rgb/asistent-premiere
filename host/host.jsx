@@ -1,7 +1,7 @@
 ﻿// Asistent host: the ExtendScript (ES3) side. main.js evaluates this file for every command and calls as_run(name, args).
 // Every function answers with a JSON string {ok, msg, ...}; nothing here throws out of as_run.
 
-var AS_HOST_VERSION = "0.10.6";
+var AS_HOST_VERSION = "0.10.11";
 
 function as_json(v) {
     if (v === null || v === undefined) return "null";
@@ -413,6 +413,34 @@ function as_audio_route(a) {
 }
 
 // test bridge only (the engine forwards it only with devbridge.enabled; refused outside TEST.prproj)
+// Captions tab ▶ (0.10.11, the user: play in the Program Monitor, not a second player beside it). QE's player is the only
+// script control of playback in 26.0.2 (probed in NEW TEST: player.play(1.0) ran 118.0 -> 120.05 s in 2 s, stop() stopped it;
+// qe.startPlayback() did nothing). The playhead goes to `start` (sequence seconds) and Premiere plays from there.
+function as_play(a) {
+    if (!app.project || !app.project.activeSequence) return as_result(false, "No active sequence.");
+    var start = Math.max(0, Number(a.start) || 0);
+    app.enableQE();
+    var player = qe.project.getActiveSequence().player;
+    if (player.isPlaying) player.stop();
+    app.project.activeSequence.setPlayerPosition(String(Math.round(start * 254016000000)));
+    player.play(1.0);
+    return as_result(true, "ok", { from: start });
+}
+
+// Stops the playback ▶ started, only while the playhead is still inside that passage: playback the editor started
+// elsewhere (or after moving the playhead) is left alone.
+function as_play_stop(a) {
+    if (!app.project || !app.project.activeSequence) return as_result(true, "no sequence");
+    app.enableQE();
+    var player = qe.project.getActiveSequence().player;
+    var at = app.project.activeSequence.getPlayerPosition().seconds;
+    if (player.isPlaying && at >= Number(a.from) - 0.1 && at <= Number(a.until) + 0.75) {
+        player.stop();
+        return as_result(true, "stopped", { at: at });
+    }
+    return as_result(true, "left alone", { at: at, playing: !!player.isPlaying });
+}
+
 function as_eval(a) {
     if (!app.project || !/^(NEW )?TEST\.prproj$/.test(String(app.project.name))) return as_result(false, "eval only in TEST.prproj or NEW TEST.prproj.");
     var out = eval(String(a.code));
@@ -427,6 +455,8 @@ function as_run(name, args) {
         if (name === "graphics") return as_graphics(args || {});
         if (name === "audio_route") return as_audio_route(args || {});
         if (name === "eval") return as_eval(args || {});
+        if (name === "play") return as_play(args || {});
+        if (name === "play_stop") return as_play_stop(args || {});
         return as_result(false, "Unknown command: " + name);
     } catch (e) {
         return as_result(false, "ExtendScript: " + e.toString() + (e.line ? " (line " + e.line + ")" : ""));
