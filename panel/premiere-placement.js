@@ -1,0 +1,153 @@
+// "Move off faces" in Premiere (2026-11 improvements, TODO R.5): the selected subtitle graphics (after the editor's right-click >
+// Upgrade Caption to Graphic) move to the client's height per shot, under the speaker's chin or above a low face, in one Undo
+// step. Only Motion > Position is written (a PointF, verified 2026-11-04); text, style and timing are never touched, a graphic
+// with Position keyframes or moved by hand is left alone. The rule itself is placementplan.js (pure, node-tested).
+const ppro = require("premierepro");
+const { transaction, maybe, readTimeline } = require("./premiere.js");
+const { exportFrames } = require("./premiere-color.js");
+const engine = require("./engine.js");
+const placementplan = require("./placementplan.js");
+
+// a parameter value as {x, y}: 26.0.2 hands Position back wrapped once or twice ({value: {value: [x, y]}})
+function point(v) {
+  let o = v;
+  for (let i = 0; i < 4 && o && !Array.isArray(o) && o.x === undefined; i++) o = o.value;
+  if (Array.isArray(o)) return { x: Number(o[0]), y: Number(o[1]) };
+  if (o && o.x !== undefined) return { x: Number(o.x), y: Number(o.y) };
+  return null;
+}
+
+function number(v) {
+  let o = v;
+  for (let i = 0; i < 4 && o !== null && typeof o === "object"; i++) o = o.value;
+  return typeof o === "number" ? o : null;
+}
+
+async function paramsOf(ti) {
+  const chain = await ti.getComponentChain();
+  const out = {};
+  for (let i = 0; i < (await chain.getComponentCount()); i++) {
+    const comp = await chain.getComponentAtIndex(i);
+    const match = (await maybe(comp, "getMatchName")) || "";
+    for (let j = 0; j < (await comp.getParamCount()); j++) {
+      const prm = await comp.getParam(j);
+      out[`${match}|${prm.displayName}`] = prm;
+    }
+  }
+  return out;
+}
+
+// the selected text graphics with their place: {id, ti, start, end, track, motion (param), motionX/Y, center, animated}
+async function selectedGraphics(timeline) {
+  const out = [];
+  for (const it of timeline.items) {
+    if (it.kind !== "video" || !it.selected || it.path) continue;
+    const ps = await paramsOf(it.ti);
+    if (!ps["AE.ADBE Text|Source Text"] || !ps["AE.ADBE Motion|Position"]) continue;          // not a text graphic
+    const motion = ps["AE.ADBE Motion|Position"];
+    const m = point(await motion.getStartValue());
+    const anchor = point(await maybe(ps["AE.ADBE Motion|Anchor Point"], "getStartValue")) || { x: 0.5, y: 0.5 };
+    const scale = number(await maybe(ps["AE.ADBE Motion|Scale"], "getStartValue")) || 100;
+    const text = point(await maybe(ps["AE.ADBE Text|Position"], "getStartValue")) || { x: 0.5, y: 0.5 };
+    const vector = point(await maybe(ps["AE.ADBE Graphic Group|Position"], "getStartValue")) || { x: 0.5, y: 0.5 };
+    if (!m) continue;
+    // where the text sits on screen: the layer's own offsets carried by Motion (Premiere does not tell a script the text's box;
+    // measured on the probe title: estimate 0.377, drawn centre 0.368 of the height)
+    const center = m.y + ((text.y - anchor.y) + (vector.y - 0.5)) * (scale / 100);
+    const animated = !!(await maybe(motion, "isTimeVarying"));
+    out.push({ id: out.length, ti: it.ti, name: it.name, start: it.start, end: it.end, track: it.track, motion,
+      motionX: m.x, motionY: m.y, center, animated });
+  }
+  return out;
+}
+
+// the shots under the graphics: for each line, the top visible clip with media at its middle; one shot per such clip
+function shotsUnder(timeline, graphics) {
+  const clips = timeline.items.filter((x) => x.kind === "video" && x.path && !x.unused);
+  const shots = [];
+  for (const g of graphics) {
+    const mid = (g.start + g.end) / 2;
+    const under = clips.filter((c) => c.start <= mid && mid < c.end).sort((a, b) => b.track - a.track)[0];
+    if (!under || shots.some((s) => s.track === under.track && s.start === under.start)) continue;
+    shots.push({ start: under.start, end: under.end, track: under.track, name: under.name });
+  }
+  return shots.sort((a, b) => a.start - b.start);
+}
+
+function writtenKey(seqKey) {
+  return `asistent.placed.${seqKey}`;
+}
+
+function loadWritten(seqKey) {
+  try {
+    return JSON.parse(localStorage.getItem(writtenKey(seqKey)) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveWritten(seqKey, map) {
+  try {
+    localStorage.setItem(writtenKey(seqKey), JSON.stringify(map));
+  } catch (e) {
+    /* no storage: next time only Premiere's default position counts as Asistent's */
+  }
+}
+
+const lineKey = (g) => `${g.track}|${g.start.toFixed(3)}|${g.end.toFixed(3)}`;
+
+// -> {moved, kept: [{name, why}], shots: [{why}], noGraphics}
+async function moveOffFaces(project, onProgress = () => {}) {
+  const timeline = await readTimeline(project);
+  const graphics = await selectedGraphics(timeline);
+  if (!graphics.length) return { noGraphics: true };
+  const seqKey = (await maybe(timeline.sequence, "guid")) || timeline.sequence.guid || timeline.sequence.name || "sequence";
+  const written = loadWritten(String(seqKey));
+  const kept = [];
+  const usable = graphics.filter((g) => {
+    const m = placementplan.movable(g, written[lineKey(g)]);
+    if (!m.ok) kept.push({ name: g.name, start: g.start, why: m.why });
+    return m.ok;
+  });
+  if (!usable.length) return { moved: 0, kept, shots: [] };
+
+  const shots = shotsUnder(timeline, usable);
+  const when = placementplan.moments(shots, usable);
+  const frames = [];
+  when.forEach((list, i) => list.forEach((seconds, k) => frames.push({ shot: i, name: `face_${i}_${k}.png`, seconds })));
+  onProgress(0.2, `Looking for faces in ${shots.length} shots…`);
+  const dir = (await engine.status()).frames_dir;
+  const paths = frames.length ? await exportFrames(timeline.sequence, frames, dir) : [];
+  const measured = paths.some(Boolean) ? (await engine.captionFaces(paths.filter(Boolean))).frames : [];
+  const facesPerShot = shots.map(() => []);
+  let m = 0;
+  paths.forEach((p, i) => {
+    if (!p) return;
+    const r = measured[m++];
+    if (r && r.faces) facesPerShot[frames[i].shot].push(r.faces);
+  });
+
+  onProgress(0.8, "Moving the lines…");
+  const placed = placementplan.plan(usable, shots, facesPerShot);
+  const byId = new Map(usable.map((g) => [g.id, g]));
+  const changes = placed.filter((p) => Math.abs(p.motionY - byId.get(p.id).motionY) >= 0.001);
+  if (changes.length) {
+    const ok = transaction(project, "Asistent: move subtitles off faces", (c) => {
+      for (const p of changes) {
+        const g = byId.get(p.id);
+        c.addAction(g.motion.createSetValueAction(g.motion.createKeyframe(new ppro.PointF(g.motionX, p.motionY)), true));
+      }
+    });
+    if (!ok) throw new Error("Premiere did not accept the move (nothing changed).");
+    for (const p of changes) {
+      const g = byId.get(p.id);
+      written[lineKey(g)] = { x: g.motionX, y: p.motionY };
+    }
+    saveWritten(String(seqKey), written);
+  }
+  const tops = shots.map((s, i) => placementplan.shotTop(facesPerShot[i]));
+  return { moved: changes.length, unchanged: placed.length - changes.length, kept, shots: tops,
+    pairs: placed.filter((p) => p.role === "en").length };
+}
+
+module.exports = { moveOffFaces, point, number };

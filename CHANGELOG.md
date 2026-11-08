@@ -30,6 +30,20 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.12 - Move off faces: subtitle graphics go to the client's height per shot (TODO R.5; not installed yet)
+- **Move off faces** (Subtitles card): after the editor's right-click > Upgrade Caption to Graphic, select the subtitle graphics
+  and press. Each line moves to the height the client's videos use (docs/SUBTITLE_STYLE.md, measured on 625 lines): one height per
+  shot, the Bulgarian line's top 0.11 under the speaker's chin, above the face when it is low, the middle with no face, never
+  above 0.16 or below 0.72 of the height; an English line (same times, the lower one) stays 0.035 under its Bulgarian line.
+- How: the shots are the top visible clips under the lines; up to 3 program frames per shot are exported and the engine finds
+  faces in them (YuNet, numbers only, frames deleted after: `framefaces.py`, `POST /captions/faces`); the rule is
+  `placementplan.js` (pure); only Motion > Position is written, all lines in one Undo step (`premiere-placement.js`).
+- Left alone: graphics with Position keyframes, and graphics the editor moved (Position no longer Premiere's default after the
+  upgrade nor the value Asistent wrote last time, remembered per sequence on this computer). Text, style and timing never change.
+- Limits: Premiere does not tell a script how tall a text graphic is (docs/NATIVE_GRAPHICS.md): the line height is a setting
+  (0.035) and the text's on-screen centre is estimated from the layer's offsets (0.009 off on the probe title).
+- Tests: 8 node (placement rule), 2 pytest (frames folder guard, fractions, deletion). Not yet pressed in Premiere.
+
 ## 0.10.11 - Captions tab ▶ plays in Premiere's Program Monitor (the user's review of 0.10.9)
 The user: ▶ played "in the background, not in the program viewer", and with the timeline playing it was heard twice.
 - ▶ now moves the playhead 1.5 s before the line and Premiere plays it in the Program Monitor, then stops 1.5 s after the line,

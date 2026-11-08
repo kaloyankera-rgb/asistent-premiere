@@ -15,6 +15,7 @@ const premiereCaptions = require("./premiere-captions.js");
 const { describeResult } = require("./subtitleplan.js");
 const { describePlacement } = require("./captionplan.js");
 const reviewplan = require("./reviewplan.js");
+const premierePlacement = require("./premiere-placement.js");
 const captionedit = require("./captionedit.js");
 const premiereRough = require("./premiere-roughcut.js");
 const roughcutplan = require("./roughcutplan.js");
@@ -866,6 +867,39 @@ async function onCaptionApply() {
   await onSubtitles({ again: true });
 }
 
+// Move off faces (2026-11 improvements, TODO R.5): see premiere-placement.js
+async function onMoveOffFaces() {
+  if (state.busy) return;
+  setBusy(true);
+  progress(0.05, "Reading the selected subtitle graphics…");
+  try {
+    const project = await premiere.activeProject();
+    const r = await premierePlacement.moveOffFaces(project, progress);
+    if (r.noGraphics) {
+      finish("Select the subtitle graphics first (after right-click > Upgrade Caption to Graphic on the captions).", false);
+      return;
+    }
+    const lines = [];
+    const why = {};
+    for (const s of r.shots || []) why[s.why] = (why[s.why] || 0) + 1;
+    if ((r.shots || []).length) lines.push({ cls: "", text: `Shots: ${Object.entries(why).map(([k, n]) => `${n} ${k}`).join(", ")}.` });
+    if (r.pairs) lines.push({ cls: "", text: `${r.pairs} English lines kept under their Bulgarian lines.` });
+    if (r.unchanged) lines.push({ cls: "muted", text: `${r.unchanged} lines were already in place.` });
+    if ((r.kept || []).length) {
+      const by = {};
+      for (const k of r.kept) by[k.why] = (by[k.why] || 0) + 1;
+      lines.push({ cls: "warn", text: `Left alone: ${Object.entries(by).map(([k, n]) => `${n} ${k}`).join(", ")}.` });
+    }
+    finish(r.moved ? `Moved ${r.moved} subtitle lines off faces. One Cmd/Ctrl+Z undoes it.` : "Nothing to move.", true,
+      lines.map((l) => el("div", l.cls, l.text)));
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `move off faces: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    setBusy(false);
+  }
+}
+
 async function onSubtitles(opts = {}) {
   if (state.busy) return;
   if (!state.online) {
@@ -1533,6 +1567,7 @@ onTap($("sync"), onSync);
 onTap($("audio"), () => onAudio(null));
 onTap($("subtitles"), () => onSubtitles());
 onTap($("captionApply"), onCaptionApply);
+onTap($("moveOffFaces"), onMoveOffFaces);
 function runSearch() {
   search.applied = $("captionSearch").value.trim().toLowerCase();
   filterCaptions();

@@ -48,6 +48,7 @@
     exportSettings: async () => engineState.exports,
     exportsRecent: async () => ({ items: engineState.exports.items || [] }),
     review: async () => engineState.review || { lines: [], summary: null },
+    captionFaces: async () => ({ frames: [] }),
     playFrom: async () => ({ ok: true }),
     playStop: async () => ({ ok: true }),
     devPoll: () => Promise.reject(new Error("bridge off in the preview")),
