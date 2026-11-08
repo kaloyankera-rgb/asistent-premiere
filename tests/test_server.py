@@ -293,3 +293,16 @@ def test_a_host_command_given_up_while_queued_never_runs_and_a_taken_one_is_logg
     d = b.submit("captions", {}, deadline=time.time() - 1)
     assert b.poll(0.05) is None                                   # past its deadline: dropped
     assert d
+
+
+def test_review_reads_an_asistent_run_and_refuses_other_files(engine, tmp_path):
+    folder = tmp_path / "Asistent_subtitles"
+    folder.mkdir()
+    run = {"captions": [{"start": 0.0, "end": 1.0, "text": "не е 5", "flags": []}], "words": [],
+           "review": [{"at": 0.2, "word": "не", "reason": "a word that is too short"}], "edits": {}}
+    (folder / "r.json").write_text(json.dumps(run, ensure_ascii=False), encoding="utf-8")
+    code, data = call("POST", "/subtitles/review", {"json": str(folder / "r.json")})
+    assert code == 200 and data["lines"][0][0]["why"] == "negation" and data["summary"]["lines_to_check"] == 1
+    assert call("POST", "/subtitles/review", {"json": str(tmp_path / "r.json")})[0] == 400
+    assert call("POST", "/subtitles/listen", {"json": str(tmp_path / "r.json"), "at": 0})[0] == 400
+    assert call("POST", "/subtitles/listen", {"stop": True}) == (200, {"ok": True})

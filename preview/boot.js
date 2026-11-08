@@ -47,6 +47,8 @@
     importStatus: async () => engineState.import,
     exportSettings: async () => engineState.exports,
     exportsRecent: async () => ({ items: engineState.exports.items || [] }),
+    review: async () => engineState.review || { lines: [], summary: null },
+    listen: async () => ({ seconds: 4.0 }),
     devPoll: () => Promise.reject(new Error("bridge off in the preview")),
   }, { get: (t, k) => (k in t ? t[k] : async () => ({})) });
 

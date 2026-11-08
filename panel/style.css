@@ -184,6 +184,11 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .capline.edited input { border-color: var(--accent); }
 /* the English line under its Bulgarian line (Captions tab, 0.9.94) */
 .capline.en { margin-top: 2px; }
+.capline .btn.play { margin: 0 0 0 4px; padding: 2px 6px; flex-shrink: 0; }
+.whys { margin: 2px 0 2px 44px; }
+.whys .why { font-size: 10px; line-height: 13px; color: var(--text-2); }
+.whys .why.meaning { color: var(--flag); }
+.whys .why.timing { color: var(--text-2-soft); }
 .capline.en .t { color: var(--text-2-soft); }
 .capline.en input { font-size: 11px; color: var(--text-2-soft); }
 

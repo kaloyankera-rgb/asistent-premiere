@@ -78,6 +78,21 @@ window.PREVIEW_SCENARIOS = (function () {
     color: { run: colorProposal },
     beforeafter: { run: (api) => { colorProposal(api); api.openTab("panePreview"); } },
     captions: { run: (api) => { api.renderCaptionEditor(captions); api.openTab("paneCaptions"); } },
+    review: {
+      engine: { review: {
+        lines: [
+          [],
+          [{ kind: "recognition", severity: 3, label: "changed by dictionary repair", word: "рафт", from: "раф", to: "рафт" },
+            { kind: "timing", severity: 1, label: "the aligner was unsure where this word is", word: "мога" }],
+          [{ kind: "recognition", severity: 3, label: "a word may be missing here", word: "" },
+            { kind: "recognition", severity: 2, label: "the recognition was unsure of this word", word: "нища" }],
+          [],
+          [{ kind: "recognition", severity: 3, label: "the recognition was unsure of this word", word: "Строй", why: "name" }],
+        ],
+        summary: { lines_to_check: 3, meaning: 3, timing: 1, recognition: 4, order: [1, 2, 4] },
+      } },
+      run: (api) => { api.renderCaptionEditor({ ...captions, json: "/p/Asistent_subtitles/a.json" }); api.openTab("paneCaptions"); },
+    },
     search: {
       run: (api) => {
         api.renderCaptionEditor(captions);

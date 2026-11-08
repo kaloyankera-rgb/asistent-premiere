@@ -26,6 +26,25 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   against references a person verified. Starter set: three Masterhaus clips (143 s), drafts written, none verified yet, so no
   accuracy numbers. Tests: 6 in any venv, 13 with jiwer.
 
+## 0.10.9 - Captions tab: reasons under the lines to check, Play with the sound around a line (branch improvements/2026-11)
+The user's implementation prompt, stage 4 (faster, clearer subtitle review). Not installed yet (each install needs the user's OK).
+- **Reasons under each line to check** (engine `review.py`, `POST /subtitles/review`; panel `reviewplan.js`): read from the run's own
+  JSON, nothing changed in it. Words (recognition) and Timing are separate kinds; what changed is shown with its original
+  („масна“ → „масона“, dictionary repair / learned fix / your correction / speaker form); numbers and prices, negations, names, a
+  word that may be missing, gender forms and endings that disagree come first. "Unsure" is what the recognition reported, never a
+  percentage; same-model readings are not called a confirmation. Weak alignment alone is shown but does not make a line one to
+  check (on 19 real runs it would have marked 14 of 17 lines).
+- **Lines to check**: shows only those lines; press again for all. The line under Apply says how many and of what kind.
+- **Play** (▶ on every line, `listen.py`, `POST /subtitles/listen`): plays the line with 1.5 s before and after, from the same
+  microphone piece the subtitles were made from, on this computer (afplay / winsound), and moves Premiere's playhead there
+  (`Sequence.setPlayerPosition`, present in 26.0.2). A new Play stops the previous one.
+- **Review helpers** checkbox (on by default, remembered on this computer): off shows the list as before (only the checkbox row is new).
+- Correction history: unchanged and kept: every run writes its own timestamped JSON with `verbatim` (Whisper's words, never
+  edited) and `edits`; Apply and rebuild re-aligns changed words as before. Partial reprocessing: not added (the rebuild reuses
+  the recognition cache and takes seconds).
+- The ReShape path is untouched: `reshape_guard` clean, golden full-job check identical, baseline test green.
+- Tests: 12 pytest (review, listen), 1 server test, 7 node tests; preview scenario `review` (240/300/420 px).
+
 ## 0.10.8 - A covered clip gets only what needs no frame check (found by testing in NEW TEST)
 Claude ran the open Premiere checks through the test bridge in NEW TEST.prproj (2026-11-08) and found one real problem.
 - **Colour on a clip under a visible layer applied an unchecked +2 stops.** fx31030 in the rough-cut sequence: on the timeline

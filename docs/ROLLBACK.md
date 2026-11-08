@@ -27,3 +27,4 @@ that each one can be switched off, reverted or have its data restored on its own
 |---|---|---|---|
 | ReShape guard, baseline test, golden harness (dev only) | not part of the app | revert its commit | golden store outside the repo; delete it only if the baseline is no longer wanted |
 | Recognition benchmark (dev only) | not part of the app | revert its commit | `<app>/venv-bench` (delete to remove), private store `~/Kaloyan/02_RESOURCES/Asistent benchmark/` (references a person verified: keep) |
+| Captions review helpers (0.10.9) | Captions tab > uncheck Review helpers (remembered; the list is as before) | revert the 0.10.9 commit (review.py, listen.py, reviewplan.js, the two endpoints, the Captions tab additions) | none: it only reads the run's JSON; `<app>/cache/listen/passage.wav` is a scratch file |
