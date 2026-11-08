@@ -30,6 +30,21 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.10 - Updates leave exactly one panel version, so Premiere runs the new one (found while testing 0.10.9)
+- **Premiere kept running an old panel after every update since 0.10.6.** Adobe's installer, asked to install over the old
+  panel, kept the older copies enabled beside the new one (this Mac: 0.10.7, 0.10.8 and 0.10.9 all "enabled", some twice), and
+  Premiere loads the first one listed: after a restart it ran 0.10.7, so 0.10.7 and 0.10.8 never ran here. Now, when Adobe lists
+  anything but the new version, every copy is removed and the new one installed again (one retry; the message says to
+  double-click the .ccx if that fails). The path given to Adobe is absolute: a relative one failed with status -160.
+  Checked on this Mac: after the 0.10.10 install Adobe lists only 0.10.10 (0.10.9, still open in Premiere, is "uninstalling").
+  Other computers get the fix with this update; their older copies are removed by it.
+- **0.10.9 checked in NEW TEST** (Subtitles on fx31031 in "SYNC – кам2", 17 lines, own earlier pair replaced): the review loaded
+  (17 ▶ buttons, Lines to check shown; 12 lines to check, both „500 млн.“ lines first as number doubts, the dictionary repairs
+  „водяло → видяло“ and „пусока → посока“ shown with their originals); Lines to check switched to "All lines"; ▶ moved the
+  playhead from 2:10.4 to the line's 1:59.3 and played the passage (afplay). Through the test bridge; the user's own listen and
+  Review helpers off still to try.
+- Tests: 5 new (fake Adobe installer), 637 pytest + 173 node pass.
+
 ## 0.10.9 - Captions tab: reasons under the lines to check, Play with the sound around a line (branch improvements/2026-11)
 The user's implementation prompt, stage 4 (faster, clearer subtitle review). Not installed yet (each install needs the user's OK).
 - **Reasons under each line to check** (engine `review.py`, `POST /subtitles/review`; panel `reviewplan.js`): read from the run's own

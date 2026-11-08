@@ -3,6 +3,9 @@
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
 ## Open bugs
+- **Fixed in 0.10.10:** after an update Premiere kept running an old panel (Adobe kept older copies enabled; Premiere loads the first).
+- **Open (seen 2026-11-08 after a Premiere restart):** the test bridge's `select` set no selection in NEW TEST (0 selected,
+  no error); the user selected by hand. Worked in earlier sessions; look at it before the next bridge-driven test.
 
 - **Fixed in 0.10.8: a covered clip measured on its file got a medium-confidence +2 stops with no frame check.** Open: the file
   and the timeline give different answers for the same clip (exposure by different anchors, Temperature 24.3 vs 18): see TODO.
