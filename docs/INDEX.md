@@ -17,6 +17,7 @@ Read in this order when continuing the project (the first four are the whole han
 | 9a | [BULGARIAN_TRANSCRIPTION_GUIDE.md](BULGARIAN_TRANSCRIPTION_GUIDE.md) | **Read before touching the subtitle pipeline.** Linguistic and engineering rules for Bulgarian speech-to-text (gender forms, verb forms, numbers, punctuation, alignment, grouping) and the documented SRT errors used as regression tests. |
 | 9c | [ROLLBACK.md](ROLLBACK.md) | The protected backup of 2026-11-08, the ReShape guard/baseline/golden checks, and per feature how to switch off, revert and restore. |
 | 9d | [NATIVE_GRAPHICS.md](NATIVE_GRAPHICS.md) | What Premiere 26.0.2 lets a script do with native text graphics (probed 2026-11-08): no text or style write; the manual steps. |
+| 9e | [BENCHMARK.md](BENCHMARK.md) | Bulgarian recognition benchmark: what is measured, the private reference sets, how to verify a reference, results. |
 | 10 | [../LICENSES.md](../LICENSES.md) | Licences of dependencies and the bundled face model. |
 | 11 | [dev-workflow/DEV_WORKFLOW.md](dev-workflow/DEV_WORKFLOW.md) | Which model/agent does what; snapshot of the four agent definitions in [dev-workflow/agents/](dev-workflow/agents/). |
 

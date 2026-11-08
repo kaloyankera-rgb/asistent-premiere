@@ -1,0 +1,8 @@
+# Development only: the Bulgarian recognition benchmark (engine/asistent/bench, scripts/bench_asr.py). Installed into its
+# own venv, <app>/venv-bench, never into the app's venv:
+#   /opt/homebrew/bin/python3.12 -m venv "<app>/venv-bench" && "<app>/venv-bench/bin/pip" install -r requirements-bench.txt
+# jiwer Apache-2.0, RapidFuzz MIT, click BSD-3-Clause.
+jiwer==4.0.0
+RapidFuzz==3.14.6
+click==8.5.1
+pytest==9.2.0
