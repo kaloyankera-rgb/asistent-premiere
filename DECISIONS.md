@@ -289,6 +289,12 @@ confidence is applied too (the user chose no approval step at all); it is said p
 reference camera buttons now re-match at once.
 
 
+## 2026-11-08: subtitle recognition stays on the CPU in int8 with beam 5
+The user wants whichever is faster and more accurate. Measured on the same 143 s: float32 is slower and not better; the Apple GPU
+through mlx-whisper is 12x faster but has no beam search and misreads clearly more (it turned the product word „гелче“ into
+„дядче“ and invented lines). Speed is not bought with words, so int8 beam 5 stays. A GPU backend with beam search (whisper.cpp
+Metal) is the one candidate left that could be both; measure it the same way before any change.
+
 ## 2026-11-08: Show exports watches the office's export tree, through file events only (0.10.7)
 The user: exports were not shown, or up to ~30 s late. Premiere names the Export tab's folder only when it rewrites its
 preferences, sometimes after the export, so a new plan folder was always late. Premiere's UXP export events exist but did not
