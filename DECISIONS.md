@@ -1,5 +1,13 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-08: no native-graphics subtitle output in Premiere 26.0.2 (probed again)
+The user asked for an optional output as native, editable text graphics styled from a client profile (no MOGRT). New probes
+on the same Premiere 26.0.2 (docs/NATIVE_GRAPHICS.md): ExtendScript can store a string in Source Text, but the graphic then draws
+nothing; the real text document is binary and unreadable to scripts (cut at the first zero byte), font/size/fill/stroke are not
+parameters, UXP reads Source Text as null. So no script can put words into a native graphic or style one; only transform values
+and timing are writable. The output mode is not built and MOGRTs are not substituted; captions + the client's Track Style + the
+editor's one Upgrade click stay. Probe again after a Premiere update.
+
 ## Audit of 0.10.1 (2026-11-08, 0.10.6)
 - **When ownership cannot be proven, the editor's work wins.** Caption pairs need every line's time (records from older
   versions are never trusted for removal), a Lumetri is untouched only when its whole snapshot equals the one Asistent learnt

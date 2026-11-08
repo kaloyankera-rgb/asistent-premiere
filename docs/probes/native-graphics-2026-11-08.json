@@ -1,0 +1,21 @@
+{
+ "premiere": "26.0.2",
+ "project": "NEW TEST.prproj (test project), sequence \"SYNC – кам2\", V1 clip \"Graphic\" 390.09-394.99 s: a default \"Your Title Here\" text graphic left from the 2026-11-04 probes, black background (no footage under it)",
+ "P2_extendscript_components": {
+  "Opacity (AE.ADBE Opacity)": ["Opacity number", "Blend Mode number x2"],
+  "Motion (AE.ADBE Motion)": ["Position [0.5,0.35]", "Scale", "Scale Width", "Uniform Scale", "Rotation", "Anchor Point", "Anti-flicker", "Crop L/T/R/B"],
+  "Vector Motion (AE.ADBE Graphic Group)": ["Position", "Scale", "Scale Width", "Uniform Scale", "Rotation", "Anchor Point"],
+  "Text (AE.ADBE Text)": ["Source Text: string len=1, char code 380 (binary document cut at the first zero byte)", "Transform", "Position [0.5,0.527]", "Scale 112.5", "Horizontal Scale", "Uniform Scale", "Rotation", "Opacity", "Anchor Point", "unnamed booleans/numbers", "start", "end", "Left/Top/Right/Bottom", "Parent Width/Height/Rotation"],
+  "not exposed as parameters": ["font", "font size", "fill colour", "stroke", "shadow", "background box", "alignment", "tracking/leading"]
+ },
+ "P3_uxp_source_text": {"getStartValue": null, "getValue": "not a function", "methods": ["areKeyframesSupported", "createAddKeyframeAction", "createKeyframe", "createRemoveKeyframeAction", "createRemoveKeyframeRangeAction", "createSetInterpolationAtKeyframeAction", "createSetTimeVaryingAction", "createSetValueAction", "displayName", "findNearestKeyframe", "findNextKeyframe", "findPreviousKeyframe", "getKeyframeListAsTickTimes", "getKeyframePtr", "getStartValue", "getValueAtTime", "isTimeVarying"], "write_2026_11_04": "createKeyframe(string) + createSetValueAction: did not write the text (CHANGELOG 0.9.80-0.9.84)"},
+ "P1_extendscript_write": {
+  "frame_before": {"lit_pixels": 650, "bbox_270x480": [92, 170, 177, 183], "text_seen": "Your Title Here", "two exports identical": true},
+  "setValue(\"ASISTENT PROBE\", true)": {"returned": true, "getValue_after": "the plain 14-character string", "frame_lit_pixels": 0},
+  "setValue('{\"mTextEditValue\":\"ASISTENT PROBE\"}', true)": {"returned": true, "frame_lit_pixels": 0},
+  "setValue('{\"textEditValue\":...,\"mText\":...}', true)": {"returned": true, "frame_lit_pixels": 0},
+  "conclusion": "ExtendScript stores any string in Source Text, but the graphic then draws nothing: the renderer needs Premiere's binary text document, which ExtendScript cannot read (cut at the first zero byte) and so cannot copy or edit"
+ },
+ "P4_reuse": {"extendscript projectItem of a graphic": null, "uxp SequenceEditor": ["createAddItemAction", "createAddItemsAction", "createCloneTrackItemAction", "createInsertProjectItemAction", "createOverwriteItemAction", "createRemoveItemsAction", "insertMogrtFromLibrary", "insertMogrtFromPath"], "clone_tried": false, "why_not": "a clone keeps the source text and the text cannot be written, so cloning cannot produce subtitle lines; MOGRT calls are excluded by the user"},
+ "other_api_seen": {"Sequence.setPlayerPosition": "exists (UXP)", "VideoClipTrackItem.createSetNameAction": "exists (UXP)", "VideoTrack (UXP)": "name readable, no rename method", "Track (ExtendScript)": "properties clips,id,mediaType,name,transitions (name writability not probed yet)", "CaptionTrack (UXP)": "getIndex, getTrackItems, name, isMuted, setMute: no style or text write", "TextSegments (UXP)": "static importFromJSON / exportToJSON only (transcript, not caption style)"}
+}
