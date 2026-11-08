@@ -510,6 +510,20 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       if (a.clear) exportProbe.events.length = 0;
       return { events: out };
     },
+    // export the active sequence of the test project to a.out with preset a.preset through EncoderManager (0.10.7: does
+    // Premiere's export-complete event reach the panel, and what does it carry). Writes only the one file it is given.
+    async export_try(a) {
+      if (!a.out || !a.preset) throw new Error("out and preset are needed");
+      const ppro = require("premierepro");
+      const { p } = await project();
+      const seq = await p.getActiveSequence();
+      const manager = await ppro.EncoderManager.getManager();
+      const types = (ppro.Constants && ppro.Constants.ExportType) || ppro.ExportType || null;
+      const type = types ? (types.IMMEDIATELY !== undefined ? types.IMMEDIATELY : types.Immediately) : undefined;
+      const started = Date.now();
+      const ok = await manager.exportSequence(seq, type, a.out, a.preset);
+      return { ok, type, types: types ? Object.keys(types) : null, ms: Date.now() - started };
+    },
     // method names of an object, to find what this Premiere offers
     async api(a) {
       const { p } = await project();

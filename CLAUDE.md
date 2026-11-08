@@ -17,7 +17,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
     shared helpers (`transaction`, `has`, `maybe`, `ensureBin`, `readTimeline`, `readItems`)
   - `premiere-audio.js` Fill L/R, split copy, Volume level/keyframes · `channels.js` effect-chain routing
   - `captionedit.js` (what a typed caption correction becomes: correction lines for the engine) · `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
-  - `cssprobe.js` which CSS this UXP really supports (measured, run by the bridge's `css_probe`) · `devbridge.js` test bridge executor · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
+  - `cssprobe.js` which CSS this UXP really supports (measured, run by the bridge's `css_probe`) · `devbridge.js` test bridge executor · `exportevents.js` Premiere's export events → the engine (0.10.7) · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
 - **Asistent host** `host/` (since 0.9.45): an invisible CEP extension (`CSXS/manifest.xml`, `main.js`, `host.jsx`) installed by
   `engine/asistent/install.py` (called by `setup_mac.sh` / `setup_win.ps1`, so by `release_mac.sh` and by updates). It long-polls `GET /host/poll` and runs ExtendScript inside Premiere,
   `createCaptionTrack` (the subtitles' caption track), `as_graphics` (subtitle lines as After Effects template graphics,
@@ -77,9 +77,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   `scripts/release_mac.sh` (packs `.ccx`, removes + installs it with Adobe's UnifiedPluginInstallerAgent
   without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
-  (575 tests at 0.10.6; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
+  (573 pass + 23 skipped at 0.10.7; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
   some tests write into the real app folder, so run them with `HOME` pointed at a scratch folder holding a copy of `models/lexicon`) and
-  `node --test tests/*.test.js` (161 tests);
+  `node --test tests/*.test.js` (166 tests);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Fix audio never splits a clip that carries effects or keyframes: overwriteClip drops them (measured 2026-11-08, DECISIONS).
 - Premiere tests only in the user's test projects `TEST.prproj` or `NEW TEST.prproj` (Ludi Glavi/Projects; the user's choice

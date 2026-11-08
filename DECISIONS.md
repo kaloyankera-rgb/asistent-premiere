@@ -289,6 +289,16 @@ confidence is applied too (the user chose no approval step at all); it is said p
 reference camera buttons now re-match at once.
 
 
+## 2026-11-08: Show exports watches the office's export tree, through file events only (0.10.7)
+The user: exports were not shown, or up to ~30 s late. Premiere names the Export tab's folder only when it rewrites its
+preferences, sometimes after the export, so a new plan folder was always late. Premiere's UXP export events exist but did not
+fire for an ExtendScript export, so they cannot be relied on. The office always exports into Exported Videos/<client>/<plan>, so
+a folder whose children held exports of 3 different clients is watched as a whole, counting only video files exactly two levels
+deep (a compressed copy in a subfolder and sound files never count). It is never scanned: on the Mac, file events report only
+this computer's writes, so a colleague's export on the shared drive cannot open Finder here; Windows gets no tree for that reason.
+Rejected: scanning the whole tree (colleagues' exports), watching the whole Production drive (raw footage copied in would count),
+asking the editor to add every plan folder.
+
 ## 2026-11-05: Show exports no longer watches the project's folder (0.10.5)
 The user's answer of 2026-11-04 was to watch the project's folder automatically. In use it showed sound effects downloaded into
 Assets as exports, and the office exports into Exported Videos, which Premiere's preferences name; so only that folder and the

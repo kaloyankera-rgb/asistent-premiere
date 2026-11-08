@@ -17,6 +17,7 @@ const { describePlacement } = require("./captionplan.js");
 const captionedit = require("./captionedit.js");
 const premiereRough = require("./premiere-roughcut.js");
 const roughcutplan = require("./roughcutplan.js");
+const exportEvents = require("./exportevents.js");
 
 const $ = (id) => document.getElementById(id);
 const state = { online: false, busy: false, jobId: null, settleUntil: 0 };
@@ -1378,9 +1379,13 @@ function renderExports(st) {
   const premiereFolder = folders.find((f) => f.why === "premiere");
   const extra = folders.filter((f) => f.why === "added" || f.why === "learned").length;
   const where = premiereFolder ? `“${premiereFolder.path.split(/[\\/]/).pop()}” (Premiere's export folder)` : null;
+  const tree = folders.find((f) => f.why === "tree");
+  const treeText = tree ? ` New folders inside “${tree.path.split(/[\\/]/).pop()}” count too.` : "";
   $("exportsStatus").textContent = !st.enabled ? `Off. When on, a finished export is shown in ${exp.app}.`
     : where || extra ? `On: a finished export in ${where || ""}${where && extra ? " or " : ""}${extra ? `${extra} added ${extra === 1 ? "folder" : "folders"}` : ""} is shown in ${exp.app}.`
-      : `On: export once from the Export tab (or add a folder) and Asistent knows where to look.`;
+      : tree ? `On: a finished export in a new folder inside “${tree.path.split(/[\\/]/).pop()}” is shown in ${exp.app}.`
+        : `On: export once from the Export tab (or add a folder) and Asistent knows where to look.`;
+  if (treeText && (where || extra)) $("exportsStatus").textContent += treeText;
 }
 
 function renderExportList(items) {
@@ -1438,6 +1443,18 @@ async function exportsChange(change) {
     finish(e.message || String(e), false);
   }
 }
+
+// Premiere says an export ended (0.10.7): the engine looks at once instead of waiting for Premiere's preferences. Several
+// events may fire for one export; one call a second is enough when none carries a path.
+let lastExportEvent = 0;
+exportEvents.listen(require("premierepro"), (kind, path, name, fields) => {
+  engine.log("info", `exports: Premiere event ${name} ${kind}${path ? ` ${path}` : ""} ${JSON.stringify(fields).slice(0, 800)}`);
+  const now = Date.now();
+  if (!path && now - lastExportEvent < 1000) return;
+  lastExportEvent = now;
+  engine.exportDone(path, kind, `panel:${name}`).catch(() => {});
+}, (msg) => engine.log("info", msg)).then((attached) => engine.log("info", `exports: listening to ${attached.join(", ") || "no export events"}`))
+  .catch(() => {});
 
 onTap($("exportsToggle"), () => exportsChange({ enabled: !exp.enabled }));
 onTap($("exportsFolder"), async () => {

@@ -50,6 +50,16 @@ SCAN_DEPTH = 2            # ... in the folder and two levels below it
 MAX_TRIES = 10            # FFprobe cannot read it after this many settled checks: damaged or cancelled, never shown
 RECENT = 20
 LATER = 10.0              # a named file older than Premiere's preferences: this long to see whether it is being replaced
+# 0.10.7: Premiere's export-complete event (the panel hears it) says an export ENDED just now. Its file was written within
+# FRESH seconds before the event; the preferences may name it only a little later, so they are read again for HINT seconds.
+FRESH = 60.0
+HINT = 30.0
+# 0.10.7: the office exports into <tree>/<client>/<plan>/. A folder that held exports of ROOT_CHILDREN different clients is
+# such a tree: it is watched as a whole, so an export into a new plan folder is seen at once instead of when Premiere gets
+# round to rewriting its preferences (up to ~30 s, the user 2026-11-08). Only video files exactly <client>/<plan> deep count.
+# Mac only, and only through file events, never scanned: FSEvents reports only what THIS Mac writes, so a colleague's export
+# on the shared drive is never shown. Windows' share notifications include other computers' writes, so no trees there.
+ROOT_CHILDREN = 3
 IGNORED = ("adobe premiere pro video previews", "adobe premiere pro audio previews", "adobe premiere pro auto-save",
            "media cache files", "media cache", "adobe premiere pro captured audio", "analysis files")
 
@@ -174,7 +184,7 @@ class Settings:
     def __init__(self, path: str | None = None):
         self.path = path or os.path.join(config.app_dir(), "exports.json")
         self.lock = threading.RLock()
-        self.data = {"enabled": False, "project": "", "projects": {}, "recent": []}
+        self.data = {"enabled": False, "project": "", "projects": {}, "recent": [], "roots": []}
         if os.path.isfile(self.path):
             try:
                 with open(self.path, encoding="utf-8") as f:
@@ -236,6 +246,34 @@ class Settings:
     def item(self, item_id: str) -> dict | None:
         return next((i for i in self.data["recent"] if i["id"] == item_id), None)
 
+    def learn_roots(self, extra: list[str] = ()) -> bool:
+        """Export trees from the folders exports were seen in (the recent list and Premiere's export folder): a folder
+        whose children held exports of ROOT_CHILDREN different clients. Kept once learned (the recent list is short)."""
+        if sys.platform == "win32":
+            return False
+        kids: dict[str, set] = {}
+        for folder in [i.get("folder") or "" for i in self.data["recent"]] + list(extra):
+            folder = os.path.normpath(folder) if folder else ""
+            root = os.path.dirname(os.path.dirname(folder))
+            # never a whole drive (raw footage copied into Production/<client>/<plan> would count) or the home folder
+            if not folder or root == os.path.dirname(root) or os.path.ismount(root) or \
+                    same(root) == same(os.path.expanduser("~")):
+                continue
+            kids.setdefault(root, set()).add(same(os.path.basename(os.path.dirname(folder))))
+        with self.lock:
+            roots = self.data.setdefault("roots", [])
+            new = [r for r, k in kids.items() if len(k) >= ROOT_CHILDREN and r not in roots]
+            if new:
+                roots.extend(new)
+                self.save()
+                log.info("exports: export tree learned: %s", ", ".join(new))
+            return bool(new)
+
+    def roots(self) -> list[dict]:
+        if sys.platform == "win32":
+            return []
+        return [{"path": r, "why": "tree"} for r in self.data.get("roots", []) if os.path.isdir(r)]
+
 
 class ExportWatcher:
     def __init__(self, settings: Settings, show=reveal.reveal, premiere: PremierePrefs | None = None):
@@ -249,11 +287,14 @@ class ExportWatcher:
         self.confirmed: set[str] = set()            # paths an export event named
         self.since: dict[str, float] = {}           # folder -> when watching it started
         self.flat: set[str] = set()                 # folders watched without their subfolders (Premiere's export folder)
+        self.trees: set[str] = set()                # export trees: <tree>/<client>/<plan>/file, file events only
         self.known: set[str] = set()                # path|size|mtime already counted
         self.batch: list[dict] = []                 # finished, not shown yet
         self.last_done = 0.0
         self.last_scan = 0.0
         self.later: dict[str, tuple[float, float]] = {}   # path -> (its mtime when the preferences named it, when to decide)
+        self.hint_at = 0.0                          # when Premiere last said an export ended (0: never)
+        self.last_follow = 0.0
         self.lock = threading.RLock()
         self.observer = None
         self.watched: dict[str, object] = {}
@@ -281,7 +322,7 @@ class ExportWatcher:
     def folders(self) -> list[dict]:
         """Premiere's export folder first, then the project's, added and learned ones; each folder once."""
         out, seen = [], set()
-        for f in self.premiere.folders() + self.settings.folders():
+        for f in self.premiere.folders() + self.settings.folders() + self.settings.roots():
             if f["path"] not in seen:
                 seen.add(f["path"])
                 out.append(f)
@@ -297,24 +338,31 @@ class ExportWatcher:
 
     # -- watching
     def refresh(self):
-        """Start, stop or re-aim the watching to follow the settings."""
+        """Start, stop or re-aim the watching to follow the settings and the folders that exist now. While the setting is
+        on the checker keeps running even with no folder to watch: the office drive is mounted after the engine starts at
+        login (0.10.7: nothing was watched until the editor switched projects), and it comes and goes with sleep."""
         with self.lock:
-            if self.settings.data["enabled"] and self.observer is None:
-                self.started = time.time()
-                self.premiere.read()                       # the export folder before the first export
-            folders = self.folders() if self.settings.data["enabled"] else []
-            want = {f["path"] for f in folders}
-            flat = {f["path"] for f in folders if f["why"] == "premiere"}
-            if not want:
+            if not self.settings.data["enabled"]:
                 self._halt()
                 return
             if self.observer is None:
+                self.started = time.time()
+                self.premiere.read()                       # the export folder before the first export
                 self._begin()
+            self.settings.learn_roots(self.premiere.state["folders"])
+            folders = self.folders()
+            want = {f["path"] for f in folders}
+            flat = {f["path"] for f in folders if f["why"] == "premiere"}
+            self.trees = {f["path"] for f in folders if f["why"] == "tree"}
+            before = set(self.watched)
             for f in list(self.watched):
                 if f not in want or (f in flat) != (f in self.flat):
                     w = self.watched.pop(f)
                     if w is not None:
-                        self.observer.unschedule(w)
+                        try:
+                            self.observer.unschedule(w)
+                        except Exception:                  # its drive is gone: the stream is gone with it
+                            pass
                     self.since.pop(f, None)
             self.flat = flat
             for f in want - set(self.watched):
@@ -324,7 +372,17 @@ class ExportWatcher:
                 except OSError:
                     log.warning("exports: cannot watch %s, only looking every %.0f s", f, SCAN_EVERY)
                     self.watched[f] = None
-            log.info("exports: watching %s", ", ".join(sorted(self.watched)))
+            if set(self.watched) != before or not before:
+                log.info("exports: watching %s", ", ".join(sorted(self.watched)) or "nothing yet (no export folder found)")
+
+    def follow(self, now: float | None = None):
+        """Every SCAN_EVERY: a folder appeared (a drive mounted) or went away: watch what exists now."""
+        now = now or time.time()
+        if now - self.last_follow < SCAN_EVERY:
+            return
+        self.last_follow = now
+        if {f["path"] for f in self.folders()} != set(self.watched):
+            self.refresh()
 
     def _begin(self):
         from watchdog.observers import Observer
@@ -342,11 +400,13 @@ class ExportWatcher:
         self.watched.clear()
         self.since.clear()
         self.flat = set()
+        self.trees = set()
         self.settle = Settle(stable=STABLE)
         self.batch.clear()
         self.retry.clear()
         self.confirmed.clear()
         self.later.clear()
+        self.hint_at = 0.0
 
     def _handler(self):
         from watchdog.events import FileSystemEventHandler
@@ -361,19 +421,30 @@ class ExportWatcher:
         return Handler()
 
     def touch(self, path: str, moved: bool = False):
+        if path in self.retry:                            # already waiting for a direct check (an event named it)
+            return
         if not ignored(path) and self._folder(path):
             self.settle.touch(path, moved)
 
     def _folder(self, path: str) -> str | None:
         best = None
         for f in list(self.since):
-            if (same(os.path.dirname(path)) == same(f) if f in self.flat else inside(path, f)) and (best is None or len(f) > len(best)):
+            if f in self.flat:
+                ok = same(os.path.dirname(path)) == same(f)
+            elif f in self.trees:
+                ok = same(os.path.dirname(os.path.dirname(os.path.dirname(path)))) == same(f) and \
+                    os.path.splitext(path)[1].lower() in VIDEO
+            else:
+                ok = inside(path, f)
+            if ok and (best is None or len(f) > len(best)):
                 best = f
         return best
 
     def scan(self):
         """Files the file events missed (network drives): new ones near the top of each watched folder."""
         for folder, since in list(self.since.items()):
+            if folder in self.trees:                      # file events only: a scan would see a colleague's export
+                continue
             deepest = 0 if folder in self.flat else SCAN_DEPTH
             stack = [(folder, 0)]
             while stack:
@@ -397,7 +468,7 @@ class ExportWatcher:
     # -- finishing
     def check(self, now: float | None = None):
         now = now or time.time()
-        if now - self.last_scan >= SCAN_EVERY:
+        if now - self.last_scan >= (0.5 if self._hinted(now) else SCAN_EVERY):
             self.last_scan = now
             self.from_prefs(now)
             self.scan()
@@ -424,32 +495,55 @@ class ExportWatcher:
         was written after watching started (an export into a folder nobody watched yet)."""
         if not self.settings.data["enabled"]:
             return
+        now = now or time.time()
+        hinted = self._hinted(now)
+        if hinted:
+            self.premiere.stamp = None                            # read them again even if their time did not change
         state, changed = self.premiere.read()
-        if not changed:
+        if not changed and not hinted:
             return
         if {f["path"] for f in self.folders()} != set(self.since):
             self.refresh()
         path = state["file"]
         written = (self.premiere.stamp or (None, 0))[1]           # when Premiere wrote them
         try:
-            mtime = os.stat(path).st_mtime if path and not ignored(path) else None
+            st = os.stat(path) if path and not ignored(path) else None
         except OSError:
-            mtime = None                                          # not written yet: the watched folder will see it
-        if mtime is None or mtime < self.started - 1:
+            st = None                                             # not written yet: the watched folder will see it
+        mtime = st.st_mtime if st else None
+        if mtime is None or mtime < self.started - 1 or path in self.confirmed or \
+                f"{path}|{st.st_size}|{int(mtime)}" in self.known:
             return
-        if mtime >= written - 1:
-            self._named(path)
-        else:
-            self.later[path] = (mtime, (now or time.time()) + LATER)
+        if mtime >= written - 1 or self._fresh(mtime, now):
+            self.later.pop(path, None)
+            self._named(path, now)
+        elif changed:
+            self.later[path] = (mtime, now + LATER)
 
-    def _named(self, path: str):
+    def _hinted(self, now: float) -> bool:
+        return bool(self.hint_at) and now - self.hint_at < HINT
+
+    def _fresh(self, mtime: float, now: float) -> bool:
+        """Written just before Premiere said an export ended: it is that export, whatever the preferences' time says."""
+        return self._hinted(now) and mtime >= self.hint_at - FRESH
+
+    def _named(self, path: str, now: float | None = None):
         log.info("exports: Premiere's preferences name %s", os.path.basename(path))
         self.confirmed.add(path)
-        self.settle.touch(path)
+        now = now or time.time()
+        try:
+            fresh = self._fresh(os.stat(path).st_mtime, now)
+        except OSError:
+            fresh = False
+        if fresh:                                         # the export has ended: check it now, no settling wait
+            self.settle.drop(path)
+            self.retry[path] = now
+        else:
+            self.settle.touch(path)
 
     def _decide_later(self, now: float):
         for path, (mtime, due) in list(self.later.items()):
-            if now < due:
+            if now < due and not self._fresh(mtime, now):
                 continue
             del self.later[path]
             try:
@@ -457,7 +551,7 @@ class ExportWatcher:
             except OSError:
                 same = False
             if same:                                              # not replaced: an export that ended before the preferences
-                self._named(path)
+                self._named(path, now)
 
     def _finished(self, path: str, st: os.stat_result, now: float):
         key = f"{path}|{st.st_size}|{int(st.st_mtime)}"
@@ -484,7 +578,8 @@ class ExportWatcher:
         self.batch.append({"id": uuid.uuid4().hex[:12], "path": path, "name": os.path.basename(path),
                            "folder": os.path.dirname(path), "at": now, "how": how, "shown": False,
                            "project": self.settings.data["project"]})
-        self.last_done = now
+        # Premiere said this export ended: show it now (QUIET only waits for the rest of a queue, and busy() still does)
+        self.last_done = now - QUIET if how == "event" and self._hinted(now) else now
         log.info("exports: finished %s (%s)", os.path.basename(path), how)
 
     def busy(self, now: float) -> bool:
@@ -507,23 +602,37 @@ class ExportWatcher:
             last["note"] = f"could not be shown: {e}"
             log.warning("exports: reveal %s failed: %s", last["path"], e)
         self.settings.remember(last)
+        if self.settings.learn_roots():
+            self.refresh()
 
     def done(self, path: str | None = None, kind: str = "complete", source: str = "") -> dict:
-        """An export event from the panel or the host. With a path, that file is checked like any other (it must exist
-        and be finished) and its folder is learned for the project; without one the watcher finds the file."""
+        """An export event from the panel or the host: Premiere says an export ended. With a path, that file is checked at
+        once (it must exist and be finished) and its folder is learned for the project. Without one (Premiere's events
+        may not carry it) the preferences are read again and the file they name counts at once when it was written just
+        before the event; the watched folders are looked at again too."""
         log.info("exports: event %s from %s: %s", kind, source or "?", path or "(no path)")
-        if kind != "complete" or not path or not self.settings.data["enabled"]:
+        if kind != "complete" or not self.settings.data["enabled"]:
             return {"ok": True, "counted": False}
+        now = time.time()
+        with self.lock:
+            self.hint_at = now
+            self.last_scan = 0.0                          # read the preferences and look in the folders on the next check
+            for p, (mtime, _) in list(self.later.items()):
+                if self._fresh(mtime, now):
+                    self.later[p] = (mtime, now)
+        if not path:
+            return {"ok": True, "counted": False, "hint": True}
         path = os.path.normpath(path)
         if ignored(path) or not os.path.isfile(path):
-            return {"ok": True, "counted": False}
+            return {"ok": True, "counted": False, "hint": True}
         folder = os.path.dirname(path)
         project = self.settings.data["project"]
         if project and not self._folder(path):
             self.settings.add(project, folder, "learned")
             self.refresh()
         self.confirmed.add(path)
-        self.settle.touch(path, moved=True)
+        self.settle.drop(path)
+        self.retry[path] = now
         return {"ok": True, "counted": True}
 
     def again(self, item_id: str) -> dict:
@@ -540,6 +649,7 @@ class ExportWatcher:
     def _loop(self, stop: threading.Event):
         while not stop.wait(0.25):
             try:
+                self.follow()
                 self.check()
             except Exception:
                 log.exception("exports check failed")
