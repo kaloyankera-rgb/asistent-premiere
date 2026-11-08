@@ -601,6 +601,7 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
                     r["measured_on"] = "source"
                     r["reasons"].append("Measured on the file: a layer covers the clip on the timeline, and the clip has "
                                         "no other colour effects, so the file shows the same picture.")
+                    unchecked(r)
                 else:
                     review_needed(r)
                 shown, shown_gamma = None, gamma
@@ -645,6 +646,25 @@ def timeline_frames(paths: list) -> list[np.ndarray]:
         if hit:
             out.append(read_image(hit))
     return [f for f in out if f.shape == out[0].shape] if out else []
+
+
+def unchecked(r: dict) -> None:
+    """A covered clip measured on its file: no frame from Premiere can check the result afterwards, so the safety net that
+    takes back a correction that made the picture worse is missing. Only high confidence is applied there, and never an
+    exposure the measurement itself expects to burn out the highlights (0.10.7: NEW TEST fx31030, the timeline said "on
+    target" by the midtones, the file +2.7 stops by the skin, and +2 went in with ~14 % estimated clipping, unchecked)."""
+    exp, white = r["exposure"], r["white"]
+    r["warnings"] = [w for w in r["warnings"] if "checked on a frame from Premiere after applying" not in w]
+    if exp.get("stops") and (exp["confidence"] == "medium" or
+                             (exp.get("stops", 0) > 0 and exp.get("burn_estimate", 0) > NEW_CLIP)):
+        exp["confidence"] = "low"
+        r["warnings"].append("Exposure not applied: under a layer the result cannot be checked on a frame, and "
+                             + ("the measurement is not certain." if exp.get("burn_estimate", 0) <= NEW_CLIP
+                                else "the highlights would probably burn out."))
+    if not white.get("balanced") and white["confidence"] == "medium":
+        white["confidence"] = "low"
+        r["warnings"].append("White balance not applied: under a layer the result cannot be checked on a frame, and "
+                             "the measurement is not certain.")
 
 
 def review_needed(r: dict) -> None:

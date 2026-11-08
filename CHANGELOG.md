@@ -6,6 +6,25 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+## 0.10.8 - A covered clip gets only what needs no frame check (found by testing in NEW TEST)
+Claude ran the open Premiere checks through the test bridge in NEW TEST.prproj (2026-11-08) and found one real problem.
+- **Colour on a clip under a visible layer applied an unchecked +2 stops.** fx31030 in the rough-cut sequence: on the timeline
+  (no face found) the midtones said "on target" at Exposure 0.5; covered by V2 it was measured on its file, where the skin said
+  +2.7 stops, and Exposure 2.1 went in at medium confidence with ~14 % estimated highlight clipping, while the frame check cannot
+  run under a layer. The white balance from the file also differed (Temperature 24.3 against 18 on the timeline). Now a covered
+  clip measured on its file gets only high-confidence corrections, never an exposure expected to burn out the highlights, and
+  says why; the misleading "checked on a frame after applying" note is gone there. NEW TEST: the same press now applies only the
+  white balance and says "Exposure not applied … the highlights would probably burn out".
+- A value the clip already has is not written again (the covered press reported "Applied to 1 clip" for an unchanged
+  Temperature and Tint). Node tests; seen in Premiere once the panel is reloaded.
+- **Verified in NEW TEST through the bridge (panel 0.10.6 code, unchanged since):**
+  0.10.0 one press on V1 reads only V1 ("1 selected parts"); the V2 clip with the same cut, switched off, gets no Lumetri and stays
+  off, also when it is selected too (listed as "switched off"). 0.10.4: with the track above hidden the clip is measured on the
+  timeline; a razor-cut piece of a clip with Asistent's Lumetri is recognised as Asistent's own and updated (the other piece
+  untouched); Fix audio's L/L and R/R copies keep the clip's colour label, and a second press gives recoloured older copies the
+  clip's label back without splitting again. 0.9.89: three quick Exposure −0.5 presses all count (2.1 → 0.6).
+- Tests: 1 new pytest (covered clip rules), 574 pytest + 166 node pass.
+
 ## 0.10.7 - Show exports: works after the office drive mounts, and fast in a new plan folder
 The user, 2026-11-08: a finished export did not open its folder, and when it did it took up to ~30 s.
 - **Nothing was watched after a restart.** The engine starts at login, before `/Volumes/Production` is mounted; the watcher

@@ -503,9 +503,32 @@ def test_a_covered_clip_with_nothing_else_on_it_is_measured_on_the_file_for_real
     review = C.analyze_items([{"path": str(clip), "frames": []}], with_preview=False)["items"][0]
     assert plain["measured_on"] == "source" and plain.get("status") != "REVIEW_NEEDED"
     assert any("Measured on the file" in x for x in plain["reasons"])
-    assert (plain["exposure"]["confidence"], plain["white"]["confidence"]) == \
-        (C.decide(C.read_frames(str(clip)))["exposure"]["confidence"], C.decide(C.read_frames(str(clip)))["white"]["confidence"])
+    direct = C.decide(C.read_frames(str(clip)))
+    acts = {"exposure": bool(direct["exposure"]["stops"]), "white": not direct["white"]["balanced"]}
+    for k in ("exposure", "white"):                       # medium with something to apply is not applied without a check
+        want = "low" if acts[k] and direct[k]["confidence"] == "medium" else direct[k]["confidence"]
+        assert plain[k]["confidence"] == want or (k == "exposure" and plain[k]["confidence"] == "low")
     assert review["exposure"]["confidence"] == "low"
+
+
+def test_a_covered_clip_gets_only_what_needs_no_frame_check():
+    """0.10.7 (NEW TEST fx31030): under a layer nothing checks the result, so medium confidence and an exposure expected
+    to burn out the highlights are not applied; high confidence still is."""
+    def r(conf, stops, burn, wconf="high", balanced=False):
+        return {"exposure": {"stops": stops, "confidence": conf, "burn_estimate": burn},
+                "white": {"balanced": balanced, "confidence": wconf}, "warnings": [], "reasons": []}
+    a = r("medium", 2.0, 0.14, wconf="high")
+    C.unchecked(a)
+    assert a["exposure"]["confidence"] == "low" and a["white"]["confidence"] == "high"
+    b = r("high", 1.0, 0.10)
+    C.unchecked(b)
+    assert b["exposure"]["confidence"] == "low" and "burn out" in b["warnings"][0]
+    c = r("high", 1.0, 0.01, wconf="medium")
+    C.unchecked(c)
+    assert c["exposure"]["confidence"] == "high" and c["white"]["confidence"] == "low"
+    d = r("medium", 0.0, 0.0, wconf="medium", balanced=True)
+    C.unchecked(d)
+    assert d["warnings"] == []                            # nothing to apply: nothing said
 
 
 def test_frames_outside_the_engine_folder_are_ignored(frames_dir, tmp_path):

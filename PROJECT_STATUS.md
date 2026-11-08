@@ -1,4 +1,9 @@
-# Project status — Asistent 0.10.7 (2026-11-08)
+# Project status — Asistent 0.10.8 (2026-11-08)
+
+0.10.8: a covered clip measured on its file gets only high-confidence corrections (an unchecked +2 stops went in on fx31030 in
+NEW TEST); same values are not rewritten. Verified in NEW TEST through the bridge by Claude: 0.10.0 selection by track and
+switched-off clips left alone, 0.10.4 hidden track above, cut piece with Asistent's Lumetri, Fix audio labels and relabel,
+0.9.89 quick Exposure presses. Still needs the user: Cancel during a job, right-click / long press, the Export tab export.
 
 0.10.7: Show exports fixed for the user's report (no Finder, or up to ~30 s late): the watcher now starts on a folder as soon as
 it exists (the office drive mounts after the engine starts; before, nothing was watched until a project switch), and the office's
