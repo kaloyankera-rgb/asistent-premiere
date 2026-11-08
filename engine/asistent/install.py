@@ -3,7 +3,7 @@
 A release (the repo itself, or the `Asistent-<version>.zip` of a GitHub release) has engine/, host/, scripts/, fonts/,
 the requirements files and the panel `.ccx`. Installed, it lives in `<app>/current/` (the engine runs from there, so a
 computer needs no copy of the repo), the host goes to Premiere's CEP folder, the fonts to the user's fonts, and the
-panel through Adobe's UnifiedPluginInstallerAgent (no dialog; an open Premiere loads the new panel at once).
+panel through Adobe's UnifiedPluginInstallerAgent (no dialog; exactly one panel version stays listed, see install_panel).
 
 Standard library only: the setup scripts run this before the engine's packages are installed.
     python -m asistent.install --src <release root> [--ccx <file>] [--no-panel]
@@ -113,25 +113,42 @@ def _flag(name: str) -> str:
     return ("/" if sys.platform == "win32" else "--") + name
 
 
-def _listed(agent: str, version: str) -> bool:
+def _versions(agent: str) -> list[str]:
+    """The Asistent panel versions Adobe lists (" Enabled    Asistent    0.10.9"), in its order."""
     listed = subprocess.run([agent, _flag("list"), "all"], capture_output=True, text=True, timeout=120).stdout
-    return any(PANEL_NAME in ln and version in ln for ln in listed.splitlines())
+    out = []
+    for ln in listed.splitlines():
+        parts = ln.split()
+        if len(parts) >= 3 and parts[1] == PANEL_NAME:
+            out.append(parts[-1])
+    return out
 
 
 def install_panel(ccx: str, version: str) -> None:
-    """Install over the old panel; only when Adobe does not then list the new version, remove and install (an open Premiere
-    unloads the old panel and loads the new one). 0.10.6 (ARCH-002): the old panel used to be removed first, so a failed
-    install left no panel at all. Raises with a message."""
+    """Install the panel so that Adobe lists exactly this version. Raises with a message.
+
+    0.10.6 (ARCH-002) installed over the old panel and stopped once the new version was listed, so a failed install never left
+    no panel. Measured 2026-11-08: Adobe then keeps the older copies enabled beside the new one (0.10.7, 0.10.8 and 0.10.9 all
+    "enabled"), and Premiere loads the first one listed: the editors kept running an old panel after every update. So when
+    anything but the new version is listed, every copy is removed and the new one installed again (it has just installed
+    once, so the file is good; one retry). The path is absolute: Adobe's installer refused a relative one (status -160)."""
     agent = upia()
     if not agent:
         raise RuntimeError("Adobe's plugin installer was not found (Creative Cloud): double-click " + os.path.basename(ccx))
+    ccx = os.path.abspath(ccx)
     r = subprocess.run([agent, _flag("install"), ccx], capture_output=True, text=True, timeout=300)
-    if _listed(agent, version):
+    if _versions(agent) == [version]:
         return
-    subprocess.run([agent, _flag("remove"), PANEL_NAME], capture_output=True, timeout=120)
-    r = subprocess.run([agent, _flag("install"), ccx], capture_output=True, text=True, timeout=300)
-    if not _listed(agent, version):
-        raise RuntimeError(f"Adobe does not report {PANEL_NAME} {version} as installed: {(r.stdout or r.stderr).strip()[-300:]}")
+    for _ in range(len(_versions(agent)) + 2):
+        if not _versions(agent):
+            break
+        subprocess.run([agent, _flag("remove"), PANEL_NAME], capture_output=True, timeout=120)
+    for _ in range(2):
+        r = subprocess.run([agent, _flag("install"), ccx], capture_output=True, text=True, timeout=300)
+        if _versions(agent) == [version]:
+            return
+    raise RuntimeError(f"Adobe does not report only {PANEL_NAME} {version} as installed ({', '.join(_versions(agent)) or 'none'}): "
+                       f"{(r.stdout or r.stderr).strip()[-300:]} Double-click {os.path.basename(ccx)} to install it by hand.")
 
 
 # ---------------------------------------------------------------- fonts
