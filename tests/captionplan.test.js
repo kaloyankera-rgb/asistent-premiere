@@ -1,23 +1,40 @@
 // node --test tests/captionplan.test.js
 const test = require("node:test");
 const assert = require("node:assert");
-const { findOwn, addedTrack, problems, describePlacement } = require("../panel/captionplan.js");
+const { findOwn, findUnverified, mark, addedTrack, problems, describePlacement } = require("../panel/captionplan.js");
 
-const track = (o) => ({ index: 0, name: "Subtitle", count: 25, start: 0.0, end: 23.7, ...o });
-const sig = { index: 0, count: 25, first: 0.0, last: 23.7, srt: "/a.srt" };
+const LINES = Array.from({ length: 25 }, (_, k) => [k * 0.95, k * 0.95 + 0.9]);
+LINES[24] = [22.8, 23.7];
+const track = (o) => ({ index: 0, name: "Subtitle", count: 25, start: 0.0, end: 23.7, lines: LINES.map((l) => l.slice()), ...o });
+const sig = { index: 0, count: 25, first: 0.0, last: 23.7, srt: "/a.srt", lines: LINES.map((l) => l.slice()) };
 
-test("an earlier Asistent track is recognised by index, item count and first/last time", () => {
+test("an earlier Asistent track is recognised only when every line keeps its time (0.10.6)", () => {
   assert.strictEqual(findOwn(sig, [track()]).index, 0);
-  assert.strictEqual(findOwn(sig, [track({ end: 23.75 })]).index, 0);
+  const snapped = track();
+  snapped.lines[3] = [snapped.lines[3][0] + 0.04, snapped.lines[3][1]];          // Premiere's grid
+  assert.strictEqual(findOwn(sig, [snapped]).index, 0);
+});
+
+test("an edit INSIDE the track (count, first and last unchanged) makes it the editor's (BUG-001)", () => {
+  const edited = track();
+  edited.lines[10] = [edited.lines[10][0] + 0.5, edited.lines[10][1] + 0.5];
+  assert.strictEqual(findOwn(sig, [edited]), null);
 });
 
 test("a track the editor changed, or a different one at that index, is not taken for Asistent's", () => {
-  assert.strictEqual(findOwn(sig, [track({ count: 24 })]), null);
-  assert.strictEqual(findOwn(sig, [track({ start: 1.0 })]), null);
-  assert.strictEqual(findOwn(sig, [track({ end: 30 })]), null);
+  assert.strictEqual(findOwn(sig, [track({ count: 24, lines: LINES.slice(1) })]), null);
+  assert.strictEqual(findOwn(sig, [track({ lines: null })]), null);
   assert.strictEqual(findOwn(sig, []), null);
   assert.strictEqual(findOwn(null, [track()]), null);
   assert.strictEqual(findOwn({ index: "0" }, [track()]), null);
+});
+
+test("a record from before 0.10.6 (no line times) never authorises removal; it is only named", () => {
+  const legacy = { index: 0, count: 25, first: 0.0, last: 23.7 };
+  assert.strictEqual(findOwn(legacy, [track()]), null);
+  assert.strictEqual(findUnverified(legacy, [track()]).index, 0);
+  assert.strictEqual(findUnverified(sig, [track()]), null);                           // a new record is never "unverified"
+  assert.deepStrictEqual(mark(track()).lines.length, 25);
 });
 
 test("the added track is the one that was not there before; none or several is not a placement", () => {
@@ -74,7 +91,7 @@ test("a replaced pair says how many lines went and that the empty tracks can be 
 
 test("corrected subtitles on a new track say the old track must go", () => {
   const r = describePlacement({ status: "placed", track: track({ index: 1, count: 2 }), problems: [], replaces: track({ index: 0, count: 2 }) }, "/a.srt", true);
-  assert.ok(r.lines.some((l) => l.cls === "warn" && /earlier subtitles are still on track C1: delete that track/.test(l.text)));
+  assert.ok(r.lines.some((l) => l.cls === "warn" && /earlier subtitles are still on C1: delete what you do not want/.test(l.text)));
   const plain = describePlacement({ status: "placed", track: track({ index: 0, count: 2 }), problems: [] }, "/a.srt");
   assert.ok(!plain.lines.some((l) => /earlier subtitles/.test(l.text)));
 });

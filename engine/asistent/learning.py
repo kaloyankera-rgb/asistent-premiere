@@ -394,7 +394,8 @@ def plan_for(project: str, editor_pairs=()) -> Plan:
     return Plan(project, client, folder, use, names[:MAX_TERMS], english, rules, speakers, en_words)
 
 
-def record(plan: Plan, contexts: list[dict], terms=(), english=None, background: bool = True, used=(), english_words=None) -> None:
+def record(plan: Plan, contexts: list[dict], terms=(), english=None, background: bool = True, used=(), english_words=None,
+           english_words_off=None) -> None:
     """After a run: the editor's correction lines that matched (`contexts`: [{"heard", "said", "left", "right",
     "example"}]), the name lines and the typed English lines become events of this project (once per project)."""
     me = computer()
@@ -426,6 +427,9 @@ def record(plan: Plan, contexts: list[dict], terms=(), english=None, background:
         add("english", line + "=>" + en, line=line, en=en)
     for heard, said in (english_words or {}).items():
         add("english_word", heard.lower() + "=>" + said, heard=heard, said=said)
+    # a fix taken back: the reverse pair, which `build` reads as "remove the fix" (0.10.6, BUG-013)
+    for corrected, original in (english_words_off or {}).items():
+        add("english_word", corrected.lower() + "=>" + original, heard=corrected, said=original)
 
     def work():
         try:

@@ -26,7 +26,7 @@ import sys
 import numpy as np
 from scipy import signal
 
-from .media import MediaError, _run, _tool, probe
+from .media import MediaError, _run, _tool, decode_f32, probe
 
 SR = 48000
 TARGET_LUFS = -17.0
@@ -40,7 +40,7 @@ OWN_SPEECH = 0.10      # share of the active frames in which a channel is >= 10 
 
 # ---------------------------------------------------------------- reading
 
-def read_range(path: str, start: float = 0.0, end: float | None = None, sr: int = SR) -> np.ndarray:
+def read_range(path: str, start: float = 0.0, end: float | None = None, sr: int = SR, cancelled=None) -> np.ndarray:
     """First audio stream, all channels, float32 (channels, samples), only [start, end) of the media."""
     info = probe(path)
     if not info.audio:
@@ -53,13 +53,12 @@ def read_range(path: str, start: float = 0.0, end: float | None = None, sr: int 
     if end is not None and end > start:
         cmd += ["-t", f"{end - start:.6f}"]
     cmd += ["-ar", str(sr), "-ac", str(ch), "-f", "f32le", "-"]
-    p = _run(cmd)
-    if p.returncode != 0:
-        raise MediaError(f"FFmpeg cannot read the sound of {os.path.basename(path)}: "
-                         f"{p.stderr.decode(errors='replace').strip()[:200]}")
-    x = np.frombuffer(p.stdout, dtype=np.float32)
-    n = len(x) // ch
-    return x[: n * ch].reshape(n, ch).T.copy()
+    span = (end - start) if end is not None and end > start else max(0.0, (info.duration or 0) - start)
+    try:
+        # streamed into place (media.decode_f32, 0.10.6): the decode is held once, not twice
+        return decode_f32(cmd, ch, int(span * sr) + sr // 10 + 1, cancelled)
+    except MediaError as e:
+        raise MediaError(f"FFmpeg cannot read the sound of {os.path.basename(path)}: {e}") from e
 
 
 # ---------------------------------------------------------------- measurements

@@ -4,6 +4,16 @@
 
 ## Open bugs
 
+- **Audit of 0.10.1 (2026-11-08): all valid findings fixed in 0.10.6** (CHANGELOG). Still open from it: sync pair pruning (no
+  criterion proven safe: camera clocks can be years off), caption TEXT edits that keep every line's time are not seen (no API
+  reads caption text in 26.0.2; timing edits are), Windows CUDA pins and the Windows lock file untried, UXP right-click/long
+  press not observed in Premiere.
+- **Test bridge: a command sent while a job runs reaches the panel only when the job ends** (2026-11-08: `click "Cancel" now` waited
+  ~40 s); the panel's long polls seem to queue behind each other in UXP. Development only; the real Cancel button is a DOM event.
+- **Test project leftovers (2026-11-08, NEW TEST.prproj):** a subclip "overwrite test" in the root bin (the overwriteClip
+  measurement), empty caption tracks C23-C25, test audio on A1/A2 at 117 s, 420 s and 470 s, a Highlights 20 grade on fx31036,
+  Exposure keyframes on fx31030, sequences "ROUGH – SYNC – кам2 (safe) v1" and "SYNC – ROUGH – …": nothing was deleted (rule).
+
 - **Fixed in 0.10.0: a selected clip also selected every clip with the same cut on another track** (after Sync: Auto color on
   V1 corrected the switched-off V2 clip; A1 also took A2 and A3). Unverified in Premiere. Still open from the same recording:
   after the press the Program monitor showed the switched-off V2 clip (check in NEW TEST whether adding Lumetri to a

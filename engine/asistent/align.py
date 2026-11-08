@@ -7,13 +7,17 @@ so: subtitles never fail because of the alignment.
 """
 from __future__ import annotations
 
+import atexit
 import glob
 import json
 import logging
 import os
+import queue
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 
 import numpy as np
 
@@ -88,6 +92,118 @@ def _fix(words: list[dict], res: list[dict]) -> tuple[list[dict], int]:
     return out, weak
 
 
+POOL = 2                  # warm workers at most (each holds the model, ~1 GB); measured: a cold call ~3.5 s, a warm one ~1 s
+IDLE_S = 60.0             # a worker unused this long is stopped (its memory goes back to the editor)
+RECYCLE = 200             # windows per worker before it is started fresh (bounded memory)
+
+
+class _Worker:
+    """One `align_worker.py --serve` process (0.10.6, PERF-002: every window used to start Python and load MMS_FA again)."""
+
+    def __init__(self):
+        env = dict(os.environ, TORCH_HOME=torch_home(), PYTHONNOUSERSITE="1")
+        worker = os.path.join(os.path.dirname(os.path.abspath(__file__)), "align_worker.py")
+        flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        self.p = subprocess.Popen([python_path(), "-I", worker, "--serve"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                  stderr=subprocess.DEVNULL, text=True, encoding="utf-8", env=env, creationflags=flags)
+        self.lines: queue.Queue = queue.Queue()
+        threading.Thread(target=self._read, daemon=True).start()
+        self.used = 0
+        self.last = time.monotonic()
+
+    def _read(self):
+        for line in self.p.stdout:
+            self.lines.put(line.strip())
+        self.lines.put(None)                                      # the process ended
+
+    def run(self, folder: str, timeout: float) -> None:
+        self.p.stdin.write(folder + "\n")
+        self.p.stdin.flush()
+        try:
+            reply = self.lines.get(timeout=timeout)
+        except queue.Empty:
+            self.stop()
+            raise RuntimeError(f"the aligner did not answer within {int(timeout)} s")
+        self.used += 1
+        self.last = time.monotonic()
+        if reply is None:
+            raise RuntimeError("the aligner stopped")
+        if reply != "ok":
+            raise RuntimeError(reply[6:] if reply.startswith("error ") else reply)
+
+    def alive(self) -> bool:
+        return self.p.poll() is None
+
+    def stop(self):
+        try:
+            self.p.stdin.close()
+        except OSError:
+            pass
+        try:
+            self.p.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.p.kill()
+            self.p.wait()
+        for pipe in (self.p.stdout,):
+            try:
+                pipe.close()
+            except OSError:
+                pass
+
+
+class _Pool:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.free: list[_Worker] = []
+        self.slots = threading.Semaphore(POOL)
+        self.reaper = None
+
+    def run(self, folder: str, timeout: float) -> None:
+        with self.slots:
+            with self.lock:
+                w = self.free.pop() if self.free else None
+            if w is None or not w.alive():
+                w = _Worker()
+            ok = False
+            try:
+                w.run(folder, timeout)
+                ok = True
+            finally:
+                with self.lock:
+                    if ok and w.alive() and w.used < RECYCLE:
+                        self.free.append(w)
+                        self._reap_later()
+                    else:
+                        w.stop()
+
+    def _reap_later(self):
+        if self.reaper is None or not self.reaper.is_alive():
+            self.reaper = threading.Thread(target=self._reap, daemon=True)
+            self.reaper.start()
+
+    def _reap(self):
+        while True:
+            time.sleep(min(IDLE_S, 10.0))
+            with self.lock:
+                now = time.monotonic()
+                keep = []
+                for w in self.free:
+                    (keep.append(w) if now - w.last < IDLE_S and w.alive() else w.stop())
+                self.free = keep
+                if not self.free:
+                    return
+
+    def close(self):
+        with self.lock:
+            for w in self.free:
+                w.stop()
+            self.free = []
+
+
+_POOL = _Pool()
+atexit.register(_POOL.close)
+
+
 def align_words(audio: np.ndarray, words: list[dict], spoken: dict | None = None) -> tuple[list[dict], dict]:
     """words: [{"word", "start", "end", "p"}] relative to `audio` (16 kHz mono). Returns (words, info) with
     info = {"aligned": n, "weak": n} or {"error": text}; the words are the input ones when nothing could be done."""
@@ -95,18 +211,14 @@ def align_words(audio: np.ndarray, words: list[dict], spoken: dict | None = None
         return words, {"aligned": 0, "weak": 0}
     if not available():
         return words, {"error": "the aligner is not installed"}
-    worker = os.path.join(os.path.dirname(os.path.abspath(__file__)), "align_worker.py")
     with tempfile.TemporaryDirectory(prefix="asistent-align-") as d:
         np.save(os.path.join(d, "audio.npy"), audio.astype(np.float32))
         with open(os.path.join(d, "words.json"), "w", encoding="utf-8") as f:
             json.dump([{"text": w["word"], "start": w["start"], "end": w["end"]} for w in words], f, ensure_ascii=False)
         with open(os.path.join(d, "spoken.json"), "w", encoding="utf-8") as f:
             json.dump({**numbers.spoken_map(words), **(spoken or {})}, f, ensure_ascii=False)     # the editor's entries win
-        env = dict(os.environ, TORCH_HOME=torch_home(), PYTHONNOUSERSITE="1")
         try:
-            p = subprocess.run([python_path(), "-I", worker, d], capture_output=True, timeout=TIMEOUT, env=env)
-            if p.returncode != 0:
-                raise RuntimeError(p.stderr.decode(errors="replace").strip().splitlines()[-1][:200])
+            _POOL.run(d, TIMEOUT)
             with open(os.path.join(d, "out.json"), encoding="utf-8") as f:
                 res = json.load(f)
         except Exception as e:                              # noqa: BLE001 - any failure falls back to Whisper's times

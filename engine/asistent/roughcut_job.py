@@ -52,7 +52,8 @@ def validate(body: dict) -> dict:
         if end <= start:
             raise ValueError("Invalid clip in the request.")
         dialogue.append({"path": it["path"], "start": start, "end": end, "at": _num(it.get("at"), "position"),
-                         "name": str(it.get("name") or os.path.basename(it["path"])), "track": int(_num(it.get("track", 0), "track"))})
+                         "name": str(it.get("name") or os.path.basename(it["path"])), "track": int(_num(it.get("track", 0), "track")),
+                         **({"side": it["side"]} if it.get("side") in ("L", "R") else {})})
     layout = body.get("layout")
     if not isinstance(layout, list) or not layout:
         raise ValueError("Select the clips to cut in the timeline.")
@@ -211,7 +212,8 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         "before_s": round(before, 2), "after_s": round(after, 2), "saved_s": round(saved, 2),
         "takes_cut_s": round(sum(g["cut_s"] for g in found), 2),
         "flashes_dropped": flashes, "hole_speech_s": plan["hole_speech_s"], "no_sound_s": plan["no_sound_s"], "empty_s": plan["empty_s"],
-        "pieces": [{"kind": x["kind"], "track": x["track"], "item": x["item"], "start": x["start"], "end": x["end"]} for x in pieces],
+        "pieces": [{"kind": x["kind"], "track": x["track"], "item": x["item"], "start": x["start"], "end": x["end"],
+                    "path": x["path"], "src_in": x["src_in"]} for x in pieces],                # the panel checks each one (0.10.6)
         "counts": {"pauses_seen": plan["gaps"], "cuts": len(cuts), "kept_ranges": len(kept), "pieces": len(pieces), "review": len(review), "takes": len(found),
                    "takes_cut": sum(1 for g in found if g["applied"])},
         "takes": found,

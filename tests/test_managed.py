@@ -47,3 +47,42 @@ def test_history_is_bounded_and_survives_a_restart(tmp_path):
 def test_empty_key_or_snapshot_is_never_owned(tmp_path):
     s = ManagedStore(str(tmp_path / "managed.json"))
     assert not s.owned("", SNAP) and not s.owned("k", "")
+
+
+def test_the_same_file_name_from_another_camera_folder_is_not_asistents(tmp_path):
+    s = ManagedStore(str(tmp_path / "managed.json"))
+    s.record("/Volumes/A/кам1/C0001.MP4|0.000|5.000", SNAP)
+    assert not s.owned("/Volumes/A/кам2/C0001.MP4|10.000|20.000", SNAP)           # 0.10.6: folder + name, not the name alone
+    assert s.owned("D:\\Shoot\\кам1\\C0001.MP4|1.000|4.000", SNAP)                 # Windows path, same camera folder
+
+
+def test_two_requests_at_once_keep_both_records(tmp_path, monkeypatch):
+    import threading
+    path = str(tmp_path / "managed.json")
+    orig = ManagedStore._load
+    gate = threading.Barrier(2, timeout=0.5)
+
+    def slow(self):
+        data = orig(self)
+        try:
+            gate.wait()                               # without the shared lock both read the same file, then both write
+        except threading.BrokenBarrierError:
+            pass
+        return data
+    monkeypatch.setattr(ManagedStore, "_load", slow)
+    ts = [threading.Thread(target=lambda k=k: ManagedStore(path).record(f"/m/c{k}.mp4|0.000|1.000", f"snap{k}")) for k in range(2)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    monkeypatch.setattr(ManagedStore, "_load", orig)
+    s = ManagedStore(path)
+    assert s.owned("/m/c0.mp4|0.000|1.000", "snap0") and s.owned("/m/c1.mp4|0.000|1.000", "snap1")
+
+
+def test_a_damaged_file_is_kept_aside_and_owns_nothing(tmp_path):
+    path = tmp_path / "managed.json"
+    path.write_text('{"k": {"hashes": []}}}', encoding="utf-8")
+    s = ManagedStore(str(path))
+    assert not s.owned("k", SNAP)
+    assert any(p.name.startswith("managed.json.corrupt-") for p in tmp_path.iterdir())

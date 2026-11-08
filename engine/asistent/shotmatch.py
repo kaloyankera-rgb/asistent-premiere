@@ -309,11 +309,18 @@ def reliability(p: dict) -> float:
     return round(score, 3)
 
 
-def run(items: list[dict], reference: str | None, cal=None, progress=None) -> dict:
-    """items: [{path, camera, times: [media s], overlap: bool, current: {...}, lumetri: none|own|manual}]."""
+def run(items: list[dict], reference: str | None, cal=None, progress=None, cancelled=None) -> dict:
+    """items: [{path, camera, times: [media s], overlap: bool, current: {...}, lumetri: none|own|manual}].
+    `cancelled`: checked between clips (0.10.6); raises sync.Cancelled."""
     from .prepare import sony_xml
+    from .sync import Cancelled
     cal = cal or C.Calibration()
-    progress = progress or (lambda f, m: None)
+    user_progress = progress or (lambda f, m: None)
+
+    def progress(f, m):
+        if cancelled and cancelled():
+            raise Cancelled()
+        user_progress(f, m)
     clips = []
     for i, it in enumerate(items):
         progress(0.6 * i / max(len(items), 1), f"Looking at {i + 1} of {len(items)}")

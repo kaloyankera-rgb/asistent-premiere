@@ -86,10 +86,51 @@ function clipKey(clip) {
   return `${clip.path}|${(clip.inPt || 0).toFixed(3)}|${(clip.outPt || 0).toFixed(3)}`;
 }
 
-// Lumetri of the clip that we may set: an existing one still at 0 on our three sliders, Asistent's own one
-// exactly as it left it (managed correction, updated with the new differences), or a new one. A Lumetri
-// with any other changes is someone's grade and is never touched; only the editor's own ±0.5 asks for it
-// ({ manual: true }) and gets it back marked `manual`.
+// An untouched Lumetri, as this Premiere makes it: the full snapshot read the first time Asistent adds one itself (0.10.6).
+// "Neutral" used to mean only that the five sliders Asistent writes were at 0, so a grade made with Highlights, Curves or a
+// LUT counted as untouched, got Asistent's values and was then recorded as Asistent's own (BUG-006). Until Asistent has seen
+// one, an existing Lumetri is treated as the editor's.
+const FRESH_KEY = "asistent.lumetriFresh.v1";
+function freshSnapshot() {
+  try {
+    return localStorage.getItem(FRESH_KEY);
+  } catch (e) {
+    return null;
+  }
+}
+function learnFresh(snap) {
+  try {
+    if (snap && snap !== localStorage.getItem(FRESH_KEY)) {
+      localStorage.setItem(FRESH_KEY, snap);
+      debug(`lumetri: untouched Lumetri learnt (${snap.length} characters)`);
+    }
+  } catch (e) {
+    debug(`lumetri: the untouched snapshot could not be kept (${e && e.message ? e.message : e})`);
+  }
+}
+
+// which of the parameters Asistent writes have keyframes: those are never written (BUG-007, every path, any ownership)
+async function animatedOf(ps) {
+  const out = [];
+  for (const k of Object.keys(DEFAULTS)) if (ps && ps[k] && (await maybe(ps[k], "isTimeVarying"))) out.push(k);
+  return out;
+}
+
+// read again just before a write: a keyframe added since the clip was read keeps its value (the value is dropped, said)
+async function dropAnimated(prepared) {
+  for (const pl of prepared) {
+    if (!pl.t || pl.t.isNew || !pl.values) continue;
+    pl.t.animated = await animatedOf(pl.t.ps);
+    const gone = Object.keys(pl.values).filter((k) => pl.t.animated.includes(k));
+    for (const k of gone) delete pl.values[k];
+    if (gone.length) (pl.lines = pl.lines || []).push(`${gone.map((k) => NAMES[k]).join(", ")} ${gone.length === 1 ? "has" : "have"} keyframes: not changed`);
+  }
+}
+
+// Lumetri of the clip that we may set: an existing one that is exactly an untouched Lumetri, Asistent's own one
+// exactly as it left it (managed correction, updated with the new differences), or a new one. A Lumetri with any other
+// settings is someone's grade and is never touched; only the editor's own ±0.5 asks for it ({ manual: true }) and gets
+// it back marked `manual`. `animated`: the parameters with keyframes (never written).
 async function target(clip, { manual = false } = {}) {
   const chain = await maybe(clip.ti, "getComponentChain");
   if (!chain) throw new Error(`${clip.name} has no effects.`);
@@ -101,17 +142,22 @@ async function target(clip, { manual = false } = {}) {
     const ps = await params(comp);
     const current = {};
     for (const k of Object.keys(DEFAULTS)) current[k] = ps[k] ? await value(ps[k]) : DEFAULTS[k];
+    const animated = await animatedOf(ps);
     const used = Object.keys(current).filter((k) => Math.abs(current[k] - DEFAULTS[k]) > 1e-6);
-    if (!used.length) return { chain, comp, ps, isNew: false, current };
-    const own = await engine.managedCheck(clipKey(clip), await snapshot(comp)).catch(() => null);
-    debug(`color target ${clip.name}: Lumetri with ${used.join(", ")}, Asistent's own: ${!!(own && own.owned)}`);
-    if (own && own.owned) return { chain, comp, ps, isNew: false, current, owned: true };
-    if (manual) return { chain, comp, ps, isNew: false, current, manual: true };
-    return { skip: `already has a Lumetri with changes (${used.join(", ")}) that are not from Asistent or were changed by hand: not touched`,
-      current };
+    const snap = await snapshot(comp);
+    const fresh = freshSnapshot();
+    if (!used.length && fresh && snap === fresh) return { chain, comp, ps, isNew: false, neutral: true, current, animated };
+    const own = await engine.managedCheck(clipKey(clip), snap).catch(() => null);
+    debug(`color target ${clip.name}: Lumetri with ${used.join(", ") || "the five sliders at 0"}, untouched: ${!!fresh && snap === fresh}, Asistent's own: ${!!(own && own.owned)}`);
+    if (own && own.owned) return { chain, comp, ps, isNew: false, current, owned: true, animated };
+    if (manual) return { chain, comp, ps, isNew: false, current, manual: true, animated };
+    const what = used.length ? `changes (${used.join(", ")})`
+      : fresh ? "settings outside Exposure, Temperature, Tint, Contrast and Saturation"
+        : "settings Asistent cannot check yet (it learns an untouched Lumetri the first time it adds one itself)";
+    return { skip: `already has a Lumetri with ${what} that are not from Asistent or were changed by hand: not touched`, current };
   }
   const comp = await ppro.VideoFilterFactory.createComponent(await lumetriMatch());
-  return { chain, comp, ps: null, isNew: true, current: { ...DEFAULTS } };
+  return { chain, comp, ps: null, isNew: true, current: { ...DEFAULTS }, animated: [] };
 }
 
 // A clip under a visible layer (a logo, a title, a safety template left on) cannot be measured on the timeline, so the
@@ -179,10 +225,12 @@ async function applyShotMatch(project, timeline, jobId, entries) {
       continue;
     }
     const values = {};
-    for (const k of e.r.changed || []) values[k] = e.r.proposal[k];
+    for (const k of e.r.changed || []) if (!(t.animated || []).includes(k)) values[k] = e.r.proposal[k];
+    const keyed = (e.r.changed || []).filter((k) => (t.animated || []).includes(k));
+    if (keyed.length) pl.lines.push(`${keyed.map((k) => NAMES[k]).join(", ")} ${keyed.length === 1 ? "has" : "have"} keyframes: not changed`);
     if (!Object.keys(values).length) {
       pl.nothing = true;
-      pl.lines.push("already matches the reference: nothing to apply");
+      if (!keyed.length) pl.lines.push("already matches the reference: nothing to apply");
       continue;
     }
     Object.assign(pl, { t, values, applied: values, moment: analysisMoments(timeline, e.clip)[0] ?? null });
@@ -207,6 +255,7 @@ async function applyShotMatch(project, timeline, jobId, entries) {
     const miss = Object.keys(pl.values).filter((k) => !pl.t.ps[k]);
     if (miss.length) pl.lines.push(`a Lumetri parameter is missing: ${miss.join(", ")}`);
   }
+  await dropAnimated(prepared);
   transaction(project, "Asistent: match cameras", (c) => {
     for (const pl of prepared) for (const make of setActions(pl.t, pl.values)) c.addAction(make());
   });
@@ -285,6 +334,9 @@ async function attached(t) {
       t.comp = comp;
       t.ps = await params(comp);
       t.isNew = false;
+      t.added = true;
+      t.animated = [];
+      learnFresh(await snapshot(comp));                  // nothing written into it yet: this is an untouched Lumetri
       return t;
     }
   }
@@ -294,7 +346,7 @@ async function attached(t) {
 function setActions(t, values) {
   const acts = [];
   for (const [k, v] of Object.entries(values)) {
-    if (t.ps[k] && v !== undefined && v !== null) acts.push(() => t.ps[k].createSetValueAction(t.ps[k].createKeyframe(v), true));
+    if (t.ps[k] && v !== undefined && v !== null && !(t.animated || []).includes(k)) acts.push(() => t.ps[k].createSetValueAction(t.ps[k].createKeyframe(v), true));
   }
   return acts;
 }
@@ -317,8 +369,8 @@ async function nudgeExposure(project, clips, delta) {
     } catch (e) {
       t = { skip: `did not work for this clip (${e && e.message ? e.message : e})` };
     }
-    if (!t.skip && t.manual && t.ps.exposure && (await maybe(t.ps.exposure, "isTimeVarying"))) {
-      t = { skip: "its Exposure has keyframes: not touched" };
+    if (!t.skip && (t.animated || []).includes("exposure")) {
+      t = { skip: "its Exposure has keyframes: not touched" };    // any Lumetri, its own or not (0.10.6)
     }
     if (t.skip) results.push({ clip, skipped: true, line: t.skip });
     else prepared.push({ clip, t });
@@ -339,6 +391,12 @@ async function nudgeExposure(project, clips, delta) {
   }
   if (!ready.length) return { steps, results };
   for (const pl of ready) pl.values = { exposure: Math.round(((pl.t.current.exposure || 0) + delta) * 100) / 100 };
+  await dropAnimated(ready);
+  for (const pl of ready.filter((x) => !Object.keys(x.values).length)) {
+    results.push({ clip: pl.clip, skipped: true, line: "its Exposure has keyframes: not touched" });
+  }
+  ready.splice(0, ready.length, ...ready.filter((x) => Object.keys(x.values).length));
+  if (!ready.length) return { steps, results };
   transaction(project, `Asistent: Exposure ${delta > 0 ? "+" : ""}${delta}`, (c) => {
     for (const pl of ready) for (const make of setActions(pl.t, pl.values)) c.addAction(make());
   });
@@ -348,7 +406,8 @@ async function nudgeExposure(project, clips, delta) {
     const now = await value(pl.t.ps.exposure);
     const shown = Number.isFinite(now) ? Math.round(now * 100) / 100 : pl.values.exposure;
     pl.final = { ...pl.t.current, exposure: shown };
-    if (!pl.t.manual) await remember(pl);                // the editor's grade stays the editor's
+    // Asistent's only when it was new, untouched or already Asistent's: the editor's grade stays the editor's (BUG-006)
+    if (pl.t.added || pl.t.neutral || pl.t.owned) await remember(pl);
     results.push({ clip: pl.clip, was, now: shown, line: `Exposure ${was > 0 ? "+" : ""}${was} → ${shown > 0 ? "+" : ""}${shown}` +
       (pl.t.manual ? " (in your own Lumetri; the other sliders are as you left them)" : "") });
   }
@@ -497,16 +556,19 @@ async function apply(project, timeline, plans) {
     }
     // measured on the file (a layer covers the clip): the values are absolute, not added to what is on the clip
     const { values, applied } = mergeValues(pl.res.measured_on === "source" ? {} : t.current, pl.exposure, sliders);
+    const keyed = Object.keys(values).filter((k) => (t.animated || []).includes(k));
+    for (const k of keyed) delete values[k];
     pl.applied = applied;
     if (!Object.keys(values).length) {
       pl.nothing = true;
-      pl.lines = [pl.keptWhite ? "the white balance is already neutral (within the check's limit): nothing to apply" : "nothing to apply"];
+      pl.lines = [keyed.length ? `${keyed.map((k) => NAMES[k]).join(", ")} ${keyed.length === 1 ? "has" : "have"} keyframes: not changed`
+        : pl.keptWhite ? "the white balance is already neutral (within the check's limit): nothing to apply" : "nothing to apply"];
       continue;
     }
     pl.t = t;
     pl.values = values;
     pl.mid = pl.clip.start + (pl.clip.end - pl.clip.start) / 2;
-    pl.lines = [];
+    pl.lines = keyed.length ? [`${keyed.map((k) => NAMES[k]).join(", ")} ${keyed.length === 1 ? "has" : "have"} keyframes: not changed`] : [];
     prepared.push(pl);
   }
   if (!prepared.length) return { steps: 0 };
@@ -530,6 +592,7 @@ async function apply(project, timeline, plans) {
   for (const pl of missing) {
     pl.lines.push(`a Lumetri parameter is missing: ${Object.keys(pl.values).filter((k) => !pl.t.ps[k]).join(", ")}`);
   }
+  await dropAnimated(prepared);
   transaction(project, "Asistent: correct color", (c) => {
     for (const pl of prepared) for (const make of setActions(pl.t, pl.values)) c.addAction(make());
   });
@@ -721,12 +784,15 @@ async function devChain(clip) {
 const KNOWN_VIDEO = /^(lumetri color|motion|opacity)$/i;
 
 // The Lumetri values Asistent handles on a clip (any Lumetri, its own or a hand grade: the five Basic Correction values only),
-// whether the correction is Asistent's own, and the names of the other effects (not carried). null = no Lumetri and no effects.
+// whether the correction is Asistent's own, the names of the other effects (not carried), and what of the Lumetri can NOT be
+// carried (0.10.6, BUG-010): `extra` (settings outside the five, e.g. a Highlights-only grade, which used to vanish without a
+// word) and `animated` (parameters with keyframes: only their first value would arrive). null = no Lumetri and no effects.
 async function readLumetri(clip) {
   const chain = await maybe(clip.ti, "getComponentChain");
   if (!chain) return null;
   const count = await chain.getComponentCount();
-  const out = { values: null, owned: false, others: [] };
+  const out = { values: null, owned: false, others: [], extra: false, animated: [] };
+  let seen = false;
   for (let i = 0; i < count; i++) {
     const comp = await chain.getComponentAtIndex(i);
     const match = (await maybe(comp, "getMatchName")) || "";
@@ -735,20 +801,26 @@ async function readLumetri(clip) {
       if (!KNOWN_VIDEO.test(name)) out.others.push(name || match);
       continue;
     }
-    if (out.values) {
+    if (seen) {
       out.others.push("a second Lumetri");
       continue;
     }
+    seen = true;
     const ps = await params(comp);
     const values = {};
     for (const k of Object.keys(DEFAULTS)) values[k] = ps[k] ? await value(ps[k]) : DEFAULTS[k];
-    if (Object.keys(values).some((k) => Math.abs(values[k] - DEFAULTS[k]) > 1e-6)) {
-      out.values = values;
-      const own = await engine.managedCheck(clipKey(clip), await snapshot(comp)).catch(() => null);
-      out.owned = !!(own && own.owned);
-    }
+    const snap = await snapshot(comp);
+    const own = await engine.managedCheck(clipKey(clip), snap).catch(() => null);
+    out.owned = !!(own && own.owned);
+    out.animated = await animatedOf(ps);
+    if (!out.animated.length && snap.includes("~")) out.animated = ["other settings"];       // keyframes on any parameter
+    const used = Object.keys(values).some((k) => Math.abs(values[k] - DEFAULTS[k]) > 1e-6);
+    const fresh = freshSnapshot();
+    // the five at default and not untouched, or the five changed by hand: something beyond what is carried may be set
+    out.extra = !out.owned && (used ? true : !(fresh && snap === fresh));
+    if (used) out.values = values;
   }
-  return out.values || out.others.length ? out : null;
+  return out.values || out.others.length || out.extra || out.animated.length ? out : null;
 }
 
 // Put those values on the new pieces: a new Lumetri (one step), then the values (one step). A piece of a clip whose

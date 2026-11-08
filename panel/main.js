@@ -50,19 +50,38 @@ function onTap(button, fn, opts = {}) {
     engine.log("info", `panel: click${kind === "click" ? "" : ` (${kind})`}: ${label}`);
     fn();
   };
+  // 0.10.6 (UX-001): only the main button acts (a right-click used to run the action), and the click that ends a press
+  // already acted on is ignored however long the press was held: a real press ends with the button going up just before
+  // its click (after 1 s it used to act a second time). A click with no release before it is a click of its own: the test
+  // bridge's b.click(), or a press whose click Premiere's focus swallowed followed by a later click.
+  const primary = (e) => !e || typeof e.button !== "number" || e.button === 0;
+  let pressed = false;
+  let upAt = 0;
   for (const kind of ["pointerdown", "mousedown"]) {
-    button.addEventListener(kind, () => {
+    button.addEventListener(kind, (e) => {
+      if (!primary(e)) return;
       const now = Date.now();
       if (now - downAt < 80) return;                    // the same press reported as pointerdown and as mousedown
       downAt = now;
+      pressed = true;
       act(kind);
     });
   }
-  button.addEventListener("click", () => {
-    if (Date.now() - downAt < 1000) return;              // the end of a press already acted on when it went down
+  for (const kind of ["pointerup", "mouseup"]) {
+    button.addEventListener(kind, (e) => {
+      if (primary(e)) upAt = Date.now();
+    });
+  }
+  button.addEventListener("click", (e) => {
+    if (!primary(e)) return;
+    const now = Date.now();
+    const endOfPress = pressed && (now - downAt < 1000 || now - upAt < RELEASE_MS);
+    pressed = false;
+    if (endOfPress) return;                              // the end of a press already acted on when it went down
     act("click");                                        // no down event arrived for this press (also the test bridge)
   });
 }
+const RELEASE_MS = 300;                                  // a click comes right after the button goes up
 
 function show(id, visible) {
   $(id).hidden = !visible;
@@ -78,6 +97,7 @@ function enable(b, on) {
 
 function setBusy(busy) {
   state.busy = busy;
+  if (busy) state.cancelRequested = false;
   for (const b of document.querySelectorAll(".btn.action, .btn.small")) enable(b, !busy && state.online);
   show("work", busy);
   if (busy && $("paneTools").hidden) openTab("paneTools");      // the progress and Cancel are there
@@ -318,6 +338,8 @@ async function runJob(id) {
   for (;;) {
     const j = await engine.job(id);
     progress(0.05 + 0.85 * j.progress, j.message);
+    // 0.10.6 (BUG-014): Cancel pressed while the engine was finishing: its result is not applied to the timeline
+    if (state.cancelRequested && j.state === "done") throw new premiere.UserError("Cancelled. Nothing was changed in Premiere.");
     if (j.state === "done") return j.result;
     if (j.state === "cancelled") throw new premiere.UserError("Cancelled.");
     if (j.state === "error") throw new premiere.UserError(j.error || "Engine error.");
@@ -433,7 +455,14 @@ async function onAudio(force) {
     for (const p of plans) if (p.res.error) p.problems.push(p.res.error);
 
     // the channels: the host makes the L/L and R/R copies and puts them where the clip is (ExtendScript)
-    const todo = plans.map((p) => ({ p, route: audioplan.routeFor(p.it, p.res, force) })).filter((x) => x.route);
+    const wanted = plans.map((p) => ({ p, route: audioplan.routeFor(p.it, p.res, force) })).filter((x) => x.route);
+    // a clip with effects or keyframes is not split: the copies would replace it without them (0.10.6)
+    const todo = [];
+    for (const x of wanted) {
+      const why = await premiereAudio.routeBlockers(x.p.it.ti);
+      if (why.length) x.p.routed = { ok: false, refused: true, msg: `it has ${why.join(", ")}, which the split copies would not keep: split it by hand, or remove them and press again` };
+      else todo.push(x);
+    }
     // copies split by an earlier press: the host only gives them the clip's own label (a cut piece came out green)
     const relabel = plans.filter((p) => p.it.side).map((p) => ({ track: p.it.track, start: p.it.start, end: p.it.end, route: "label" }));
     if (todo.length || relabel.length) {
@@ -444,6 +473,7 @@ async function onAudio(force) {
       todo.forEach((x, i) => { x.p.routed = answer.items[i] || { ok: false, msg: "no answer" }; });
       engine.log("info", `audio route: ${JSON.stringify(answer.items)}`);
     }
+    if (state.cancelRequested && todo.length) throw new premiere.UserError("Cancelled after the channels were split: the levels were not set (Cmd/Ctrl+Z takes the split back).");
     progress(0.95, "Setting the levels…");
     const { undoSteps } = await premiereAudio.applyLevels(project, sel.timeline.sequence, audioplan.levelTargets(plans));
 
@@ -564,8 +594,20 @@ function englishWords(projectPath) {
   }
 }
 
-function saveEnglishWords(projectPath, map) {
+// Word fixes the editor took back, per project: {as corrected (lower case): the original word}. Sent with every run, so the
+// engine records the revocation for the client and leaves the learned fix out (0.10.6, BUG-013: deleting the local entry
+// alone let the client's learned fix come back in the next run).
+function englishWordsOff(projectPath) {
   try {
+    return JSON.parse(localStorage.getItem(`asistent.englishWordsOff.${projectPath}`) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveEnglishWords(projectPath, map, off) {
+  try {
+    if (off) localStorage.setItem(`asistent.englishWordsOff.${projectPath}`, JSON.stringify(off));
     localStorage.setItem(`asistent.englishWords.${projectPath}`, JSON.stringify(map));
   } catch (e) {
     /* no storage: the line itself is still kept (englishFixed) */
@@ -729,13 +771,23 @@ async function onCaptionApply() {
     for (const [en, i] of enChanged) map[lineKey(edited[i])] = en.value.trim();
     saveEnglishFixed(project.path, map);
     const words = englishWords(project.path);
+    const off = englishWordsOff(project.path);
+    const learnedEnglish = (captionEdit.result && captionEdit.result.english_learned) || {};       // the client's, from the run
     for (const [en] of enChanged) {
       for (const p of captionedit.pairsFor(en.getAttribute("data-original"), en.value)) {
-        if (words[p.said.toLowerCase()] && words[p.said.toLowerCase()].toLowerCase() === p.heard.toLowerCase()) delete words[p.said.toLowerCase()];
-        else words[p.heard.toLowerCase()] = p.said;
+        const heard = p.heard.toLowerCase();
+        const said = p.said.toLowerCase();
+        // the original typed back over a fix (local or learned for the client): the fix is revoked, not reversed
+        if ((words[said] && words[said].toLowerCase() === heard) || (learnedEnglish[said] && learnedEnglish[said].toLowerCase() === heard)) {
+          delete words[said];
+          off[heard] = p.said;
+        } else {
+          words[heard] = p.said;
+          for (const k of Object.keys(off)) if (k === said && off[k].toLowerCase() === heard) delete off[k];   // fixed again
+        }
       }
     }
-    saveEnglishWords(project.path, words);
+    saveEnglishWords(project.path, words, off);
   }
   if (pairs.length) $("notes").value = captionedit.addToNotes($("notes").value, pairs);
   const said = [];
@@ -766,11 +818,12 @@ async function onSubtitles(opts = {}) {
     const project = await premiere.activeProject();
     progress(0.02, "Reading the selected clips…");
     const saved = await saveSubtitleSettings(project.path);                  // what is in the boxes now is what runs, and is remembered
-    const { payload, plan } = await premiereSubtitles.readInput(project, [], $("notes").value);
+    const { payload, plan, sequence: source } = await premiereSubtitles.readInput(project, [], $("notes").value);   // the sequence the subtitles are for
     payload.english = $("subtitleEnglish").checked;                          // the English line under every Bulgarian line
     payload.preset = $("subtitleStyle").value;                               // auto, or a client's own style
     payload.english_fixed = englishFixed(project.path);                      // English lines typed in the Captions tab
     payload.english_words = englishWords(project.path);                      // and the words changed in them (learned per client)
+    payload.english_words_off = englishWordsOff(project.path);               // and the word fixes taken back (0.10.6)
     payload.project = project.path;                                          // finds the client's learning folder (learning.py)
     engine.log("info", `subtitles: ${plan.use.length} clips, ${plan.skipped.length} skipped`);
     const { job } = await engine.startSubtitles(payload);
@@ -779,7 +832,12 @@ async function onSubtitles(opts = {}) {
     if (out.ok) {
       // one press: the file is made, then it goes onto a caption track of the same sequence (engine host, see DECISIONS.md)
       progress(0.98, "Putting the subtitles on the timeline…");
-      const placed = describePlacement(await premiereCaptions.place(project, await project.getActiveSequence(), result, { again: !!opts.again }), result.srt, !!opts.again);
+      // only onto the sequence they were made from (0.10.6): never onto whatever is open after a long job
+      const now = await premiere.activeProject();
+      const where = now.path !== project.path
+        ? { status: "moved", sequence: source.name || "", message: `The subtitles are for the project "${project.name}", but "${now.name}" is open now. Nothing was put on it.` }
+        : await premiereCaptions.place(project, source, result, { again: !!opts.again });
+      const placed = describePlacement(where, result.srt, !!opts.again);
       out.text = placed.ok ? `Done: ${result.counts.captions} subtitle lines, on the timeline.` : placed.text;
       out.ok = placed.ok;
       out.lines = [...placed.lines, ...out.lines.filter((l) => !/^File: /.test(l.text))];
@@ -1417,6 +1475,7 @@ onTap($("updateGo"), onUpdate);
 for (const b of document.querySelectorAll(".btn.small[data-force]")) onTap(b, () => onAudio(b.getAttribute("data-force")));
 // Cancel must always work, also right after the panel changed
 onTap($("cancel"), () => {
+  state.cancelRequested = true;                    // also stops the apply when the engine finished at the same moment
   if (state.jobId) engine.cancel(state.jobId).catch(() => {});
 }, { repeat: true });
 

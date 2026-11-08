@@ -15,7 +15,7 @@ import zipfile
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PARTS = ("engine", "host", "scripts", "fonts")
-FILES = ("requirements.txt", "requirements-asr.txt", "requirements-align.txt", "LICENSES.md", "README.md")
+FILES = ("requirements.txt", "requirements-asr.txt", "requirements-lock-mac.txt", "requirements-asr-lock-mac.txt", "requirements-align.txt", "LICENSES.md", "README.md")
 SKIP_DIRS = {"__pycache__", ".pytest_cache", "githooks"}
 SKIP_FILES = {".DS_Store", "devbridge.enabled"}
 INSTALLERS = ("Install Asistent (Mac).command", "Install Asistent (Windows).cmd")   # at the top of the zip, easy to find

@@ -19,6 +19,10 @@ function planRoughCut(items) {
   for (const x of picked) {
     const name = x.name || "clip";
     if (x.kind === "audio" && x.unused) unused[x.track + 1] = (unused[x.track + 1] || 0) + 1;
+    // 0.10.6 (BUG-009): a switched-off clip or a track with its eye off shows nothing; in the new sequence (all tracks and
+    // clips on) it would show, e.g. a POV the editor hid. Left out, and named.
+    else if (x.kind === "video" && x.unused) skipped.push(`${name} (switched off, left out)`);
+    else if (x.kind === "video" && x.hidden) skipped.push(`${name} (on V${x.track + 1}, whose output is off: left out)`);
     else if (!x.path) skipped.push(`${name} (offline media, nested sequence or graphic)`);
     else if (Math.abs((x.speed || 1) - 1) >= 0.01) skipped.push(`${name} (changed speed)`);
     else if (x.reversed) skipped.push(`${name} (reversed)`);
@@ -98,6 +102,12 @@ function verify(want, got) {
       if (have !== n) problems.push(`${kind === "video" ? "Video" : "Audio"} track ${t}: the sequence has ${have} pieces, it should have ${n}.`);
     }
   }
+  // 0.10.6 (ARCH-004): a track the engine did not write that holds clips is a problem too (it used to pass)
+  for (const kind of ["video", "audio"]) {
+    for (const [t, n] of Object.entries(got[kind] || {})) {
+      if (n > 0 && !(want[kind] || {})[t]) problems.push(`${kind === "video" ? "Video" : "Audio"} track ${t} has ${n} pieces that were not in the plan.`);
+    }
+  }
   const expected = want.frames / want.fps;
   if (Math.abs((got.end || 0) - expected) > 1 / want.fps) {
     problems.push(`Length ${got.end.toFixed(2)} s, it should be ${expected.toFixed(2)} s.`);
@@ -105,4 +115,27 @@ function verify(want, got) {
   return problems;
 }
 
-module.exports = { planRoughCut, describeResult, verify, clock, MODE_LABEL };
+const normPath = (p) => String(p || "").replace(/\\/g, "/").toLowerCase();
+
+/**
+ * Every piece the engine wrote against what Premiere made (0.10.6, ARCH-004: counts and length could not tell a wrong file,
+ * a wrong source range or a shifted piece). pieces: result.pieces ({kind, track, path, src_in, start} in frames); items:
+ * premiere.readItems of the new sequence (seconds). Half a frame of tolerance (Premiere's import rounds to its own ticks).
+ * -> [problem text], at most `limit` named and the rest counted.
+ */
+function verifyPieces(pieces, items, fps, limit = 5) {
+  const tol = 0.5 / fps + 0.002;
+  const bad = [];
+  for (const p of pieces || []) {
+    const at = p.start / fps;
+    const hit = items.find((x) => x.kind === p.kind && x.track === p.track && Math.abs(x.start - at) < tol);
+    const where = `${p.kind === "video" ? "V" : "A"}${p.track + 1} at ${clock(at)}`;
+    if (!hit) bad.push(`${where}: the piece is missing`);
+    else if (hit.path && p.path && normPath(hit.path) !== normPath(p.path)) bad.push(`${where}: another file (${String(hit.path).split(/[\\/]/).pop()})`);
+    else if (Number.isFinite(hit.inPt) && Math.abs(hit.inPt - p.src_in / fps) > tol) bad.push(`${where}: another part of the file (starts at ${hit.inPt.toFixed(2)} s instead of ${(p.src_in / fps).toFixed(2)} s)`);
+  }
+  if (bad.length > limit) return [...bad.slice(0, limit), `…and ${bad.length - limit} more pieces differ.`];
+  return bad;
+}
+
+module.exports = { planRoughCut, describeResult, verify, verifyPieces, clock, MODE_LABEL };

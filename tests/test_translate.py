@@ -84,3 +84,23 @@ def test_real_model_keeps_a_phrase_with_its_line_and_uses_plain_words():
     assert en[1].lower().endswith("fat cells")
     en = " ".join(translate.english_lines(["Това е промяна в самата мастна тъкан."], {"change": "shift"})).lower()
     assert "adipose" not in en and "shift" in en
+
+
+def test_pinned_downloads_are_checked_and_a_bad_file_is_never_trusted(tmp_path):
+    """0.10.6 (SEC-002): a downloaded file that differs from its pinned SHA-256 is renamed, so it is fetched again."""
+    import hashlib
+    from asistent import pins
+    good, bad = tmp_path / "config.json", tmp_path / "model.bin"
+    good.write_bytes(b"{}")
+    bad.write_bytes(b"tampered")
+    hashes = {"config.json": hashlib.sha256(b"{}").hexdigest(), "model.bin": hashlib.sha256(b"original").hexdigest(),
+              "missing.txt": "0" * 64}
+    assert pins.verify(str(tmp_path), hashes) == ["model.bin", "missing.txt"]
+    assert not bad.exists() and (tmp_path / "model.bin.bad").exists() and good.exists()
+
+
+def test_the_model_downloads_name_one_commit():
+    import inspect
+    from asistent import asr, translate
+    assert "revision=pins.WHISPER_REVISION" in inspect.getsource(asr.download_model)
+    assert "revision=pins.NLLB_REVISION" in inspect.getsource(translate.download_model)

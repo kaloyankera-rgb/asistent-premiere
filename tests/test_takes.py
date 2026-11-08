@@ -148,3 +148,21 @@ def test_the_take_cut_takes_the_breath_before_the_first_take_and_stops_before_th
     assert abs(a - 2.48) < 0.011                                # the breath before the take goes with it
     assert abs(b - (6.0 - pauses.LEAD_IN)) < 0.011              # the winner's first sound (Whisper said 6.1) keeps its lead
     assert a > 2.0                                               # never into the word before
+
+
+def test_a_near_repeat_that_changes_the_meaning_is_never_cut():
+    """0.10.6 (BUG-012): a negation, a number word or a name only one take has makes it "said differently"."""
+    cases = [("Този продукт не е подходящ за деца.", "Този продукт е подходящ за деца.", "не"),
+             ("Този продукт е подходящ за деца.", "Този продукт не е подходящ за деца.", "не"),     # the winner ADDS it
+             ("Цената е пет лева на брой.", "Цената е шест лева на брой.", "пет"),
+             ("Купих го от София миналата година.", "Купих го от Пловдив миналата година.", "софия")]
+    for first, second, word in cases:
+        g = takes.find(say(first, second))
+        assert len(g) == 1, (first, second)
+        assert not g[0]["safe"] and g[0]["cut"] == [], (first, second, g[0])
+        assert word in g[0]["lost"], (first, second, g[0]["lost"])
+
+
+def test_a_near_repeat_without_a_meaning_change_is_still_cut():
+    g = takes.find(say("Днес ще ви покажа три неща.", "Днес ще ви покажа три нещица."))
+    assert g and g[0]["safe"] and g[0]["cut"]

@@ -75,7 +75,8 @@ def validate(body: dict) -> dict:
             raise ValueError("Invalid clip in the request.")
         clean.append({"path": it["path"], "start": start, "end": end, "at": _num(it.get("at"), "position"),
                       "name": str(it.get("name") or os.path.basename(it["path"])),
-                      "track": int(_num(it.get("track", 0), "track"))})
+                      "track": int(_num(it.get("track", 0), "track")),
+                      **({"side": it["side"]} if it.get("side") in ("L", "R") else {})})
     preset = body.get("preset", "auto")
     if preset not in PRESET_NAMES:
         raise ValueError("Invalid subtitle style.")
@@ -103,6 +104,7 @@ def validate(body: dict) -> dict:
             "name": str(body.get("name") or "sequence"), "terms": terms, "skipped": skipped, "text": text,
             "english": bool(body.get("english")), "english_fixed": _english_fixed(body.get("english_fixed")),
             "english_words": _english_words(body.get("english_words")),
+            "english_words_off": _english_words(body.get("english_words_off")),
             "project": body.get("project") if isinstance(body.get("project"), str) else ""}
 
 
@@ -119,6 +121,17 @@ def _english_fixed(raw) -> dict:
                                                                for k, v in raw.items()):
         raise ValueError("Invalid English corrections.")
     return {line_key(k): " ".join(v.split()) for k, v in raw.items() if v.strip()}
+
+
+def merge_english_words(learned: dict, local: dict, off: dict) -> dict:
+    """The client's learned English word fixes, this project's own on top, minus the fixes the editor took back here
+    (`off`: {as corrected: the original}; 0.10.6, BUG-013)."""
+    out = {**learned, **local}
+    for corrected, original in off.items():
+        key = " ".join(original.lower().split())
+        if out.get(key, "").lower() == corrected.lower() and key not in local:
+            del out[key]
+    return out
 
 
 def _english_words(raw) -> dict:
@@ -637,7 +650,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
             progress(0.97, "Translating into English…")
             # from the words as spoken, with their punctuation: a "bare" preset shows none, but the sentences are found by it
             # the editors' word fixes for this client, then this project's own (plain words first: translate.PLAIN)
-            en_words = {**(learned.plan.english_words if learned else {}), **p["english_words"]}
+            en_words = merge_english_words(learned.plan.english_words if learned else {}, p["english_words"], p["english_words_off"])
             english = translate.english_lines([" ".join(w["word"] for w in c["words"]) for c in captions], en_words)
             if subtitles.PRESETS[preset].get("bare"):
                 english = [translate.bare(e) for e in english]
@@ -658,6 +671,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         "captions": [{"start": c["start"], "end": c["end"], "text": c["text"], "flags": c["flags"],
                       **({"en": english[i]} if english else {})} for i, c in enumerate(captions)],
         "srt_en": stem + ".en.srt" if english else None, "english_note": english_note,
+        "english_learned": dict(learned.plan.english_words) if learned else {},      # so the panel can take one back (0.10.6)
         "counts": {"captions": len(captions), "words": len(words), "flagged": flagged, "pieces": len(segments)},
         "timing": {"method": timing, "aligned": aligned, "weak": weak, "error": align_error},
         "corrections": [{"heard": a, "said": b, "applied": n} for (a, b), n in zip(parsed["pairs"], applied)],
@@ -684,7 +698,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
              time.time() - t0, preset, stem + ".srt")
     if learned:                                            # in the background: the editor does not wait for the server
         learning.record(learned.plan, learned.contexts, parsed["terms"], p["english_fixed"], used=learned.used,
-                        english_words=p["english_words"])
+                        english_words=p["english_words"], english_words_off=p["english_words_off"])
         log.info("learning: %s, %d learned fixes active, %d used, %d refused by the sound", learned.plan.client or "this computer",
                  len(learned.plan.rules), len(learned.used), len(learned.vetoed))
     progress(1.0, "Done")

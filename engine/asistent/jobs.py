@@ -9,7 +9,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
-from .media import MediaError
+from .media import Interrupted, MediaError
 from .sync import Cancelled
 
 log = logging.getLogger("asistent")
@@ -72,10 +72,16 @@ class JobManager:
         job.state = "running"
         t0 = time.time()
         try:
-            job.result = fn(job)
-            job.state = "done"
-            job.progress = 1.0
-        except Cancelled:
+            result = fn(job)
+            if job.cancelled:
+                # 0.10.6 (BUG-014): a stage that did not look at the cancel request finished anyway; its result is dropped,
+                # so the panel never applies work the editor cancelled
+                job.state, job.message = "cancelled", "Cancelled"
+            else:
+                job.result = result
+                job.state = "done"
+                job.progress = 1.0
+        except (Cancelled, Interrupted, InterruptedError):
             job.state, job.message = "cancelled", "Cancelled"
         except (MediaError, ValueError) as e:
             job.state, job.error = "error", str(e)

@@ -45,10 +45,18 @@ def run(name: str, args: dict | None = None, wait: float = 60.0) -> dict:
         raise ValueError("The test bridge is off.")
     if not status()["connected"]:
         raise ValueError(NOT_RUNNING)
-    cid = HOST.submit(name, args or {})
+    cid = HOST.submit(name, args or {}, deadline=time.time() + wait)
     res = HOST.wait_result(cid, wait)
     if res is None:
-        raise ValueError("Premiere did not answer in time (is it busy?). Try again.")
+        # 0.10.6 (ARCH-001): a command left in the queue used to run later, after the editor's retry
+        state = HOST.give_up(cid)
+        if state == "done":
+            res = HOST.wait_result(cid, 0)
+        elif state == "withdrawn":
+            raise ValueError("Premiere did not take the command in time (is it busy?). Nothing was done: try again.")
+        else:
+            raise ValueError("Premiere did not answer in time. It may still finish the last command: check the timeline "
+                             "before you press again.")
     data = res["data"] if isinstance(res["data"], dict) else {"ok": res["ok"], "msg": str(res["data"])}
     return data
 

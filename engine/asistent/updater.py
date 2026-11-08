@@ -178,8 +178,9 @@ def _read(path: str) -> str:
 def changed_requirements(new_root: str, cur_root: str, asr_installed: bool) -> list[str]:
     """The requirement files to install again: those that differ from the installed copy (ASR only where it is installed)."""
     names = [n for n in REQUIREMENTS if n != "requirements-asr.txt" or asr_installed]
+    lock = lambda n: n.replace(".txt", f"-lock-{'mac' if sys.platform == 'darwin' else 'win'}.txt")   # 0.10.6: a re-lock counts too
     return [n for n in names if os.path.isfile(os.path.join(new_root, n))
-            and _read(os.path.join(new_root, n)) != _read(os.path.join(cur_root, n))]
+            and any(_read(os.path.join(new_root, f)) != _read(os.path.join(cur_root, f)) for f in (n, lock(n)))]
 
 
 def install_update(progress, cancelled) -> dict:
@@ -203,16 +204,22 @@ def install_update(progress, cancelled) -> dict:
     root = _extract(zpath, os.path.join(work, "files"))
     from . import asr
     reqs = changed_requirements(root, install.current_dir(), asr.backend_installed())
-    for i, name in enumerate(reqs):
-        if cancelled():
-            raise InterruptedError("Cancelled.")
-        progress(0.65 + 0.15 * i / len(reqs), "Installing Python packages…")
-        r = subprocess.run([_venv_python(), "-m", "pip", "install", "-q", "-r", os.path.join(root, name)],
-                           capture_output=True, text=True, timeout=1800)
-        if r.returncode:
-            raise RuntimeError("pip could not install the new packages: " + (r.stderr or r.stdout).strip()[-400:])
-    progress(0.82, "Putting the files in place…")
-    done = install.install_all(root)
+    if cancelled():
+        raise InterruptedError("Cancelled.")
+    # 0.10.6 (ARCH-002): the installed version is kept first; anything failing below puts it back
+    progress(0.63, "Keeping the installed version…")
+    install.snapshot(_venv_python())
+    stages: list = []
+    try:
+        done = _apply(root, reqs, progress, cancelled, stages)
+    except BaseException as e:
+        failed = install.rollback(stages, _venv_python())
+        log.error("update to %s failed (%s); put back: %s", version, e, "everything" if not failed else "all but " + ", ".join(failed))
+        if failed:
+            raise RuntimeError(f"The update failed ({e}) and could not put back {', '.join(failed)}.") from e
+        if isinstance(e, InterruptedError):
+            raise
+        raise RuntimeError(f"The update failed and Asistent {config.VERSION} was put back: {e}") from e
     for d in os.listdir(os.path.dirname(work)):                       # keep only this update's download
         if d != version:
             shutil.rmtree(os.path.join(os.path.dirname(work), d), ignore_errors=True)
@@ -222,8 +229,26 @@ def install_update(progress, cancelled) -> dict:
         text += " New fonts appear in Premiere after its next restart."
     with open(_last_path(), "w", encoding="utf-8") as f:
         json.dump({"version": version, "text": text}, f)
+    install.mark_pending(version, config.VERSION)                     # run_engine.py puts it back if it never starts
     restart_soon()
     return {"version": version, "updated": True, "text": text, "notes": info.get("notes") or ""}
+
+
+def _apply(root: str, reqs: list, progress, cancelled, stages: list) -> dict:
+    """The packages, then the files, the host and the panel; `stages` says how far it got."""
+    for i, name in enumerate(reqs):
+        if cancelled():
+            raise InterruptedError("Cancelled.")
+        stages.append("packages")
+        progress(0.65 + 0.15 * i / len(reqs), "Installing Python packages…")
+        lock = os.path.join(root, name.replace(".txt", f"-lock-{'mac' if sys.platform == 'darwin' else 'win'}.txt"))
+        args = ["--require-hashes", "-r", lock] if os.path.isfile(lock) else ["-r", os.path.join(root, name)]   # 0.10.6
+        r = subprocess.run([_venv_python(), "-m", "pip", "install", "-q", *args],
+                           capture_output=True, text=True, timeout=1800)
+        if r.returncode:
+            raise RuntimeError("pip could not install the new packages: " + (r.stderr or r.stdout).strip()[-400:])
+    progress(0.82, "Putting the files in place…")
+    return install.install_all(root, stages=stages)
 
 
 # ---------------------------------------------------------------- restart

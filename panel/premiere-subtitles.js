@@ -30,7 +30,7 @@ async function readInput(project, terms, notes = "") {
   };
   engine.log("info", `subtitles: ${plan.use.length} items (${plan.use.map((x) => `A${x.track + 1} ${x.name}`).join(" | ")}), ` +
     `${plan.skipped.length} skipped, ${t.fps} fps, ${size ? `${size.width}x${size.height}` : "size unknown"}`);
-  return { payload, plan };
+  return { payload, plan, sequence: t.sequence };
 }
 
 module.exports = { readInput };

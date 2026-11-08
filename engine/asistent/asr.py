@@ -22,7 +22,7 @@ from typing import Callable
 
 import numpy as np
 
-from . import config
+from . import config, pins
 from .media import MediaError
 from .sync import Cancelled
 
@@ -217,7 +217,7 @@ def download_model(progress: Callable[[float, str], None], cancelled: Callable[[
 
     def run():
         try:
-            snapshot_download(MODEL_REPO, local_dir=d, allow_patterns=list(MODEL_FILES))
+            snapshot_download(MODEL_REPO, local_dir=d, allow_patterns=list(MODEL_FILES), revision=pins.WHISPER_REVISION)   # one commit
         except BaseException as e:                              # noqa: BLE001 - reported to the job below
             err.append(e)
 
@@ -233,5 +233,8 @@ def download_model(progress: Callable[[float, str], None], cancelled: Callable[[
         raise ASRError(f"The download failed: {err[0]}")
     if not model_present():
         raise ASRError("The download finished, but model files are missing.")
+    bad = pins.verify(d, pins.WHISPER_SHA256)                   # 0.10.6: exactly the files Asistent was tested with
+    if bad:
+        raise ASRError(f"The downloaded model does not match its checksum ({', '.join(bad)}): press Download again.")
     log.info("whisper model downloaded to %s", d)
     return model_status()

@@ -179,3 +179,77 @@ def test_the_release_zip_has_what_a_computer_needs(tmp_path):
         assert need in names, need
     assert not any("__pycache__" in n or n.startswith("tests/") or "dev_cmd.py" in n for n in names)
     assert mode & 0o111
+
+
+# ---------------------------------------------------------------- 0.10.6 (ARCH-002): a failed update puts the installed one back
+
+def installed(app, version):
+    """An installed Asistent at `version` in the private app folder (files, host, the kept panel package)."""
+    zpath, info = fake_release(app["tmp"] / f"inst-{version}", version)
+    root = updater._extract(str(zpath), str(app["tmp"] / f"inst-{version}" / "x"))
+    install.install_all(root)
+    return root
+
+
+def current_version(app):
+    text = (app["dir"] / "current" / "engine" / "asistent" / "config.py").read_text()
+    return text.split('VERSION = "')[1].split('"')[0]
+
+
+def test_pip_failing_leaves_the_installed_version_as_it_was(app, monkeypatch):
+    installed(app, "9.0.0")
+    zpath, info = fake_release(app["tmp"], "9.9.9")
+    monkeypatch.setattr(updater, "latest", lambda: info)
+    monkeypatch.setattr(updater, "_download", lambda url, dest, size, progress, cancelled: shutil.copy(zpath, dest))
+    monkeypatch.setattr(updater, "changed_requirements", lambda new, cur, asr: ["requirements.txt"])
+    real_run = subprocess.run
+    monkeypatch.setattr(updater.subprocess, "run", lambda cmd, **k: subprocess.CompletedProcess(cmd, 1, "", "no network")
+                        if "install" in cmd else real_run(cmd, **k))
+    with pytest.raises(RuntimeError, match="put back"):
+        updater.install_update(lambda f, m: None, lambda: False)
+    assert current_version(app) == "9.0.0"
+    assert not (app["dir"] / install.PENDING).exists() and not app["restarts"]
+
+
+def test_a_panel_install_failing_after_the_files_puts_files_and_panel_back(app, monkeypatch):
+    installed(app, "9.0.0")
+    assert (app["dir"] / "current" / install.PANEL_COPY).exists()
+    zpath, info = fake_release(app["tmp"], "9.9.9")
+    monkeypatch.setattr(updater, "latest", lambda: info)
+    monkeypatch.setattr(updater, "_download", lambda url, dest, size, progress, cancelled: shutil.copy(zpath, dest))
+    monkeypatch.setattr(updater, "changed_requirements", lambda new, cur, asr: [])
+
+    def panel(ccx, ver):
+        if ver == "9.9.9":
+            raise RuntimeError("Adobe does not report Asistent 9.9.9 as installed")
+        app["panels"].append((os.path.basename(ccx), ver))
+    monkeypatch.setattr(install, "install_panel", panel)
+    with pytest.raises(RuntimeError, match="put back"):
+        updater.install_update(lambda f, m: None, lambda: False)
+    assert current_version(app) == "9.0.0"                              # the files of the installed version again
+    assert app["panels"][-1] == (install.PANEL_COPY, "9.0.0")           # and its panel
+
+
+def test_an_engine_that_never_starts_after_an_update_is_put_back(app, tmp_path):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("run_engine", os.path.join(REPO, "engine", "run_engine.py"))
+    run_engine = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(run_engine)
+    a = app["dir"]
+    (a / "previous" / "engine").mkdir(parents=True)
+    (a / "previous" / "engine" / "ok.txt").write_text("9.0.0")
+    (a / "current" / "engine").mkdir(parents=True)
+    (a / "current" / "engine" / "broken.txt").write_text("9.9.9")
+    install.mark_pending("9.9.9", "9.0.0")
+    assert run_engine.boot_check(str(a)) is None and run_engine.boot_check(str(a)) is None     # two failed starts
+    note = run_engine.boot_check(str(a))                                                      # the third: put back
+    assert "9.0.0 was put back" in note
+    assert (a / "current" / "engine" / "ok.txt").exists() and not (a / "current" / "engine" / "broken.txt").exists()
+    assert not (a / install.PENDING).exists()
+    assert json.loads((a / "updates" / "last.json").read_text())["text"] == note
+
+
+def test_a_good_start_clears_the_update_mark(app):
+    install.mark_pending("9.9.9", "9.0.0")
+    install.boot_ok()
+    assert not (app["dir"] / install.PENDING).exists()

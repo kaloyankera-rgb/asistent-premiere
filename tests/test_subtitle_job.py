@@ -548,3 +548,55 @@ def test_english_typed_in_the_captions_tab_is_keyed_by_its_bulgarian_line():
     assert J._english_fixed(None) == {}
     with pytest.raises(ValueError):
         J._english_fixed({"a": 1})
+
+
+def test_an_asistent_side_copy_is_heard_only_on_its_own_channel(home):
+    """0.10.6 (BUG-008): an L/L copy plays only the left microphone; the right one's speech must not be recognised."""
+    left, right = synth.talker(3, 5), synth.talker(3, 9)
+    p = synth.write_wav(home / "two.wav", [left, right])
+    both = dialoguemix.build_mix([{"path": p, "start": 0, "end": 3, "at": 0, "name": "two"}])
+    only = dialoguemix.build_mix([{"path": p, "start": 0, "end": 3, "at": 0, "name": "two L 0.00-3.00", "side": "L"}])
+    seg = only["segments"][0]
+    assert seg["side"] == "L" and seg["action"]
+    y, _ = dialoguemix.read_segment(seg, 0.0)
+    from scipy import signal
+    want = signal.resample_poly(left, 1, dialoguemix._DECIM).astype(np.float32)
+    n = min(len(y), len(want), len(only["audio"]))
+    assert np.allclose(y[:n], want[:n], atol=1e-3)                         # the ASR window: the left channel only
+    assert np.allclose(only["audio"][:n], want[:n], atol=1e-3)              # the mix: the left channel only
+    assert not np.allclose(both["audio"][:n], want[:n], atol=1e-3)          # without the side: the file's other mic too
+
+
+def test_the_asr_window_keeps_the_channels_the_mix_chose(home, monkeypatch):
+    s = synth.talker(3, 5)
+    p = synth.write_wav(home / "lav.wav", [s, np.zeros_like(s)])
+    mix = dialoguemix.build_mix([{"path": p, "start": 0, "end": 3, "at": 0, "name": "lav"}])
+    called = []
+    monkeypatch.setattr(dialoguemix.audio, "classify", lambda x: called.append(1) or {"action": "as_is"})
+    dialoguemix.read_segment(mix["segments"][0], 1.0)
+    assert called == []                                                      # not classified again on the padded piece
+
+
+def test_long_items_are_read_fewer_at_a_time():
+    """0.10.6 (PERF-001): an hour-long item is decoded alone, short ones side by side."""
+    short = [{"start": 0, "end": 30}] * 10
+    hour = [{"start": 0, "end": 3600}] * 4
+    assert dialoguemix.readers_for(short) == dialoguemix.READERS
+    assert dialoguemix.readers_for(hour) == 1
+
+
+def test_the_alignment_pool_reports_a_worker_error_and_keeps_going(tmp_path, monkeypatch):
+    """0.10.6 (PERF-002): the persistent worker answers per window; a failing window is an error (Whisper times kept by
+    align_words), never a hang. Here the worker runs in this Python, which has no torch: every window fails cleanly."""
+    import sys as _sys
+    monkeypatch.setattr(align, "python_path", lambda: _sys.executable)
+    pool = align._Pool()
+    d = tmp_path / "w"
+    d.mkdir()
+    np.save(d / "audio.npy", np.zeros(16000, np.float32))
+    (d / "words.json").write_text('[{"text": "да", "start": 0.1, "end": 0.3}]', encoding="utf-8")
+    (d / "spoken.json").write_text("{}", encoding="utf-8")
+    for _ in range(2):                                   # the same worker answers again after an error
+        with pytest.raises(RuntimeError):
+            pool.run(str(d), 60)
+    pool.close()

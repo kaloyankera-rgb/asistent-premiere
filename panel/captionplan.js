@@ -5,13 +5,34 @@
 
 const TOL = 0.12;     // seconds: Premiere snaps caption times to its own grid
 
-/** tracks: [{index, count, start, end}] read from the sequence; sig: what the engine remembered. -> the track or null */
+/**
+ * tracks: [{index, count, start, end, lines: [[start, end], ...]}] read from the sequence; sig: what the engine remembered.
+ * -> the track, or null. A track counts as Asistent's only when EVERY line still has the time Asistent gave it (0.10.6:
+ * count + first/last let an editor's edit inside the track pass as unchanged, and removal deleted it). A record from before
+ * 0.10.6 has no line times: it is never trusted for removal (findUnverified only names it).
+ */
 function findOwn(sig, tracks) {
-  if (!sig || !Number.isInteger(sig.index)) return null;
+  if (!sig || !Number.isInteger(sig.index) || !Array.isArray(sig.lines) || sig.lines.length !== sig.count) return null;
+  const t = tracks.find((x) => x.index === sig.index);
+  if (!t || t.count !== sig.count || !Array.isArray(t.lines) || t.lines.length !== sig.lines.length) return null;
+  for (let i = 0; i < t.lines.length; i++) {
+    if (Math.abs(t.lines[i][0] - sig.lines[i][0]) > TOL || Math.abs(t.lines[i][1] - sig.lines[i][1]) > TOL) return null;
+  }
+  return t;
+}
+
+/** A legacy record (no line times) whose coarse signature still matches: named to the editor, never removed. */
+function findUnverified(sig, tracks) {
+  if (!sig || !Number.isInteger(sig.index) || Array.isArray(sig.lines)) return null;
   const t = tracks.find((x) => x.index === sig.index);
   if (!t || t.count !== sig.count) return null;
   if (Math.abs(t.start - sig.first) > TOL || Math.abs(t.end - sig.last) > TOL) return null;
   return t;
+}
+
+/** What is remembered of a placed track: every line's time (findOwn) plus the coarse fields older code reads. */
+function mark(t) {
+  return { index: t.index, count: t.count, first: t.start, last: t.end, lines: (t.lines || []).map(([a, b]) => [a, b]) };
 }
 
 /** The one track that is in `after` and not in `before`, or null (nothing added, or more than one). */
@@ -43,7 +64,7 @@ function clock(t) {
   return `${m}:${s < 10 ? "0" : ""}${s.toFixed(1)}`;
 }
 
-/** { status: placed|exists|nohost|error, track?, problems?, message?, srt } -> { ok, text, lines } for the result box */
+/** { status: placed|exists|moved|nohost|error, track?, problems?, message?, srt } -> { ok, text, lines } for the result box */
 function describePlacement(p, srt, again) {
   const file = { cls: "hint", text: `File: ${srt}` };
   if (p.status === "placed") {
@@ -55,7 +76,11 @@ function describePlacement(p, srt, again) {
       lines.push({ cls: "line", text: `The earlier subtitles are replaced: their ${p.removed.count} lines on ${names} are removed (one Undo brings them back).` });
       lines.push({ cls: "hint", text: `${names} ${p.removed.tracks.length === 1 ? "is" : "are"} empty now: right-click > Delete Track to tidy up (Premiere has no command for it).` });
     }
-    if (p.replaces) lines.push({ cls: "warn", text: `The earlier subtitles are still on track ${label(p.replaces)}: delete that track (right-click ${label(p.replaces)} > Delete Track), or the two sets show on top of each other.` });
+    const kept = [].concat(p.replaces || []);
+    if (kept.length) {
+      const names = kept.map(label).join(" and ");
+      lines.push({ cls: "warn", text: `The earlier subtitles are still on ${names}: ${p.keptWhy || "delete what you do not want"} (right-click > Delete Track), or the two sets show on top of each other.` });
+    }
     lines.push({ cls: "hint", text: p.graphics ? "Retype, move or restyle any line in Essential Graphics. Undo: delete the track (each line was its own step)."
       : "To restyle all of them: select every caption on the track and change font, size, outline or shadow in the Properties panel; " +
         "save it as a Track Style to reuse it. The file is also in the bin \"Subtitles\"." });
@@ -68,6 +93,11 @@ function describePlacement(p, srt, again) {
       { cls: "line", text: `For new subtitles: delete that track (right-click ${label(p.track)} > Delete Track) and press the button again.` },
       { cls: "hint", text: `The new file is ready if you want it by hand: ${srt}` } ] };
   }
+  if (p.status === "moved") {
+    return { ok: false, text: "The subtitles are ready, but not on the timeline: the sequence changed while they were made.", lines: [
+      { cls: "warn", text: p.message },
+      { cls: "line", text: `Open "${p.sequence}" again and press Subtitles (the recognition is kept, it takes seconds), or import the file by hand.` }, file ] };
+  }
   if (p.status === "nohost") {
     return { ok: false, text: "The subtitles are ready, but not on the timeline.", lines: [
       { cls: "warn", text: p.message },
@@ -78,4 +108,4 @@ function describePlacement(p, srt, again) {
     { cls: "line", text: "The file is ready: import it into the project and drag it onto the sequence." }, file ] };
 }
 
-module.exports = { findOwn, addedTrack, problems, describePlacement, TOL };
+module.exports = { findOwn, findUnverified, mark, addedTrack, problems, describePlacement, TOL };
