@@ -17,6 +17,7 @@ drive the engine. The Host header is checked against DNS rebinding.
   GET  /host/poll?wait=s     the Premiere host (CEP extension, ExtendScript): the next command; GET /host/status
   POST /host/result          {id, ok, data} from the host
   POST /subtitles/review     {json} -> what to check per caption line (review.py; reads the run's JSON, changes nothing)
+  POST /captions/faces      {frames: [paths]} -> faces per frame as fractions (Move off faces; frames deleted after)
   POST /subtitles/play       {start} Premiere plays from there in the Program Monitor (Captions tab ▶); {stop, from, until} stops it
                              if the playhead is still inside that passage
   POST /captions/graphics    {"captions": [{start, end, text}], "preset", "sequence", "project"?} -> every line as a text
@@ -96,6 +97,7 @@ from . import captionstate
 from . import subtitle_settings
 from . import learning
 from . import review
+from . import framefaces
 from . import translate
 from . import updater
 
@@ -410,6 +412,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, learning.set_removed(str(body.get("project") or ""), key, action == "remove"))
             if self.path == "/subtitles/review":         # what to check, line by line (reads the job's JSON, changes nothing)
                 return self._send(200, review.load(str(body.get("json") or "")))
+            if self.path == "/captions/faces":           # Move off faces: faces in frames the panel exported (numbers only)
+                if not framefaces.faces.available():
+                    raise ValueError("The face detector is not installed (OpenCV and models/face_detection_yunet_2023mar.onnx).")
+                return self._send(200, {"frames": framefaces.measure(body.get("frames"))})
             if self.path == "/subtitles/play":           # Captions tab ▶: Premiere's own playback through the host (0.10.11)
                 if body.get("stop"):
                     return self._send(200, hostbridge.run("play_stop", {"from": float(body.get("from") or 0.0),

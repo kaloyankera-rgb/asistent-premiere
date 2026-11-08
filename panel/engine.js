@@ -208,6 +208,11 @@ function review(json) {
   return call("POST", "/subtitles/review", { json });
 }
 
+// Move off faces: faces in frames the panel exported (fractions of the frame; the engine deletes the frames after)
+function captionFaces(frames) {
+  return call("POST", "/captions/faces", { frames });
+}
+
 function playFrom(start) {
   return call("POST", "/subtitles/play", { start });
 }
@@ -221,4 +226,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, review, playFrom, playStop, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, review, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };

@@ -172,7 +172,8 @@ Next:
 1. English lines editable in the Captions tab (now: fix them in Premiere after Upgrade; a rebuild makes them again).
 4. Done in 0.9.86: Style "ReShape" (measured on 7 client videos, docs/SUBTITLE_STYLE.md). Open: "бюста / ви" can still split
    when the next words allow it (no word classes to tell it from "много хора / си представят").
-5. "Move off faces" button: selected subtitle graphics (after Upgrade), faces under each line (engine YuNet on the visible clip's
+5. Built in 0.10.12 (to install and try in NEW TEST: upgrade C29's lines, select them, press; check heights per shot, the English pairs,
+   one Undo; then move one by hand and press again: it must stay). Spec as built: "Move off faces" button: selected subtitle graphics (after Upgrade), faces under each line (engine YuNet on the visible clip's
    frames), a Bulgarian line and its English line move together, one Undo step (UXP PointF). The client's rule (measured 0.9.86):
    one height per shot, changed at a cut; the Bulgarian line's top 0.11 of the frame height under the chin (median error 0.028,
    a fixed height 0.042); above the face when the face is low; no face = the middle (0.50-0.53); never higher than ~0.16 or lower
