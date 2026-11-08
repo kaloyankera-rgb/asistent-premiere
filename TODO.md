@@ -36,6 +36,13 @@ Each one: behind its own switch, Classic stays the default, ReShape never change
 a row in docs/ROLLBACK.md, measured against Classic on the same inputs before it is offered. Order by measured benefit.
 - **I0. Needs the user first:** verify the three Masterhaus references (docs/BENCHMARK.md), then score Classic and whisper.cpp;
   try 0.10.9 in NEW TEST after the install OK.
+- **Quiet microphones (postponed by the user 2026-11-08, "for now no"):** a very quiet piece is misheard. Masterhaus fx31031 R
+  (lavalier, RMS about −57 dB, peaks −35 dB on the passage) gave „500 млн.“ / „20 млн.“ for „500 евро“ / „20 евро“ already in
+  Whisper's own reading; the same 13 s normalized (highpass 80 Hz + loudnorm −20 LUFS) gave „евро“ every time, as did camera 1's
+  C0731 R (about 35 dB louder) and a prompt „евро, лева“. Possible fix: raise only pieces with peaks under −20 dB before
+  recognition, so normally recorded sound (ReShape, the user's good test) stays byte-identical (golden check). Meanwhile:
+  select every camera's audio, the mix takes the cleanest copy. Also seen: the dictionary repair „водяло“ → „видяло“ although
+  every reading hears „водяло“.
 - **I6. Colour accuracy and camera calibration.** First validate `color.py` (BT.1886, S-Log3/S-Gamut3.Cine, legal range) against
   colour-science (pin the exact PyPI version, BSD-3) on synthetic patches: same numbers within 1e-4, or a documented reason; no
   duplicate log transform (read `getInputLUTID` per clip). Then camera calibration as a 3x3 matrix from chart patches or verified
