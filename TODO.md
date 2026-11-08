@@ -8,8 +8,12 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
   press acts once; an update from the panel to the next version (keeps <app>/previous; the panel installed over the old one).
 - **Windows PC:** setup_win.ps1 with the pinned CUDA wheels; generate `requirements-*-lock-win.txt` there
   (`python scripts\lock_requirements.py`) so Windows installs hash-locked too.
-- **Subtitle speed, next levers (need the user's choice, they change the words):** read one long window as several
-  pieces at once (the 91 s ReShape window is ~70 s of the 130 s), or Whisper on the Apple GPU (mlx-whisper, an install).
+- **Subtitle speed (the user, 2026-11-08: "whatever is faster and more accurate").** Measured on 143 s of Masterhaus speech
+  (fx31031/28/32, lavalier R, Asistent's own `asr.transcribe`): today's CPU int8 beam 5 123 s; CPU float32 148 s and 18 % of words
+  different, not better (noise stretches both wrong, „пусока“ for „посока“); mlx-whisper 0.4.2 fp16 on the GPU 10 s (12x) but
+  greedy only (no beam search) and clearly worse (гелче -> дядче, с периферия -> спириферият, invented lines), 41 % different.
+  Neither is both, so nothing changed. Next candidate: whisper.cpp with Metal AND beam 5 (needs the user's permission to clone
+  and build it; cmake is not installed). Splitting a long window into pieces only buys speed (less context), not tried.
   (Done in 0.10.6: the aligner stays loaded, ~0.9 s per window instead of ~2.1 s.)
 - **0.10.2, check from the panel:** a Beauty Sector clip shows "Beauty Sector", "Beauty Space", "workshop"; ReShape unchanged.
 - (0.10.0 and 0.10.4 checks done by Claude in NEW TEST on 2026-11-08, CHANGELOG 0.10.8.)
