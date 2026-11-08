@@ -1,12 +1,11 @@
-"""Captions tab review (engine review.py, listen.py): what to check per line, read from a finished run, never changing it.
+"""Captions tab review (engine review.py): what to check per line, read from a finished run, never changing it.
 Synthetic runs only."""
 import copy
 import json
-import os
 
 import pytest
 
-from asistent import listen, review
+from asistent import review
 
 
 def run(**kw):
@@ -89,28 +88,3 @@ def test_only_asistent_runs_are_read(tmp_path):
 def test_older_bulgarian_reasons_are_understood():
     assert review.classify("не се чува ясно в звука (тих шум)")[0] == "timing"
     assert review.classify("„нов стена“: the endings do not agree (check what was said)")[1] == review.HIGH
-
-
-def test_listen_cuts_from_the_piece_that_covers_the_line(tmp_path):
-    media = tmp_path / "a.wav"
-    media.write_bytes(b"x")
-    job = {"segments": [{"path": str(media), "start": 10.0, "end": 40.0, "at": 100.0, "side": "R"},
-                        {"path": str(tmp_path / "missing.wav"), "start": 0.0, "end": 60.0, "at": 90.0}]}
-    plan = listen.clip_plan(job, 105.0, 106.0)
-    assert plan["path"] == str(media) and plan["side"] == "R"
-    assert plan["source_start"] == pytest.approx(13.5) and plan["seconds"] == pytest.approx(4.0)
-
-
-def test_listen_stays_inside_the_piece_and_is_short(tmp_path):
-    media = tmp_path / "a.wav"
-    media.write_bytes(b"x")
-    job = {"segments": [{"path": str(media), "start": 0.0, "end": 100.0, "at": 0.0}]}
-    plan = listen.clip_plan(job, 0.5, 60.0)
-    assert plan["from"] == 0.0 and plan["seconds"] == pytest.approx(listen.MAX_SECONDS)
-    with pytest.raises(ValueError):
-        listen.clip_plan({"segments": []}, 1.0)
-
-
-def test_listen_refuses_files_asistent_did_not_write(tmp_path):
-    with pytest.raises(ValueError):
-        listen.play(str(tmp_path / "x.json"), 1.0)

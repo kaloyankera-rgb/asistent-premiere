@@ -17,7 +17,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   GET  /host/poll?wait=s     the Premiere host (CEP extension, ExtendScript): the next command; GET /host/status
   POST /host/result          {id, ok, data} from the host
   POST /subtitles/review     {json} -> what to check per caption line (review.py; reads the run's JSON, changes nothing)
-  POST /subtitles/listen     {json, at, end?, pad?} play that passage with the audio around it on this computer; {stop: true} stops
+  POST /subtitles/play       {start} Premiere plays from there in the Program Monitor (Captions tab ▶); {stop, from, until} stops it
+                             if the playhead is still inside that passage
   POST /captions/graphics    {"captions": [{start, end, text}], "preset", "sequence", "project"?} -> every line as a text
                              graphic on a new video track (Asistent's After Effects template, built on first use)
   POST /captions/place       {"srt", "sequence", "project"?, "bin"?} -> puts the SRT on a caption track of the active
@@ -94,7 +95,6 @@ from . import hostbridge
 from . import captionstate
 from . import subtitle_settings
 from . import learning
-from . import listen
 from . import review
 from . import translate
 from . import updater
@@ -410,13 +410,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, learning.set_removed(str(body.get("project") or ""), key, action == "remove"))
             if self.path == "/subtitles/review":         # what to check, line by line (reads the job's JSON, changes nothing)
                 return self._send(200, review.load(str(body.get("json") or "")))
-            if self.path == "/subtitles/listen":         # play a passage with the audio around it, on this computer
+            if self.path == "/subtitles/play":           # Captions tab ▶: Premiere's own playback through the host (0.10.11)
                 if body.get("stop"):
-                    listen.stop()
-                    return self._send(200, {"ok": True})
-                end = body.get("end")
-                return self._send(200, listen.play(str(body.get("json") or ""), float(body.get("at") or 0.0),
-                                                   None if end is None else float(end), float(body.get("pad") or listen.PAD)))
+                    return self._send(200, hostbridge.run("play_stop", {"from": float(body.get("from") or 0.0),
+                                                                        "until": float(body.get("until") or 0.0)}, 10.0))
+                return self._send(200, hostbridge.run("play", {"start": float(body.get("start") or 0.0)}, 10.0))
             if self.path in ("/captions/record", "/captions/forget"):
                 proj, seq = body.get("project"), body.get("sequence")
                 if not isinstance(proj, str) or not isinstance(seq, str) or not seq:

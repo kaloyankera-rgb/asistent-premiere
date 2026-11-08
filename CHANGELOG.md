@@ -30,6 +30,16 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.11 - Captions tab ▶ plays in Premiere's Program Monitor (the user's review of 0.10.9)
+The user: ▶ played "in the background, not in the program viewer", and with the timeline playing it was heard twice.
+- ▶ now moves the playhead 1.5 s before the line and Premiere plays it in the Program Monitor, then stops 1.5 s after the line,
+  only if the playhead is still inside that passage (playback the editor started elsewhere is left alone). The separate
+  player (`listen.py`, afplay/winsound, `/subtitles/listen`) is removed. Through the host: QE `player.play(1.0)` / `stop()`
+  (probed in NEW TEST; `qe.startPlayback()` did nothing); new host commands `play` / `play_stop`, engine `POST /subtitles/play`.
+- Checked in NEW TEST through the engine: played from 1:57.8 (at 1:59.2 after 1.5 s), stopped inside the passage, left alone
+  for a passage elsewhere. The panel loaded 0.10.11 live and Adobe lists only 0.10.11 (the 0.10.10 installer fix, on a real update).
+- `host/host.jsx` and `hostbridge.py` gained the two commands only (guard lists them); ReShape golden check identical.
+
 ## 0.10.10 - Updates leave exactly one panel version, so Premiere runs the new one (found while testing 0.10.9)
 - **Premiere kept running an old panel after every update since 0.10.6.** Adobe's installer, asked to install over the old
   panel, kept the older copies enabled beside the new one (this Mac: 0.10.7, 0.10.8 and 0.10.9 all "enabled", some twice), and

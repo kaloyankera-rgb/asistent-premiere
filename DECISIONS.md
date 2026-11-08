@@ -1,5 +1,11 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-08: ▶ plays in Premiere, not in a player of Asistent's own (0.10.11)
+The user heard the line twice (Asistent's afplay beside the timeline) and wanted it in the Program Monitor. QE's sequence player is
+the only playback control a script has in 26.0.2, so the host plays and stops it; the stop happens only while the playhead is still
+in that line's passage. This adds two commands to the protected `host.jsx` / `hostbridge.py` (nothing else in them changed; the
+ReShape golden check stayed identical).
+
 ## 2026-11-08: whisper.cpp (Metal, beam 5) measured: 7x faster, not adopted yet
 The candidate left by the speed decision below. On the same 143 s (docs/BENCHMARK.md): 20.8 s against 152.2 s, but it invented a
 line („Абонирайте се!“), wrote „млн.“ for „мм“ and its word times sit further from the aligned ones (median 0.53 s against

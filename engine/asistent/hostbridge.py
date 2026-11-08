@@ -16,7 +16,7 @@ import time
 from . import config, devbridge
 
 HOST = devbridge.Bridge()
-COMMANDS = ("ping", "probe", "captions", "graphics", "audio_route", "eval")
+COMMANDS = ("ping", "probe", "captions", "graphics", "audio_route", "eval", "play", "play_stop")   # play: Captions tab ▶ (0.10.11)
 SEEN_WITHIN = 45.0             # the host polls every <= 20 s; older than this it is not running
 _state = {"seen": 0.0, "version": None}
 

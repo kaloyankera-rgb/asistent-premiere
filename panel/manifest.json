@@ -1,7 +1,7 @@
 {
   "id": "com.contentstudio.asistent",
   "name": "Asistent",
-  "version": "0.10.10",
+  "version": "0.10.11",
   "main": "index.html",
   "manifestVersion": 5,
   "host": {

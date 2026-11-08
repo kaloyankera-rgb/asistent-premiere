@@ -4,8 +4,8 @@ Work rule for every step: implement → tests → bump version (manifest + confi
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
 ## A. Fix known bugs
-- **0.10.9/0.10.10, the user in NEW TEST:** reopen the panel (must say 0.10.10); press ▶ on a line and listen (right passage?); uncheck
-  Review helpers (old list), check again. Bridge-checked already: review, Lines to check, playhead move, playback started.
+- **0.10.11, the user:** ▶ on a few lines: plays in the Program Monitor from 1.5 s before the line and stops after it, no double
+  sound. (0.10.9 review helpers: the user confirmed they work, 2026-11-08.)
 - **0.10.6, check while working:** Cancel during a long job (nothing applied); right-click on a button does nothing; a long
   press acts once; an update from the panel to the next version (keeps <app>/previous; the panel installed over the old one).
 - **Windows PC:** setup_win.ps1 with the pinned CUDA wheels; generate `requirements-*-lock-win.txt` there
