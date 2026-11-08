@@ -6,6 +6,15 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
+### Branch improvements/2026-11 (the user's implementation prompt of 2026-11-08; not installed, not pushed)
+- **Protected backup before any change**: local tag `backup/pre-improvements-2026-11-08` (fbe0b28, 0.10.8) and a private,
+  read-only backup outside the repo (Git bundle, whole working tree, app data, installed panel/host, LaunchAgent, model
+  hashes, restore steps; isolated restore ran 574 pytest + 166 node green). See `docs/ROLLBACK.md`.
+- **ReShape baseline (dev only, no app change)**: `scripts/reshape_guard.py` (protected files changed since the tag),
+  `tests/test_reshape_baseline.py` (preset, constants, byte-exact captions of 36 synthetic inputs made by the tag's code; a
+  0.01 s lead change fails 15 of them), `scripts/reshape_golden.py` (the whole job on the client's own ReShape recording,
+  byte for byte against the run recorded at the tag; private store outside the repo; two cold runs identical, ~75 s).
+
 ## 0.10.8 - A covered clip gets only what needs no frame check (found by testing in NEW TEST)
 Claude ran the open Premiere checks through the test bridge in NEW TEST.prproj (2026-11-08) and found one real problem.
 - **Colour on a clip under a visible layer applied an unchecked +2 stops.** fx31030 in the rough-cut sequence: on the timeline
