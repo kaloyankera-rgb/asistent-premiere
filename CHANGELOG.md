@@ -30,6 +30,18 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.17 - The panel's settings survive updates (found while testing Move off faces)
+- **Every update erased the panel's own settings.** They lived in UXP localStorage, which Adobe's installer deletes with the panel,
+  and every update removes the old panel (0.10.10's fix for the stale panel; before 0.10.6 the installer removed it too): the
+  Style choice (ReShape), the English line switch, the English lines and words an editor typed per project, Review helpers, card
+  open/closed, the colour "fresh Lumetri" snapshot and Move off faces' own positions. Found on this Mac: the storage folder was
+  recreated empty at the 0.10.16 install, so Move off faces called its own earlier move "moved by hand".
+- Now they are kept by the engine in `<app>/panel_store.json` (`panelstore.py`, `GET/POST /panel/store`; panel `store.js`:
+  read from memory, written to the engine in order, localStorage kept as a fallback). On the first start of 0.10.17 whatever the
+  panel's storage still holds is copied over. Nothing was in it worth recovering: the protected backup of 2026-11-08 17:10 held only
+  the colour snapshot.
+- Tests: store (engine copy wins, one-time copy, engine offline), panelstore (put/get/delete, only the panel's keys, size limit).
+
 ## 0.10.16 - Move off faces says which shot is which (the user could not tell if the second POV was seen)
 - The user's two POVs (NEW TEST, 4:54.6–5:03.6: camera 1 C0738 on top, switched off in two pieces so camera 2 fx31035 shows) were
   both found ("1 under the face, 1 no face"), but the message did not say which was which. Now each shot is listed with its clip,

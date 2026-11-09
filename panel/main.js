@@ -1,3 +1,4 @@
+const store = require("./store.js");
 const engine = require("./engine.js");
 const premiere = require("./premiere.js");
 const layout = require("./layout.js");
@@ -581,7 +582,7 @@ const lineKey = (s) => String(s || "").trim().split(/\s+/).join(" ").toLowerCase
 
 function englishFixed(projectPath) {
   try {
-    return JSON.parse(localStorage.getItem(`asistent.englishFixed.${projectPath}`) || "{}");
+    return JSON.parse(store.getItem(`asistent.englishFixed.${projectPath}`) || "{}");
   } catch (e) {
     return {};
   }
@@ -591,7 +592,7 @@ function englishFixed(projectPath) {
 // with every run; the engine applies them before cutting the English sentence and learns them for the client (0.9.98).
 function englishWords(projectPath) {
   try {
-    return JSON.parse(localStorage.getItem(`asistent.englishWords.${projectPath}`) || "{}");
+    return JSON.parse(store.getItem(`asistent.englishWords.${projectPath}`) || "{}");
   } catch (e) {
     return {};
   }
@@ -602,7 +603,7 @@ function englishWords(projectPath) {
 // alone let the client's learned fix come back in the next run).
 function englishWordsOff(projectPath) {
   try {
-    return JSON.parse(localStorage.getItem(`asistent.englishWordsOff.${projectPath}`) || "{}");
+    return JSON.parse(store.getItem(`asistent.englishWordsOff.${projectPath}`) || "{}");
   } catch (e) {
     return {};
   }
@@ -610,8 +611,8 @@ function englishWordsOff(projectPath) {
 
 function saveEnglishWords(projectPath, map, off) {
   try {
-    if (off) localStorage.setItem(`asistent.englishWordsOff.${projectPath}`, JSON.stringify(off));
-    localStorage.setItem(`asistent.englishWords.${projectPath}`, JSON.stringify(map));
+    if (off) store.setItem(`asistent.englishWordsOff.${projectPath}`, JSON.stringify(off));
+    store.setItem(`asistent.englishWords.${projectPath}`, JSON.stringify(map));
   } catch (e) {
     /* no storage: the line itself is still kept (englishFixed) */
   }
@@ -619,7 +620,7 @@ function saveEnglishWords(projectPath, map, off) {
 
 function saveEnglishFixed(projectPath, map) {
   try {
-    localStorage.setItem(`asistent.englishFixed.${projectPath}`, JSON.stringify(map));
+    store.setItem(`asistent.englishFixed.${projectPath}`, JSON.stringify(map));
   } catch (e) {
     /* no storage: the fixes last until the next rebuild only */
   }
@@ -631,7 +632,7 @@ function saveEnglishFixed(projectPath, map) {
 // words and times are exactly what the subtitle job made.
 function reviewHelpersOn() {
   try {
-    return reviewplan.helpersOn(localStorage.getItem("asistent.reviewHelpers"));
+    return reviewplan.helpersOn(store.getItem("asistent.reviewHelpers"));
   } catch (e) {
     return true;
   }
@@ -1591,7 +1592,7 @@ onTap($("captionToCheck"), () => {
 });
 $("captionHelpers").addEventListener("change", () => {
   try {
-    localStorage.setItem("asistent.reviewHelpers", $("captionHelpers").checked ? "1" : "0");
+    store.setItem("asistent.reviewHelpers", $("captionHelpers").checked ? "1" : "0");
   } catch (e) {
     /* no storage: on for this session */
   }
@@ -1627,24 +1628,29 @@ onTap($("audioMore"), () => {
   show("audioManual", open);
   $("audioMore").textContent = open ? "Manual ▾" : "Manual ▸";
 });
-// the English line and the style are remembered on this computer
-try {
-  $("subtitleEnglish").checked = localStorage.getItem("asistent.subtitleEnglish") === "1";
-  if (localStorage.getItem("asistent.subtitleStyle") === "reshape") $("subtitleStyle").value = "reshape";
-} catch (e) {
-  /* no storage */
+// the English line and the style are remembered on this computer (store.js: in the engine's app folder, so an update keeps
+// them); applied at once from what the panel still has, and again when the engine's copy has loaded
+function applyRemembered() {
+  try {
+    $("subtitleEnglish").checked = store.getItem("asistent.subtitleEnglish") === "1";
+    $("subtitleStyle").value = store.getItem("asistent.subtitleStyle") === "reshape" ? "reshape" : "auto";
+  } catch (e) {
+    /* no storage */
+  }
 }
+applyRemembered();
+store.load().then((ok) => { if (ok) applyRemembered(); });
 $("subtitleEnglish").addEventListener("change", () => {
   if (state.online) engine.subtitlesModel().then(renderSubtitleModel).catch(() => {});
   try {
-    localStorage.setItem("asistent.subtitleEnglish", $("subtitleEnglish").checked ? "1" : "0");
+    store.setItem("asistent.subtitleEnglish", $("subtitleEnglish").checked ? "1" : "0");
   } catch (e) {
     /* no storage */
   }
 });
 $("subtitleStyle").addEventListener("change", () => {
   try {
-    localStorage.setItem("asistent.subtitleStyle", $("subtitleStyle").value);
+    store.setItem("asistent.subtitleStyle", $("subtitleStyle").value);
   } catch (e) {
     /* no storage */
   }
@@ -1657,14 +1663,14 @@ for (const t of document.querySelectorAll(".btn.more")) {
     show(id, open);
     t.className = open ? "btn more open" : "btn more";
     try {
-      localStorage.setItem(key, open ? "1" : "0");
+      store.setItem(key, open ? "1" : "0");
     } catch (e) {
       /* no storage: it simply starts closed next time */
     }
   };
   let open = false;
   try {
-    open = localStorage.getItem(key) === "1";
+    open = store.getItem(key) === "1";
   } catch (e) {
     /* no storage */
   }

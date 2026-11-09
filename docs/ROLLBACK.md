@@ -31,3 +31,4 @@ that each one can be switched off, reverted or have its data restored on its own
 | whisper.cpp experiment (dev only) | not part of the app | revert its commit | `<app>/experiments/whisper.cpp` (build + 3.1 GB model: delete the folder to remove); Homebrew `cmake` (`brew uninstall cmake`) |
 | Installer: one panel version (0.10.10) | not switchable (it is how an update installs) | revert the 0.10.10 commit (install.py) | none; if a panel ever goes missing: double-click `dist/Asistent-<version>.ccx` |
 | Move off faces (0.10.12) | do not press it (it acts only when pressed); one Cmd+Z undoes a press | revert the 0.10.12 commit | localStorage `asistent.placed.<sequence>` (the positions it wrote; harmless) |
+| Panel settings in the engine (0.10.17) | not switchable | revert the 0.10.17 commit (the panel then uses localStorage again) | `<app>/panel_store.json` (keep: it holds the editors' typed English lines) |

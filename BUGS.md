@@ -3,6 +3,7 @@
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
 ## Open bugs
+- **Fixed in 0.10.17:** every update erased the panel's settings (UXP localStorage is deleted with the panel).
 - **Fixed in 0.10.10:** after an update Premiere kept running an old panel (Adobe kept older copies enabled; Premiere loads the first).
 - **Open (seen 2026-11-08 after a Premiere restart):** the test bridge's `select` set no selection in NEW TEST (0 selected,
   no error); the user selected by hand. Worked in earlier sessions; look at it before the next bridge-driven test.

@@ -208,6 +208,15 @@ function review(json) {
   return call("POST", "/subtitles/review", { json });
 }
 
+// the panel's settings, kept by the engine so a panel update cannot lose them (store.js)
+function panelStore() {
+  return call("GET", "/panel/store");
+}
+
+function panelStorePut(key, value) {
+  return call("POST", "/panel/store", { key, value });
+}
+
 // Move off faces: faces in frames the panel exported (fractions of the frame; the engine deletes the frames after)
 function captionFaces(frames, project, graphics) {
   return call("POST", "/captions/faces", { frames, project, graphics });
@@ -226,4 +235,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, review, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };
