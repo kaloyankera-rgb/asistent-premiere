@@ -32,6 +32,8 @@ onset curve is shared with Quick Search (`tools/premiere-barzo/.../sync.js`, sam
 
 Later phases will add, after a license check at that time: faster-whisper (MIT).
 
+| Apple Vision (macOS) | part of macOS | text recognition for Move off faces (`ocr.swift`, compiled locally with the command line tools) |
+
 ## Development only (never installed for editors)
 | Component | License | How it is used |
 |---|---|---|

@@ -17,7 +17,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   GET  /host/poll?wait=s     the Premiere host (CEP extension, ExtendScript): the next command; GET /host/status
   POST /host/result          {id, ok, data} from the host
   POST /subtitles/review     {json} -> what to check per caption line (review.py; reads the run's JSON, changes nothing)
-  POST /captions/faces      {frames: [paths]} -> faces per frame as fractions (Move off faces; frames deleted after)
+  POST /captions/faces      {frames: [{path, t}], project, graphics: [{id, start, end}]} -> per frame faces and each graphic's
+                             measured text centre (Mac text recognition), as fractions (Move off faces; frames deleted after)
   POST /subtitles/play       {start} Premiere plays from there in the Program Monitor (Captions tab ▶); {stop, from, until} stops it
                              if the playhead is still inside that passage
   POST /captions/graphics    {"captions": [{start, end, text}], "preset", "sequence", "project"?} -> every line as a text
@@ -415,7 +416,8 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/captions/faces":           # Move off faces: faces in frames the panel exported (numbers only)
                 if not framefaces.faces.available():
                     raise ValueError("The face detector is not installed (OpenCV and models/face_detection_yunet_2023mar.onnx).")
-                return self._send(200, {"frames": framefaces.measure(body.get("frames"))})
+                return self._send(200, {"frames": framefaces.measure(body.get("frames"), str(body.get("project") or ""),
+                                                                     body.get("graphics") if isinstance(body.get("graphics"), list) else None)})
             if self.path == "/subtitles/play":           # Captions tab ▶: Premiere's own playback through the host (0.10.11)
                 if body.get("stop"):
                     return self._send(200, hostbridge.run("play_stop", {"from": float(body.get("from") or 0.0),

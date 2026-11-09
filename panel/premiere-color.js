@@ -462,10 +462,10 @@ async function exportFrame(sequence, seconds, name, dir, onError, long = 480) {
 const FRAME_BATCH = 16;
 const BATCH_WAIT_S = 5;                // a batch's frames arrive within ~2 s; a missing one is retried, not waited for
 
-async function exportFrames(sequence, shots, dir, onBatch) {
+async function exportFrames(sequence, shots, dir, onBatch, long = 480) {
   const out = new Array(shots.length).fill(null);
   if (!has(ppro.Exporter, "exportSequenceFrame")) return out;
-  const { w, h } = await frameSize(sequence, 480);
+  const { w, h } = await frameSize(sequence, long);
   for (let s = 0; s < shots.length; s += FRAME_BATCH) {
     const batch = shots.slice(s, s + FRAME_BATCH);
     const names = [];

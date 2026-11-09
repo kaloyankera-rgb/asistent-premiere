@@ -117,18 +117,36 @@ async function moveOffFaces(project, onProgress = () => {}) {
   when.forEach((list, i) => list.forEach((seconds, k) => frames.push({ shot: i, name: `face_${i}_${k}.png`, seconds })));
   onProgress(0.2, `Looking for faces in ${shots.length} shots…`);
   const dir = (await engine.status()).frames_dir;
-  const paths = frames.length ? await exportFrames(timeline.sequence, frames, dir) : [];
-  const measured = paths.some(Boolean) ? (await engine.captionFaces(paths.filter(Boolean))).frames : [];
+  // 1080 px on the long side: the subtitle's letters must be readable for the text recognition (faces are found at any size)
+  const paths = frames.length ? await exportFrames(timeline.sequence, frames, dir, null, 1080) : [];
+  const sent = paths.map((p, i) => (p ? { path: p, t: frames[i].seconds } : null)).filter(Boolean);
+  const measured = sent.length ? (await engine.captionFaces(sent, project.path,
+    usable.map((g) => ({ id: g.id, start: g.start, end: g.end })))).frames : [];
   const facesPerShot = shots.map(() => []);
+  const centers = new Map();
+  const found = new Map();
   let m = 0;
   paths.forEach((p, i) => {
     if (!p) return;
     const r = measured[m++];
     if (r && r.faces) facesPerShot[frames[i].shot].push(r.faces);
+    for (const [id, ys] of Object.entries((r && r.text) || {})) if (!found.has(Number(id))) found.set(Number(id), ys);
   });
+  // each graphic's own line: alone at its times it is the Bulgarian line (or the English one if only that was found); in a
+  // Bulgarian/English pair the roles decide (the lower one, else the higher track, is English)
+  const role = new Map(placementplan.roles(usable).map((x) => [x.id, x.role]));
+  for (const [id, ys] of found) {
+    const g = usable.find((x) => x.id === id);
+    const paired = usable.some((x) => x.id !== id && Math.abs(x.start - g.start) <= 0.05 && Math.abs(x.end - g.end) <= 0.05);
+    const y = paired ? ys[role.get(id)] : (ys.bg !== undefined ? ys.bg : ys.en);
+    if (typeof y === "number") centers.set(id, y);
+  }
 
   onProgress(0.8, "Moving the lines…");
-  const placed = placementplan.plan(usable, shots, facesPerShot);
+  // where the letters really are (an upgraded caption keeps its text near the bottom whatever Position says): measured
+  const calibrated = placementplan.calibrate(usable, centers);
+  const estimated = calibrated.filter((g) => g.est).length;
+  const placed = placementplan.plan(calibrated, shots, facesPerShot);
   const byId = new Map(usable.map((g) => [g.id, g]));
   const changes = placed.filter((p) => Math.abs(p.motionY - byId.get(p.id).motionY) >= 0.001);
   if (changes.length) {
@@ -148,7 +166,7 @@ async function moveOffFaces(project, onProgress = () => {}) {
   }
   const tops = shots.map((s, i) => placementplan.shotTop(facesPerShot[i]));
   return { moved: changes.length, unchanged: placed.length - changes.length, kept, shots: tops,
-    pairs: placed.filter((p) => p.role === "en").length };
+    pairs: placed.filter((p) => p.role === "en").length, measured: centers.size, estimated };
 }
 
 module.exports = { moveOffFaces, point, number };

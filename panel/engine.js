@@ -209,8 +209,8 @@ function review(json) {
 }
 
 // Move off faces: faces in frames the panel exported (fractions of the frame; the engine deletes the frames after)
-function captionFaces(frames) {
-  return call("POST", "/captions/faces", { frames });
+function captionFaces(frames, project, graphics) {
+  return call("POST", "/captions/faces", { frames, project, graphics });
 }
 
 function playFrom(start) {
