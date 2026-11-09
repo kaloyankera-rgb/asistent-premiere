@@ -30,6 +30,12 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.13 - Move off faces reported "nothing changed" after moving the lines (found in NEW TEST)
+- The user's first press in NEW TEST (9 upgraded lines, V5, 190.8-201.0 s) moved every line (all to Motion Y 0.3565, one shot,
+  under a face), then said "Premiere did not accept the move (nothing changed)": `transaction()` returns nothing and throws on a
+  refusal, and the new code read the missing value as a refusal; the written positions were not remembered either. Fixed; a test
+  now checks that no panel code reads `transaction()`'s return value.
+
 ## 0.10.12 - Move off faces: subtitle graphics go to the client's height per shot (TODO R.5; not installed yet)
 - **Move off faces** (Subtitles card): after the editor's right-click > Upgrade Caption to Graphic, select the subtitle graphics
   and press. Each line moves to the height the client's videos use (docs/SUBTITLE_STYLE.md, measured on 625 lines): one height per

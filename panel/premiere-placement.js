@@ -132,13 +132,14 @@ async function moveOffFaces(project, onProgress = () => {}) {
   const byId = new Map(usable.map((g) => [g.id, g]));
   const changes = placed.filter((p) => Math.abs(p.motionY - byId.get(p.id).motionY) >= 0.001);
   if (changes.length) {
-    const ok = transaction(project, "Asistent: move subtitles off faces", (c) => {
+    // transaction() throws when Premiere refuses (it returns nothing): 0.10.12 read the missing return value as a refusal and
+    // reported "nothing changed" after the lines had moved (NEW TEST, 2026-11-09)
+    transaction(project, "Asistent: move subtitles off faces", (c) => {
       for (const p of changes) {
         const g = byId.get(p.id);
         c.addAction(g.motion.createSetValueAction(g.motion.createKeyframe(new ppro.PointF(g.motionX, p.motionY)), true));
       }
     });
-    if (!ok) throw new Error("Premiere did not accept the move (nothing changed).");
     for (const p of changes) {
       const g = byId.get(p.id);
       written[lineKey(g)] = { x: g.motionX, y: p.motionY };
