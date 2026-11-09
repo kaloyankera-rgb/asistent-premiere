@@ -239,3 +239,4 @@
 - 2026-11-08: user: subtitles wrong on fx31031; cause: lavalier at −57 dB RMS (Whisper itself wrote „млн.“ for „евро“); normalized / camera 1 / prompt all give „евро“. User's well-recorded test: good words and timing. Level fix postponed by the user (TODO).
 - 2026-11-08: user: review helpers work, but ▶ played in the background and twice with the timeline. 0.10.11: ▶ through QE player.play/stop in Premiere (probed), listen.py removed; installed, checked via engine; panel loaded live, Adobe lists only 0.10.11.
 - 2026-11-08: 0.10.12 Move off faces (placementplan.js, premiere-placement.js, framefaces.py, /captions/faces): node + pytest green; install denied pending the user's OK.
+- 2026-11-09: user pressed Move off faces in NEW TEST (9 graphics V5): lines moved (0.3565) but the panel said refused: transaction() return misread. 0.10.13 fix + test.

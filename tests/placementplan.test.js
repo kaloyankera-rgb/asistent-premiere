@@ -55,3 +55,12 @@ test("a graphic moved by hand or keyframed is left alone; Premiere's default or 
   assert.deepStrictEqual(P.movable({ motionX: 0.5, motionY: 0.7 }, { x: 0.5, y: 0.62 }), { ok: false, why: "moved by hand" });
   assert.deepStrictEqual(P.movable({ animated: true, motionX: 0.5, motionY: 0.5 }), { ok: false, why: "Position has keyframes" });
 });
+
+test("transaction() returns nothing and throws on a refusal: no caller reads its return value (0.10.12 reported a false failure)", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  for (const f of fs.readdirSync(path.join(__dirname, "..", "panel")).filter((n) => n.endsWith(".js"))) {
+    const src = fs.readFileSync(path.join(__dirname, "..", "panel", f), "utf8");
+    assert.ok(!/=\s*(P\.|premiere\.)?transaction\(/.test(src), `${f} reads transaction()'s return value`);
+  }
+});
