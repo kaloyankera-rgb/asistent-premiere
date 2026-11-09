@@ -30,6 +30,13 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.16 - Move off faces says which shot is which (the user could not tell if the second POV was seen)
+- The user's two POVs (NEW TEST, 4:54.6–5:03.6: camera 1 C0738 on top, switched off in two pieces so camera 2 fx31035 shows) were
+  both found ("1 under the face, 1 no face"), but the message did not say which was which. Now each shot is listed with its clip,
+  time, what was found and how many lines it holds ("C0738, 4:58.7–5:01.4: under the face (face in 3 of 3 frames), 4 lines"), and
+  the same goes into the log. A shot with no face found is marked, with the note that faces turned sideways are often missed
+  (YuNet finds faces seen from the front), so such a shot gets the middle of the frame.
+
 ## 0.10.15 - Move off faces: a line over a cut changes height at the cut (two POVs, scene changes)
 - The user's test of 0.10.14 worked on one shot ("Moved 9 subtitle lines off faces … 1 under the face; text position read on 3
   lines") and asked for two POVs and scene changes. Each line already took the height of the shot under its middle; a line that

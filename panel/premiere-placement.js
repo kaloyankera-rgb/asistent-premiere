@@ -191,7 +191,14 @@ async function moveOffFaces(project, onProgress = () => {}) {
     }
     saveWritten(String(seqKey), written);
   }
-  const tops = shots.map((s, i) => placementplan.shotTop(facesPerShot[i]));
+  const framesPerShot = shots.map((s, i) => frames.filter((f) => f.shot === i).length);
+  const tops = shots.map((s, i) => ({ ...placementplan.shotTop(facesPerShot[i]), name: s.name, start: s.start, end: s.end,
+    frames: framesPerShot[i], withFace: facesPerShot[i].filter((f) => (f || []).length).length,
+    lines: usable.filter((g) => (g.pieces || []).some((p) => p.shot === i)).length }));
+  for (const t of tops) {
+    engine.log("info", `move off faces: shot ${t.name} ${t.start.toFixed(2)}-${t.end.toFixed(2)}: ${t.why}, top ${t.top}, ` +
+      `face in ${t.withFace} of ${t.frames} frames, ${t.lines} lines`);
+  }
   return { moved: changes.length, unchanged: placed.length - changes.length, kept, shots: tops,
     pairs: placed.filter((p) => p.role === "en").length, measured: centers.size, estimated,
     overCuts: changes.filter((p) => p.keys).length };
