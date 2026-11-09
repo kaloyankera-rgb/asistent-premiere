@@ -63,34 +63,68 @@ function roles(graphics) {
   return graphics.map((g) => ({ id: g.id, role: out.get(g.id) || "bg" }));
 }
 
-// which shot a line belongs to: the shot whose span holds the line's middle
-function shotOf(shots, g) {
-  const mid = (g.start + g.end) / 2;
-  return shots.findIndex((s) => mid >= s.start && mid < s.end);
+const MIN_PIECE = 0.1;               // a piece of a line shorter than this over another shot is not given its own height
+
+// which clip is seen during [start, end): clips [{start, end, track}] (visible ones with media) -> [{from, to, clip}],
+// the top clip in each stretch; a stretch shorter than MIN_PIECE joins its neighbour. Two POVs cut against each other, or a
+// new scene, give a line two pieces: the client's height changes at the cut (one height per shot).
+function cover(start, end, clips) {
+  const cuts = [...new Set([start, end, ...clips.flatMap((c) => [c.start, c.end]).filter((t) => t > start && t < end)])].sort((a, b) => a - b);
+  const pieces = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const mid = (cuts[i] + cuts[i + 1]) / 2;
+    const top = clips.filter((c) => c.start <= mid && mid < c.end).sort((a, b) => b.track - a.track)[0] || null;
+    const last = pieces[pieces.length - 1];
+    if (last && last.clip === top) last.to = cuts[i + 1];
+    else pieces.push({ from: cuts[i], to: cuts[i + 1], clip: top });
+  }
+  for (let i = 0; i < pieces.length && pieces.length > 1;) {          // slivers join the neighbour (the longer one)
+    const p = pieces[i];
+    if (p.to - p.from >= MIN_PIECE) { i++; continue; }
+    const into = i === 0 ? 1 : (i === pieces.length - 1 ? i - 1 : (pieces[i - 1].to - pieces[i - 1].from >= pieces[i + 1].to - pieces[i + 1].from ? i - 1 : i + 1));
+    pieces[into].from = Math.min(pieces[into].from, p.from);
+    pieces[into].to = Math.max(pieces[into].to, p.to);
+    pieces.splice(i, 1);
+  }
+  return pieces;
 }
 
-// the moments to measure in each shot: the middles of up to `per` of its lines, spread over the shot
+// the moments to measure in each shot: the middles of up to `per` line pieces over it, spread over the shot.
+// graphics carry `pieces` [{from, to, shot}].
 function moments(shots, graphics, per = 3) {
   return shots.map((s, i) => {
-    const mids = graphics.filter((g) => shotOf(shots, g) === i).map((g) => (g.start + g.end) / 2).sort((a, b) => a - b);
+    const mids = graphics.flatMap((g) => (g.pieces || []).filter((p) => p.shot === i).map((p) => (p.from + p.to) / 2)).sort((a, b) => a - b);
     if (mids.length <= per) return mids;
     return Array.from({ length: per }, (_, k) => mids[Math.round((k * (mids.length - 1)) / (per - 1))]);
   });
 }
 
-// graphics [{id, start, end, center, motionY}], shots [{start, end}], faces per shot [[faces per frame]] ->
-// [{id, role, shot, why, targetCenter, motionY (new)}]. The move keeps each graphic's own offset inside its layer:
-// new Motion Y = old Motion Y + (target centre - current centre).
-function plan(graphics, shots, facesPerShot, rule = RULE) {
+// graphics [{id, start, end, center, motionY, pieces: [{from, to, shot}]}], faces per shot [[faces per frame]] ->
+// [{id, role, why, targetCenter, motionY}] for a line over one shot, or with `keys` [[sequence time, Motion Y]] for a line
+// over a cut: its shot's height until one frame before the cut, the next shot's height from the cut (at most one frame of
+// movement, no slide). The move keeps each graphic's own offset inside its layer: Motion Y + (target centre - centre).
+function plan(graphics, shots, facesPerShot, rule = RULE, frame = 1 / 30) {
   const tops = shots.map((s, i) => shotTop(facesPerShot[i], rule));
   const role = new Map(roles(graphics).map((r) => [r.id, r.role]));
+  const r4 = (v) => Math.round(v * 10000) / 10000;
   return graphics.map((g) => {
-    const i = shotOf(shots, g);
-    const t = i >= 0 ? tops[i] : { top: rule.middle, why: "no shot under the line" };
-    const bgCenter = t.top + rule.lineHeight / 2;
-    const target = role.get(g.id) === "en" ? bgCenter + rule.englishGap : bgCenter;
-    return { id: g.id, role: role.get(g.id), shot: i, why: t.why, targetCenter: Math.round(target * 1000) / 1000,
-      motionY: Math.round((g.motionY + target - g.center) * 10000) / 10000 };
+    const pieces = g.pieces && g.pieces.length ? g.pieces : [{ from: g.start, to: g.end, shot: -1 }];
+    const ys = pieces.map((p) => {
+      const t = p.shot >= 0 ? tops[p.shot] : { top: rule.middle, why: "no clip under the line" };
+      const bgCenter = t.top + rule.lineHeight / 2;
+      const target = role.get(g.id) === "en" ? bgCenter + rule.englishGap : bgCenter;
+      return { target, why: t.why, y: r4(g.motionY + target - g.center) };
+    });
+    const out = { id: g.id, role: role.get(g.id), why: ys[0].why, targetCenter: Math.round(ys[0].target * 1000) / 1000, motionY: ys[0].y };
+    if (pieces.length > 1 && ys.some((v) => Math.abs(v.y - ys[0].y) >= 0.001)) {
+      const keys = [[g.start, ys[0].y]];
+      for (let i = 1; i < pieces.length; i++) {
+        keys.push([Math.max(pieces[i].from - frame, keys[keys.length - 1][0] + 0.001), ys[i - 1].y]);
+        keys.push([pieces[i].from, ys[i].y]);
+      }
+      out.keys = keys;
+    }
+    return out;
   });
 }
 
@@ -114,11 +148,16 @@ function calibrate(graphics, measured) {
 // may Asistent move this graphic? Not when its Position is keyframed, and not when the editor moved it: its Motion Position
 // must still be Premiere's default after the upgrade (0.5, 0.5) or the value Asistent itself wrote last time.
 function movable(g, written) {
-  if (g.animated) return { ok: false, why: "Position has keyframes" };
+  if (g.animated) {
+    // Asistent's own keyframes (a line over a cut, written by an earlier press) may be rewritten: same count and times
+    const mine = written && written.keys && g.keyTimes && written.keys.length === g.keyTimes.length
+      && written.keys.every((t, i) => Math.abs(t - g.keyTimes[i]) < 0.002);
+    return mine ? { ok: true, own: true } : { ok: false, why: "Position has keyframes" };
+  }
   const near = (a, b) => Math.abs(a - b) < 0.0015;
   if (near(g.motionX, 0.5) && near(g.motionY, 0.5)) return { ok: true };
   if (written && near(g.motionY, written.y) && near(g.motionX, written.x)) return { ok: true };
   return { ok: false, why: "moved by hand" };
 }
 
-module.exports = { RULE, mainFace, shotTop, roles, shotOf, moments, plan, movable, median, calibrate };
+module.exports = { RULE, mainFace, shotTop, roles, cover, moments, plan, movable, median, calibrate };

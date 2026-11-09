@@ -33,19 +33,40 @@ test("two graphics at the same times are a pair: the lower one is English", () =
 
 test("one height per shot; English 0.035 under the Bulgarian centre; Motion keeps each layer's own offset", () => {
   const shots = [{ start: 0, end: 5 }, { start: 5, end: 10 }];
-  const g = [{ id: 0, start: 1, end: 2, center: 0.5, motionY: 0.5 }, { id: 1, start: 1, end: 2, center: 0.55, motionY: 0.5 },
-    { id: 2, start: 6, end: 7, center: 0.4, motionY: 0.45 }];
+  const one = (shot, x, y) => [{ from: x, to: y, shot }];
+  const g = [{ id: 0, start: 1, end: 2, center: 0.5, motionY: 0.5, pieces: one(0, 1, 2) },
+    { id: 1, start: 1, end: 2, center: 0.55, motionY: 0.5, pieces: one(0, 1, 2) },
+    { id: 2, start: 6, end: 7, center: 0.4, motionY: 0.45, pieces: one(1, 6, 7) }];
   const out = P.plan(g, shots, [[[face(0.2, 0.15)]], [[]]]);
   assert.strictEqual(out[0].targetCenter, 0.478);                            // top 0.46 + half a line
   assert.strictEqual(out[1].targetCenter, 0.513);                            // + 0.035 for English
   assert.strictEqual(out[1].role, "en");
   assert.strictEqual(out[2].why, "no face");
   assert.strictEqual(out[2].motionY, Math.round((0.45 + 0.5175 - 0.4) * 10000) / 10000);
+  assert.ok(!out[0].keys && !out[2].keys);
 });
 
-test("the moments measured per shot: up to three line middles spread over the shot", () => {
+test("a line over a cut keeps its shot's height until one frame before the cut, then the next shot's", () => {
+  const shots = [{ start: 0, end: 5 }, { start: 5, end: 10 }];
+  const g = [{ id: 0, start: 4, end: 6, center: 0.5, motionY: 0.5, pieces: [{ from: 4, to: 5, shot: 0 }, { from: 5, to: 6, shot: 1 }] }];
+  const out = P.plan(g, shots, [[[face(0.2, 0.15)]], [[]]], P.RULE, 0.04);
+  assert.deepStrictEqual(out[0].keys, [[4, 0.4775], [4.96, 0.4775], [5, 0.5175]]);
+});
+
+test("cover: the top visible clip per stretch; a cut splits the line; a sliver joins its neighbour", () => {
+  const A = { start: 0, end: 5, track: 0 };
+  const B = { start: 5, end: 10, track: 1 };
+  const name = (p) => [p.from, p.to, p.clip === A ? "A" : "B"];
+  assert.deepStrictEqual(P.cover(4, 6, [A, B]).map(name), [[4, 5, "A"], [5, 6, "B"]]);
+  assert.deepStrictEqual(P.cover(4, 5.05, [A, B]).map(name), [[4, 5.05, "A"]]);
+  const V2 = { start: 0, end: 10, track: 1 };                                // a POV stacked over another: the top one is seen
+  assert.strictEqual(P.cover(1, 2, [A, V2])[0].clip, V2);
+  assert.deepStrictEqual(P.cover(1, 2, []), [{ from: 1, to: 2, clip: null }]);
+});
+
+test("the moments measured per shot: up to three piece middles spread over the shot", () => {
   const shots = [{ start: 0, end: 10 }];
-  const g = [0, 1, 2, 3, 4].map((k) => ({ start: k * 2, end: k * 2 + 1 }));
+  const g = [0, 1, 2, 3, 4].map((k) => ({ start: k * 2, end: k * 2 + 1, pieces: [{ from: k * 2, to: k * 2 + 1, shot: 0 }] }));
   assert.deepStrictEqual(P.moments(shots, g), [[0.5, 4.5, 8.5]]);
 });
 
@@ -54,6 +75,8 @@ test("a graphic moved by hand or keyframed is left alone; Premiere's default or 
   assert.deepStrictEqual(P.movable({ motionX: 0.5, motionY: 0.62 }, { x: 0.5, y: 0.62 }), { ok: true });
   assert.deepStrictEqual(P.movable({ motionX: 0.5, motionY: 0.7 }, { x: 0.5, y: 0.62 }), { ok: false, why: "moved by hand" });
   assert.deepStrictEqual(P.movable({ animated: true, motionX: 0.5, motionY: 0.5 }), { ok: false, why: "Position has keyframes" });
+  assert.deepStrictEqual(P.movable({ animated: true, keyTimes: [0, 0.96, 1] }, { keys: [0, 0.96, 1] }), { ok: true, own: true });
+  assert.deepStrictEqual(P.movable({ animated: true, keyTimes: [0, 0.5] }, { keys: [0, 0.96, 1] }), { ok: false, why: "Position has keyframes" });
 });
 
 test("transaction() returns nothing and throws on a refusal: no caller reads its return value (0.10.12 reported a false failure)", () => {
