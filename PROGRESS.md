@@ -241,3 +241,4 @@
 - 2026-11-08: 0.10.12 Move off faces (placementplan.js, premiere-placement.js, framefaces.py, /captions/faces): node + pytest green; install denied pending the user's OK.
 - 2026-11-09: user pressed Move off faces in NEW TEST (9 graphics V5): lines moved (0.3565) but the panel said refused: transaction() return misread. 0.10.13 fix + test.
 - 2026-11-09: user's shot: line at 0.75 instead of ~0.5 (upgraded caption letters at ~0.89, estimate said 0.65). 0.10.14: OCR (Vision, ocr.swift) on the face frames finds each graphic's line by its SRT words; calibrate() uses it.
+- 2026-11-09: user: 0.10.14 works on one shot; wants two POVs / scene changes. 0.10.15: lines split at cuts (cover), keyframes at the cut, own keyframes rewritable.

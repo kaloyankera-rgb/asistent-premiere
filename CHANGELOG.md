@@ -30,6 +30,18 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.15 - Move off faces: a line over a cut changes height at the cut (two POVs, scene changes)
+- The user's test of 0.10.14 worked on one shot ("Moved 9 subtitle lines off faces … 1 under the face; text position read on 3
+  lines") and asked for two POVs and scene changes. Each line already took the height of the shot under its middle; a line that
+  runs over a cut (POV A to POV B) got one height for both. Now every line is split at the cuts under it (the top visible clip
+  with media in each stretch; hidden tracks and switched-off clips do not count; a stretch under 0.1 s joins its neighbour), each
+  piece gets its shot's height, and a line over a cut gets Position keyframes: its first shot's height until one frame before
+  the cut, the next shot's height from the cut (no slide; same one Undo step). Frames for the faces are taken in every shot a
+  line piece covers.
+- A second press may rewrite Asistent's own keyframes (same count and times as it wrote); keyframes the editor made stay.
+- The keyframes' times count from the clip's In point; one line's keyframes are read back into the log to check the time base.
+- Tests: cover (cuts, slivers, stacked POVs), keys at the cut, own keyframes.
+
 ## 0.10.14 - Move off faces reads where each subtitle's letters really are (the user's test in NEW TEST)
 - The user's shot (one speaker, face in the upper third): "Виж тази чиния" ended at ~75 % of the height instead of ~50 %. The
   faces were found right; the starting point was wrong: an upgraded caption keeps its letters near the bottom (~0.89) while its

@@ -884,6 +884,7 @@ async function onMoveOffFaces() {
     for (const s of r.shots || []) why[s.why] = (why[s.why] || 0) + 1;
     if ((r.shots || []).length) lines.push({ cls: "", text: `Shots: ${Object.entries(why).map(([k, n]) => `${n} ${k}`).join(", ")}.` });
     if (r.pairs) lines.push({ cls: "", text: `${r.pairs} English lines kept under their Bulgarian lines.` });
+    if (r.overCuts) lines.push({ cls: "", text: `${r.overCuts} lines run over a cut: they change height at the cut (Position keyframes).` });
     if (r.unchanged) lines.push({ cls: "muted", text: `${r.unchanged} lines were already in place.` });
     if (r.estimated) lines.push({ cls: "warn", text: `Where the text sits could not be read on the frames: ${r.estimated} lines placed by an estimate (check them).` });
     else if (r.measured) lines.push({ cls: "muted", text: `Text position read on ${r.measured} lines (the others follow them).` });

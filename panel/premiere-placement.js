@@ -55,23 +55,29 @@ async function selectedGraphics(timeline) {
     // measured on the probe title: estimate 0.377, drawn centre 0.368 of the height)
     const center = m.y + ((text.y - anchor.y) + (vector.y - 0.5)) * (scale / 100);
     const animated = !!(await maybe(motion, "isTimeVarying"));
-    out.push({ id: out.length, ti: it.ti, name: it.name, start: it.start, end: it.end, track: it.track, motion,
-      motionX: m.x, motionY: m.y, center, animated });
+    const keyTimes = animated ? ((await maybe(motion, "getKeyframeListAsTickTimes")) || []).map((t) => Number(t.seconds) || 0) : null;
+    out.push({ id: out.length, ti: it.ti, name: it.name, start: it.start, end: it.end, track: it.track, inPt: it.inPt || 0, motion,
+      motionX: m.x, motionY: m.y, center, animated, keyTimes });
   }
   return out;
 }
 
-// the shots under the graphics: for each line, the top visible clip with media at its middle; one shot per such clip
+// the shots under the graphics: the visible clips with media seen during each line (two POVs cut against each other, or a
+// new scene, split a line into pieces); one shot per clip. Sets g.pieces [{from, to, shot}] on every graphic.
 function shotsUnder(timeline, graphics) {
-  const clips = timeline.items.filter((x) => x.kind === "video" && x.path && !x.unused);
+  const clips = timeline.items.filter((x) => x.kind === "video" && x.path && !x.unused && !x.hidden);
   const shots = [];
   for (const g of graphics) {
-    const mid = (g.start + g.end) / 2;
-    const under = clips.filter((c) => c.start <= mid && mid < c.end).sort((a, b) => b.track - a.track)[0];
-    if (!under || shots.some((s) => s.track === under.track && s.start === under.start)) continue;
-    shots.push({ start: under.start, end: under.end, track: under.track, name: under.name });
+    g.pieces = placementplan.cover(g.start, g.end, clips).map((p) => {
+      let shot = -1;
+      if (p.clip) {
+        shot = shots.indexOf(p.clip);
+        if (shot < 0) shot = shots.push(p.clip) - 1;
+      }
+      return { from: p.from, to: p.to, shot };
+    });
   }
-  return shots.sort((a, b) => a.start - b.start);
+  return shots.map((c) => ({ start: c.start, end: c.end, track: c.track, name: c.name }));
 }
 
 function writtenKey(seqKey) {
@@ -146,27 +152,49 @@ async function moveOffFaces(project, onProgress = () => {}) {
   // where the letters really are (an upgraded caption keeps its text near the bottom whatever Position says): measured
   const calibrated = placementplan.calibrate(usable, centers);
   const estimated = calibrated.filter((g) => g.est).length;
-  const placed = placementplan.plan(calibrated, shots, facesPerShot);
+  for (const g of calibrated) g.pieces = usable.find((u) => u.id === g.id).pieces;
+  const placed = placementplan.plan(calibrated, shots, facesPerShot, placementplan.RULE, 1 / (timeline.fps || 30));
   const byId = new Map(usable.map((g) => [g.id, g]));
-  const changes = placed.filter((p) => Math.abs(p.motionY - byId.get(p.id).motionY) >= 0.001);
+  const changes = placed.filter((p) => p.keys || byId.get(p.id).animated || Math.abs(p.motionY - byId.get(p.id).motionY) >= 0.001);
+  // a keyframe's time counts from the clip's own start (its In point), not from the sequence
+  const rel = (g, t) => t - g.start + g.inPt;
   if (changes.length) {
     // transaction() throws when Premiere refuses (it returns nothing): 0.10.12 read the missing return value as a refusal and
     // reported "nothing changed" after the lines had moved (NEW TEST, 2026-11-09)
     transaction(project, "Asistent: move subtitles off faces", (c) => {
       for (const p of changes) {
         const g = byId.get(p.id);
-        c.addAction(g.motion.createSetValueAction(g.motion.createKeyframe(new ppro.PointF(g.motionX, p.motionY)), true));
+        if (g.animated) c.addAction(g.motion.createSetTimeVaryingAction(false));      // Asistent's own earlier keyframes go
+        if (p.keys) {                                                                // a line over a cut: its height per shot
+          c.addAction(g.motion.createSetTimeVaryingAction(true));
+          for (const [t, y] of p.keys) {
+            const kf = g.motion.createKeyframe(new ppro.PointF(g.motionX, y));
+            kf.position = ppro.TickTime.createWithSeconds(rel(g, t));
+            c.addAction(g.motion.createAddKeyframeAction(kf));
+          }
+        } else {
+          c.addAction(g.motion.createSetValueAction(g.motion.createKeyframe(new ppro.PointF(g.motionX, p.motionY)), true));
+        }
       }
     });
     for (const p of changes) {
       const g = byId.get(p.id);
-      written[lineKey(g)] = { x: g.motionX, y: p.motionY };
+      written[lineKey(g)] = p.keys ? { x: g.motionX, keys: p.keys.map(([t]) => Math.round(rel(g, t) * 1000) / 1000) }
+        : { x: g.motionX, y: p.motionY };
+    }
+    // read back the keyframes of one line over a cut (time base check, logged)
+    const keyed = changes.find((p) => p.keys);
+    if (keyed) {
+      const g = byId.get(keyed.id);
+      const got = ((await maybe(g.motion, "getKeyframeListAsTickTimes")) || []).map((t) => (Number(t.seconds) || 0).toFixed(3));
+      engine.log("info", `move off faces: keyframes asked ${keyed.keys.map(([t]) => rel(g, t).toFixed(3)).join(", ")}, got ${got.join(", ")} (In ${g.inPt.toFixed(3)})`);
     }
     saveWritten(String(seqKey), written);
   }
   const tops = shots.map((s, i) => placementplan.shotTop(facesPerShot[i]));
   return { moved: changes.length, unchanged: placed.length - changes.length, kept, shots: tops,
-    pairs: placed.filter((p) => p.role === "en").length, measured: centers.size, estimated };
+    pairs: placed.filter((p) => p.role === "en").length, measured: centers.size, estimated,
+    overCuts: changes.filter((p) => p.keys).length };
 }
 
 module.exports = { moveOffFaces, point, number };
