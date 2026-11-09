@@ -64,3 +64,20 @@ test("transaction() returns nothing and throws on a refusal: no caller reads its
     assert.ok(!/=\s*(P\.|premiere\.)?transaction\(/.test(src), `${f} reads transaction()'s return value`);
   }
 });
+
+test("measured text centres replace the estimate; unmeasured lines follow the median offset of their role", () => {
+  const g = [{ id: 0, start: 1, end: 2, center: 0.65, motionY: 0.5 }, { id: 1, start: 3, end: 4, center: 0.65, motionY: 0.5 },
+    { id: 2, start: 5, end: 6, center: 0.65, motionY: 0.4 }];
+  const out = P.calibrate(g, new Map([[0, 0.89]]));
+  assert.deepStrictEqual(out.map((x) => [Math.round(x.center * 1000) / 1000, x.est]), [[0.89, false], [0.89, false], [0.79, false]]);
+});
+
+test("nothing measured: the estimate stays and is marked", () => {
+  const out = P.calibrate([{ id: 0, start: 1, end: 2, center: 0.65, motionY: 0.5 }], new Map());
+  assert.deepStrictEqual([out[0].center, out[0].est], [0.65, true]);
+});
+
+test("a pair at the same height: the graphic on the higher track is English", () => {
+  const g = [{ id: 0, start: 1, end: 2, center: 0.65, track: 5 }, { id: 1, start: 1, end: 2, center: 0.65, track: 4 }];
+  assert.deepStrictEqual(P.roles(g), [{ id: 0, role: "en" }, { id: 1, role: "bg" }]);
+});

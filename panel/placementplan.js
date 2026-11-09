@@ -54,7 +54,9 @@ function roles(graphics) {
       continue;
     }
     used.add(mate.id);
-    const [bg, en] = mate.center > g.center ? [g, mate] : [mate, g];
+    // the English line is the lower one; the same height (both still where the upgrade put them): the higher track
+    const lower = Math.abs(mate.center - g.center) > 0.001 ? mate.center > g.center : (mate.track || 0) > (g.track || 0);
+    const [bg, en] = lower ? [g, mate] : [mate, g];
     out.set(bg.id, "bg");
     out.set(en.id, "en");
   }
@@ -92,6 +94,23 @@ function plan(graphics, shots, facesPerShot, rule = RULE) {
   });
 }
 
+// where each graphic's text really is: measured centres (text recognition on the exported frames, engine framefaces.py) for
+// the lines that were measured, and for the others their Motion Y plus the median offset measured on lines of the same role
+// (all lines of one caption track share one style). Nothing measured: the estimate stays (est: true).
+// graphics [{id, start, end, center (estimate), motionY}], measured Map id -> centre -> graphics with `center` replaced.
+function calibrate(graphics, measured) {
+  const seen = graphics.map((g) => ({ ...g, center: measured.has(g.id) ? measured.get(g.id) : g.center }));
+  const role = new Map(roles(seen).map((r) => [r.id, r.role]));
+  const off = { bg: [], en: [] };
+  for (const g of graphics) if (measured.has(g.id)) off[role.get(g.id)].push(measured.get(g.id) - g.motionY);
+  const med = { bg: median(off.bg), en: median(off.en) };
+  return seen.map((g) => {
+    if (measured.has(g.id)) return { ...g, est: false };
+    const o = med[role.get(g.id)] !== null ? med[role.get(g.id)] : med.bg;
+    return o === null ? { ...g, est: true } : { ...g, center: g.motionY + o, est: false };
+  });
+}
+
 // may Asistent move this graphic? Not when its Position is keyframed, and not when the editor moved it: its Motion Position
 // must still be Premiere's default after the upgrade (0.5, 0.5) or the value Asistent itself wrote last time.
 function movable(g, written) {
@@ -102,4 +121,4 @@ function movable(g, written) {
   return { ok: false, why: "moved by hand" };
 }
 
-module.exports = { RULE, mainFace, shotTop, roles, shotOf, moments, plan, movable, median };
+module.exports = { RULE, mainFace, shotTop, roles, shotOf, moments, plan, movable, median, calibrate };

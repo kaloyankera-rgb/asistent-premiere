@@ -30,6 +30,18 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.14 - Move off faces reads where each subtitle's letters really are (the user's test in NEW TEST)
+- The user's shot (one speaker, face in the upper third): "Виж тази чиния" ended at ~75 % of the height instead of ~50 %. The
+  faces were found right; the starting point was wrong: an upgraded caption keeps its letters near the bottom (~0.89) while its
+  Position values suggested 0.65, so every line moved the right distance from the wrong place.
+- Now the frames exported for the faces (1080 px on the long side) are also read with the Mac's own text recognition (Vision,
+  `ocr.swift` compiled once into `<app>/bin`, local only, `ocr.py`), and each graphic's words, taken from Asistent's own SRT
+  files (the line with the same start and end), find its line in the frame: its measured centre is the starting point. Lines not
+  measured follow the median offset of their role (one caption style per track). A Bulgarian/English pair: both lines are found
+  by their own words; the lower (else the higher track) is English. Nothing readable: the old estimate, and the result says so.
+- Windows: no text recognition yet (falls back to the estimate, with the warning).
+- Tests: framefaces (SRT lines, words per graphic, line found by its words not by other text, pair), calibration and pairing.
+
 ## 0.10.13 - Move off faces reported "nothing changed" after moving the lines (found in NEW TEST)
 - The user's first press in NEW TEST (9 upgraded lines, V5, 190.8-201.0 s) moved every line (all to Motion Y 0.3565, one shot,
   under a face), then said "Premiere did not accept the move (nothing changed)": `transaction()` returns nothing and throws on a
