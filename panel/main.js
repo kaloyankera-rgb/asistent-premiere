@@ -880,9 +880,14 @@ async function onMoveOffFaces() {
       return;
     }
     const lines = [];
-    const why = {};
-    for (const s of r.shots || []) why[s.why] = (why[s.why] || 0) + 1;
-    if ((r.shots || []).length) lines.push({ cls: "", text: `Shots: ${Object.entries(why).map(([k, n]) => `${n} ${k}`).join(", ")}.` });
+    const clock = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+    // each shot it saw (the visible clip under the lines) and what it found there, so the editor can tell the POVs apart
+    for (const s of (r.shots || []).slice(0, 8)) {
+      const seen = s.why === "no face" ? `no face found in ${s.frames} frames: the middle` : `${s.why} (face in ${s.withFace} of ${s.frames} frames)`;
+      lines.push({ cls: s.why === "no face" ? "warn" : "", text: `${s.name}, ${clock(s.start)}–${clock(s.end)}: ${seen}, ${s.lines} lines.` });
+    }
+    if ((r.shots || []).length > 8) lines.push({ cls: "muted", text: `…and ${r.shots.length - 8} more shots (all in the log).` });
+    if ((r.shots || []).some((s) => s.why === "no face")) lines.push({ cls: "muted", text: "Faces turned sideways are often not found; such a shot gets the middle of the frame." });
     if (r.pairs) lines.push({ cls: "", text: `${r.pairs} English lines kept under their Bulgarian lines.` });
     if (r.overCuts) lines.push({ cls: "", text: `${r.overCuts} lines run over a cut: they change height at the cut (Position keyframes).` });
     if (r.unchanged) lines.push({ cls: "muted", text: `${r.unchanged} lines were already in place.` });

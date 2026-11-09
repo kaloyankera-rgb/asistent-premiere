@@ -173,7 +173,9 @@ Next:
 4. Done in 0.9.86: Style "ReShape" (measured on 7 client videos, docs/SUBTITLE_STYLE.md). Open: "бюста / ви" can still split
    when the next words allow it (no word classes to tell it from "много хора / си представят").
 5. Built in 0.10.12 (to install and try in NEW TEST: upgrade C29's lines, select them, press; check heights per shot, the English pairs,
-   one Undo; then move one by hand and press again: it must stay). Spec as built: "Move off faces" button: selected subtitle graphics (after Upgrade), faces under each line (engine YuNet on the visible clip's
+   one Undo; then move one by hand and press again: it must stay). 0.10.14 verified on one shot by the user (2026-11-09).
+   Open: faces in profile are missed by YuNet (the user's wide two-shot found "no face" -> middle); if that matters, measure a
+   profile-capable detector (or the person's body/head box) on NEW TEST shots before adding one. Spec as built: "Move off faces" button: selected subtitle graphics (after Upgrade), faces under each line (engine YuNet on the visible clip's
    frames), a Bulgarian line and its English line move together, one Undo step (UXP PointF). The client's rule (measured 0.9.86):
    one height per shot, changed at a cut; the Bulgarian line's top 0.11 of the frame height under the chin (median error 0.028,
    a fixed height 0.042); above the face when the face is low; no face = the middle (0.50-0.53); never higher than ~0.16 or lower
