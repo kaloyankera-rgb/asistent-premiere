@@ -2,6 +2,7 @@
 // Upgrade Caption to Graphic) move to the client's height per shot, under the speaker's chin or above a low face, in one Undo
 // step. Only Motion > Position is written (a PointF, verified 2026-11-04); text, style and timing are never touched, a graphic
 // with Position keyframes or moved by hand is left alone. The rule itself is placementplan.js (pure, node-tested).
+const store = require("./store.js");
 const ppro = require("premierepro");
 const { transaction, maybe, readTimeline } = require("./premiere.js");
 const { exportFrames } = require("./premiere-color.js");
@@ -86,7 +87,7 @@ function writtenKey(seqKey) {
 
 function loadWritten(seqKey) {
   try {
-    return JSON.parse(localStorage.getItem(writtenKey(seqKey)) || "{}");
+    return JSON.parse(store.getItem(writtenKey(seqKey)) || "{}");
   } catch (e) {
     return {};
   }
@@ -94,7 +95,7 @@ function loadWritten(seqKey) {
 
 function saveWritten(seqKey, map) {
   try {
-    localStorage.setItem(writtenKey(seqKey), JSON.stringify(map));
+    store.setItem(writtenKey(seqKey), JSON.stringify(map));
   } catch (e) {
     /* no storage: next time only Premiere's default position counts as Asistent's */
   }

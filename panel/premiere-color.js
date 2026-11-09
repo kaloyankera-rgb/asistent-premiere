@@ -3,6 +3,7 @@
 // until it sits on a clip), so a new Lumetri costs one step (append, no visible change) before the
 // step that sets the values; an existing untouched Lumetri needs only the second. If the render check
 // shows the result is off (slider calibration still being learnt, or burnt highlights), one more step.
+const store = require("./store.js");
 const ppro = require("premierepro");
 const { TickTime, Constants } = ppro;
 const P = require("./premiere.js");
@@ -93,15 +94,15 @@ function clipKey(clip) {
 const FRESH_KEY = "asistent.lumetriFresh.v1";
 function freshSnapshot() {
   try {
-    return localStorage.getItem(FRESH_KEY);
+    return store.getItem(FRESH_KEY);
   } catch (e) {
     return null;
   }
 }
 function learnFresh(snap) {
   try {
-    if (snap && snap !== localStorage.getItem(FRESH_KEY)) {
-      localStorage.setItem(FRESH_KEY, snap);
+    if (snap && snap !== store.getItem(FRESH_KEY)) {
+      store.setItem(FRESH_KEY, snap);
       debug(`lumetri: untouched Lumetri learnt (${snap.length} characters)`);
     }
   } catch (e) {

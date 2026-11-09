@@ -243,3 +243,4 @@
 - 2026-11-09: user's shot: line at 0.75 instead of ~0.5 (upgraded caption letters at ~0.89, estimate said 0.65). 0.10.14: OCR (Vision, ocr.swift) on the face frames finds each graphic's line by its SRT words; calibrate() uses it.
 - 2026-11-09: user: 0.10.14 works on one shot; wants two POVs / scene changes. 0.10.15: lines split at cuts (cover), keyframes at the cut, own keyframes rewritable.
 - 2026-11-09: user's 2-POV test (panel still 0.10.14): two shots found (POV switched by disabled V3 pieces), wide profile shot 'no face' -> middle; lines looked unmoved because both heights ~0.43. 0.10.16: per-shot lines in the result and log.
+- 2026-11-09: Move off faces said 'moved by hand' for its own lines: the UXP storage folder was recreated empty at each install (removing the panel deletes it). 0.10.17: panel settings in <app>/panel_store.json (panelstore.py, store.js), one-time copy from localStorage.
