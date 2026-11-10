@@ -1,0 +1,23 @@
+# Cockpit plan, Phase 0 probes (2026-11-10, Premiere 26.5.2 on the Mac, NEW TEST.prproj)
+
+Plan: `../../../COCKPIT_PLAN.md`. Run by Claude through the test bridge (temporary panel module `probe-cockpit.js`, removed
+after Phase 0) and the host's ExtendScript `eval`. Every write was on C0738 in "SYNC – кам2" of NEW TEST and was put back in
+the same run. Note: this Mac now runs 26.5.2, like the PC, so the plan's "26.0.2 on the Mac" no longer holds.
+
+| Probe | Answer | Evidence |
+|---|---|---|
+| P-A1 keyframe interpolation | **Partly.** `ComponentParam.createSetInterpolationAtKeyframeAction` exists with `Constants.InterpolationMode` BEZIER, HOLD, LINEAR, TIME, TIME_TRANSITION_START/END. No call sets bezier handles (influence, speed). | `cockpit_probe names` on Motion > Position. A `Keyframe` has only `position` and `value`. |
+| | So: Premiere's own ease / linear / hold can be set natively (few, editable keys); a custom curve (Expo Out, Overshoot, the user's own) is baked into one key per frame. Also available: `createRemoveKeyframeRangeAction`, `findNearest/Next/PreviousKeyframe`, `getValueAtTime`. | |
+| P-A2 keyframe time base | **Trimmed clip: media time, exact.** Keys asked at In + 0.5 s and In + 1.5 s (C0738, In 3.904 s) landed at 4.4039 / 5.4039; `getValueAtTime` read the second key's value (40). Restored (no keyframes left). | `cockpit_probe kfwrite` (Opacity). Position is a `PointF` of the frame (0-1), as `premiere-placement.js` already writes it. |
+| | **Sped-up clip: not measured** (no sped-up clip in NEW TEST). To check in the Keyframer build on a test sequence. | |
+| P-A3 other effects from UXP | **Yes.** `VideoFilterFactory.createComponent` + `createAppendComponentAction` attach Tint (`AE.ADBE Tint`) and the new Transform (`AE.ADBE Geometry2`, which ExtendScript cannot pick); `createRemoveComponentAction` removes them. A detached component shows no parameters: read them after attaching. | `cockpit_probe attach` |
+| | Tint: Map Black To, Map White To (Color), Amount to Tint. A colour is accepted only as `new ppro.Color(r, g, b, a)` (arrays and plain objects: "Illegal Parameter type"); reading it back gives an opaque object, so the build checks the written colour on a frame. Transform: Anchor Point, Position (2 values), Uniform Scale, Scale Height/Width, Skew, Skew Axis, Rotation, Opacity, Shutter Angle, Sampling. | |
+| | No Fill effect in this Premiere (Tint covers "colour a logo"). No pitch effect found through `AudioFilterFactory` by name (Perfect Pitch is out of scope anyway). Third-party: Impact Crop / Stroke (Impact plug-ins) are installed here, not on every computer. | |
+| P-A4 Premiere's mask tracking by script | **Not answered:** no mask on the test clip, and ExtendScript lists only Opacity (Opacity, Blend Mode) and Motion parameters. Needs one mask drawn and tracked by hand in NEW TEST. Bonus only; the tracker does not depend on it. | host `eval` on C0738's components |
+| P-A5 Stash of clips | **Likely yes (not run):** ExtendScript has `Sequence.createSubsequence`, `Sequence.exportAsProject`, `Project.importSequences` (and QE `importProject`). A selection can become a small project file and come back in another project. Also seen: `Project.applyLumetriPreset`, `Project.setLogColorManagement`. | host `eval` reflect on Sequence and Project |
+| P-A6 pointer events in the panel | **Partly:** `pointerdown` on `div.btn` works (every button press is logged that way). Drag (`pointermove`/`pointerup`) and events on inline SVG need one real drag: `dev_cmd.py cockpit_probe '{"what":"pointer","seconds":20}'` while someone drags on the orange circle and the blue box. | open |
+| P-A7 trackers in OpenCV 5.0.0 | **TrackerMIL** (no model files), plus DNN trackers DaSiamRPN, Nano, Vit (need model downloads). No CSRT / KCF in this build. Core: `calcOpticalFlowPyrLK`, `matchTemplate`. Synthetic moving target, 640x360: MIL median 1.0 px, max 7.2 px, 72 ms a frame (about a minute for 30 s of 25 fps); Lucas-Kanade exact and fast. Plan: optical flow with template refresh, MIL as a fallback. | engine venv |
+| P-Q1 (Quick Search) adjustment layer | **No direct create:** QE project (26.5.2) has newBarsAndTone, newBlackVideo, newColorMatte, newTransparentVideo, newUniversalCountingLeader, no adjustment layer. Route: import one from a tiny template project (`importProject` / `importSequences`), to test in the Quick Search build. | host `eval` reflect on `qe.project` (read only; Quick Search itself not touched) |
+
+Still open before the builds: P-A6 (one drag), P-A4 (one mask, optional), P-A2 on a sped-up clip, P-Q2/P-Q3 (placement and
+whether the layer's Transform comes along: Quick Search session), P-Q4 (WebView2 on the PC).

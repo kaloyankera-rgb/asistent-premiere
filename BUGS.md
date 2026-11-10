@@ -3,6 +3,10 @@
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
 ## Open bugs
+- **Open (2026-11-10, Premiere 26.5.2):** after `release_mac.sh` the old panel can stay loaded even when the panel is closed
+  and opened ("Failed to add plugin as it already exists" in UXPLogs; 0.10.29 kept running after 0.10.30 installed). Removing
+  the plugin with UnifiedPluginInstallerAgent `--remove "Asistent"` before `--install` made Premiere load the new one at once.
+  Not changed yet (the installer is frozen during the Cockpit work): candidate fix for `install.py` / `release_mac.sh`.
 - **Fixed in 0.10.25 (TODO F, the user's field reports 2026-11-10):** Fix audio "No active sequence." with several projects open
   (the host read ExtendScript's front project; verified in 26.5.2); Sync on an iPhone clip with spatial audio (APAC); colour on
   S-Log3 under a LUT adjustment layer (measured, not tried in Premiere). Still open: subtitles first run slow (one long window
