@@ -124,3 +124,11 @@ test("describeResult: a client style's suggested green keywords are listed with 
   const plain = describeResult({ counts: { captions: 1, words: 1, flagged: 0 }, preset: "short", fps: 25, cached: true, captions: [caps[1]], srt: "/x.srt" });
   assert.doesNotMatch(plain.lines.map((l) => l.text).join("\n"), /Green keywords/);
 });
+
+test("describeResult: Credissimo's suggested keywords are named red", () => {
+  const caps = [{ start: 0.5, end: 1.4, text: "АЗ НЯМАМ\nПАРИ", flags: [], accent: "ПАРИ" }];
+  const r = describeResult({ counts: { captions: 1, words: 3, flagged: 0 }, preset: "credissimo", fps: 29.97, cached: true, captions: caps, srt: "/x.srt" });
+  const all = r.lines.map((l) => l.text).join("\n");
+  assert.match(all, /style Credissimo/);
+  assert.match(all, /Red keywords suggested on 1 of 1 lines .*: 0:00\.5 ПАРИ\./);
+});

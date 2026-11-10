@@ -62,7 +62,8 @@ function clock(t) {
   return `${m}:${s < 10 ? "0" : ""}${s.toFixed(1)}`;
 }
 
-const PRESET_NAME = { short: "short (9:16)", standard: "standard (16:9)", reshape: "ReShape", gstroy: "GStroy" };
+const PRESET_NAME = { short: "short (9:16)", standard: "standard (16:9)", reshape: "ReShape", gstroy: "GStroy", credissimo: "Credissimo" };
+const ACCENT_NAME = { gstroy: "Green", credissimo: "Red" };   // the client's accent colour
 
 /** The engine's /subtitles result -> { text, ok, lines: [{cls, text}] } for the result box. */
 function describeResult(r) {
@@ -115,10 +116,10 @@ function describeResult(r) {
     lines.push({ cls: "line", text: `${d.dropped} and ${d.kept} hear the same: ${d.kept} was taken (cleaner sound, ${d.kept_snr_db} dB against ${d.dropped_snr_db} dB${rest}).` });
   }
   for (const s of r.skipped || []) lines.push({ cls: "warn", text: `Skipped: ${s}.` });
-  // a client style with an accent colour (GStroy's green keyword): the suggested words, which the editor colours and changes
+  // a client style with an accent colour (GStroy's green, Credissimo's red keyword): the suggested words, which the editor colours
   const accents = (r.captions || []).filter((cap) => cap.accent);
   if (accents.length) {
-    lines.push({ cls: "hint", text: `Green keywords suggested on ${accents.length} of ${r.captions.length} lines (the client's editors pick about one in three by meaning; change any): ` +
+    lines.push({ cls: "hint", text: `${ACCENT_NAME[r.preset] || "Accent"} keywords suggested on ${accents.length} of ${r.captions.length} lines (the client's editors pick them by meaning; change any): ` +
       `${accents.slice(0, 12).map((cap) => `${clock(cap.start)} ${cap.accent}`).join("; ")}${accents.length > 12 ? "; …" : ""}.` });
   }
   for (const cap of (r.captions || []).slice(0, 8)) {

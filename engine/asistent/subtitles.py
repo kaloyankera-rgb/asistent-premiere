@@ -54,6 +54,17 @@ PRESETS = {
     # whole chunk here: 18 gave the editors' own mean (2.21 words) and two-line share (41 %, theirs 40 %) on their speech
     "gstroy": {"max_words": 3, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 18,
                "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "accent": 6},
+    # the Credissimo client's own style (docs/SUBTITLE_STYLES/CREDISSIMO.md, 9 exported videos, 674 chunks): the same look
+    # as GStroy's, but its two lines are cut where they come out most even, and a red keyword on about one chunk in six,
+    # often a money word; its chunks run longer (2.5 words, 11 % with 4): up to 4 words and 20 characters gave its editors'
+    # mean (2.50 against 2.52) and two-line share (49 % against 48 %) on their own speech in all 9 videos; the chunk appears
+    # with its first word like GStroy's (Asistent's usual 0.03 s lead)
+    "credissimo": {"max_words": 4, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 20,
+                   "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even",
+                   "accent": 9, "accent_near": 2,
+                   "accent_words": r"^(пари|парите|парички|бюджет|кредит|заем|назаем|вноск|разход|доход|финанс|кредисимо|credissimo"
+                                   r"|спестя|заплат|сметк|лихв|харч|буфер|евро$|лев$|лева$|левчета|карта$|картата$|цента$|стотинк"
+                                   r"|дълг$|дълга$|дългове)"},
 }
 
 # NTSC rates arrive as 23.976 / 29.97 / 59.94; the sequence really runs at N*1000/1001.
@@ -220,10 +231,16 @@ def _lines(units, cfg):
 def _stacked(units, cfg):
     """A "stack" preset (GStroy): a chunk up to `stack` characters is one line; a longer one is two lines, the last unit (a
     word, or a number with its unit: „48 волта“) alone underneath, the rest above it. Only when the top line would come out
-    longer than `line_chars` / 2 + 4 (a rare 4-word chunk) are the two lines split where they are most even instead."""
+    longer than `line_chars` / 2 + 4 (a rare 4-word chunk) are the two lines split where they are most even instead.
+    With "split": "even" (Credissimo) every two-line chunk is cut where the two lines come out most even (90 % of that client's
+    two-line chunks; its editors put one word alone below in only 66 %)."""
     flat = [w for u in units for w in u]
     if len(units) == 1 or _text_len(flat) <= cfg["stack"]:
         return [flat]
+    if cfg.get("split") == "even":                             # Credissimo: the most even cut, a tie gives the longer top line
+        k = min(range(1, len(units)), key=lambda k: (abs(_text_len([w for u in units[:k] for w in u])
+                                                         - _text_len([w for u in units[k:] for w in u])), -k))
+        return [[w for u in units[:k] for w in u], [w for u in units[k:] for w in u]]
     cut = len(units) - 1
     if _word_core(units[-1][-1]) in NON_FINAL:                 # „осветителят / се“: a little word never stands alone below
         cut -= 1
@@ -246,14 +263,22 @@ def _accents(groups, cfg):
     80 of 86 one-word cases and the longest word in 74, on about every third chunk. Rule: a last word of at least
     `accent` letters that is not a function word, at least as long as the previous chunk's last word and longer than the
     next one's, and never two chunks in a row. It agrees with the editors on 43 % of its picks (chance: about 30 %): a
-    suggestion for the editor, who changes it in Premiere."""
+    suggestion for the editor, who changes it in Premiere.
+    `accent_near` widens the comparison to that many chunks on each side (Credissimo: 2, a red word on about one chunk in
+    six); `accent_words` (a pattern) marks a last word whatever its length, still never two chunks in a row (Credissimo's
+    money words: „пари“, „бюджет“, „вноска“)."""
     last = [_word_core(g[-1][-1]) for g in groups]
+    near = cfg.get("accent_near", 1)
+    words = re.compile(cfg["accent_words"]) if cfg.get("accent_words") else None
     out, prev = [], -2
     for i, w in enumerate(last):
-        if len(w) < cfg["accent"] or w in NON_FINAL or i - prev < 2:
+        if i - prev < 2:
             continue
-        if (i and len(last[i - 1]) > len(w)) or (i + 1 < len(last) and len(last[i + 1]) >= len(w)):
-            continue
+        if not (words and words.match(w)):
+            if len(w) < cfg["accent"] or w in NON_FINAL:
+                continue
+            if any(len(x) > len(w) for x in last[max(0, i - near):i]) or any(len(x) >= len(w) for x in last[i + 1:i + 1 + near]):
+                continue
         out.append(i)
         prev = i
     return out

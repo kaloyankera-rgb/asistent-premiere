@@ -1,5 +1,12 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-10: Credissimo's preset; preset settings are chosen by shape, not by break agreement (0.10.19)
+Credissimo shares GStroy's template but cuts its two lines evenly and its chunks run longer. Where chunks break agrees with the
+editors at 61-63 % (boundary F1 57) for every setting tried, so break agreement cannot choose the settings; they are chosen so
+the chunks have the editors' size and shape (mean words, two-line share) at the same agreement. Its red keywords are rarer and
+semantic (money words), so the accent rule takes a word pattern; still only a suggestion. The protected `subtitles.py` gained
+optional keys only; every other preset's output was compared byte for byte before and after.
+
 ## 2026-11-10: client subtitle styles are presets measured on the client's exports; GStroy touches protected files (0.10.18)
 The user asked for a GStroy subtitle profile from its finished videos and the same for every client later. A client style is a
 preset in `subtitles.PRESETS` (like ReShape), measured, not guessed: line lengths, breaks, timing, case and position from text
