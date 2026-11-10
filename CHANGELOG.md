@@ -6,7 +6,8 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ## Unreleased
 
-### Branch improvements/2026-11 (the user's implementation prompt of 2026-11-08; not installed, not pushed)
+### Branch improvements/2026-11 (the user's implementation prompt of 2026-11-08; installed on the development Mac, not pushed)
+- 2026-11-09 notes: the rough cut's slowness on a 10-minute video is speech recognition on the CPU (cancelled after 326 s; the cutting takes seconds): options in TODO A. `panel/version.js` brought to 0.10.17 (written by packaging).
 - **Protected backup before any change**: local tag `backup/pre-improvements-2026-11-08` (fbe0b28, 0.10.8) and a private,
   read-only backup outside the repo (Git bundle, whole working tree, app data, installed panel/host, LaunchAgent, model
   hashes, restore steps; isolated restore ran 574 pytest + 166 node green). See `docs/ROLLBACK.md`.

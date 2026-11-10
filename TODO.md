@@ -4,6 +4,17 @@ Work rule for every step: implement → tests → bump version (manifest + confi
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
 ## A. Fix known bugs
+- **Rough cut too slow and not a good cut (the user, 2026-11-09).** Log: a 10-minute video (48 items, IVO7V97xx) spent its time in
+  speech recognition (Whisper large-v3 on the CPU, int8 beam 5) and was cancelled after 326 s; the cutting itself takes seconds
+  (388 s of footage cut in 2.7-4.8 s once the words were known). Options to measure: reuse words the subtitle run already
+  recognised for the same media; a faster recognizer just for the rough cut (whisper.cpp measured 7.3x faster, but invented a line,
+  so only where takes are matched, never for subtitles); greedy decoding for the rough cut only. Ask the user what was wrong with
+  the cut (cut too much / too little / wrong take / mid-word) and look at a run before changing the rules.
+- **Next planned (asked by the user 2026-11-09): timeline labels (I7)**: camera track names, POV label colours, BG/EN subtitle
+  names. Probe first in NEW TEST (ExtendScript Track.name writable? track-item labels? caption tracks). Waiting for the user's
+  answers: camera naming (model / A-B / POV 1-2) and existing colour conventions.
+- **Move off faces, still to see (0.10.17):** the 17 C29 lines over the kam2/kam1 cuts (2:04.1, 2:24.6), a second press says
+  "already in place" (positions now remembered by the engine).
 - **0.10.11, the user:** ▶ on a few lines: plays in the Program Monitor from 1.5 s before the line and stops after it, no double
   sound. (0.10.9 review helpers: the user confirmed they work, 2026-11-08.)
 - **0.10.6, check while working:** Cancel during a long job (nothing applied); right-click on a button does nothing; a long
