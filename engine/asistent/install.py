@@ -113,15 +113,32 @@ def _flag(name: str) -> str:
     return ("/" if sys.platform == "win32" else "--") + name
 
 
-def _versions(agent: str) -> list[str]:
-    """The Asistent panel versions Adobe lists (" Enabled    Asistent    0.10.9"), in its order."""
+def _per_host(agent: str) -> list[list[str]]:
+    """The Asistent panel versions Adobe lists (" Enabled    Asistent    0.10.9"), in its order, one list per host application.
+    Adobe lists each installed Premiere on its own ("2 extensions installed for Premiere Pro (ver 27.0.0)" before its rows),
+    and one install goes into every Premiere that fits the manifest: with Premiere 2026 and 2027 side by side (this Mac,
+    2026-11-10) the same version is listed twice, once per Premiere, which is not an old copy left beside it."""
     listed = subprocess.run([agent, _flag("list"), "all"], capture_output=True, text=True, timeout=120).stdout
-    out = []
+    hosts = [[]]
     for ln in listed.splitlines():
+        if " installed for " in ln:
+            hosts.append([])
+            continue
         parts = ln.split()
         if len(parts) >= 3 and parts[1] == PANEL_NAME:
-            out.append(parts[-1])
-    return out
+            hosts[-1].append(parts[-1])
+    return [h for h in hosts if h]
+
+
+def _versions(agent: str) -> list[str]:
+    """Every Asistent version Adobe lists, all hosts together."""
+    return [v for h in _per_host(agent) for v in h]
+
+
+def _only(agent: str, version: str) -> bool:
+    """Each Premiere that lists Asistent lists exactly this version, once."""
+    hosts = _per_host(agent)
+    return bool(hosts) and all(h == [version] for h in hosts)
 
 
 def install_panel(ccx: str, version: str) -> None:
@@ -137,7 +154,7 @@ def install_panel(ccx: str, version: str) -> None:
         raise RuntimeError("Adobe's plugin installer was not found (Creative Cloud): double-click " + os.path.basename(ccx))
     ccx = os.path.abspath(ccx)
     r = subprocess.run([agent, _flag("install"), ccx], capture_output=True, text=True, timeout=300)
-    if _versions(agent) == [version]:
+    if _only(agent, version):
         return
     for _ in range(len(_versions(agent)) + 2):
         if not _versions(agent):
@@ -145,7 +162,7 @@ def install_panel(ccx: str, version: str) -> None:
         subprocess.run([agent, _flag("remove"), PANEL_NAME], capture_output=True, timeout=120)
     for _ in range(2):
         r = subprocess.run([agent, _flag("install"), ccx], capture_output=True, text=True, timeout=300)
-        if _versions(agent) == [version]:
+        if _only(agent, version):
             return
     raise RuntimeError(f"Adobe does not report only {PANEL_NAME} {version} as installed ({', '.join(_versions(agent)) or 'none'}): "
                        f"{(r.stdout or r.stderr).strip()[-300:]} Double-click {os.path.basename(ccx)} to install it by hand.")

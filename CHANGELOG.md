@@ -31,6 +31,11 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.24 - The install works with two Premiere versions side by side (found installing 0.10.23)
+- This Mac now has Premiere Pro 2026 (26.5.2) and 2027 (27.0.0). Adobe lists Asistent once per Premiere, so the install check
+  ("Adobe lists exactly the new version") saw "0.10.23, 0.10.23" and stopped before restarting the engine. The check now reads
+  Adobe's list per Premiere: each one must list exactly the new version; an old copy beside it in any of them is still removed.
+
 ## 0.10.23 - Every client style joins the article to an English name (the user's answer 2026-11-10)
 - GStroy, Credissimo, ЕКОПАК and Beauty Sector join the Bulgarian article to an English name as AULA does („iPhone -а“ →
   IPHONE-А). The client's own brand takes no article (the user: "Its not GStroy-A its GStroy"): „G -Stroy -а“ → GStroy,
