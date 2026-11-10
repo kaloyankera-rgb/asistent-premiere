@@ -41,6 +41,12 @@ function seqKey(sequence) {
   return (sequence && sequence.name) || "";
 }
 
+/** The sequence's guid as text for the host (ExtendScript calls it `sequenceID`), or null (0.10.25). */
+function seqGuid(sequence) {
+  const k = seqKey(sequence);
+  return k.startsWith("guid:") ? k.slice(5) : null;
+}
+
 /** Is `now` the same sequence as `then`? (guid when both have one, else the name) */
 function sameSequence(then, now) {
   if (!then || !now) return false;
@@ -127,7 +133,7 @@ async function place(project, sequence, result, opts = {}) {
     ? [plan.findUnverified(sig, before), sig.english && plan.findUnverified(sig.english, before)].filter(Boolean) : [];
   let answer;
   try {
-    answer = await engine.placeCaptions({ srt: result.srt, sequence: name, project: project.path });
+    answer = await engine.placeCaptions({ srt: result.srt, sequence: name, guid: seqGuid(sequence), project: project.path });
   } catch (e) {
     const message = (e && e.message) || String(e);
     return { status: /not running/.test(message) ? "nohost" : "error", message };
@@ -143,7 +149,7 @@ async function place(project, sequence, result, opts = {}) {
   if (result.srt_en) {
     const before2 = await readTracks(sequence);
     try {
-      const en = await engine.placeCaptions({ srt: result.srt_en, sequence: name, project: project.path });
+      const en = await engine.placeCaptions({ srt: result.srt_en, sequence: name, guid: seqGuid(sequence), project: project.path });
       if (en && en.ok) {
         english = plan.addedTrack(before2, await readTracks(sequence));
         for (const x of plan.problems(english, result.captions)) problems.push(`English line: ${x}`);
@@ -191,7 +197,7 @@ async function placeGraphics(project, sequence, result, opts = {}) {
   let answer;
   try {
     answer = await engine.placeGraphics({ captions: result.captions.map((c) => ({ start: c.start, end: c.end, text: c.text })),
-      preset: result.preset, sequence: name, project: project.path });
+      preset: result.preset, sequence: name, guid: seqGuid(sequence), project: project.path });
   } catch (e) {
     const message = (e && e.message) || String(e);
     return { status: /not running/.test(message) ? "nohost" : "error", message };
@@ -208,4 +214,4 @@ async function placeGraphics(project, sequence, result, opts = {}) {
   return track ? { status: "placed", track, problems, replaces: own || null, graphics: true } : { status: "error", message: problems[0] };
 }
 
-module.exports = { readTracks, readVideoTracks, seqKey, sameSequence, place, placeGraphics, removeLines };
+module.exports = { readTracks, readVideoTracks, seqKey, seqGuid, sameSequence, place, placeGraphics, removeLines };

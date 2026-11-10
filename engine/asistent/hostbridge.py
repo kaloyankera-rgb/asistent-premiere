@@ -61,11 +61,12 @@ def run(name: str, args: dict | None = None, wait: float = 60.0) -> dict:
     return data
 
 
-def place_captions(srt: str, sequence: str, project: str | None, bin_name: str = "Subtitles") -> dict:
-    """Put the SRT on a caption track of the active sequence (times in the file are sequence times)."""
+def place_captions(srt: str, sequence: str, project: str | None, bin_name: str = "Subtitles", guid: str | None = None) -> dict:
+    """Put the SRT on a caption track of the panel's sequence (times in the file are sequence times). `guid`: the UXP
+    `Sequence.guid`, ExtendScript's `sequenceID` (0.10.25: the host finds the sequence by it, not by what is in front)."""
     if not os.path.isfile(srt):
         raise ValueError("The subtitle file is missing: " + srt)
-    return run("captions", {"srt": srt, "sequence": sequence, "project": project, "bin": bin_name})
+    return run("captions", {"srt": srt, "sequence": sequence, "project": project, "bin": bin_name, "guid": guid})
 
 
 # Subtitles as text graphics (the user's choice 2026-11-04): Asistent's own After Effects templates, one per subtitle
@@ -95,7 +96,7 @@ def build_templates() -> str | None:
     return None
 
 
-def place_graphics(captions: list, preset: str, sequence: str, project: str | None) -> dict:
+def place_graphics(captions: list, preset: str, sequence: str, project: str | None, guid: str | None = None) -> dict:
     """Every subtitle line as a text graphic on a new video track (host.jsx `as_graphics`)."""
     lines = []
     for c in captions if isinstance(captions, list) else []:
@@ -115,13 +116,13 @@ def place_graphics(captions: list, preset: str, sequence: str, project: str | No
             raise ValueError(err or "The subtitle template is missing.")
     name, w, h = TEMPLATES.get(preset, TEMPLATES["standard"])
     return run("graphics", {"captions": lines, "template": path, "width": w, "height": h, "sequence": sequence,
-                            "project": project, "track_name": "Asistent subtitles"}, wait=60.0 + 1.5 * len(lines))
+                            "project": project, "guid": guid, "track_name": "Asistent subtitles"}, wait=60.0 + 1.5 * len(lines))
 
 
 ROUTES = ("split", "split_rl", "use_left", "use_right", "label")   # "label": only an earlier copy's label (host.jsx)
 
 
-def route_audio(items: list, sequence: str, project: str | None) -> dict:
+def route_audio(items: list, sequence: str, project: str | None, guid: str | None = None) -> dict:
     """L/L and R/R through the clips' own channels (host.jsx `as_audio_route`): items [{track, start, end, route}]."""
     clean = []
     for it in items if isinstance(items, list) else []:
@@ -130,7 +131,7 @@ def route_audio(items: list, sequence: str, project: str | None) -> dict:
         clean.append({"track": int(it["track"]), "start": float(it["start"]), "end": float(it["end"]), "route": it["route"]})
     if not clean:
         raise ValueError("No clips to split.")
-    return run("audio_route", {"items": clean, "sequence": sequence, "project": project}, wait=120.0)
+    return run("audio_route", {"items": clean, "sequence": sequence, "project": project, "guid": guid}, wait=120.0)
 
 
 def ensure_log_dir() -> None:

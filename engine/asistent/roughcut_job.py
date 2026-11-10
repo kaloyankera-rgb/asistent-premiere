@@ -20,12 +20,41 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
 from . import asr, edl, media, pauses, speechmap, subtitles, takes, vad, xmeml
-from .dialoguemix import ASR_SR, build_mix
-from .subtitle_job import _inside, _same_word, plan_windows, read_window
+from .dialoguemix import ASR_SR, build_mix, read_segment
+from .subtitle_job import PAD, _cached, _inside, _same_word, plan_windows, read_window, window_audio
 
 log = logging.getLogger("asistent")
 MODES = {"safe": "safe", "smart": "smart"}
 MIN_PIECE_FRAMES = 2
+# When there are fewer windows than readers, long pieces are read in parts of about this many seconds, cut at their quietest
+# moment, so the readers work side by side (0.10.25, the user: "the rough cut took way too much time"). One long window
+# kept two of the three readers idle; measured on the M4 Max: GStroy C9036 118 s 189 -> 87 s, Beauty Sector fx30-2-1304
+# 133 s 137 -> 45 s. The words may differ from
+# one long reading, which the cut can afford (it needs where speech is and which takes repeat, not the spelling); the
+# subtitles keep their own long windows.
+PART = 30.0
+
+
+def split_long(segments: list[dict], read=read_segment, part: float = PART) -> list[dict]:
+    """Pieces over `part` + 10 s -> parts of `part` ± a few seconds, each cut in its quietest 0.4 s, with the same keys
+    (`at` moved with the start)."""
+    out: list[dict] = []
+    for sg in segments:
+        if sg["end"] - sg["start"] <= part + 10.0:
+            out.append(sg)
+            continue
+        y, _ = read(sg, 0.0)
+        sr = ASR_SR
+        win = max(1, int(0.4 * sr))
+        energy = np.convolve(np.asarray(y, dtype=np.float64) ** 2, np.ones(win) / win, mode="same")
+        cuts = [0]
+        while len(y) - cuts[-1] > int((part + 10.0) * sr):
+            lo, hi = cuts[-1] + int((part - 8.0) * sr), cuts[-1] + int((part + 4.0) * sr)
+            cuts.append(lo + int(np.argmin(energy[lo:hi])))
+        times = [sg["start"] + c / sr for c in cuts] + [sg["end"]]
+        for a, b in zip(times, times[1:]):
+            out.append({**sg, "start": a, "end": b, "at": sg["at"] + (a - sg["start"])})
+    return out
 
 
 def _num(v, what: str, lo: float = 0.0) -> float:
@@ -94,6 +123,13 @@ def _words(segments: list[dict], progress, cancelled) -> tuple[list[dict], dict]
     if not (asr.backend_installed() and asr.model_present()):
         return [], {"asr": False, "note": "No speech model: the pauses were found only by the sound level and Silero."}
     wins = plan_windows(segments)
+    # fewer windows than readers (one long clip): long pieces are read in parts, unless the subtitles' readings of the same
+    # media are all there to reuse. With as many windows as readers splitting only adds work (REVO, three clips of 102-190 s:
+    # 106 s as three windows, 167 s as sixteen parts)
+    if len(wins) < asr.workers() and not all("words" in (_cached(window_audio(w, "")[1]) or {}) for w in wins):
+        parts = split_long(segments)
+        if len(parts) > len(segments):
+            wins = plan_windows(parts, max_window=PART + 2 * PAD + 10.0)
     total = sum(w["b"] - w["a"] for w in wins) or 1.0
     shares = [(w["b"] - w["a"]) / total for w in wins]
     frac = [0.0] * len(wins)

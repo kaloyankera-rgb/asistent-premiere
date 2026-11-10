@@ -383,3 +383,24 @@ def test_a_hole_in_one_camera_row_where_nobody_speaks_is_cut_from_every_track():
     lab = _labels(3000, speech=[(0.0, 9.5), (11.0, 11.5), (14.5, 29.0)])
     cuts, closed, left = pauses._close_track_holes([], tracks, lab, 0.0, FPS)
     assert cuts == [] and abs(left - 4.0) < 0.05
+
+
+def test_a_long_piece_is_read_in_parts_cut_in_its_quietest_moments():
+    """0.10.25: one long clip kept two of the three readers idle (Beauty Sector 133 s: 149 -> 60 s read in five parts).
+    Parts are about 30 s, cut where the sound is quietest, and keep their sequence place."""
+    import numpy as np
+    from asistent import roughcut_job as R
+    sr = R.ASR_SR
+    y = np.random.default_rng(1).normal(0, 0.1, int(100 * sr)).astype(np.float32)
+    for q in (27.0, 55.5, 83.0):                                    # pauses where the parts should end
+        y[int(q * sr):int((q + 0.6) * sr)] = 0.0
+    sg = {"path": "/m/a.mp4", "start": 10.0, "end": 110.0, "at": 200.0, "track": 0}
+    parts = R.split_long([sg], read=lambda s, pad: (y, 0.0))
+    assert [round(p["start"], 1) for p in parts][0] == 10.0 and parts[-1]["end"] == 110.0
+    for a, b in zip(parts, parts[1:]):
+        assert a["end"] == b["start"]                                # nothing lost, nothing read twice
+    cuts = [p["end"] - 10.0 for p in parts[:-1]]
+    assert all(any(q - 0.05 <= c <= q + 0.65 for q in (27.0, 55.5, 83.0)) for c in cuts), cuts
+    assert all(p["at"] == 200.0 + (p["start"] - 10.0) for p in parts)
+    short = {"path": "/m/b.mp4", "start": 0.0, "end": 39.0, "at": 0.0, "track": 0}
+    assert R.split_long([short], read=lambda s, pad: (_ for _ in ()).throw(AssertionError("not read"))) == [short]

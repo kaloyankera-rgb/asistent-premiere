@@ -190,7 +190,7 @@ def _text_key(words: list[dict]) -> str:
     return hashlib.sha1((f"{align.REVISION}\x1f" + "\x1f".join(w["word"] for w in words)).encode("utf-8")).hexdigest()
 
 
-def plan_windows(segments: list[dict], pad: float = PAD) -> list[dict]:
+def plan_windows(segments: list[dict], pad: float = PAD, max_window: float = MAX_WINDOW) -> list[dict]:
     """Pieces -> the stretches of media to read: `pad` seconds around each piece, and the windows of pieces of the same
     file that overlap merged into one, so a stretch of speech is never recognised twice.
     -> [{"path", "a", "b" (media seconds), "pieces": [piece, ...]}]"""
@@ -198,7 +198,7 @@ def plan_windows(segments: list[dict], pad: float = PAD) -> list[dict]:
     for sg in sorted(segments, key=lambda s: (s["path"], s["start"])):
         a, b = max(0.0, sg["start"] - pad), sg["end"] + pad
         w = wins[-1] if wins else None
-        if w and w["path"] == sg["path"] and a <= w["b"] and b - w["a"] <= MAX_WINDOW:
+        if w and w["path"] == sg["path"] and a <= w["b"] and b - w["a"] <= max_window:
             w["b"] = max(w["b"], b)
             w["pieces"].append(sg)
         else:
@@ -224,11 +224,16 @@ def silence_between(y: np.ndarray, win: dict) -> np.ndarray:
     return (y * keep).astype(np.float32)
 
 
-def read_window(win: dict, prompt: str, progress, cancelled) -> dict:
-    """One Whisper reading of a window (cached by its audio + prompt) -> {"y", "key", "entry", "cached"}."""
+def window_audio(win: dict, prompt: str) -> tuple[np.ndarray, str]:
+    """What a window's reading hears and the cache key of that reading."""
     y, _ = read_segment({"path": win["path"], "start": win["a"], "end": win["b"]}, 0.0)
     y = silence_between(y, win)
-    key = _words_key(y, prompt)
+    return y, _words_key(y, prompt)
+
+
+def read_window(win: dict, prompt: str, progress, cancelled) -> dict:
+    """One Whisper reading of a window (cached by its audio + prompt) -> {"y", "key", "entry", "cached"}."""
+    y, key = window_audio(win, prompt)
     entry = _cached(key) or {}
     cached = "words" in entry
     if not cached:

@@ -115,6 +115,12 @@ EXPORTS: ExportWatcher | None = None
 BRIDGE = devbridge.Bridge()
 
 
+def _guid(body: dict) -> str | None:
+    """The panel's sequence id for the host (UXP `Sequence.guid` = ExtendScript `sequenceID`), when it sent one."""
+    g = body.get("guid")
+    return g if isinstance(g, str) and 0 < len(g) <= 64 else None
+
+
 def _exports() -> ExportWatcher:
     global EXPORTS
     if EXPORTS is None:
@@ -381,7 +387,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(srt, str) or not isinstance(seq, str) or not seq:
                     raise ValueError("A file or sequence is missing.")
                 proj = body.get("project") if isinstance(body.get("project"), str) else None
-                res = hostbridge.place_captions(srt, seq, proj, str(body.get("bin") or "Subtitles"))
+                res = hostbridge.place_captions(srt, seq, proj, str(body.get("bin") or "Subtitles"), _guid(body))
                 log.info("captions/place: %s", res)
                 return self._send(200, res)
             if self.path == "/captions/graphics":
@@ -389,7 +395,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(seq, str) or not seq:
                     raise ValueError("The sequence is missing.")
                 proj = body.get("project") if isinstance(body.get("project"), str) else None
-                res = hostbridge.place_graphics(body.get("captions"), str(body.get("preset") or "standard"), seq, proj)
+                res = hostbridge.place_graphics(body.get("captions"), str(body.get("preset") or "standard"), seq, proj, _guid(body))
                 log.info("captions/graphics: %s", {k: v for k, v in res.items() if k != "captions"})
                 return self._send(200, res)
             if self.path == "/audio/route":
@@ -397,7 +403,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(seq, str) or not seq:
                     raise ValueError("The sequence is missing.")
                 proj = body.get("project") if isinstance(body.get("project"), str) else None
-                res = hostbridge.route_audio(body.get("items"), seq, proj)
+                res = hostbridge.route_audio(body.get("items"), seq, proj, _guid(body))
                 log.info("audio/route: %s", res)
                 return self._send(200, res)
             if self.path == "/subtitles/settings":

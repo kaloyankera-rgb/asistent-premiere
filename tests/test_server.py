@@ -189,10 +189,12 @@ def test_host_channel_places_captions_through_the_host(engine, tmp_path, monkeyp
     t.start()
     time.sleep(0.3)
     assert call("GET", "/host/status")[1] == {"connected": True, "age": pytest.approx(0, abs=2), "version": "0.9.45"}
-    code, res = call("POST", "/captions/place", {"srt": str(srt), "sequence": "Seq", "project": "/p/TEST.prproj"})
+    code, res = call("POST", "/captions/place", {"srt": str(srt), "sequence": "Seq", "guid": "8097176a-bd0c", "project": "/p/TEST.prproj"})
     t.join(5)
     assert code == 200 and res["ok"] and res["tracks_after"] == 1
-    assert got["cmd"]["name"] == "captions" and got["cmd"]["args"] == {"srt": str(srt), "sequence": "Seq", "project": "/p/TEST.prproj", "bin": "Subtitles"}
+    # the sequence's id goes to the host, which finds the sequence by it (0.10.25)
+    assert got["cmd"]["name"] == "captions" and got["cmd"]["args"] == {"srt": str(srt), "sequence": "Seq", "project": "/p/TEST.prproj",
+                                                                      "bin": "Subtitles", "guid": "8097176a-bd0c"}
 
 
 def test_host_place_is_checked_and_eval_needs_the_dev_flag(engine, tmp_path, monkeypatch):

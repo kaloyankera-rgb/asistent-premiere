@@ -142,6 +142,54 @@ def test_slog3_is_measured_after_conversion():
     assert flat["exposure"]["measured"] != r["exposure"]["measured"]
 
 
+def _slog3_frames():
+    lin = scene()
+    sg = lin @ np.linalg.inv(C.SG3C_TO_709).T
+
+    def slog3(x):
+        x = np.asarray(x, dtype=np.float64)
+        return np.where(x >= 0.01125000,
+                        (420.0 + np.log10((np.maximum(x, 1e-9) + 0.01) / (0.18 + 0.01)) * 261.5) / 1023.0,
+                        (x * (171.2102946929 - 95.0) / 0.01125000 + 95.0) / 1023.0)
+    return [(slog3(sg * (1 + 0.01 * i)) * 1023.0 - 64) / (940 - 64) for i in range(4)]
+
+
+def test_log_shown_tells_a_converted_timeline_from_a_flat_one():
+    """0.10.25 (Pulse Fitness, an S-Log3 to Rec.709 LUT on an adjustment layer): a timeline that shows the conversion is
+    measured as Rec.709; one that still shows the flat log signal is not; a Rec.709 clip is never asked."""
+    src = _slog3_frames()
+    converted = [C.encode(C.to_linear(f, "s-log3-cine")) for f in src]
+    assert C.log_shown(converted, src, "s-log3-cine") == "converted"
+    assert C.log_shown(src, src, "s-log3-cine") == "flat"
+    assert C.log_shown(converted, src, None) is None and C.log_shown(converted, src, "s-log2") is None
+    ok = C.decide(converted, None, source_gamma="s-log3-cine", shown="converted")
+    assert ok["white"]["confidence"] != "low" and any("converted to Rec.709" in x for x in ok["reasons"])
+    flat = C.decide(src, None, source_gamma="s-log3-cine", shown="flat")
+    assert flat["exposure"]["confidence"] == flat["white"]["confidence"] == "low"
+    assert any("still shows it flat" in w for w in flat["warnings"])
+    unknown = C.decide(converted, None, source_gamma="s-log3-cine", shown=None)
+    assert unknown["white"]["confidence"] == "low" and any("could not tell" in w for w in unknown["warnings"])
+
+
+def test_frames_through_a_lut_layer_count_only_for_a_converted_log_clip(tmp_path, monkeypatch):
+    """A Rec.709 clip under a LUT-only layer: the LUT is a look, so the file is measured as before (review); a log clip whose
+    timeline shows its conversion: measured on the timeline."""
+    from asistent import config, prepare
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    src = _slog3_frames()
+    conv = [C.encode(C.to_linear(f, "s-log3-cine")) for f in src]
+    monkeypatch.setattr(C, "timeline_frames", lambda paths: conv if paths else [])
+    monkeypatch.setattr(C, "read_frames", lambda *a, **k: src[:k.get("n", 4)] if k.get("n", 6) <= 4 else src)
+    monkeypatch.setattr(C, "probe", lambda p: None, raising=False)
+    item = {"path": "/x/IVO.MP4", "start": 0, "end": 4, "frames": ["a", "b"], "through": True}
+    monkeypatch.setattr(prepare, "sony_xml", lambda p: {"gamma": "s-log3-cine"})
+    r = C.analyze_items([item], with_preview=False)["items"][0]
+    assert r["measured_on"] == "timeline" and r["log_shown"] == "converted"
+    monkeypatch.setattr(prepare, "sony_xml", lambda p: {"gamma": "rec709"})
+    r = C.analyze_items([item], with_preview=False)["items"][0]
+    assert r["measured_on"] == "source" and r.get("status") == "REVIEW_NEEDED"
+
+
 def test_from_a_real_file(tmp_path):
     frames = shot(scene(), gains=(1.25, 1.0, 0.8), stops=-1.0, n=1)
     raw = (np.clip(frames[0], 0, 1) * 65535).astype("<u2")
@@ -589,10 +637,10 @@ def test_one_failing_clip_never_stops_the_others(frames_dir, monkeypatch):
     bad = [_png(C.encode(scene()), frames_dir / f"b_{k}.png") for k in range(3)]
     real = C.decide
 
-    def flaky(frames, gamma=None, source_gamma=None):
+    def flaky(frames, gamma=None, source_gamma=None, shown=None):
         if abs(float(frames[0].mean()) - float(C.encode(scene()).mean())) < 1e-3:
             raise ValueError("boom")                                 # anything unexpected on one clip
-        return real(frames, gamma, source_gamma)
+        return real(frames, gamma, source_gamma, shown)
     monkeypatch.setattr(C, "decide", flaky)
     res = C.analyze_items([{"path": "/nowhere/BAD.MP4", "frames": bad},
                            {"path": "/nowhere/GOOD.MP4", "frames": good}], with_preview=False)["items"]

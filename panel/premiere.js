@@ -66,7 +66,8 @@ async function readItem(ti, kind, track, muted = false, hidden = false) {
   const item = { ti, kind, track, start: secs(await ti.getStartTime()), end: secs(await ti.getEndTime()),
     selected: false, path: null, clip: null, projectItem: null, name: "", speed: 1, reversed: false,
     unused: muted || !!(await maybe(ti, "isDisabled")),           // on a muted track, or switched off: the editor does not use it
-    hidden };                                                      // on a video track with its eye off: it shows nothing
+    hidden,                                                        // on a video track with its eye off: it shows nothing
+    adjustment: kind === "video" && !!(await maybe(ti, "isAdjustmentLayer")) };
   item.inPt = secs(await maybe(ti, "getInPoint")) || 0;
   item.outPt = secs(await maybe(ti, "getOutPoint"));
   item.name = (await maybe(ti, "getName")) || "";
