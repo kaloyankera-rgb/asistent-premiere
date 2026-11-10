@@ -1,5 +1,15 @@
 // The panel states the preview can show (?s=name). Texts are copied from what main.js and the plan modules really
 // write, so a screenshot shows real lengths; numbers and clip names are made up (no client material).
+
+// presses buttons of the Keyframer page by their label, in order (a click with no press before it acts, like a test click)
+function kfPress(labels) {
+  const pane = document.getElementById("paneKeyframer");
+  for (const l of labels) {
+    const b = [...pane.querySelectorAll(".btn")].filter((x) => x.textContent.trim() === l).pop();
+    if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+}
+
 window.PREVIEW_SCENARIOS = (function () {
   // a before/after frame pair drawn on a canvas (base64 JPEG without the data: prefix, as the engine sends it)
   function frame(warm) {
@@ -79,6 +89,9 @@ window.PREVIEW_SCENARIOS = (function () {
     beforeafter: { run: (api) => { colorProposal(api); api.openTab("panePreview"); } },
     captions: { run: (api) => { api.renderCaptionEditor(captions); api.openTab("paneCaptions"); } },
     keyframer: { run: (api) => api.openTab("paneKeyframer") },
+    // 0.10.33: Elastic with Ping-pong until the clip ends, and Bounce at both ends (clicks the page's own buttons)
+    "keyframer-elastic": { run: (api) => { api.openTab("paneKeyframer"); kfPress(["Elastic", "Ping-pong"]); } },
+    "keyframer-bounce": { run: (api) => { api.openTab("paneKeyframer"); kfPress(["Bounce", "Both", "Loop", "+"]); } },
     review: {
       engine: { review: {
         lines: [
