@@ -31,10 +31,19 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
-## In progress (branch feature/keyframer-bounce, not installed) - Keyframer bounce, maths only
+## 0.10.33 - Keyframer: Elastic, Bounce, Ping-pong and Loop (the user: "a smooth bounce in, ping pong")
 - `keyframeplan.js`: Elastic (exactly n overshoots, the first one the % set, each later one smaller, no jerk), Bounce (a ball
   dropped on the target: n hops, each a set height of the one before, never past it), each at the end, the start or both;
-  Ping-pong and Loop after the last keyframe (n times or until the clip ends). 12 node tests. The page does not offer them yet.
+  Ping-pong and Loop after the last keyframe (n times, or as many whole repeats as fit before the clip's out point).
+  Our own functions, not a copy of any After Effects script. 12 node tests.
+- Keyframer page: Motion switch Curve / Elastic / Bounce; for Elastic and Bounce, Where (at the end / at the start / both),
+  Bounces (1-8) and Overshoot (5-50 %) or Height (5-80 %) steppers, the curve drawn in the box; a "Repeat after the last
+  keyframe" row (Off / Ping-pong / Loop, Times 1-20 or "until the clip ends"). Premiere's own Linear / ease / Hold with a
+  repeat is refused (they add no keys). The result line counts the repeated keys.
+- Verified through the bridge in Premiere 26.5.2 on NEW TEST C0738 (two Position keys 0.3 -> 0.7, 4.40-5.40 s, out 12.91 s):
+  Elastic 29 keys (peak 0.773, lands on 0.700); Ping-pong until the end replaced them (-29, +239, ends 12.40 s on 0.3);
+  Bounce x5 with Loop replaced those (-239, +239, hops 50/25/12/6/3 % under the target, never past it); Undo last left the
+  2 keys; Linear with Loop refused, Linear alone set without keys. C0738 put back afterwards.
 
 ## 0.10.32 - Keyframer: shape the motion between keyframes with a curve (Cockpit plan A1)
 - A new page, Keyframer (the other tabs are unchanged): Read the selected clip lists its keyframed properties (numbers and

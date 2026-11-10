@@ -112,7 +112,7 @@ async function apply(project, sel, planned) {
     written += p.add.length;
     if (p.add.length) rec[p.id] = { anchors: p.anchors.map((k) => k.t), added: p.add.map((k) => k.t), label: byId.get(p.id).label };
     else delete rec[p.id];
-    lines.push(`${byId.get(p.id).label}: ${p.mode ? `${p.anchors.length} keyframes set to ${p.mode.toLowerCase()}` : `${p.add.length} keyframes baked into ${p.segments.length} ${p.segments.length === 1 ? "move" : "moves"}`}` +
+    lines.push(`${byId.get(p.id).label}: ${p.mode ? `${p.anchors.length} keyframes set to ${p.mode.toLowerCase()}` : `${p.add.length} keyframes baked into ${p.segments.length} ${p.segments.length === 1 ? "move" : "moves"}${p.repeated ? ` (${p.repeated} of them repeat it after your last keyframe)` : ""}`}` +
       (got === want ? "" : ` (expected ${want} keyframes, the clip has ${got}: check it)`));
     debug(`keyframer ${sel.clip.name} ${byId.get(p.id).label}: removed ${p.remove.length}, added ${p.add.length}, mode ${p.mode || "-"}, keys now ${got}/${want}`);
   }

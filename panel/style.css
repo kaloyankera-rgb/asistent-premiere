@@ -223,3 +223,7 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .buttons.spaced { margin-top: 12px; }
 .kf-status { margin-top: 6px; }
 .kf-actions .btn { margin-right: 8px; }
+.kf-step { margin-top: 2px; }
+.kf-step .btn.small { margin-bottom: 0; }
+.kf-label { width: 72px; color: var(--text-2); }
+.kf-value { min-width: 34px; margin-right: 4px; text-align: center; }
