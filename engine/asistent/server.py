@@ -39,6 +39,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /audio                {"items": [{"path", "start", "end", "force"?}], "force"?, "target"?, "ceiling"?,
                               "phrases"?: true -> Volume keyframes that even out phrases,
                               "balance_db"?: how far apart two speakers may be (default 2)}
+  GET  /stash/list, /stash/get?id=   saved animations (stash.py, <app>/stash/); POST /stash/save {stash, project},
+                              /stash/delete {id}, /stash/rename {id, name}
   POST /colorlearn/record    {project, sequence, clips: [{path, start, end, lumetri, owned, layer, lut, animated}]} -> queued:
                               after an export, each clip's Lumetri next to Auto color's suggestion (colorlearn.py, read only)
   GET  /colorlearn/report?project=|client=   per camera: editors minus Asistent (medians), kept, untouched; /colorlearn/status
@@ -91,6 +93,7 @@ from .audio import analyze_items
 from . import color as COLOR
 from . import exportcheck as EXPORTCHECK
 from . import colorlearn
+from . import stash as STASH
 from .groups import sync_groups
 from .importer import Store, Watcher
 from .exports import ExportWatcher, Settings as ExportSettings
@@ -313,6 +316,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, learning.listing((parse_qs(url.query).get("project") or [""])[0]))
         if url.path == "/panel/store":
             return self._send(200, {"values": panelstore.get_all()})
+        if url.path == "/stash/list":
+            return self._send(200, STASH.listing())
+        if url.path == "/stash/get":
+            try:
+                return self._send(200, STASH.get((parse_qs(url.query).get("id") or [""])[0]))
+            except ValueError as e:
+                return self._send(404, {"error": str(e)})
         if url.path == "/colorlearn/report":
             q = parse_qs(url.query)
             client = (q.get("client") or [""])[0] or colorlearn.client_of((q.get("project") or [""])[0])
@@ -483,6 +493,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _start_groups(body))
             if self.path == "/audio":
                 return self._send(200, _start_audio(body))
+            if self.path == "/stash/save":
+                return self._send(200, STASH.save(body.get("stash"), body.get("project") or ""))
+            if self.path == "/stash/delete":
+                return self._send(200, STASH.delete(str(body.get("id") or "")))
+            if self.path == "/stash/rename":
+                return self._send(200, STASH.rename(str(body.get("id") or ""), str(body.get("name") or "")))
             if self.path == "/colorlearn/record":
                 return self._send(200, colorlearn.queue_export(body.get("project") or "", body.get("sequence") or "",
                                                                body.get("clips") or []))
