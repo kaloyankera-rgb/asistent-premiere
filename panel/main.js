@@ -20,6 +20,8 @@ const premierePlacement = require("./premiere-placement.js");
 const captionedit = require("./captionedit.js");
 const premiereRough = require("./premiere-roughcut.js");
 const premiereLabels = require("./premiere-labels.js");
+const premiereCheck = require("./premiere-exportcheck.js");
+const exportcheck = require("./exportcheck.js");
 const tracknames = require("./tracknames.js");
 const roughcutplan = require("./roughcutplan.js");
 const exportEvents = require("./exportevents.js");
@@ -1052,6 +1054,45 @@ async function onNameTracks(back) {
   }
 }
 
+// ---------------------------------------------------------------- before export (TODO I12, 0.10.35)
+
+async function onExportCheck() {
+  if (state.busy) return;
+  if (!state.online) return finish("No connection to the engine. See README.", false);
+  show("result", false);
+  setBusy(true);
+  progress(0, "Reading the sequence…");
+  try {
+    const project = await premiere.activeProject();
+    const g = await premiereCheck.gather(project);
+    const want = g.peakItems.map((p, i) => (p ? { ...p, i } : null)).filter(Boolean);
+    if (want.length) {
+      progress(0.2, "Measuring the sound…");
+      const { job } = await engine.startExportPeaks(want.map(({ i, ...p }) => p));
+      const res = await runJob(job);
+      want.forEach((w, k) => { g.clips[w.i].peakDb = (res.items[k] || {}).peak_db || null; });
+    }
+    const parts = exportcheck.report(g.input);
+    const warn = parts.filter((p) => p.status === "warn");
+    const mark = { ok: "✓", warn: "!", unknown: "?" };
+    const blocks = parts.map((p) => {
+      const box = el("div", "group");
+      box.appendChild(el("div", "name", `${mark[p.status]} ${p.title}`));
+      for (const l of p.lines) box.appendChild(el("div", p.status === "warn" ? "warn" : "line", l));
+      return box;
+    });
+    engine.log("info", `export check ${g.input.sequence}: ${parts.map((p) => `${p.id} ${p.status}`).join(", ")}`);
+    finish(warn.length ? `${g.input.sequence}: ${warn.length} to look at before export (${warn.map((p) => p.title.toLowerCase()).join(", ")}).`
+      : `${g.input.sequence}: nothing found (missing fonts cannot be checked).`, !warn.length, blocks);
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `export check: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    state.jobId = null;
+    setBusy(false);
+  }
+}
+
 // ---------------------------------------------------------------- rough cut (Phase 8 M2)
 
 // One press: the engine finds the pauses and writes an XML, Premiere imports it as a NEW sequence (the source sequence
@@ -1662,6 +1703,7 @@ exportsLoop();
 
 onTap($("sync"), onSync);
 onTap($("labelsName"), () => onNameTracks(false));
+onTap($("checkExport"), onExportCheck);
 onTap($("labelsBack"), () => onNameTracks(true));
 for (const id of ["labelsAuto", "labelsColor1", "labelsColor2"]) $(id).addEventListener("change", saveLabelSettings);
 onTap($("audio"), () => onAudio(null));

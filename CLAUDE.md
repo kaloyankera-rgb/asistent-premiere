@@ -16,6 +16,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `main.js` UI and flows · `engine.js` HTTP client · `premiere.js` timeline reading, SYNC sequence,
     shared helpers (`transaction`, `has`, `maybe`, `ensureBin`, `readTimeline`, `readItems`)
   - `premiere-audio.js` Fill L/R, split copy, Volume level/keyframes · `channels.js` effect-chain routing
+  - `exportcheck.js` what the pre-export check reports (pure) · `premiere-exportcheck.js` reads the sequence for it (0.10.35)
   - `tracknames.js` which name each track gets (pure) · `premiere-labels.js` Track names: renames and camera colours in one step (0.10.34)
   - `captionedit.js` (what a typed caption correction becomes: correction lines for the engine) · `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
   - `cssprobe.js` which CSS this UXP really supports (measured, run by the bridge's `css_probe`) · `devbridge.js` test bridge executor · `exportevents.js` Premiere's export events → the engine (0.10.7) · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
@@ -45,6 +46,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`; one lock per file, 0.10.6)
   - `pins.py` the model commits and SHA-256 of what Asistent downloads (0.10.6); `requirements-*-lock-mac.txt` hash-locked packages
     (`scripts/lock_requirements.py`), used by setup and updates; `media.decode_f32` streams FFmpeg's sound into place (half the memory)
+  - `exportcheck.py` the pre-export check's peaks per clip range (`/export/peaks`, read only, 0.10.35)
   - `color.py` exposure/white-balance analysis, previews, render check, Lumetri calibration, probe measurement
   - `profiles.py`, `prepare.py`: Phase 5 draft, NOT wired, NOT tested
   - `install.py` puts a release in place on Mac and Windows (files into `<app>/current`, host into the CEP folder with
