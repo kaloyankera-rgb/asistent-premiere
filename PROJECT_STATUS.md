@@ -1,6 +1,10 @@
-# Project status — Asistent 0.10.23 (2026-11-10, branch improvements/2026-11)
+# Project status — Asistent 0.10.24 (2026-11-10, branch improvements/2026-11)
 
-0.10.23 (2026-11-10, installed, NOT tried in Premiere): every client style joins the article to an English name (IPHONE-А);
+0.10.24 (2026-11-10, installed, NOT tried in Premiere): the install check reads Adobe's list per Premiere (2026 and 2027 are both on
+this Mac now; Asistent is listed in both). Premiere 2027 (27.0.0) and 2026 26.5.2 are untested with Asistent (it was built and
+tested on 26.0.2).
+
+0.10.23 (2026-11-10, NOT tried in Premiere): every client style joins the article to an English name (IPHONE-А);
 the client's own brand takes none (GStroy, CREDISSIMO); ReShape, short and standard unchanged.
 
 0.10.22 (2026-11-10, NOT installed, NOT tried in Premiere): Subtitle Style "AULA" (docs/SUBTITLE_STYLES/AULA.md): green

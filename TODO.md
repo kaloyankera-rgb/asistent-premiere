@@ -184,6 +184,8 @@ UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips
   #18CC6E). Its keyword word list was made from the same videos: check the suggestions on new ones.
 - [ ] Beauty Sector (0.10.21, `beautysector`, docs/SUBTITLE_STYLES/BEAUTY_SECTOR.md): USER: try in NEW TEST; Track Style (keyword
   #D45E58); check "Aesthetic Dental Clinic" (left as Whisper writes it; the exports also show VANDEV CLINIC).
+- [ ] Premiere 2027 (27.0.0) and 2026 26.5.2 are on this Mac (found 2026-11-10): Asistent was built on 26.0.2; check the panel,
+  captions and Lumetri in both, and which one the editors use.
 - [ ] AULA (0.10.22, `aula`, docs/SUBTITLE_STYLES/AULA.md): USER: try in NEW TEST; Track Style (keyword #37D977; two heights:
   about 45 % filmed, 65 % screen recordings).
 - [ ] Next clients: `scripts/measure_style.py frames|chunks|asr|timing|compare|colour|pace` (font and shadow still by hand);

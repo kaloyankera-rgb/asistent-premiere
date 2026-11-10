@@ -10,9 +10,10 @@ from asistent import install
 class FakeAgent:
     """Mimics UnifiedPluginInstallerAgent: --install appends a version, --remove drops the first listed, --list prints them."""
 
-    def __init__(self, listed, keeps_old=True, fail_relative=True, fail_installs=0, fail_on=()):
+    def __init__(self, listed, keeps_old=True, fail_relative=True, fail_installs=0, fail_on=(), hosts=1):
         self.listed, self.keeps_old, self.fail_relative, self.fail_installs, self.calls = list(listed), keeps_old, fail_relative, fail_installs, []
         self.fail_on, self.installs = set(fail_on), 0       # fail_on: which install calls fail (1 = the first)
+        self.hosts = hosts                                  # how many Premiere versions list the panel (each the same copies)
 
     def __call__(self, cmd, **kw):
         flag, arg = cmd[1], cmd[2] if len(cmd) > 2 else None
@@ -35,7 +36,9 @@ class FakeAgent:
         elif flag == "--remove" and self.listed:
             self.listed.pop(0)
         elif flag == "--list":
-            out = "\n".join(f" Enabled    Asistent    {v}" for v in self.listed) + "\n Enabled    Animation Composer for Premiere 2.2.1"
+            rows = "\n".join(f" Enabled    Asistent    {v}" for v in self.listed) + "\n Enabled    Animation Composer for Premiere 2.2.1"
+            out = rows if self.hosts == 1 else "\n".join(
+                f"2 extensions installed for Premiere Pro (ver {26 + i}.0.0)\n Status    Extension Name    Version\n{rows}" for i in range(self.hosts))
 
         class R:
             stdout, stderr, returncode = out, "", 0
@@ -82,3 +85,16 @@ def test_a_failure_says_what_is_listed_and_how_to_install_by_hand(agent, tmp_pat
     with pytest.raises(RuntimeError) as e:
         install.install_panel(str(tmp_path / "Asistent-0.10.9.ccx"), "0.10.9")
     assert "Double-click Asistent-0.10.9.ccx" in str(e.value)
+
+
+def test_two_premiere_versions_listing_the_same_panel_is_fine(agent, tmp_path):
+    # this Mac, 2026-11-10: Premiere 2026 and 2027 each list Asistent 0.10.23: one copy per Premiere, not an old one
+    fake = agent(listed=["0.10.8"], keeps_old=False, hosts=2)
+    install.install_panel(str(tmp_path / "Asistent-0.10.9.ccx"), "0.10.9")
+    assert fake.listed == ["0.10.9"] and not any(f == "--remove" for f, _ in fake.calls)
+
+
+def test_an_old_copy_in_one_of_two_premieres_is_still_removed(agent, tmp_path):
+    fake = agent(listed=["0.10.8"], hosts=2)
+    install.install_panel(str(tmp_path / "Asistent-0.10.9.ccx"), "0.10.9")
+    assert fake.listed == ["0.10.9"] and any(f == "--remove" for f, _ in fake.calls)
