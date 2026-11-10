@@ -1,4 +1,8 @@
-# Project status — Asistent 0.10.19 (2026-11-10, branch improvements/2026-11)
+# Project status — Asistent 0.10.20 (2026-11-10, branch improvements/2026-11)
+
+0.10.20 (2026-11-10, NOT installed, NOT tried in Premiere): Subtitle Style "ЕКОПАК" (docs/SUBTITLE_STYLES/EKOPAK.md), CREDISSIMO
+always in Latin, Montserrat Black installed by the setup, `measure_style.py pace`. Three client styles (GStroy, Credissimo,
+ЕКОПАК) share one template; cross-client knowledge for all tools in the vault's `editing/client-styles.md`.
 
 0.10.19 (2026-11-10, NOT installed, NOT tried in Premiere): Subtitle Style "Credissimo" (docs/SUBTITLE_STYLES/CREDISSIMO.md): GStroy's
 look with even two-line cuts, up to 4 words, red keywords suggested (money words); `scripts/measure_style.py` for the next

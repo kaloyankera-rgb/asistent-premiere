@@ -62,8 +62,8 @@ function clock(t) {
   return `${m}:${s < 10 ? "0" : ""}${s.toFixed(1)}`;
 }
 
-const PRESET_NAME = { short: "short (9:16)", standard: "standard (16:9)", reshape: "ReShape", gstroy: "GStroy", credissimo: "Credissimo" };
-const ACCENT_NAME = { gstroy: "Green", credissimo: "Red" };   // the client's accent colour
+const PRESET_NAME = { short: "short (9:16)", standard: "standard (16:9)", reshape: "ReShape", gstroy: "GStroy", credissimo: "Credissimo", ekopak: "ЕКОПАК" };
+const ACCENT_NAME = { gstroy: "Green", credissimo: "Red", ekopak: "Green" };   // the client's accent colour
 
 /** The engine's /subtitles result -> { text, ok, lines: [{cls, text}] } for the result box. */
 function describeResult(r) {

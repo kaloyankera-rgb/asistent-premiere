@@ -1,5 +1,10 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-10: a client's name is written its way by the preset (0.10.20)
+The user chose CREDISSIMO (the exports wrote it both ways). A preset's `names` maps a said word to the client's spelling, only in
+that style and only how the word is written (the guide allows a writing rule; the said word is not changed). One word only:
+GStroy's „G -Stroy“ comes as two words from Whisper, so it stays a Captions-tab correction line until a joining rule is needed.
+
 ## 2026-11-10: Credissimo's preset; preset settings are chosen by shape, not by break agreement (0.10.19)
 Credissimo shares GStroy's template but cuts its two lines evenly and its chunks run longer. Where chunks break agrees with the
 editors at 61-63 % (boundary F1 57) for every setting tried, so break agreement cannot choose the settings; they are chosen so

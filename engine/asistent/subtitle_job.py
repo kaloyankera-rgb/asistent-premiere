@@ -39,7 +39,7 @@ SECOND_BEAM = 2            # a cheaper decode for the second opinion (beam 5 for
 SECOND_PAD = 2.0           # the second opinion on a doubtful piece: that piece alone with this much context
 MIN_OVERLAP = 0.4          # a word belongs to the piece when this much of it lies inside the piece
 EDGE = 0.05                # seconds: a word this close to a clip's edge and not clearly heard is a scrap the cut left
-PRESET_NAMES = ("auto", "short", "standard", "reshape", "gstroy", "credissimo")
+PRESET_NAMES = ("auto", "short", "standard", "reshape", "gstroy", "credissimo", "ekopak")
 MAX_CHECKS = 24            # learned fixes checked against the sound in one run (about 9 s each on the Mac's processor)
 
 

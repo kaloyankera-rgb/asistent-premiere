@@ -65,3 +65,11 @@ def test_red_keywords_are_the_last_words_as_shown():
 
 def test_gstroy_still_puts_the_last_word_alone_underneath():
     assert S.build_captions(words("при традиционната"), "gstroy", 29.97)[0]["text"] == "ПРИ\nТРАДИЦИОННАТА"
+
+
+def test_the_brand_is_written_in_latin_however_whisper_wrote_it():
+    # the user, 2026-11-10: CREDISSIMO (the exports used both)
+    for said in ("Кредисимо", "кредисимо,", "Credissimo."):
+        text = S.build_captions(words(f"ние от {said}"), "credissimo", 29.97)[0]["text"]
+        assert "CREDISSIMO" in text and "КРЕДИСИМО" not in text
+    assert "КРЕДИСИМО" in S.build_captions(words("ние от Кредисимо"), "gstroy", 29.97)[0]["text"]   # other clients untouched

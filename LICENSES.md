@@ -12,7 +12,7 @@
 | NLLB-200 distilled 1.3B (Meta), CTranslate2 int8 conversion `JustFrederik/nllb-200-distilled-1.3B-ct2-int8` | CC-BY-NC 4.0 (non-commercial, like the aligner) | 1.38 GB model in `<app folder>/models/nllb-1.3b-int8`, downloaded 2026-11-04 with the user's OK; Bulgarian -> English for the English subtitle line (since 0.9.97) |
 | NLLB-200 distilled 600M (Meta), CTranslate2 int8 conversion `JustFrederik/nllb-200-distilled-600M-ct2-int8` | CC-BY-NC 4.0 (non-commercial, like the aligner) | 623 MB model in `<app folder>/models/nllb-600m-int8`, downloaded 2026-11-04 with the user's OK; used until the 1.3B one is downloaded |
 | sentencepiece | Apache-2.0 | optional (`requirements-asr.txt`): tokenizer of the translator |
-| Montserrat (Julieta Ulanovsky) | SIL Open Font License 1.1 | Bold, SemiBold, ExtraBold installed in the user's Fonts folder 2026-11-04 (user's OK): the Bulgarian subtitle line of the reference style. Montserrat Bold ships in `fonts/` with its licence `fonts/OFL.txt` (redistribution allowed) and is installed into the user's fonts by the setup |
+| Montserrat (Julieta Ulanovsky) | SIL Open Font License 1.1 | Bold, SemiBold, ExtraBold installed in the user's Fonts folder 2026-11-04 (user's OK): the Bulgarian subtitle line of the reference style. Montserrat Bold and (0.10.20, the GStroy and Credissimo subtitles) Montserrat Black ship in `fonts/` with the licence `fonts/OFL.txt` (redistribution allowed) and are installed into the user's fonts by the setup |
 | huggingface_hub, tokenizers | Apache-2.0 | optional: model download and text tokens |
 | onnxruntime | MIT | optional: voice activity detection used by faster-whisper |
 | PyAV | BSD-3-Clause (bundles LGPL FFmpeg libraries) | optional: dependency of faster-whisper |

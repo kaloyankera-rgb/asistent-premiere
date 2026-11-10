@@ -27,7 +27,7 @@ PARTS = ("engine", "host", "scripts", "fonts")
 FILES = ("panel.ccx", "requirements.txt", "requirements-asr.txt", "requirements-lock-mac.txt", "requirements-asr-lock-mac.txt", "requirements-align.txt", "requirements-dev.txt", "LICENSES.md",
          "README.md")
 SKIP = shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", "tests")
-FONTS = ("Montserrat-Bold.ttf",)          # the ReShape style's Bulgarian line (OFL, fonts/OFL.txt)
+FONTS = ("Montserrat-Bold.ttf", "Montserrat-Black.ttf")   # ReShape's Bulgarian line; GStroy and Credissimo subtitles (OFL, fonts/OFL.txt)
 
 
 def current_dir() -> str:

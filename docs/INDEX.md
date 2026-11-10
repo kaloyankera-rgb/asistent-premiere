@@ -13,6 +13,7 @@ Read in this order when continuing the project (the first four are the whole han
 | 7 | [../README.md](../README.md) | User guide (Bulgarian): install and every button. |
 | 8 | [../COLOR_CORRECTION_PLAN.md](../COLOR_CORRECTION_PLAN.md) | Colour engine plan; spec package in [color-spec/](color-spec/00_START_HERE.md). |
 | 9 | [SUBTITLES_PLAN.md](SUBTITLES_PLAN.md) | Phase 7 (Bulgarian subtitles) plan and milestones M0-M5. |
+| 9c | [SUBTITLE_STYLES/EKOPAK.md](SUBTITLE_STYLES/EKOPAK.md) | ЕКОПАК's style (preset `ekopak`), colour in [CLIENT_COLOR/EKOPAK.md](CLIENT_COLOR/EKOPAK.md); what the three clients share: the vault's `editing/client-styles.md`. |
 | 9b | [SUBTITLE_STYLES/CREDISSIMO.md](SUBTITLE_STYLES/CREDISSIMO.md) | Credissimo's style (preset `credissimo`), colour in [CLIENT_COLOR/CREDISSIMO.md](CLIENT_COLOR/CREDISSIMO.md); measured with `scripts/measure_style.py`. |
 | 9a | [SUBTITLE_STYLES/GSTROY.md](SUBTITLE_STYLES/GSTROY.md) | GStroy's subtitle style measured on its exports (preset `gstroy`); colour findings in [CLIENT_COLOR/GSTROY.md](CLIENT_COLOR/GSTROY.md). |
 | 9b | [ROUGHCUT_PLAN.md](ROUGHCUT_PLAN.md) | Phase 8 (AI Auto Rough Cut: Safe/Smart cut, repeated takes) research and plan, milestones M0-M6. Planning only, nothing built (2026-11-03). |

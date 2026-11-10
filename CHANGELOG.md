@@ -31,6 +31,21 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.20 - Subtitle Style "ЕКОПАК", CREDISSIMO in Latin, Montserrat Black installed (the user's requests 2026-11-10)
+- Captions > Style > **ЕКОПАК**, measured on 7 of the client's exported videos (400 chunks, `scripts/measure_style.py`): the
+  shared template again (Montserrat Black 52, capitals, no punctuation, glow, appears with the word), up to 4 words / 17
+  characters (2.25 words a chunk against the editors' 2.35, 41 % two-line against 42 %, 65 % of their break points), lines cut
+  evenly, a green keyword (#18CC6E) suggested on about one chunk in four, recycling words first. The result box says
+  "Green keywords".
+- Credissimo: the brand is always CREDISSIMO (the user's decision), however Whisper wrote it (preset key `names`, only that
+  style; also „Ecopack“ -> „Екопак“ in ЕКОПАК's).
+- Montserrat Black (OFL) ships in `fonts/` and the setup installs it: the three clients' subtitles use it.
+- `measure_style.py pace`: cuts, mean shot, loudness (LUFS), loudness range, true peak; one video in several sizes is v3,
+  v3_2, v3_3 (they overwrote each other).
+- Docs: `docs/SUBTITLE_STYLES/EKOPAK.md`, `docs/CLIENT_COLOR/EKOPAK.md`; the client knowledge for the other tools (autoedit,
+  client-edit) in the vault: `editing/client-styles.md` and `clients/<client>/look.md` + `edit-style.json` for GStroy,
+  Credissimo and ЕКОПАК.
+
 ## 0.10.19 - Subtitle Style "Credissimo", and a script to measure the next client (the user's request 2026-11-10)
 - Captions > Style > **Credissimo**, measured on 9 of the client's exported videos (674 chunks): the same template as GStroy's
   (Montserrat Black 52, capitals, no punctuation, the even dark glow, centre at 50 %, appears with the word), but longer chunks

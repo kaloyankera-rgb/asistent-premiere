@@ -132,3 +132,11 @@ test("describeResult: Credissimo's suggested keywords are named red", () => {
   assert.match(all, /style Credissimo/);
   assert.match(all, /Red keywords suggested on 1 of 1 lines .*: 0:00\.5 ПАРИ\./);
 });
+
+test("describeResult: ЕКОПАК's suggested keywords are named green", () => {
+  const caps = [{ start: 2.1, end: 3.1, text: "ЕДИН\nБОКЛУК", flags: [], accent: "БОКЛУК" }];
+  const r = describeResult({ counts: { captions: 1, words: 2, flagged: 0 }, preset: "ekopak", fps: 29.97, cached: true, captions: caps, srt: "/x.srt" });
+  const all = r.lines.map((l) => l.text).join("\n");
+  assert.match(all, /style ЕКОПАК/);
+  assert.match(all, /Green keywords suggested on 1 of 1 lines .*: 0:02\.1 БОКЛУК\./);
+});

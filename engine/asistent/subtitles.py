@@ -64,7 +64,17 @@ PRESETS = {
                    "accent": 9, "accent_near": 2,
                    "accent_words": r"^(пари|парите|парички|бюджет|кредит|заем|назаем|вноск|разход|доход|финанс|кредисимо|credissimo"
                                    r"|спестя|заплат|сметк|лихв|харч|буфер|евро$|лев$|лева$|левчета|карта$|картата$|цента$|стотинк"
-                                   r"|дълг$|дълга$|дългове)"},
+                                   r"|дълг$|дълга$|дългове)",
+                   "names": {"кредисимо": "CREDISSIMO", "credissimo": "CREDISSIMO", "кредисимото": "CREDISSIMO"}},
+    # the ЕКОПАК client's own style (docs/SUBTITLE_STYLES/EKOPAK.md, 7 exported videos, 400 chunks): the same template again,
+    # cut evenly like Credissimo's, a green keyword (#18CC6E) on about one chunk in four, often a recycling word; 17 characters
+    # a chunk gave its editors' shape on their speech (2.25 words against 2.35, two-line 41 % against 42 %, breaks 65 %)
+    "ekopak": {"max_words": 4, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 17,
+               "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even",
+               "accent": 7, "accent_near": 2,
+               "accent_words": r"^(боклук|отпад|контейнер|опаковк|рецикл|разделн|картон|пластмас|стъкл|хартия|хартии|метал|алумини"
+                               r"|кутийк|бутилк|буркан|екопак|ecopack|сортир|платформ|сигнал|карта$|картата$)",
+               "names": {"ecopack": "Екопак", "екопак": "Екопак"}},
 }
 
 # NTSC rates arrive as 23.976 / 29.97 / 59.94; the sequence really runs at N*1000/1001.
@@ -459,8 +469,14 @@ BARE = re.compile(r"^[„“\"«(]+|[.,?!…:;\"»“”)]+$")
 
 def _shown(word, cfg):
     """A word as the caption shows it: a "bare" preset drops the punctuation around it (inside stays: „360-градусово“, „1,5“);
-    an "upper" preset (GStroy) shows it in capitals."""
+    an "upper" preset (GStroy) shows it in capitals; a preset's "names" write a client's name its way, however Whisper wrote it
+    (Credissimo: „Кредисимо“ -> „CREDISSIMO“, the user's choice 2026-11-10: only how the said name is written)."""
     shown = BARE.sub("", word) or word if cfg.get("bare") else word
+    names = cfg.get("names")
+    if names:
+        core = BARE.sub("", shown) or shown
+        if core.lower() in names:
+            shown = shown.replace(core, names[core.lower()])
     return shown.upper() if cfg.get("upper") else shown
 
 
