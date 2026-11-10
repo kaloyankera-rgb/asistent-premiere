@@ -54,6 +54,7 @@
     playFrom: async () => ({ ok: true }),
     playStop: async () => ({ ok: true }),
     devPoll: () => Promise.reject(new Error("bridge off in the preview")),
+    stashList: async () => engineState.stash || { items: [], bytes: 0 },
   }, { get: (t, k) => (k in t ? t[k] : async () => ({})) });
 
   const fakes = {
