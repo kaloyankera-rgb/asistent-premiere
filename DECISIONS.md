@@ -436,3 +436,9 @@ faders, Audio Gain and effects are not included and the panel says so. Safe area
 caption (common to TikTok, Reels, Shorts), other frames title safe 90 %. Caption track positions and missing fonts are not
 readable and are shown as "?", never as passed.
 
+## 2026-11-10: colour learning keeps its records on this computer until EL0 is approved (0.10.36)
+The user listed EL1 with "I need your OK for EL0 first" (office folders per client). Writing on the shared server was left
+for an explicit yes; EL1 records locally in `<app>/learning/color/` so nothing is lost meanwhile. It runs on its own thread
+(one export at a time), not in the job pool, so a long analysis after an export never delays Sync or subtitles. The report
+compares with Auto color's file analysis (not the value the frame check kept) and only where Asistent was sure.
+

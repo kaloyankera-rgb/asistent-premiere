@@ -39,6 +39,9 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /audio                {"items": [{"path", "start", "end", "force"?}], "force"?, "target"?, "ceiling"?,
                               "phrases"?: true -> Volume keyframes that even out phrases,
                               "balance_db"?: how far apart two speakers may be (default 2)}
+  POST /colorlearn/record    {project, sequence, clips: [{path, start, end, lumetri, owned, layer, lut, animated}]} -> queued:
+                              after an export, each clip's Lumetri next to Auto color's suggestion (colorlearn.py, read only)
+  GET  /colorlearn/report?project=|client=   per camera: editors minus Asistent (medians), kept, untouched; /colorlearn/status
   POST /export/peaks         {"items": [{path, start, end}]} -> job: each clip's true peak per channel in the used range
                               (pre-export check, read only; exportcheck.py)
   POST /audio/route          {"items": [{track, start, end, route}], "sequence", "project"?} -> through the host:
@@ -87,6 +90,7 @@ from .jobs import JobManager
 from .audio import analyze_items
 from . import color as COLOR
 from . import exportcheck as EXPORTCHECK
+from . import colorlearn
 from .groups import sync_groups
 from .importer import Store, Watcher
 from .exports import ExportWatcher, Settings as ExportSettings
@@ -309,6 +313,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, learning.listing((parse_qs(url.query).get("project") or [""])[0]))
         if url.path == "/panel/store":
             return self._send(200, {"values": panelstore.get_all()})
+        if url.path == "/colorlearn/report":
+            q = parse_qs(url.query)
+            client = (q.get("client") or [""])[0] or colorlearn.client_of((q.get("project") or [""])[0])
+            return self._send(200, {**colorlearn.report(client), "clients": colorlearn.clients(), **colorlearn.status()})
+        if url.path == "/colorlearn/status":
+            return self._send(200, colorlearn.status())
         if url.path == "/captions/state":
             q = parse_qs(url.query)
             return self._send(200, captionstate.get((q.get("project") or [""])[0], (q.get("sequence") or [""])[0]) or {})
@@ -473,6 +483,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _start_groups(body))
             if self.path == "/audio":
                 return self._send(200, _start_audio(body))
+            if self.path == "/colorlearn/record":
+                return self._send(200, colorlearn.queue_export(body.get("project") or "", body.get("sequence") or "",
+                                                               body.get("clips") or []))
             if self.path == "/export/peaks":
                 items = body.get("items") or []
                 if not all(isinstance(i, dict) and isinstance(i.get("path"), str) for i in items):

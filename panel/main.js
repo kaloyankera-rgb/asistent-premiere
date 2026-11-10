@@ -22,6 +22,7 @@ const premiereRough = require("./premiere-roughcut.js");
 const premiereLabels = require("./premiere-labels.js");
 const premiereCheck = require("./premiere-exportcheck.js");
 const exportcheck = require("./exportcheck.js");
+const premiereLearn = require("./premiere-colorlearn.js");
 const tracknames = require("./tracknames.js");
 const roughcutplan = require("./roughcutplan.js");
 const exportEvents = require("./exportevents.js");
@@ -1054,6 +1055,51 @@ async function onNameTracks(back) {
   }
 }
 
+// ---------------------------------------------------------------- learning from exports: colour (TODO EL1, 0.10.36)
+
+const LEARN = "asistent.colorLearn";
+let lastLearn = 0;
+const learnOn = () => store.getItem(LEARN) !== "0";                     // on unless switched off
+
+// several events fire for one export: once per 20 s; never while a press is running (it reads the timeline too)
+async function learnFromExport(now = false) {
+  if (!learnOn() || !state.online || (!now && Date.now() - lastLearn < 20000)) return { skipped: true };
+  lastLearn = Date.now();
+  try {
+    const project = await premiere.activeProject();
+    const g = await premiereLearn.gather(project);
+    if (!g.clips.length) return { clips: 0 };
+    const r = await engine.colorLearnRecord(project.path, g.sequence, g.clips);
+    engine.log("info", `colour learning: ${g.sequence}: ${r.queued} clips queued for ${r.client}${g.more ? ` (${g.more} more not read)` : ""}`);
+    return { sequence: g.sequence, clips: g.clips.length, client: r.client, sample: g.clips.slice(0, 3) };
+  } catch (e) {
+    engine.log("warning", `colour learning after export: ${e && e.stack ? e.stack : e}`);
+    return { error: String(e && e.message ? e.message : e) };
+  }
+}
+
+async function onLearnReport() {
+  if (state.busy || !state.online) return;
+  try {
+    const project = await premiere.activeProject();
+    const r = await engine.colorLearnReport(project.path);
+    const sign = (v, unit = "") => (v === null || v === undefined ? "–" : `${v > 0 ? "+" : ""}${v}${unit}`);
+    const blocks = r.cameras.map((c) => {
+      const box = el("div", "group");
+      box.appendChild(el("div", "name", `${c.camera}: ${c.clips} clips`));
+      box.appendChild(el("div", "line", `Editors vs Auto color, middle value: exposure ${sign(c.exposure.median, " stops")} (${c.exposure.n} clips), ` +
+        `temperature ${sign(c.temperature.median)}, tint ${sign(c.tint.median)} (${c.temperature.n} clips)`));
+      box.appendChild(el("div", "muted", `Asistent's correction kept as it was: ${c.kept} · no correction: ${c.untouched} · graded on an adjustment layer: ${c.layer}`));
+      return box;
+    });
+    if (r.pending) blocks.push(el("div", "muted", `${r.pending} export${r.pending > 1 ? "s" : ""} still being analysed.`));
+    finish(r.cameras.length ? `${r.client}: what the editors did after exports (${r.cameras.reduce((n, c) => n + c.clips, 0)} clips, this computer)`
+      : `${r.client}: nothing learned yet. Export with "Learn from exports" on.`, true, blocks);
+  } catch (e) {
+    finish(e.message || String(e), false);
+  }
+}
+
 // ---------------------------------------------------------------- before export (TODO I12, 0.10.35)
 
 async function onExportCheck() {
@@ -1691,6 +1737,7 @@ exportEvents.listen(require("premierepro"), (kind, path, name, fields) => {
   if (!path && now - lastExportEvent < 1000) return;
   lastExportEvent = now;
   engine.exportDone(path, kind, `panel:${name}`).catch(() => {});
+  if (kind === "complete") learnFromExport();
 }, (msg) => engine.log("info", msg)).then((attached) => engine.log("info", `exports: listening to ${attached.join(", ") || "no export events"}`))
   .catch(() => {});
 
@@ -1704,6 +1751,8 @@ exportsLoop();
 onTap($("sync"), onSync);
 onTap($("labelsName"), () => onNameTracks(false));
 onTap($("checkExport"), onExportCheck);
+onTap($("colorLearnReport"), onLearnReport);
+$("colorLearn").addEventListener("change", () => store.setItem(LEARN, $("colorLearn").checked ? "1" : "0"));
 onTap($("labelsBack"), () => onNameTracks(true));
 for (const id of ["labelsAuto", "labelsColor1", "labelsColor2"]) $(id).addEventListener("change", saveLabelSettings);
 onTap($("audio"), () => onAudio(null));
@@ -1774,6 +1823,7 @@ function applyRemembered() {
   }
   try {
     fillLabelControls();
+    $("colorLearn").checked = learnOn();
   } catch (e) {
     /* no storage: Keep and on */
   }
@@ -1824,7 +1874,7 @@ $("app").addEventListener("scroll", hideTip);
 
 refreshHeader();
 // test bridge: does nothing unless the engine has its flag file (see devbridge.js)
-createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION }).loop();
+createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION, hooks: { learnFromExport } }).loop();
 setInterval(() => {
   if (!state.busy) refreshHeader();
 }, 4000);

@@ -127,6 +127,11 @@
         <div id="exposureDown" class="btn small" data-tip="Adds -0.5 to the Exposure of the selected clips' Lumetri at once, as you would by hand (no measuring, works without faces). In a Lumetri you set yourself only Exposure moves; your other sliders stay. Not on keyframed Exposure. Cmd+Z undoes it.">Exposure −0.5</div>
         <div id="exposureUp" class="btn small" data-tip="Adds +0.5 to the Exposure of the selected clips' Lumetri at once, as you would by hand (no measuring, works without faces). In a Lumetri you set yourself only Exposure moves; your other sliders stay. Not on keyframed Exposure. Cmd+Z undoes it.">Exposure +0.5</div>
       </div>
+      <div class="row options">
+        <input type="checkbox" id="colorLearn" />
+        <label for="colorLearn" class="muted" data-tip="When an export ends, Asistent notes each clip's Lumetri next to what Auto color would have set, per client and camera, on this computer. It only reads: nothing in the project changes.">Learn from exports</label>
+        <div id="colorLearnReport" class="btn link" data-tip="Per camera of this project's client: how the editors' Lumetri differs from Auto color (the middle value), how often Asistent's correction was kept.">What the editors did</div>
+      </div>
     </div>
 
     <div class="card" id="secSubtitles">
