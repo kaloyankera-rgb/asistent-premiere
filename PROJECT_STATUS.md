@@ -1,5 +1,10 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.35 (2026-11-10, installed): Before export check (TODO I12): offline, black / flash frames, text outside the safe area
+and caption overlaps, microphone clips over -6 dBFS (true peak of the used range + Volume, played channel only), fonts "?".
+Read only. VERIFIED through the bridge on NEW TEST (levels against FFmpeg, safe area with a moved graphic, SYNC gaps). NOT
+seen live: offline media, caption overlaps. Tests: 692 pytest + 24 skipped, node 231.
+
 0.10.34 (2026-11-10, installed): Track names (TODO I7), Tools card: POV 1 / POV 2 by track order, POV n audio, Mic n,
 Subtitles BG / EN; editor names kept; optional camera label colours; Put names back; automatic after Sync and rough cut.
 VERIFIED through the bridge on NEW TEST (names, renumbering, colours and their restore, Put names back, auto after Sync and
