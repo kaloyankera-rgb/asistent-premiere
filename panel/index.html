@@ -66,6 +66,31 @@
       </div>
     </div>
 
+    <div class="card" id="secLabels">
+      <div class="cardhead">
+        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.42 0l8.58-8.58a1 1 0 0 0 0-1.42z"/><path d="M7 7h.01"/></svg></span>
+        <div class="title">Track names</div>
+        <div class="btn more" data-more="aboutLabels" data-tip="What Track names does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
+      </div>
+      <p id="aboutLabels" class="desc" hidden>Names the tracks of the open sequence: each camera POV 1, POV 2 in track order, its sound POV 1 audio, a recorder or lavalier Mic 1, Asistent's subtitles Subtitles BG / EN. A name you typed yourself is kept; B-roll and graphics tracks are left alone. One Cmd+Z takes a press back.</p>
+      <div class="row buttons">
+        <div id="labelsName" class="btn small" data-tip="Names the tracks of the open sequence (and colours the cameras' files if you chose colours below). One Undo step.">Name the tracks</div>
+        <div id="labelsBack" class="btn small" data-tip="Puts back the names (and colours) Asistent changed in this sequence, where they are still as it left them.">Put names back</div>
+      </div>
+      <div class="row options">
+        <input type="checkbox" id="labelsAuto" />
+        <label for="labelsAuto" class="muted" data-tip="Names the tracks of every new SYNC and ROUGH sequence right after it is made (those sequences are Asistent's own).">Also after Sync and rough cut</label>
+      </div>
+      <div class="row options">
+        <label for="labelsColor1" class="muted kf-wide" data-tip="A label colour for every file of camera POV 1. Premiere keeps it on the file, so it shows in every sequence and in the Project panel. Keep = not touched.">POV 1 colour</label>
+        <select id="labelsColor1"></select>
+      </div>
+      <div class="row options">
+        <label for="labelsColor2" class="muted kf-wide" data-tip="A label colour for every file of camera POV 2. Keep = not touched.">POV 2 colour</label>
+        <select id="labelsColor2"></select>
+      </div>
+    </div>
+
     <div class="card" id="secAudio">
       <div class="cardhead">
         <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span>

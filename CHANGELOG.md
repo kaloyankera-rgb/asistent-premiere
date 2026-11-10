@@ -31,6 +31,23 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.34 - Track names: POV 1 / POV 2, their sound, Mic, Subtitles BG / EN (TODO I7)
+- New Tools card "Track names": Name the tracks / Put names back, "Also after Sync and rough cut" (on), a label colour per
+  camera (Keep by default). `tracknames.js` (pure, 9 node tests) decides, `premiere-labels.js` writes in one transaction.
+- Rules (the user's choice 2026-11-10: POV 1 / POV 2 by track order): a video track is a camera when at least 80 % of its files
+  share one folder and that folder's sound is on an audio track; audio is a camera's by its file, else its folder; an audio
+  track whose folder is on no video track is a Mic; Asistent's own caption tracks (recorded signature) are Subtitles BG / EN.
+  Names the editor typed are kept; B-roll and graphics tracks are left alone; Asistent's earlier names are renumbered.
+- Colours are project-item labels (Premiere has none per timeline clip), so they show on that file everywhere: off unless chosen.
+- Put names back returns to the names and colours from before Asistent's first press, only where they are still as it left them.
+- Probed in Premiere 26.5.2: VideoTrack, AudioTrack and CaptionTrack have `createSetNameAction` (26.0.2 had no track rename in
+  UXP); ExtendScript `Track.name` is writable too; timeline clips have no colour label in either API.
+- Test bridge: `fill` also sets the Track names options (test projects only).
+- Verified through the bridge on NEW TEST: SYNC – кам2 (a stray file on V1, Fix audio's L/R copies) named V1 POV 1, V2 POV 2,
+  A1 POV 1 audio, A2 POV 2 audio, A3 POV 2 audio 2; second press "nothing to change"; colours Rose / Mango on 24 files and back;
+  Put names back to Video 1 … Audio 3; a new Sync and a rough cut of it were named on their own. NOT verified: Cmd+Z (macOS
+  did not let a script press it).
+
 ## 0.10.33 - Keyframer: Elastic, Bounce, Ping-pong and Loop (the user: "a smooth bounce in, ping pong")
 - `keyframeplan.js`: Elastic (exactly n overshoots, the first one the % set, each later one smaller, no jerk), Bounce (a ball
   dropped on the target: n hops, each a set height of the one before, never past it), each at the end, the start or both;

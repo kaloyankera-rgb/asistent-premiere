@@ -16,6 +16,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `main.js` UI and flows · `engine.js` HTTP client · `premiere.js` timeline reading, SYNC sequence,
     shared helpers (`transaction`, `has`, `maybe`, `ensureBin`, `readTimeline`, `readItems`)
   - `premiere-audio.js` Fill L/R, split copy, Volume level/keyframes · `channels.js` effect-chain routing
+  - `tracknames.js` which name each track gets (pure) · `premiere-labels.js` Track names: renames and camera colours in one step (0.10.34)
   - `captionedit.js` (what a typed caption correction becomes: correction lines for the engine) · `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
   - `cssprobe.js` which CSS this UXP really supports (measured, run by the bridge's `css_probe`) · `devbridge.js` test bridge executor · `exportevents.js` Premiere's export events → the engine (0.10.7) · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
 - **Asistent host** `host/` (since 0.9.45): an invisible CEP extension (`CSXS/manifest.xml`, `main.js`, `host.jsx`) installed by

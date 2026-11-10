@@ -19,6 +19,8 @@ const reviewplan = require("./reviewplan.js");
 const premierePlacement = require("./premiere-placement.js");
 const captionedit = require("./captionedit.js");
 const premiereRough = require("./premiere-roughcut.js");
+const premiereLabels = require("./premiere-labels.js");
+const tracknames = require("./tracknames.js");
 const roughcutplan = require("./roughcutplan.js");
 const exportEvents = require("./exportevents.js");
 
@@ -432,8 +434,9 @@ async function onSync() {
       return;
     }
     const synced = result.groups.reduce((n, g) => n + g.members.length, 0);
+    const named = await autoLabels(project);
     finish(`Done in ${secsTaken} s: ${done.name}, ${synced} clips in ${result.groups.length} groups. ` +
-      `Checked (off by at most ${done.worstMs.toFixed(1)} ms from the frames). Your sequence was not touched.`, true, blocks);
+      `Checked (off by at most ${done.worstMs.toFixed(1)} ms from the frames). Your sequence was not touched.${named}`, true, blocks);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `sync: ${e && e.stack ? e.stack : e}`);
@@ -974,6 +977,81 @@ async function onSubtitles(opts = {}) {
   }
 }
 
+// ---------------------------------------------------------------- track names (TODO I7, 0.10.34)
+
+const LABELS = "asistent.labels.settings";
+function labelSettings() {
+  try {
+    return { auto: true, colors: {}, ...(JSON.parse(store.getItem(LABELS) || "{}") || {}) };
+  } catch (e) {
+    return { auto: true, colors: {} };
+  }
+}
+
+function saveLabelSettings() {
+  const colors = {};
+  for (const n of [1, 2]) {
+    const v = $(`labelsColor${n}`).value;
+    if (v !== "") colors[n] = Number(v);
+  }
+  store.setItem(LABELS, JSON.stringify({ auto: $("labelsAuto").checked, colors }));
+}
+
+function fillLabelControls() {
+  const s = labelSettings();
+  $("labelsAuto").checked = s.auto !== false;
+  for (const n of [1, 2]) {
+    const sel = $(`labelsColor${n}`);
+    sel.innerHTML = "";
+    const keep = document.createElement("option");
+    keep.value = "";
+    keep.textContent = "Keep";
+    sel.appendChild(keep);
+    tracknames.COLORS.forEach((name, i) => {
+      const o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = name;
+      sel.appendChild(o);
+    });
+    sel.value = Number.isInteger(s.colors[n]) ? String(s.colors[n]) : "";
+  }
+}
+
+// after Sync / rough cut: never lets a naming problem spoil the sequence that was just made
+async function autoLabels(project) {
+  if (!labelSettings().auto) return "";
+  try {
+    const r = await premiereLabels.nameTracks(project, labelSettings().colors);
+    return r.renamed ? ` Tracks named (${r.renamed}).` : "";
+  } catch (e) {
+    engine.log("warning", `labels after a new sequence: ${e && e.stack ? e.stack : e}`);
+    return "";
+  }
+}
+
+async function onNameTracks(back) {
+  if (state.busy) return;
+  setBusy(true);
+  try {
+    const project = await premiere.activeProject();
+    if (back) {
+      const r = await premiereLabels.putBack(project);
+      const what = [r.renamed && `${r.renamed} names`, r.colored && `${r.colored} colours`].filter(Boolean).join(" and ");
+      finish(what ? `Put back: ${what}. Cmd/Ctrl+Z takes it back.` : "Nothing of Asistent's to put back in this sequence.", true);
+      return;
+    }
+    const r = await premiereLabels.nameTracks(project, labelSettings().colors);
+    const what = [r.renamed && `${r.renamed} tracks named`, r.colored && `${r.colored} files coloured`].filter(Boolean).join(", ");
+    finish(what ? `${r.sequence}: ${what}. One Cmd/Ctrl+Z takes it back.` : `${r.sequence}: nothing to change.`, true,
+      r.lines.map((l) => el("div", / kept: /.test(l) || /check it|cannot/.test(l) ? "warn" : "line", l)));
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `labels: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    setBusy(false);
+  }
+}
+
 // ---------------------------------------------------------------- rough cut (Phase 8 M2)
 
 // One press: the engine finds the pauses and writes an XML, Premiere imports it as a NEW sequence (the source sequence
@@ -996,7 +1074,8 @@ async function onRoughCut() {
     progress(0.92, "Importing the new sequence…");
     const placed = await premiereRough.place(project, result, meta);
     const out = roughcutplan.describeResult(result, placed);
-    finish(out.text, !placed.problems.length, out.lines.map((l) => el("div", l.cls, l.text)));
+    const named = placed.problems.length ? "" : await autoLabels(project);
+    finish(out.text + named, !placed.problems.length, out.lines.map((l) => el("div", l.cls, l.text)));
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `roughcut: ${e && e.stack ? e.stack : e}`);
@@ -1582,6 +1661,9 @@ onTap($("exportsFolder"), async () => {
 exportsLoop();
 
 onTap($("sync"), onSync);
+onTap($("labelsName"), () => onNameTracks(false));
+onTap($("labelsBack"), () => onNameTracks(true));
+for (const id of ["labelsAuto", "labelsColor1", "labelsColor2"]) $(id).addEventListener("change", saveLabelSettings);
 onTap($("audio"), () => onAudio(null));
 onTap($("subtitles"), () => onSubtitles());
 onTap($("captionApply"), onCaptionApply);
@@ -1647,6 +1729,11 @@ function applyRemembered() {
     $("subtitleStyle").value = ["reshape", "gstroy", "credissimo", "ekopak", "beautysector", "aula"].includes(style) ? style : "auto";
   } catch (e) {
     /* no storage */
+  }
+  try {
+    fillLabelControls();
+  } catch (e) {
+    /* no storage: Keep and on */
   }
 }
 applyRemembered();

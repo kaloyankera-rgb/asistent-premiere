@@ -418,3 +418,12 @@ handles. A custom curve is therefore written as one keyframe per sequence frame 
 time, speed taken into account); Premiere's own modes are set on the editor's keys and add nothing. Only keys Asistent added
 (its record, re-checked on the clip) are ever removed, each in a quarter-frame window, so a key the editor adds in between
 survives. A press above 3000 keys is refused.
+
+## 2026-11-10: track names by an 80 % main folder; colours off by default; naming after Sync and rough cut on (0.10.34)
+A camera is "one folder" as in the SYNC layout, but real sequences carry a stray file on a camera track and Fix audio's L/R
+copies are new files in the camera's folder (NEW TEST, measured), so a track counts by the folder of at least 80 % of its
+files and sound is matched by file, then folder. Only Premiere's default names and Asistent's own are changed: the editor's
+names are never overwritten. A colour label exists only on the project item (no per-clip label in UXP or ExtendScript), so it
+recolours the file everywhere: Keep unless the editor chooses one. Sync and rough cut make sequences that are Asistent's own,
+so they are named right away; the hook in `main.js` is one guarded call after a successful build and never fails the build.
+
