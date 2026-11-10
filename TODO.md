@@ -3,6 +3,30 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
+## F. Field reports 2026-11-10 (the user: "add these to the to do, dont fix anything yet")
+Reported by the user from real projects, with screenshots; what the engine log shows is under each. Diagnose before changing
+anything; nothing here is fixed yet.
+- [ ] **Colour does nothing on a clip that clearly needs it.** Pulse Fitness КП-5 Видео 4 (Sony A7V, IVO7V9795/9798): "Nothing to
+  correct with certainty: nothing was touched", the clip's Lumetri all at 0, the picture visibly cool/blue. Log 2026-11-09
+  11:48-11:52: measured, confidence **low** every time (timeline and source), so never applied. The sequence has an Adjustment Layer
+  (V2) with a Lumetri Creative Look "1_SGamut3CineSLog3_To…" (an S-Log3 to Rec.709 LUT). Hypothesis to check: Asistent measures the
+  flat log picture under the LUT (or the LUT above changes what it sees) and loses confidence. Also: the panel in the screenshot
+  said "Connected · 0.10.17" (an old panel still loaded in that Premiere).
+- [ ] **Fix audio "didn't work" on a Credissimo video.** Two different things in the log:
+  1. Credissimo КП-14 Видео 4, 05:41: the red error is from **Sync cameras**: "FFmpeg cannot decode the sound of IMG_0357.MOV ...
+     no decoder found for: apple_apac". The iPhone clip carries Apple's spatial audio (APAC) on stream 0:2; our FFmpeg has no
+     decoder for it. Check whether the file also has a normal AAC track to use instead, and say so plainly in the panel.
+  2. 16:38-16:40, six Fix audio presses on fx30-3-99xx clips: the analysis finished every time (3-15 s), but the routing step
+     answered **"No active sequence."** 5 times out of 6 and nothing was applied; the panel showed no error. Find why the panel
+     loses the active sequence (Premiere 26.5.2 / 27.0.0 now on this Mac, the API may differ from 26.0.2) and never fail silently.
+- [ ] **Everything should be much faster** (the user: "Overall we need to make the tools way faster for use"). Measure each
+  button's time on a real project first and fix the slowest: subtitles 87-109 s on a first run (2026-11-09; Whisper large-v3 on
+  the CPU), rough cut over 326 s on a 10-minute video (Whisper again, see A), Fix audio 3-15 s, colour 1-2 s. Options already
+  noted: reuse words across subtitles and rough cut, faster recognizer where words are only used for timing, Whisper on the
+  Apple GPU (changes words: the user's call, DECISIONS 2026-11-04).
+- [ ] **Subtitle generation is very slow** (the user). Part of the item above; ReShape's output must stay identical
+  (reshape_golden) unless the user accepts a change.
+
 ## A. Fix known bugs
 - **Rough cut too slow and not a good cut (the user, 2026-11-09).** Log: a 10-minute video (48 items, IVO7V97xx) spent its time in
   speech recognition (Whisper large-v3 on the CPU, int8 beam 5) and was cancelled after 326 s; the cutting itself takes seconds
