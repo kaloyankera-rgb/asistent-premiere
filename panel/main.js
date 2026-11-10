@@ -1629,6 +1629,7 @@ onTap($("cancel"), () => {
 }, { repeat: true });
 
 for (const t of document.querySelectorAll(".btn.tab")) onTap(t, () => openTab(t.getAttribute("data-tab")));
+require("./keyframer.js").mount({ $, el, button, enable, bindTips, premiere });     // the Keyframer page (0.10.32)
 onTap($("openLog"), () => openTab("paneLog"));
 onTap($("openPreview"), () => openTab("panePreview"));
 onTap($("hideResult"), () => show("result", false));       // the full answer stays in Log

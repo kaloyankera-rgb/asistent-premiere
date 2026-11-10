@@ -29,8 +29,8 @@ first; brand profiles deferred.
   Stash of clips likely via exportAsProject/importSequences, OpenCV MIL + optical flow, no scripted adjustment layer.
 - [x] P-A6 drag in the panel works (SVG and divs); the temporary probe code was removed in 0.10.31.
 - [ ] Phase 0 leftovers for the builds: P-A2 on a sped-up clip (Keyframer), P-A4 with a hand-drawn tracked mask (optional).
-- [ ] **A1 Keyframer**: `keyframeplan.js` (pure: bezier sampling, time mapping) + `premiere-keyframes.js`; a new panel page
-  with the curve editor, presets, ticked properties, Apply / Undo; native interpolation if P-A1, else baked per frame.
+- [x] **A1 Keyframer** (0.10.32, branch feature/keyframer; verified through the bridge). USER: drag the handles, try Overshoot
+  on a real animation; check a sped-up clip. Later if wanted: rename / delete saved curves, several clips at once.
 - [ ] **A2 Stash v1** (animations as data in the engine folder, applied at the playhead), then v2 clips (if P-A5).
 - [ ] **A3 Tracker**: faces first (YuNet, reframing 9:16), then a placed target (OpenCV), confidence strip, smoothed and
   thinned Position keys in one Undo step, never over the editor's keyframes.

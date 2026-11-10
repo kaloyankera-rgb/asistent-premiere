@@ -78,6 +78,7 @@ window.PREVIEW_SCENARIOS = (function () {
     color: { run: colorProposal },
     beforeafter: { run: (api) => { colorProposal(api); api.openTab("panePreview"); } },
     captions: { run: (api) => { api.renderCaptionEditor(captions); api.openTab("paneCaptions"); } },
+    keyframer: { run: (api) => api.openTab("paneKeyframer") },
     review: {
       engine: { review: {
         lines: [
