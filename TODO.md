@@ -24,11 +24,11 @@ Additive only: new files and pages, the existing tabs, sync, Fix audio, colour, 
 each feature on its own branch off `improvements/2026-11`, baseline test numbers before and the same plus new after, a
 regression list in NEW TEST, a row in docs/ROLLBACK.md. Decisions taken in this session's advice (to confirm): tracker faces
 first; brand profiles deferred.
-- [ ] **Phase 0 probes** (NEW TEST, report in `docs/probes/cockpit-phase0.md`): P-A1 keyframe interpolation from UXP;
-  P-A2 position units and time base of `createKeyframe` on trimmed / sped-up clips; P-A3 non-Lumetri effects from UXP
-  (Fill, Transform, Pitch Shifter: match names, parameters, colour type); P-A4 Premiere mask tracking readable by script;
-  P-A5 exporting a selection as a project vs a recipe; P-A6 pointer events on inline SVG and a positioned image in the
-  panel; P-A7 tracker classes in OpenCV 5.0.0.93.
+- [x] **Phase 0 probes** (2026-11-10, report `docs/probes/cockpit-phase0.md`): interpolation modes yes but no bezier handles
+  (custom curves baked), keys in media time on trimmed clips, Tint + new Transform attach from UXP (colour = `ppro.Color`),
+  Stash of clips likely via exportAsProject/importSequences, OpenCV MIL + optical flow, no scripted adjustment layer.
+- [ ] **Phase 0 leftovers:** P-A6 one real drag (`cockpit_probe pointer`), then remove `panel/probe-cockpit.js`, its bridge
+  hook and zip entry (installed in 0.10.30, not committed); P-A2 on a sped-up clip; P-A4 with a hand-drawn tracked mask.
 - [ ] **A1 Keyframer**: `keyframeplan.js` (pure: bezier sampling, time mapping) + `premiere-keyframes.js`; a new panel page
   with the curve editor, presets, ticked properties, Apply / Undo; native interpolation if P-A1, else baked per frame.
 - [ ] **A2 Stash v1** (animations as data in the engine folder, applied at the playhead), then v2 clips (if P-A5).
