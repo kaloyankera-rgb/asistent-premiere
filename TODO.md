@@ -27,6 +27,30 @@ anything; nothing here is fixed yet.
 - [ ] **Subtitle generation is very slow** (the user). Part of the item above; ReShape's output must stay identical
   (reshape_golden) unless the user accepts a change.
 
+## EL. Learning from the other editors (the user, 2026-11-10: "add this to the to do list")
+Goal: Asistent learns from what the editors actually do (fixes, colour, sound, cuts), per client, and Claude turns the patterns
+into better presets. Read only: never change an editor's work (the "never touch a hand grade" rule). Stored on the office server
+next to the existing "<Client> Subtitle Learning" folders, never in the cloud. Each rule change is a visible version the user can
+undo, never a silent change. Start with EL1.
+- [ ] **EL0. Learning folders for every client.** Subtitle fixes are already learned (0.9.95-0.9.96, `learning.py`), but only
+  ReShape has a "<Client> Subtitle Learning" folder. Ask the user before creating them for GStroy, Credissimo, ЕКОПАК, Beauty
+  Sector and AULA (and new clients).
+- [ ] **EL1. Colour learning at export (first).** On each export (`exports.py` already sees them): record per clip the final
+  Lumetri (Exposure, Temperature, Tint, Contrast, Saturation, Input LUT / Look) next to what Asistent would suggest for the same
+  clip, with client, camera and picture profile. Report: per client and camera, the editors' typical difference from Asistent
+  (e.g. "0.3 stop darker, warmer"); after a few weeks it becomes that client's colour target (TODO S per-client targets). Probe
+  first: reading a hand-set Lumetri on every clip at export is fast enough; grading on an adjustment layer (Pulse Fitness КП-5)
+  is read too.
+- [ ] **EL2. Subtitle learning, wider.** Besides word fixes: lines the editors re-split, merged or moved (teaches each client
+  style its breaks), and which words they colour (teaches the keyword suggestions; Premiere 26.0.2 cannot read a caption's word
+  colour from a script (docs/NATIVE_GRAPHICS.md): probe again in 26.5 / 27 before promising it).
+- [ ] **EL3. Sound.** Final clip volumes and where music sits under the voice, per client (targets for Fix audio).
+- [ ] **EL4. Rough cut.** What editors restore or remove after Asistent's rough cut (where its cut rules are wrong); ties in with
+  I9 (rough-cut review).
+- [ ] **EL5. The report for Claude.** `scripts/measure_learning.py` extended (or a new report): per client, what Asistent
+  suggested against what the editors kept, and the pattern; Claude reads it when the user asks and proposes preset changes
+  (colour targets, keyword words, line rules) as a normal version.
+
 ## A. Fix known bugs
 - **Rough cut too slow and not a good cut (the user, 2026-11-09).** Log: a 10-minute video (48 items, IVO7V97xx) spent its time in
   speech recognition (Whisper large-v3 on the CPU, int8 beam 5) and was cancelled after 326 s; the cutting itself takes seconds
