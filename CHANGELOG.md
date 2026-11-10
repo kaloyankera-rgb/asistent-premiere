@@ -31,6 +31,19 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.22 - Subtitle Style "AULA" (the user's request 2026-11-10)
+- Captions > Style > **AULA**, measured on the client's 10 exported videos (738 chunks): the shared Submagic template, up to 4
+  words / 17 characters (2.20 words against the editors' 2.36, 45 % two-line against 46 %, 69 % of their breaks), even cuts
+  (91 % of the editors'), a green keyword (#37D977) suggested on 30 % of chunks, as the editors (agrees 42 %, chance 30 %;
+  tech and interface words). English names in Latin capitals as the exports write them, with the Bulgarian article joined by a
+  hyphen (`join_articles`, AULA only): „iPhone -а“ → IPHONE-А, „Sunbox -а“ → SANDBOX-А; the brand AULA.BG (from „aula .bg“,
+  „AOL .bg“, „AulaBG“, „Яло АБГ“), GTA VI. The result box says "Green keywords".
+- `scripts/measure_style.py chunks --latin`: counts subtitle lines in Latin capitals too (AULA's English names; without it 92
+  chunks were missed).
+- Docs: `docs/SUBTITLE_STYLES/AULA.md` (two heights by format: filmed 0.42-0.47, screen tutorials 0.57-0.72; about one green
+  chunk in five colours a whole short line), `docs/CLIENT_COLOR/AULA.md` (no one look: faces 0.40, the darkest of the five,
+  varying by shoot); vault: `clients/AULA/`, `editing/client-styles.md`.
+
 ## 0.10.21 - Subtitle Style "Beauty Sector"; GStroy written GStroy (the user's answers 2026-11-10)
 - Captions > Style > **Beauty Sector**, measured on the client's 7 exported videos (350 chunks): the shared Submagic template
   (Montserrat Heavy = Black, capitals, glow, with the word), up to 4 words / 18 characters (2.17 words against the editors' 2.19,

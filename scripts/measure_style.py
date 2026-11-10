@@ -2,7 +2,7 @@
 """Measure a client's subtitle style (and graded colour) from its exported videos, for a new Style preset.
 
   measure_style.py frames  <video folder> <work>   frames at 8 a second (540 px wide) + the Mac's text recognition
-  measure_style.py chunks  <work> [--skip v6 ...]  subtitle chunks: text, times, lines, position, size, accent colour + summary
+  measure_style.py chunks  <work> [--skip v6 ...] [--latin]  subtitle chunks: text, times, lines, position, size, accent colour + summary
   measure_style.py asr     <work>                  Asistent's Whisper on each video's sound (word times; slow on the CPU)
   measure_style.py timing  <work>                  when a chunk appears / goes compared with its words
   measure_style.py compare <work> <preset> [k=v …] a preset on the editors' own speech against their chunks (try values: line_chars=18)
@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from asistent import subtitles as Sb  # noqa: E402
 
 FPS = 8
+LATIN = False          # chunks --latin: count Latin capitals as subtitle text too
 UPPER = re.compile(r"[^0-9А-ЯЁЪЬЮЯA-Z\- ]")
 
 
@@ -80,7 +81,7 @@ def _is_sub(o) -> bool:
     if letters:
         up = sum(c.isupper() for c in letters) / len(letters)
         cyr = sum("А" <= c.upper() <= "Я" or c in "ЁЪЬЮЯ" for c in letters) / len(letters)
-        if up < 0.7 or cyr < 0.6:                      # the client styles so far are Cyrillic capitals
+        if up < 0.7 or (cyr < 0.6 and not LATIN):      # Cyrillic capitals; --latin also counts Latin ones (AULA)
             return False
     return abs(o["x"] + o["w"] / 2 - 0.5) <= 0.06       # centred
 
@@ -173,6 +174,8 @@ def _summ(name, v):
 
 
 def cmd_chunks(a):
+    global LATIN
+    LATIN = a.latin
     index = json.load(open(os.path.join(a.work, "index.json")))
     D = {}
     for tag, _ in index:
@@ -342,6 +345,7 @@ def main():
             s.add_argument(x)
         if name == "chunks":
             s.add_argument("--skip", nargs="*", default=[], help="videos without subtitles (v6 …)")
+            s.add_argument("--latin", action="store_true", help="the subtitles also have Latin capitals (English names)")
         if name == "compare":
             s.add_argument("set", nargs="*", help="preset values to try, key=value")
     a = p.parse_args()

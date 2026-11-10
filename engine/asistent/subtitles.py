@@ -93,6 +93,19 @@ PRESETS = {
                                "high flow lifting": "HIFU ЛИФТИНГ", "hifu lifting": "HIFU ЛИФТИНГ",
                                "bodysculpt": "BODY SCULPT", "body sculpt": "BODY SCULPT", "боди скълпт": "BODY SCULPT",
                                "smas": "SMAS", "смас": "SMAS", "dr vandev": "DOCTOR VANDEV", "доктор вандев": "DOCTOR VANDEV"}},
+    # AULA (measured 2026-11-10, docs/SUBTITLE_STYLES/AULA.md): the same Submagic template; English product names in Latin
+    # capitals with the Bulgarian article joined by a hyphen („IPHONE-А“), the brand AULA.BG.
+    "aula": {"max_words": 4, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 17,
+             "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even",
+             "drop_dashes": True, "join_articles": True, "accent": 7, "accent_near": 1,
+             "accent_words": r"^(компютър|функци|файл|текст|известие|настройк|иконк|батери|папк|телефон|снимк|данни|качеств"
+                             r"|кабел|технологи|алгоритъм|детектор|сигурност|парол|плъгин|хакер|сайт|трафик|уязвим|меню|бутон"
+                             r"|прозор|колон|версия|систем|апликаци|трик|гадже|доверие|знани|стъпк|защит|блокир|разпозна"
+                             r"|отпечатък|следа|мрежи|автоматич)",
+             "names": {"aula": "AULA", "аула": "AULA", "aula .bg": "AULA.BG", "aula .bgm": "AULA.BG", "aulabg": "AULA.BG",
+                       "aula.bg": "AULA.BG", "aol .bg": "AULA.BG", "аула бг": "AULA.BG", "яло абг": "AULA.BG",
+                       "sunbox": "SANDBOX", "сандбокс": "SANDBOX", "gta 6": "GTA VI",
+                       "айфон": "IPHONE", "айфона": "IPHONE-А", "айфонът": "IPHONE-ЪТ"}},
 }
 
 # NTSC rates arrive as 23.976 / 29.97 / 59.94; the sequence really runs at N*1000/1001.
@@ -527,6 +540,26 @@ def _join_names(words, cfg):
     return out
 
 
+ARTICLE = re.compile(r"-(а|я|ът|ят|та|то|те|ти)[.,?!…:;]*")
+
+
+def _join_articles(words, cfg):
+    """A "join_articles" preset (AULA) writes an English name with its Bulgarian article joined by a hyphen, as its editors do
+    („IPHONE-А“, „SANDBOX-А“); Whisper hears „iPhone -а“ as two words. Only after a word with Latin letters; the name part is
+    written as the preset's `names` say („Sunbox -а“ -> „SANDBOX-А“). Times run from the name to the article."""
+    names = cfg.get("names") or {}
+    out = []
+    for w in words:
+        if out and ARTICLE.fullmatch(w["word"].lower()) and re.search(r"[A-Za-z]", out[-1]["word"]):
+            prev = out[-1]
+            base = re.sub(r"[.,?!…:;]+$", "", prev["word"])
+            out[-1] = dict(prev, word=names.get(base.lower(), base) + w["word"], end=w["end"],
+                           p=min(prev.get("p", 1.0), w.get("p", 1.0)))
+        else:
+            out.append(w)
+    return out
+
+
 def build_captions(words, preset="short", fps=25.0, cuts=()):
     """Words (sequence seconds, `p` optional) -> captions {"start", "end", "text", "words", "flags"}.
 
@@ -542,6 +575,8 @@ def build_captions(words, preset="short", fps=25.0, cuts=()):
     words = _join_names(_clean_words(words), cfg)
     if cfg.get("drop_dashes"):                                 # the client template shows no punctuation, not even a lone „–“
         words = [w for w in words if not re.fullmatch(r"[–—-]+[.,]?", w["word"])]
+    if cfg.get("join_articles"):
+        words = _join_articles(words, cfg)
     if not words:
         return []
     # Spelling applies to the shown text only; the times stay as spoken.
