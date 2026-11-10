@@ -31,6 +31,23 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.36 - Colour learning at export: the editors' Lumetri next to Auto color, per client and camera (TODO EL1)
+- When Premiere says an export ended (the Export tab's EXPORT_MEDIA_COMPLETE; once per 20 s), the panel reads the open
+  sequence's picture clips (up to 150): the five Basic values, whether the Lumetri is still Asistent's own, keyframes, Input
+  LUT / Look, and a Lumetri on an adjustment layer above. Read only. `premiere-colorlearn.js`.
+- The engine (`colorlearn.py`, its own background thread, never the job pool) analyses each file range as Auto color would
+  (exposure in stops; Temperature / Tint through the learnt calibration), with the camera and picture profile from the Sony
+  sidecar (else the folder), and appends one line per clip to `<app>/learning/color/<client>.jsonl`. Client: the folder with
+  a "... Subtitle Learning" folder, else the folder under 01_CLIENTS, else the share's first folder.
+- Color card: "Learn from exports" (on) and "What the editors did": per camera, the median of editors minus Auto color
+  (exposure, temperature, tint; only where Asistent was sure and nothing is keyframed; clip + layer together), how often
+  Asistent's own correction was kept, no correction, graded on a layer. A re-export of a clip replaces its line.
+- NOT on the office server: EL0 (a learning folder per client there) waits for the user's yes.
+- Bridge `learn_export` runs the same step (an export started by a script fires no event, probed again 2026-11-10).
+- Verified through the bridge on NEW TEST (ROUGH v3, 14 clips, 33 s in the background): camera ILME-FX3 / ILME-FX30 from the
+  sidecars; a fresh Auto color recorded as Asistent's own (0.85), a hand change (0.4, temperature 8) as the editor's; the
+  report per camera. Test records deleted afterwards; the test Lumetri on fx31028 (ROUGH v3) set back to neutral.
+
 ## 0.10.35 - Before export: offline media, black, text outside the safe area, microphone over -6 dBFS (TODO I12)
 - New Tools card "Before export" > Check before export (whole open sequence, no selection, read only). Five parts, each
   ✓ measured and fine, ! to look at, or ? not measurable through the API:

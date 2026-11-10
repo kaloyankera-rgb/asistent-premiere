@@ -1,5 +1,10 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.36 (2026-11-10, installed): Colour learning at export (TODO EL1): local records per client and camera, the "What the
+editors did" report in the Color card. VERIFIED through the bridge on NEW TEST (own vs hand Lumetri, cameras from sidecars,
+report). NOT verified: a real export from the Export tab starting it (the event itself is seen in the log since 0.10.7).
+Office folders (EL0) not created: waiting for the user. Tests: 697 pytest + 24 skipped, node 231.
+
 0.10.35 (2026-11-10, installed): Before export check (TODO I12): offline, black / flash frames, text outside the safe area
 and caption overlaps, microphone clips over -6 dBFS (true peak of the used range + Volume, played channel only), fonts "?".
 Read only. VERIFIED through the bridge on NEW TEST (levels against FFmpeg, safe area with a moved graphic, SYNC gaps). NOT
