@@ -69,9 +69,8 @@ undo, never a silent change. Start with EL1.
   recognised for the same media; a faster recognizer just for the rough cut (whisper.cpp measured 7.3x faster, but invented a line,
   so only where takes are matched, never for subtitles); greedy decoding for the rough cut only. Ask the user what was wrong with
   the cut (cut too much / too little / wrong take / mid-word) and look at a run before changing the rules.
-- **Next planned (asked by the user 2026-11-09): timeline labels (I7)**: camera track names, POV label colours, BG/EN subtitle
-  names. Probe first in NEW TEST (ExtendScript Track.name writable? track-item labels? caption tracks). Waiting for the user's
-  answers: camera naming (model / A-B / POV 1-2) and existing colour conventions.
+- **0.10.34 Track names, the user:** press Cmd+Z once after Name the tracks (all names back in one step); try it on a client
+  sequence with your own track names (they must stay); say whether you want colours per camera, and which.
 - **Move off faces, still to see (0.10.17):** the 17 C29 lines over the kam2/kam1 cuts (2:04.1, 2:24.6), a second press says
   "already in place" (positions now remembered by the engine).
 - **0.10.11, the user:** ▶ on a few lines: plays in the Program Monitor from 1.5 s before the line and stops after it, no double
@@ -121,10 +120,9 @@ a row in docs/ROLLBACK.md, measured against Classic on the same inputs before it
   LUT / Look (params 6-7, 34-35, 128-129) accept a .cube path before promising automatic LUTs; else a labelled manual .cube export.
   camera-match only after reading its license and pinning a released version. OpenColorIO only if more cameras need it.
   Accept: fewer Shot Match retries or smaller ΔE on held-out pairs than Classic Shot Match, which stays.
-- **I7. Timeline identification.** The user's answer 2026-11-10: camera tracks named **POV 1 / POV 2** (by track order). Probe first: ExtendScript `Track.name` writable? (UXP `VideoTrack` has no rename; clips have
-  `createSetNameAction`; project items have `setColorLabel`, already used by Fix audio). Then optional "Camera A — FX3" / "Subtitles —
-  Bulgarian" names and configurable camera label colours, remembered old values for undo, editor names kept by default, applied in
-  Sync, Fix audio and rough cut. Accept: names/colours survive a Sync + rough cut rebuild in NEW TEST; one Undo restores them.
+- [x] **I7. Timeline identification** (0.10.34): POV 1 / POV 2, POV n audio, Mic n, Subtitles BG / EN, optional colours,
+  automatic after Sync and rough cut. Later if wanted: "Camera A — FX3" names from the files' camera model, Fix audio naming
+  the L/R tracks it makes.
 - **I8. Client workflow presets.** Extend `subtitle_settings` + the client learning folder (not the unfinished profiles.py draft)
   with: subtitle style choice, English on/off, terminology, audio target, aspect/safe margins, naming and export preferences; new
   keys only, the ReShape preset untouched. Accept: a second project of the same client opens with the same choices.
