@@ -24,6 +24,16 @@ test("a clip fully under an adjustment layer has nothing to measure (engine fall
   assert.deepStrictEqual(analysisMoments({ items: [clip, adj] }, clip), []);
 });
 
+test("a LUT-only adjustment layer is looked through only when asked (0.10.25, Pulse Fitness S-Log3 under a LUT layer)", () => {
+  const lut = { kind: "video", track: 2, start: 0, end: 60, adjustment: true, seeThrough: true };
+  const grade = { kind: "video", track: 2, start: 0, end: 60, adjustment: true, seeThrough: false };
+  assert.deepStrictEqual(analysisMoments({ items: [clip, lut] }, clip), []);                       // Shot Match etc.: as before
+  assert.deepStrictEqual(analysisMoments({ items: [clip, lut] }, clip, 4, true), [12, 14, 16, 18]);
+  assert.deepStrictEqual(analysisMoments({ items: [clip, grade] }, clip, 4, true), []);            // a creative grade covers
+  const title = { kind: "video", track: 3, start: 13, end: 17 };
+  assert.deepStrictEqual(analysisMoments({ items: [clip, lut, title] }, clip, 4, true), [12, 18]); // a title above still covers
+});
+
 test("a hidden track (eye off) or a switched-off clip covers nothing (the user's safety template on V4, 2026-11-05)", () => {
   const safety = { kind: "video", track: 3, start: 0, end: 60, hidden: true };
   const off = { kind: "video", track: 1, start: 0, end: 60, unused: true };

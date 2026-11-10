@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -17,6 +18,8 @@ from datetime import datetime, timezone
 from fractions import Fraction
 
 import numpy as np
+
+log = logging.getLogger("asistent")
 
 
 class MediaError(Exception):
@@ -346,10 +349,17 @@ def load_channels(info: MediaInfo, sr: int) -> list[Channel]:
     Silent channels and exact duplicates (dual-mono) are flagged so callers can skip them.
     """
     out: list[Channel] = []
+    failed: list[tuple[AudioStream, MediaError]] = []
     for a in info.audio:
         if a.channels <= 0:
             continue
-        x = read_audio(info.path, a.index, a.channels, sr)
+        try:
+            x = read_audio(info.path, a.index, a.channels, sr)
+        except MediaError as e:
+            # an iPhone file carries a normal AAC track and Apple's spatial audio (APAC) beside it, which FFmpeg cannot
+            # decode (field report 2026-11-10, IMG_0357.MOV): a track that cannot be read is left out when another can
+            failed.append((a, e))
+            continue
         for c in range(x.shape[0]):
             ch = x[c]
             side = ""
@@ -362,6 +372,16 @@ def load_channels(info: MediaInfo, sr: int) -> list[Channel]:
             peak = float(np.max(np.abs(ch))) if len(ch) else 0.0
             # only digital silence counts as silent: a very quiet channel is still worth trying
             out.append(Channel(label, a.index, c, ch, _db(rms), _db(peak), silent=peak < 10 ** (-90 / 20)))
+    if failed:
+        name = os.path.basename(info.path)
+        if not out:
+            e = failed[0][1]
+            if "apac" in str(e).lower():
+                raise MediaError(f"{name} has only Apple's spatial audio (APAC), which FFmpeg cannot read. Export it from "
+                                 "the iPhone or Photos as a normal video (or record with spatial audio off) and try again.") from e
+            raise e
+        log.info("audio: %s: track %s left out (%s), using the other track(s)", name,
+                 ", ".join(f"A{a.index + 1}" for a, _ in failed), str(failed[0][1])[-120:])
     # dual-mono detection: a channel identical to an earlier one adds nothing
     for i, ci in enumerate(out):
         if ci.silent:

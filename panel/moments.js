@@ -1,18 +1,21 @@
 // Where on the timeline a clip can be measured. Pure (no Premiere), so it is tested with node.
 
 // a picture with something on top of the clip (a title, a logo, an adjustment layer) cannot be measured; a clip on a
-// hidden track (eye off) or switched off shows nothing and covers nothing
-function covered(timeline, clip, t) {
-  return timeline.items.some((x) => x.kind === "video" && !x.hidden && !x.unused && x.track > clip.track && x.start <= t && x.end > t);
+// hidden track (eye off) or switched off shows nothing and covers nothing. `through`: an adjustment layer that only
+// holds a LUT (`seeThrough`, premiere-color.js) is looked through: the frame is the clip as the viewer sees it, and the
+// engine keeps it only when it is a log clip's plain conversion (0.10.25, Pulse Fitness: S-Log3 under a LUT layer)
+function covered(timeline, clip, t, through = false) {
+  return timeline.items.some((x) => x.kind === "video" && !x.hidden && !x.unused && !(through && x.seeThrough) &&
+    x.track > clip.track && x.start <= t && x.end > t);
 }
 
 // Moments inside the clip to measure: evenly spread, away from the cuts, none covered by an upper layer
-function analysisMoments(timeline, clip, n = 4) {
+function analysisMoments(timeline, clip, n = 4, through = false) {
   const len = clip.end - clip.start;
   const out = [];
   for (let k = 1; k <= n; k++) {
     const t = clip.start + (len * k) / (n + 1);
-    if (!covered(timeline, clip, t)) out.push(t);
+    if (!covered(timeline, clip, t, through)) out.push(t);
   }
   return out;
 }

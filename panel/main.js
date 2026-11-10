@@ -277,8 +277,11 @@ async function refreshHeader() {
   // short, it shares the line with the project name; both versions only when they differ
   $("engine").textContent = !state.online ? `No engine · ${PANEL_VERSION}`
     : st.version === PANEL_VERSION ? `Connected · ${PANEL_VERSION}` : `Connected · panel ${PANEL_VERSION} · engine ${st.version}`;
-  $("detail").textContent = state.online ? "" : `${st.error}. Check that the engine is running (README).`;
-  show("detail", !state.online);
+  // an old panel still loaded after an update (field report 2026-11-10: "Connected · 0.10.17" while colour misbehaved)
+  const stale = state.online && st.version && st.version !== PANEL_VERSION;
+  $("detail").textContent = !state.online ? `${st.error}. Check that the engine is running (README).`
+    : stale ? `The panel (${PANEL_VERSION}) and the engine (${st.version}) differ: close the Asistent panel and open it again (Window > UXP Plugins).` : "";
+  show("detail", !state.online || stale);
   try {
     const project = await premiere.activeProject();
     $("project").textContent = project.name;
@@ -471,7 +474,8 @@ async function onAudio(force) {
     const relabel = plans.filter((p) => p.it.side).map((p) => ({ track: p.it.track, start: p.it.start, end: p.it.end, route: "label" }));
     if (todo.length || relabel.length) {
       if (todo.length) progress(0.9, `Splitting the channels: ${todo.length} ${todo.length === 1 ? "clip" : "clips"}…`);
-      const answer = await engine.routeAudio({ sequence: sel.timeline.sequence.name, project: project.path,
+      const answer = await engine.routeAudio({ sequence: sel.timeline.sequence.name,
+        guid: premiereCaptions.seqGuid(sel.timeline.sequence), project: project.path,
         items: [...todo.map((x) => ({ track: x.p.it.track, start: x.p.it.start, end: x.p.it.end, route: x.route })), ...relabel] });
       if (!answer.ok) throw new premiere.UserError(answer.msg || "Premiere did not split the channels.");
       todo.forEach((x, i) => { x.p.routed = answer.items[i] || { ok: false, msg: "no answer" }; });
@@ -1112,9 +1116,10 @@ async function onColor(part = null) {
     progress(0, `Frames from the timeline: ${sel.clips.length} ${sel.clips.length === 1 ? "clip" : "clips"}…`);
     const tl = dir ? await premiereColor.timelineFrames(sel.timeline, sel.clips, dir,
       (done, total) => progress((0.4 * done) / total, `Frames from the timeline: ${done} of ${total}…`)) : sel.clips.map(() => ({ frames: [] }));
-    const items = sel.clips.map((c, i) => ({ path: c.path, start: c.inPt, end: c.outPt, frames: tl[i].frames }));
-    // fewer than two frames: a visible layer covers the clip, the engine measures the file (`plain`: it shows the same picture)
-    for (const [i, it] of items.entries()) if (it.frames.length < 2) it.plain = await premiereColor.fileShowsClip(sel.clips[i]);
+    const items = sel.clips.map((c, i) => ({ path: c.path, start: c.inPt, end: c.outPt, frames: tl[i].frames, through: !!tl[i].through }));
+    // fewer than two frames: a visible layer covers the clip, the engine measures the file (`plain`: it shows the same picture);
+    // frames through a LUT-only layer may be refused by the engine (not a log clip's conversion): then the file too
+    for (const [i, it] of items.entries()) if (it.frames.length < 2 || it.through) it.plain = await premiereColor.fileShowsClip(sel.clips[i]);
     const { job } = await engine.startColor(items);
     const result = await runJob(job);
     Object.assign(colorState, { project, sel, results: result.items, part });

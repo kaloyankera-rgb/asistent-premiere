@@ -3,29 +3,23 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
-## F. Field reports 2026-11-10 (the user: "add these to the to do, dont fix anything yet")
-Reported by the user from real projects, with screenshots; what the engine log shows is under each. Diagnose before changing
-anything; nothing here is fixed yet.
-- [ ] **Colour does nothing on a clip that clearly needs it.** Pulse Fitness КП-5 Видео 4 (Sony A7V, IVO7V9795/9798): "Nothing to
-  correct with certainty: nothing was touched", the clip's Lumetri all at 0, the picture visibly cool/blue. Log 2026-11-09
-  11:48-11:52: measured, confidence **low** every time (timeline and source), so never applied. The sequence has an Adjustment Layer
-  (V2) with a Lumetri Creative Look "1_SGamut3CineSLog3_To…" (an S-Log3 to Rec.709 LUT). Hypothesis to check: Asistent measures the
-  flat log picture under the LUT (or the LUT above changes what it sees) and loses confidence. Also: the panel in the screenshot
-  said "Connected · 0.10.17" (an old panel still loaded in that Premiere).
-- [ ] **Fix audio "didn't work" on a Credissimo video.** Two different things in the log:
-  1. Credissimo КП-14 Видео 4, 05:41: the red error is from **Sync cameras**: "FFmpeg cannot decode the sound of IMG_0357.MOV ...
-     no decoder found for: apple_apac". The iPhone clip carries Apple's spatial audio (APAC) on stream 0:2; our FFmpeg has no
-     decoder for it. Check whether the file also has a normal AAC track to use instead, and say so plainly in the panel.
-  2. 16:38-16:40, six Fix audio presses on fx30-3-99xx clips: the analysis finished every time (3-15 s), but the routing step
-     answered **"No active sequence."** 5 times out of 6 and nothing was applied; the panel showed no error. Find why the panel
-     loses the active sequence (Premiere 26.5.2 / 27.0.0 now on this Mac, the API may differ from 26.0.2) and never fail silently.
-- [ ] **Everything should be much faster** (the user: "Overall we need to make the tools way faster for use"). Measure each
-  button's time on a real project first and fix the slowest: subtitles 87-109 s on a first run (2026-11-09; Whisper large-v3 on
-  the CPU), rough cut over 326 s on a 10-minute video (Whisper again, see A), Fix audio 3-15 s, colour 1-2 s. Options already
-  noted: reuse words across subtitles and rough cut, faster recognizer where words are only used for timing, Whisper on the
-  Apple GPU (changes words: the user's call, DECISIONS 2026-11-04).
-- [ ] **Subtitle generation is very slow** (the user). Part of the item above; ReShape's output must stay identical
-  (reshape_golden) unless the user accepts a change.
+## F. Field reports 2026-11-10 (the user: fixed in 0.10.25, see CHANGELOG)
+- [x] **Fix audio "No active sequence."** (several projects open: the host read the front project). Verified in 26.5.2.
+- [x] **Sync on an iPhone clip with Apple spatial audio (APAC)**: the AAC track is used.
+- [ ] **Colour on S-Log3 under a LUT adjustment layer** (built in 0.10.25, NOT tried in Premiere). USER: close and reopen the
+  Asistent panel once (0.10.25), then in the Pulse project select IVO7V9795 or 9798 under the LUT layer and press Auto color. The
+  log should say "adjustment layer on V2 …: only a LUT: measured through it" and the result "the timeline shows it converted".
+  Open question to measure there: how far Lumetri Exposure/Temperature on the log signal (under the LUT) moves the picture; the
+  frame check keeps only what improved.
+- [ ] **Subtitles faster (the user's decision):** a long window is read by one reader of three (ReShape 93 s in one window:
+  94.6 s). Measured reading in ~30 s parts at the quietest moments: GStroy C9036 189 -> 87 s (the long reading looped and lost
+  ~80 words), Beauty Sector fx30-2-1304 137 -> 45 s (without the names prompt "бюти сектор" for "beauty sector"). The words
+  change, so: behind a switch, compared on the ReShape golden at the office before it is offered.
+- [ ] **Rough cut faster on many clips:** 0.10.25 splits only when there are fewer windows than readers (one long clip: 149 ->
+  60 s). With many clips (Pulse, 48 items) the time is recognition itself: a faster recognizer for the rough cut only (its words
+  are never shown) needs the user's choice: large-v3-turbo (about 1.6 GB download, same engine, Windows too) or whisper.cpp on
+  the GPU (built in experiments, 7.3x, one invented line seen). Greedy decoding measured: 20 % faster, worse words, not used.
+- [ ] **Rough cut "a bit inaccurate"** (the user): needs one example (where: cut too much, too little, wrong take, mid-word).
 
 ## EL. Learning from the other editors (the user, 2026-11-10: "add this to the to do list")
 Goal: Asistent learns from what the editors actually do (fixes, colour, sound, cuts), per client, and Claude turns the patterns

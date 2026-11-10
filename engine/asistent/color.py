@@ -255,9 +255,38 @@ def _round_step(stops: float) -> float:
     return float(np.clip(s, -MAX_STOPS, MAX_STOPS))
 
 
-def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str | None = None) -> dict:
+def _look(enc: np.ndarray) -> np.ndarray:
+    """What tells a flat log picture from a converted one, nearly whatever the exposure: the black level, the tonal
+    range and how coloured the picture is."""
+    y = _luma(enc)
+    lo, hi = np.percentile(y, [2, 98])
+    return np.array([lo, hi - lo, float(np.mean(enc.max(axis=-1) - enc.min(axis=-1)))])
+
+
+def log_shown(timeline: list[np.ndarray], source: list[np.ndarray], gamma: str | None) -> str | None:
+    """How Premiere shows a log clip (0.10.25, colour plan T12): "converted" when the timeline frames look like the file
+    decoded from `gamma` to Rec.709 (a LUT on an adjustment layer, colour management), "flat" when they look like the
+    log signal itself, None when neither is clearly nearer or the curve is not one Asistent decodes (only S-Log3).
+    Measured on the Pulse Fitness A7V clip through Sony's LC-709 and Cine+709 LUTs: 0.16-0.23 from converted against
+    0.68 from flat; the flat picture itself 0.002 from flat."""
+    if not timeline or not source or not gamma or "log3" not in gamma.lower():
+        return None
+    seen = np.median([_look(f) for f in timeline], axis=0)
+    flat = np.median([_look(f) for f in source], axis=0)
+    conv = np.median([_look(encode(to_linear(f, gamma))) for f in source], axis=0)
+    d_flat, d_conv = float(np.abs(seen - flat).sum()), float(np.abs(seen - conv).sum())
+    if d_conv < 0.5 * d_flat:
+        return "converted"
+    if d_flat < 0.5 * d_conv:
+        return "flat"
+    return None
+
+
+def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str | None = None,
+           shown: str | None = None) -> dict:
     """`gamma`: how to decode these frames (None = Rec.709). `source_gamma`: how the camera recorded the clip,
-    when the frames are timeline renders (already Rec.709 if Premiere converts the log, flat if it does not)."""
+    when the frames are timeline renders (already Rec.709 if Premiere converts the log, flat if it does not).
+    `shown`: what `log_shown` found for those renders."""
     ms = [measure(f, gamma) for f in frames]
     reasons, warnings = [], []
 
@@ -340,12 +369,21 @@ def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str
         wb_conf = "medium" if wb_conf == "high" else wb_conf
         warnings.append(f"Recorded in {gamma}: the proposal is for the picture after conversion to Rec.709; "
                         "it is not applied by itself (first a LUT or colour management).")
+    elif source_gamma and "log" in source_gamma.lower() and shown == "converted":
+        # the timeline shows the converted picture (field report 2026-11-10, Pulse Fitness: an S-Log3 to Rec.709 LUT on
+        # an adjustment layer): measured as the viewer sees it; the frame check after applying stays the safety net
+        reasons.append(f"Recorded in {source_gamma}; the timeline shows it converted to Rec.709 (a LUT or colour "
+                       "management): measured as the viewer sees it.")
     elif source_gamma and "log" in source_gamma.lower():
-        # a timeline render of log footage: whether Premiere already converts it to Rec.709 is not checked yet
-        # (colour-management step); a flat log picture read as Rec.709 would give a wrong correction
+        # a flat log picture read as Rec.709 would give a wrong correction
         exp_conf = wb_conf = "low"
-        warnings.append(f"Recorded in {source_gamma}, measured on the timeline: not yet checked whether Premiere "
-                        "converts it to Rec.709. A proposal only, not applied.")
+        if shown == "flat":
+            warnings.append(f"Recorded in {source_gamma}, and the timeline still shows it flat (not converted to Rec.709). "
+                            "Put the conversion LUT on (Lumetri Input LUT, or an adjustment layer) or turn on colour "
+                            "management, then press again. A proposal only, not applied.")
+        else:
+            warnings.append(f"Recorded in {source_gamma}, measured on the timeline: could not tell whether Premiere "
+                            "converts it to Rec.709. A proposal only, not applied.")
 
     # channel gains (linear) that remove the cast, luminance kept
     r, g, b = 2 ** (-fix_t / 2 - fix_g / 3), 2 ** (2 * fix_g / 3), 2 ** (fix_t / 2 - fix_g / 3)
@@ -586,11 +624,23 @@ def analyze_items(items: list[dict], with_preview: bool = True, progress=None, c
         try:
             gamma = sony_xml(path).get("gamma")
             timeline = timeline_frames(it.get("frames") or [])
+            shown_as = None
+            if len(timeline) >= 2 and gamma and "log" in gamma.lower():
+                try:
+                    src = read_frames(path, n=4, start=float(it.get("start") or 0), end=it.get("end"))
+                except MediaError:
+                    src = []                       # the file cannot be read here: "could not tell", the timeline still measures
+                shown_as = log_shown(timeline, src, gamma)
+            if it.get("through") and shown_as != "converted":
+                # frames through a LUT-only adjustment layer count only as a log clip's plain conversion: a LUT over a
+                # Rec.709 clip is a look the editor chose, and measuring through it would fight the look
+                timeline = []
             if len(timeline) >= 2:
                 # what the viewer sees: Premiere's own render (Rec.709) with any correction already on the clip,
                 # so a clip corrected once measures as fine and a re-run suggests nothing (spec T13/T18)
-                r = decide(timeline, None, source_gamma=gamma)
+                r = decide(timeline, None, source_gamma=gamma, shown=shown_as)
                 r["measured_on"] = "timeline"
+                r["log_shown"] = shown_as
                 shown, shown_gamma = timeline, None
             else:
                 frames = read_frames(path, start=float(it.get("start") or 0), end=it.get("end"))

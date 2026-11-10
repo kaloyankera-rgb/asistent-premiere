@@ -31,6 +31,32 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.25 - Field bugs fixed: Fix audio with several projects open, iPhone audio, S-Log3 under a LUT layer; faster rough cut
+- **Fix audio / subtitles with several projects open** (field report 2026-11-10, Credissimo: "No active sequence." 5 times of 6).
+  With several projects open, ExtendScript's `app.project` is the front project, and `activeSequence` read from any project
+  object is the front one's sequence (probed in Premiere 26.5.2 with TEST and NEW TEST open). The host now finds the panel's
+  project by its path among `app.projects` and the sequence by its id (UXP `Sequence.guid` = ExtendScript `sequenceID`, sent by
+  the panel), then by its name, only among that project's own sequences (`host.jsx` `as_target`, used by captions, graphics and
+  the L/R split). Verified in Premiere 26.5.2: C0728 split into L/L + R/R in NEW TEST while TEST.prproj was in front; the copies
+  went into NEW TEST's bin. Refusals now say what is wrong (project not open, sequence not found, two sequences of one name).
+- **iPhone clips in Sync** (Credissimo IMG_0357.MOV: "no decoder found for: apple_apac"). An iPhone file carries a normal AAC
+  track beside Apple's spatial audio; a track FFmpeg cannot decode is left out when another one can (logged); a file with only
+  APAC says so in plain words. Normal files are read exactly as before.
+- **Colour on S-Log3 under a LUT adjustment layer** (Pulse Fitness КП-5, A7V IVO7V9795/9798: "Nothing to correct with
+  certainty"). Two causes: an adjustment layer counted as covering the clip (so the flat file was measured, REVIEW_NEEDED), and a
+  log clip measured on the timeline was always "low". Now (1) an adjustment layer holding only a LUT (one Lumetri equal to an
+  untouched one except the LUT parameters, read in 26.5.2: 4-7, 32-37, 122-124, 128-129; nothing else but Motion/Opacity) is
+  looked through, and (2) the engine checks how Premiere shows a log clip (`color.log_shown`: the timeline frame against the file
+  read flat and read converted): converted -> measured as Rec.709 with the usual frame check; flat -> "put the conversion LUT on
+  first"; unclear -> low as before. Frames through a LUT layer count only for a log clip they convert (a LUT over Rec.709 footage
+  is a look: the file is measured as before). Measured with Sony's LC-709 / Cine+709 LUTs on the Pulse files: 0.16-0.23 from
+  converted against 0.68 from flat. NOT yet tried in Premiere.
+- **Rough cut faster on one long clip**: with fewer windows than readers, long pieces are read in ~30 s parts cut at their
+  quietest moment (Beauty Sector fx30-2-1304, 133 s, first run: 149 -> 60 s, 219 vs 217 words). Three or more windows: as before
+  (splitting REVO's three clips was slower, 106 -> 167 s). The subtitles are unchanged (their own long windows; ReShape baseline).
+- The panel says plainly when it and the engine differ ("close the Asistent panel and open it again"): the Pulse screenshot
+  showed an old 0.10.17 panel.
+
 ## 0.10.24 - The install works with two Premiere versions side by side (found installing 0.10.23)
 - This Mac now has Premiere Pro 2026 (26.5.2) and 2027 (27.0.0). Adobe lists Asistent once per Premiere, so the install check
   ("Adobe lists exactly the new version") saw "0.10.23, 0.10.23" and stopped before restarting the engine. The check now reads

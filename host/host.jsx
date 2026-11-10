@@ -56,8 +56,45 @@ function as_norm(p) {
     return String(p || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
 }
 
-function as_find_bin(name, create) {
-    var root = app.project.rootItem, i;
+// The project and sequence the panel works in (0.10.25). With several projects open, ExtendScript's `app.project` is
+// not always the panel's project (field report 2026-11-10, Premiere 26.5.2: 5 of 6 Fix audio presses got "No active
+// sequence." while the panel had the sequence in front of it), so the project is found by its path among the open
+// ones and the sequence by its id (UXP `Sequence.guid` = ExtendScript `sequenceID`), then by its name.
+// Returns {project, seq} or {error}.
+function as_target(a) {
+    var proj = null, i;
+    if (a.project) {
+        for (i = 0; i < app.projects.numProjects; i++) {
+            if (as_norm(app.projects[i].path) === as_norm(a.project)) { proj = app.projects[i]; break; }
+        }
+        if (!proj) return { error: "Premiere's scripts do not see the project " + String(a.project).replace(/^.*[\\\/]/, "") + " as open. Nothing was touched." };
+    } else {
+        proj = app.project;
+    }
+    if (!proj) return { error: "No project open." };
+    // `activeSequence` is Premiere's one active sequence whichever project object it is read from (probed 2026-11-10 with
+    // TEST and NEW TEST open: NEW TEST's object answered TEST's sequence), so it counts only when it is one of this
+    // project's own sequences
+    var act = null, seq = null, named = [], own = proj.sequences, front = app.project ? app.project.activeSequence : null;
+    for (i = 0; front && i < own.numSequences; i++) if (own[i].sequenceID === front.sequenceID) act = own[i];
+    if (a.guid) {
+        for (i = 0; !seq && i < own.numSequences; i++) if (own[i].sequenceID === a.guid) seq = own[i];
+    }
+    if (!seq && a.sequence) {
+        if (act && act.name === a.sequence) seq = act;
+        else {
+            for (i = 0; i < own.numSequences; i++) if (own[i].name === a.sequence) named.push(own[i]);
+            if (named.length === 1) seq = named[0];
+            else if (named.length > 1) return { error: "The project has " + named.length + " sequences named \"" + a.sequence + "\": open the one you mean and press again. Nothing was touched." };
+        }
+    }
+    if (!seq && !a.sequence && !a.guid) seq = act;
+    if (!seq) return { error: a.sequence ? "Premiere's scripts did not find the sequence \"" + a.sequence + "\". Nothing was touched." : "No active sequence." };
+    return { project: proj, seq: seq, front: proj === app.project || as_norm(proj.path) === as_norm(app.project ? app.project.path : "") };
+}
+
+function as_find_bin(name, create, project) {
+    var root = (project || app.project).rootItem, i;
     for (i = 0; i < root.children.numItems; i++) {
         var c = root.children[i];
         if (c.type === ProjectItemType.BIN && c.name === name) return c;
@@ -118,26 +155,20 @@ function as_caption_format() {
 // args: {srt, sequence, project, bin}. Imports the SRT into the bin and puts it on a new caption track at 0 (the
 // times in the file are sequence times). The panel has already removed what an earlier press placed.
 function as_captions(a) {
-    if (!app.project) return as_result(false, "No project open.");
-    var seq = app.project.activeSequence;
-    if (!seq) return as_result(false, "No active sequence.");
-    if (a.sequence && seq.name !== a.sequence) {
-        return as_result(false, "The active sequence is \"" + seq.name + "\", but the subtitles are for \"" + a.sequence + "\". Go back to it and try again.");
-    }
-    if (a.project && as_norm(app.project.path) !== as_norm(a.project)) {
-        return as_result(false, "Another project is open. Nothing was touched.");
-    }
+    var tg = as_target(a);
+    if (tg.error) return as_result(false, tg.error);
+    var seq = tg.seq, proj = tg.project;
     var f = new File(a.srt);
     if (!f.exists) return as_result(false, "The subtitle file is missing: " + a.srt);
     if (seq.createCaptionTrack === undefined) {
         return as_result(false, "This Premiere version cannot create a caption track by script.", { premiere: String(app.version) });
     }
-    var bin = as_find_bin(a.bin || "Subtitles", true);
+    var bin = as_find_bin(a.bin || "Subtitles", true, proj);
     var before = as_caption_tracks(seq);
     var item = as_find_item(bin, a.srt);
     var imported = false;
     if (!item) {
-        imported = app.project.importFiles([a.srt], true, bin, false);
+        imported = proj.importFiles([a.srt], true, bin, false);
         item = as_find_item(bin, a.srt);
     }
     if (!item) return as_result(false, "Premiere did not import the subtitle file.", { imported: imported });
@@ -160,14 +191,12 @@ function as_captions(a) {
 // 2026-11-04: importMGT 0.6 s a line, setValue of the text 3 ms, `end` can be set; QE addTracks adds the track.
 // The template is placed at its own size, so it is scaled to the sequence (2160x3840 needs 200 %).
 function as_graphics(a) {
-    if (!app.project) return as_result(false, "No project open.");
-    var seq = app.project.activeSequence;
-    if (!seq) return as_result(false, "No active sequence.");
-    if (a.sequence && seq.name !== a.sequence) {
-        return as_result(false, "The active sequence is \"" + seq.name + "\", but the subtitles are for \"" + a.sequence + "\". Go back to it and try again.");
-    }
-    if (a.project && as_norm(app.project.path) !== as_norm(a.project)) {
-        return as_result(false, "Another project is open. Nothing was touched.");
+    var tg = as_target(a);
+    if (tg.error) return as_result(false, tg.error);
+    var seq = tg.seq;
+    // QE (the new track) only reaches the front project's active sequence
+    if (!tg.front || app.project.activeSequence.sequenceID !== seq.sequenceID) {
+        return as_result(false, "Bring \"" + seq.name + "\" to the front (click its timeline) and press again. Nothing was touched.");
     }
     if (!new File(a.template).exists) return as_result(false, "The subtitle template is missing: " + a.template);
     var caps = a.captions || [];
@@ -398,12 +427,10 @@ function as_route_one(seq, bin, a) {
 
 // args: {project, sequence, items: [...]} -> {ok, items: [result per item, in order]}
 function as_audio_route(a) {
-    if (!app.project) return as_result(false, "No project open.");
-    var seq = app.project.activeSequence;
-    if (!seq) return as_result(false, "No active sequence.");
-    if (a.sequence && seq.name !== a.sequence) return as_result(false, "The active sequence is \"" + seq.name + "\", but the clips are from \"" + a.sequence + "\".");
-    if (a.project && as_norm(app.project.path) !== as_norm(a.project)) return as_result(false, "Another project is open. Nothing was touched.");
-    var bin = as_find_bin(AS_LR_BIN, true);
+    var tg = as_target(a);
+    if (tg.error) return as_result(false, tg.error);
+    var seq = tg.seq;
+    var bin = as_find_bin(AS_LR_BIN, true, tg.project);
     var out = [], items = a.items || [];
     for (var i = 0; i < items.length; i++) {
         try { out.push(as_route_one(seq, bin, items[i])); }

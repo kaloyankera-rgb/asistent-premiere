@@ -61,7 +61,63 @@ async function readVideoSelection(project) {
   if (!clips.length && off.length) {
     throw new P.UserError(`${off.join(", ")} ${off.length === 1 ? "is" : "are"} switched off: Asistent corrects only clips that are on (Clip > Enable).`);
   }
+  await markSeeThrough(t);
   return { timeline: t, clips, off };
+}
+
+// The Lumetri parameters a LUT is set in (read in Premiere 26.5.2, 2026-11-10: 4-7 Input LUT, 32-37 Look and its colour
+// space, 122-124 embedded LUT, 128-129 the LUT assets), the blob that mirrors them, and Auto Tone's notes (no effect
+// until its button is pressed). A blank-named parameter within two of an Input LUT or Look belongs to it.
+const LUT_PARAM = /^(blob|input lut|look|lutasset|lookasset|embedded luts|media embedded lut type|media embedded lut blob|auto tone analytics data|color space)$/i;
+
+// An adjustment layer that only converts (0.10.25): nothing on it but Motion/Opacity and one Lumetri that equals an
+// untouched one except where a LUT is set. Field report 2026-11-10 (Pulse Fitness): an S-Log3 to Rec.709 LUT on an
+// adjustment layer made every colour press measure the flat file and apply nothing. -> reason it is not, or "" when it is
+async function lutOnly(x) {
+  const chain = await maybe(x.ti, "getComponentChain");
+  if (!chain) return "its effects cannot be read";
+  const count = await chain.getComponentCount();
+  let lum = null;
+  for (let i = 0; i < count; i++) {
+    const comp = await chain.getComponentAtIndex(i);
+    const match = (await maybe(comp, "getMatchName")) || "";
+    const name = (await maybe(comp, "getDisplayName")) || "";
+    if (FIXED_EFFECTS.test(match) || FIXED_EFFECTS.test(name)) continue;
+    if (!/lumetri/i.test(match) || lum) return `it has ${lum && /lumetri/i.test(match) ? "a second Lumetri" : name || match || "another effect"}`;
+    lum = comp;
+  }
+  if (!lum) return "it has no Lumetri";
+  const fresh = freshSnapshot();
+  if (!fresh) return "Asistent has not seen an untouched Lumetri in this Premiere yet (press a colour button on a clip without one first)";
+  const split = (s) => s.split(/\|(?=\d+:)/);
+  const now = split(await snapshot(lum));
+  const base = split(fresh);
+  if (now.length !== base.length) return "its Lumetri is not one Asistent knows";
+  const nameOf = (part) => part.replace(/^\d+:/, "").replace(/=[\s\S]*$/, "").trim();
+  const anchors = now.map((p, i) => (/^(input lut|look)$/i.test(nameOf(p)) ? i : -1)).filter((i) => i >= 0);
+  for (let i = 0; i < now.length; i++) {
+    if (/~$/.test(now[i])) return "its Lumetri has keyframes";
+    if (now[i] === base[i]) continue;
+    const name = nameOf(now[i]);
+    if (LUT_PARAM.test(name) || (!name && anchors.some((j) => Math.abs(i - j) <= 2))) continue;
+    return `its Lumetri has more than a LUT (${name || `parameter ${i}`})`;
+  }
+  return "";
+}
+
+// marks the visible adjustment layers of the timeline that hold only a LUT, once per press (logged, with the reason)
+async function markSeeThrough(timeline) {
+  for (const x of timeline.items) {
+    if (x.kind !== "video" || !x.adjustment || x.hidden || x.unused) continue;
+    let why;
+    try {
+      why = await lutOnly(x);
+    } catch (e) {
+      why = `its effects could not be read (${e && e.message ? e.message : e})`;
+    }
+    x.seeThrough = !why;
+    debug(`color: adjustment layer on V${x.track + 1} ${x.start.toFixed(2)}-${x.end.toFixed(2)}: ${why ? `covers the clips (${why})` : "only a LUT: measured through it"}`);
+  }
 }
 
 // Every parameter of a Lumetri as text: the fingerprint that tells Asistent's own correction from a grade
@@ -500,11 +556,14 @@ async function exportFrames(sequence, shots, dir, onBatch, long = 480) {
 // clips -> [{ frames: [path] }] in the clips' order, each clip's frames in time order.
 async function timelineFrames(timeline, clips, dir, onBatch) {
   const shots = [];
-  clips.forEach((clip, index) => analysisMoments(timeline, clip).forEach((t, k) => shots.push({ index, seconds: t, name: `analyse_${index}_${k}.png` })));
+  clips.forEach((clip, index) => analysisMoments(timeline, clip, 4, true).forEach((t, k) => shots.push({ index, seconds: t, name: `analyse_${index}_${k}.png`,
+    through: covered(timeline, clip, t) })));
   const paths = await exportFrames(timeline.sequence, shots, dir, onBatch);
-  const out = clips.map(() => ({ frames: [] }));
+  // through: some frames show the clip under a LUT-only layer (the engine keeps them only for a log clip they convert)
+  const out = clips.map(() => ({ frames: [], through: false }));
   shots.forEach((shot, i) => {
     if (paths[i]) out[shot.index].frames.push(paths[i]);
+    if (paths[i] && shot.through) out[shot.index].through = true;
   });
   return out;
 }
@@ -582,7 +641,8 @@ async function apply(project, timeline, plans) {
 
   // frames before, for the check
   if (dir) {
-    const want = prepared.map((pl, i) => ({ pl, i })).filter(({ pl }) => !covered(timeline, pl.clip, pl.mid));
+    // measured on the timeline through a LUT-only layer: checked through it too (the same picture the measurement saw)
+    const want = prepared.map((pl, i) => ({ pl, i })).filter(({ pl }) => !covered(timeline, pl.clip, pl.mid, pl.res.measured_on === "timeline"));
     const got = await exportFrames(timeline.sequence, want.map(({ pl, i }) => ({ seconds: pl.mid, name: `before_${i}.png` })), dir);
     want.forEach(({ pl }, k) => { pl.before = got[k]; });
   }

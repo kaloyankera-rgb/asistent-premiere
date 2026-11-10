@@ -369,7 +369,8 @@ test("Show exports: off until switched on, the engine is told the project, and S
 
 test("a covered clip: the panel asks whether the file shows the clip, and a file measurement is written as absolute values", () => {
   const col = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
-  assert.match(main, /if \(it\.frames\.length < 2\) it\.plain = await premiereColor\.fileShowsClip\(sel\.clips\[i\]\)/);
+  // 0.10.25: also for frames through a LUT-only layer, which the engine may refuse (then it measures the file)
+  assert.match(main, /if \(it\.frames\.length < 2 \|\| it\.through\) it\.plain = await premiereColor\.fileShowsClip\(sel\.clips\[i\]\)/);
   assert.match(col, /mergeValues\(pl\.res\.measured_on === "source" \? \{\} : t\.current, pl\.exposure, sliders\)/);
   assert.match(col, /return !\(await target\(clip\)\)\.skip;/);                  // a hand grade: the file is not what shows
 });

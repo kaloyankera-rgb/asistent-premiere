@@ -1,4 +1,10 @@
-# Project status — Asistent 0.10.24 (2026-11-10, branch improvements/2026-11)
+# Project status — Asistent 0.10.25 (2026-11-10, branch improvements/2026-11)
+
+0.10.25 (2026-11-10, installed on this Mac; Premiere 26.5.2): the field bugs of TODO F. VERIFIED in Premiere by Claude through the
+bridge: the host's L/R split on NEW TEST while TEST.prproj was in front (the Fix audio "No active sequence." cause). Measured on
+real files, NOT tried in Premiere: iPhone AAC track used beside APAC (IMG_0357.MOV loads A1 L/R); S-Log3 under a LUT-only
+adjustment layer measured through it (needs the panel reopened once, then a press on a Pulse clip under its LUT layer); rough
+cut on one long clip 149 -> 60 s. The panel in Premiere still runs 0.10.24 until it is closed and opened again.
 
 0.10.24 (2026-11-10, installed, NOT tried in Premiere): the install check reads Adobe's list per Premiere (2026 and 2027 are both on
 this Mac now; Asistent is listed in both). Premiere 2027 (27.0.0) and 2026 26.5.2 are untested with Asistent (it was built and
