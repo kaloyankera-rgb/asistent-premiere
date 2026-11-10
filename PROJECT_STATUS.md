@@ -1,4 +1,13 @@
-# Project status — Asistent 0.10.31 (2026-11-10, branch improvements/2026-11)
+# Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
+
+0.10.33 (2026-11-10, installed): Keyframer Elastic / Bounce (at the end, start or both; bounces; overshoot or height) and
+Ping-pong / Loop after the last keyframe (times or until the clip ends). VERIFIED through the bridge on NEW TEST C0738 (Elastic,
+Ping-pong replacing it, Bounce + Loop replacing that, Undo last, Linear + repeat refused). NOT yet seen by the user on screen.
+Tests: 689 pytest + 24 skipped, node 214.
+
+0.10.32 (2026-11-10, installed): Keyframer page (Cockpit plan A1). VERIFIED in Premiere 26.5.2 through the bridge on NEW TEST
+C0738 (bake, replace, Undo last, Premiere ease). NOT yet tried: a sped-up clip, the handles dragged by hand, Overshoot on
+screen. Baseline kept: 689 pytest + 24 skipped, node 202 -> 208 (6 new), ReShape golden identical.
 
 0.10.31 (2026-11-10, installed): same panel and engine as 0.10.29 (the Cockpit Phase 0 probe of 0.10.30 removed). Phase 0
 report: docs/probes/cockpit-phase0.md. Next in TODO CP: A1 Keyframer.

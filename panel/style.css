@@ -213,3 +213,17 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .toast.err { background-color: var(--err-bg); color: var(--err); border-color: var(--err); }
 .tip { position: absolute; max-width: 240px; padding: 5px 7px; border-radius: 4px; font-size: 11px; line-height: 15px;
   background-color: var(--tip-bg); color: var(--tip-text); border: 1px solid var(--tip-line); }
+
+/* Keyframer page (0.10.32) */
+.row.wrap { flex-wrap: wrap; }
+.btn.small.on { border-color: var(--accent); color: var(--text); background-color: var(--ref-bg); }
+.kf-props { margin-top: 6px; }
+.kf-editor { margin-top: 6px; }
+.kf-presets { margin-top: 4px; }
+.buttons.spaced { margin-top: 12px; }
+.kf-status { margin-top: 6px; }
+.kf-actions .btn { margin-right: 8px; }
+.kf-step { margin-top: 2px; }
+.kf-step .btn.small { margin-bottom: 0; }
+.kf-label { width: 72px; color: var(--text-2); }
+.kf-value { min-width: 34px; margin-right: 4px; text-align: center; }
