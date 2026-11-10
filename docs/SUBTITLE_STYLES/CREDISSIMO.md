@@ -51,9 +51,9 @@ interviewer and the people answering are subtitled.
 
 ## The brand name
 
-Written both ways: "ТО CREDISSIMO / НЯМА" (Latin, Видео 1) and "НИЕ ОТ / КРЕДИСИМО" (Cyrillic, Видео 9 and 10). Whisper writes
-it in Cyrillic; if the client wants the Latin name, one correction line in the Captions tab ("Кредисимо => CREDISSIMO") is
-learned for the whole client. Ask the user which is right.
+Written both ways in the exports: "ТО CREDISSIMO / НЯМА" (Latin, Видео 1) and "НИЕ ОТ / КРЕДИСИМО" (Cyrillic, Видео 9 and 10).
+**The user's decision (2026-11-10): CREDISSIMO.** Whisper writes „Кредисимо“ or „Credissimo“; the preset's `names` shows
+CREDISSIMO either way (0.10.20), only in this style.
 
 ## How close the preset comes (the editors' own speech, Whisper words, not the full pipeline)
 

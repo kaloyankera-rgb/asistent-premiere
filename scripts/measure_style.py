@@ -7,6 +7,7 @@
   measure_style.py timing  <work>                  when a chunk appears / goes compared with its words
   measure_style.py compare <work> <preset> [k=v …] a preset on the editors' own speech against their chunks (try values: line_chars=18)
   measure_style.py colour  <video folder> <work>   where the grade ends: skin, mid-tones, white balance, contrast, saturation
+  measure_style.py pace    <video folder> <work>   cuts and mean shot length, loudness (LUFS), loudness range, true peak
 
 How GStroy and Credissimo were measured (docs/SUBTITLE_STYLES/). The video folder is only read (the office share: never write,
 move or delete there); everything goes into <work>, which must be outside the repo: client words and frames are private.
@@ -43,7 +44,9 @@ def videos(folder: str) -> list[tuple[str, str]]:
     for f in sorted(os.listdir(folder)):
         m = re.search(r"Видео (\d+)", f)
         if f.lower().endswith((".mp4", ".mov")) and m:
-            out.append((f"v{m.group(1)}", os.path.join(folder, f)))
+            tag = f"v{m.group(1)}"
+            n = sum(1 for t, _ in out if t == tag or t.startswith(tag + "_"))
+            out.append((tag if not n else f"{tag}_{n + 1}", os.path.join(folder, f)))   # one video in several sizes: v3, v3_2, v3_3
     return out
 
 
@@ -303,11 +306,37 @@ def cmd_colour(a):
     _summ("whole-picture temp", [r["world"][0] for r in rows if r["world"]])
 
 
+# ---------------------------------------------------------------- pacing and sound
+
+def cmd_pace(a):
+    """Cuts (FFmpeg scene change over 0.3 on a small picture: hard cuts, not slow moves), the mean shot, and the finished
+    sound: integrated loudness (LUFS), loudness range (LU) and true peak (dBTP), by EBU R128."""
+    rows = []
+    for tag, path in videos(a.folder):
+        dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path],
+                                   capture_output=True, text=True).stdout.strip() or 0)
+        r = subprocess.run(["ffmpeg", "-nostdin", "-i", path, "-an", "-vf", "scale=160:-2,select='gt(scene,0.3)',showinfo",
+                            "-f", "null", "-"], capture_output=True, text=True)
+        cuts = len(re.findall(r"pts_time:", r.stderr))
+        s = subprocess.run(["ffmpeg", "-nostdin", "-i", path, "-vn", "-af", "ebur128=peak=true", "-f", "null", "-"],
+                           capture_output=True, text=True).stderr
+        tail = s[s.rfind("Summary:"):]
+        num = lambda key: float(re.search(key + r":\s+(-?[\d.]+)", tail).group(1)) if re.search(key + r":\s+(-?[\d.]+)", tail) else None
+        rows.append({"tag": tag, "seconds": round(dur, 1), "cuts": cuts, "shot": round(dur / (cuts + 1), 2),
+                     "lufs": num("I"), "lra": num("LRA"), "peak": num("Peak")})
+        print("%-4s %6.1f s  %3d cuts  shot %.2f s  %s LUFS  LRA %s  peak %s dBTP" % (
+            tag, dur, cuts, dur / (cuts + 1), rows[-1]["lufs"], rows[-1]["lra"], rows[-1]["peak"]), flush=True)
+    json.dump(rows, open(os.path.join(a.work, "pace.json"), "w"), indent=1)
+    if rows:
+        print("median: shot %.2f s, %.1f LUFS, peak %.1f dBTP" % (np.median([r["shot"] for r in rows]),
+              np.median([r["lufs"] for r in rows if r["lufs"] is not None]), np.median([r["peak"] for r in rows if r["peak"] is not None])))
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
     for name, args in (("frames", ("folder", "work")), ("chunks", ("work",)), ("asr", ("work",)), ("timing", ("work",)),
-                       ("compare", ("work", "preset")), ("colour", ("folder", "work"))):
+                       ("compare", ("work", "preset")), ("colour", ("folder", "work")), ("pace", ("folder", "work"))):
         s = sub.add_parser(name)
         for x in args:
             s.add_argument(x)

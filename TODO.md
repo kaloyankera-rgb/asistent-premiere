@@ -180,7 +180,12 @@ UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips
   (the exports use both).
 - [ ] GStroy's two-line split: "most even" matches its editors as well as "last word alone" (87 % vs 85 %); keep unless the
   user's test shows otherwise.
-- [ ] Next clients: `scripts/measure_style.py frames|chunks|asr|timing|compare|colour` (font and shadow still by hand).
+- [ ] ЕКОПАК (0.10.20, `ekopak` preset, docs/SUBTITLE_STYLES/EKOPAK.md): USER: try it in NEW TEST; Track Style "ЕКОПАК" (keyword
+  #18CC6E). Its keyword word list was made from the same videos: check the suggestions on new ones.
+- [ ] GStroy: Whisper hears the brand as „G -Stroy“ (two words); the subtitles write GSTROY. A Captions-tab line
+  "G -Stroy => GStroy" fixes it once per client; a preset rule would have to join two words (not built).
+- [ ] Next clients: `scripts/measure_style.py frames|chunks|asr|timing|compare|colour|pace` (font and shadow still by hand);
+  add each to the vault's `editing/client-styles.md` and `clients/<client>/`.
 
 ## R. Subtitles in the reference style (ReShape; started 2026-11-04, the user's current priority)
 Spec: `docs/SUBTITLE_STYLE.md` (two layers: Bulgarian chunks word by word in Montserrat Bold with a soft shadow at ~48 % height; English
