@@ -290,6 +290,10 @@ async function refreshHeader() {
     $("project").textContent = "No project open";
   }
   if (!state.busy) for (const b of document.querySelectorAll(".btn.action, .btn.small")) enable(b, state.online);
+  if (state.online && !store.loaded() && !state.storeLoading) {      // the panel opened while the engine was down
+    state.storeLoading = true;
+    store.load().then((ok) => { if (ok) applyRemembered(); }).finally(() => { state.storeLoading = false; });
+  }
   if (state.online && Date.now() - (state.updateAt || 0) > UPDATE_EVERY_MS) checkUpdate(false);
   if (state.online && !state.modelShown) {                 // once per start: does the subtitle section need the install?
     state.modelShown = true;

@@ -69,6 +69,8 @@ async function readVideoSelection(project) {
 // space, 122-124 embedded LUT, 128-129 the LUT assets), the blob that mirrors them, and Auto Tone's notes (no effect
 // until its button is pressed). A blank-named parameter within two of an Input LUT or Look belongs to it.
 const LUT_PARAM = /^(blob|input lut|look|lutasset|lookasset|embedded luts|media embedded lut type|media embedded lut blob|auto tone analytics data|color space)$/i;
+// Lumetri's section headings (the 130 parameters read in 26.5.2)
+const SECTION = /^(basic correction|color|light|creative|adjustments|curves|rgb curves|hue saturation curves|color wheels & match|hsl secondary|key|refine|correction|vignette|speedgrade custom|legacy tone and saturation)$/i;
 
 // An adjustment layer that only converts (0.10.25): nothing on it but Motion/Opacity and one Lumetri that equals an
 // untouched one except where a LUT is set. Field report 2026-11-10 (Pulse Fitness): an S-Log3 to Rec.709 LUT on an
@@ -100,7 +102,11 @@ async function lutOnly(x) {
     if (now[i] === base[i]) continue;
     const name = nameOf(now[i]);
     if (LUT_PARAM.test(name) || (!name && anchors.some((j) => Math.abs(i - j) <= 2))) continue;
-    return `its Lumetri has more than a LUT (${name || `parameter ${i}`})`;
+    // a section heading's true/false is whether it is opened in the Lumetri panel (Pulse, 2026-11-10: "Color Wheels & Match"
+    // differed on a LUT-only layer); each section's own switch is its "Active" parameter and its settings are compared
+    if (SECTION.test(name) && /=(true|false)$/.test(now[i]) && /=(true|false)$/.test(base[i])) continue;
+    const val = (part) => part.replace(/^[^=]*=/, "").slice(0, 40);
+    return `its Lumetri has more than a LUT (${name || `parameter ${i}`}: ${val(now[i])}, untouched ${val(base[i])})`;
   }
   return "";
 }
@@ -223,6 +229,8 @@ async function target(clip, { manual = false } = {}) {
 // timeline one and its values are written as they are (absolute), replacing Asistent's earlier ones. Anything else (another
 // effect, a hand grade): the file is not what the viewer sees, a proposal only.
 const FIXED_EFFECTS = /motion|opacity|time ?remap/i;
+// stops past the target (the other way from where the clip started) that the check corrects once
+const OVERSHOOT = 0.35;
 async function fileShowsClip(clip) {
   try {
     const chain = await maybe(clip.ti, "getComponentChain");
@@ -707,6 +715,16 @@ async function apply(project, timeline, plans) {
       const back = chk.pullback_units || 0.5;
       fixValues.exposure = Math.max(0, Math.round((pl.values.exposure - back) * 100) / 100);
       pl.lines.push(`${(chk.new_clipping * 100).toFixed(1)}% clipped: exposure lowered by ${back} to ${fixValues.exposure}`);
+    } else if (pl.values.exposure && chk.exposure_before > 0 && chk.exposure_after < -OVERSHOOT) {
+      // the brightness went past the target (0.10.29, Pulse Fitness: S-Log3 under a LUT layer, +2.15 landed 0.7 stops over:
+      // Lumetri on the log signal moves more than on Rec.709): what this press added is scaled once by wanted / achieved
+      const base = pl.res.measured_on === "source" ? 0 : (pl.t.current.exposure || 0);
+      const added = pl.values.exposure - base;
+      const moved = chk.exposure_before - chk.exposure_after;
+      if (added > 0 && moved > 0) {
+        fixValues.exposure = Math.round((base + (added * chk.exposure_before) / moved) * 100) / 100;
+        pl.lines.push(`the brightness went ${(-chk.exposure_after).toFixed(1)} stops past the target: exposure lowered to ${fixValues.exposure}`);
+      }
     }
     const offWhite = pl.wb && !pl.keptWhite && chk.residual && (Math.abs(chk.residual[0]) > WHITE_OK.temp ||
       Math.abs(chk.residual[1]) > WHITE_OK.tint);

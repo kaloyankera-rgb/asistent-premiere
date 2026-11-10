@@ -264,20 +264,24 @@ def _look(enc: np.ndarray) -> np.ndarray:
 
 
 def log_shown(timeline: list[np.ndarray], source: list[np.ndarray], gamma: str | None) -> str | None:
-    """How Premiere shows a log clip (0.10.25, colour plan T12): "converted" when the timeline frames look like the file
-    decoded from `gamma` to Rec.709 (a LUT on an adjustment layer, colour management), "flat" when they look like the
-    log signal itself, None when neither is clearly nearer or the curve is not one Asistent decodes (only S-Log3).
-    Measured on the Pulse Fitness A7V clip through Sony's LC-709 and Cine+709 LUTs: 0.16-0.23 from converted against
-    0.68 from flat; the flat picture itself 0.002 from flat."""
+    """How Premiere shows a log clip (colour plan T12): "converted" when the timeline is clearly not the flat log signal any
+    more (a wider tonal range and more colour than the file, both by 12 % or more: a LUT on an adjustment layer, colour
+    management), "flat" when it is the file's own picture (same blacks, range and colour), None in between or for a curve
+    Asistent does not decode (only S-Log3). The blacks are not required to fall: they do under a real LUT, not under a
+    plain gamma curve. Compared with the flat file, not with a model of a conversion: Premiere's LC-709 Look on the Pulse Fitness A7V
+    clip (0.10.28, in Premiere 26.5.2) gave blacks 0.081 lower, range x1.25, colour x1.34, softer than FFmpeg's render of the
+    same LUT, which a model-based check (0.10.25) could not place; the flat file cropped 9:16 like the timeline stays within
+    0.002 / x0.99-1.00 on five Pulse clips."""
     if not timeline or not source or not gamma or "log3" not in gamma.lower():
         return None
     seen = np.median([_look(f) for f in timeline], axis=0)
     flat = np.median([_look(f) for f in source], axis=0)
-    conv = np.median([_look(encode(to_linear(f, gamma))) for f in source], axis=0)
-    d_flat, d_conv = float(np.abs(seen - flat).sum()), float(np.abs(seen - conv).sum())
-    if d_conv < 0.5 * d_flat:
+    drop = float(flat[0] - seen[0])
+    wider = float(seen[1] / max(flat[1], 1e-6))
+    richer = float(seen[2] / flat[2]) if flat[2] >= 0.02 else 1.12      # a picture with no colour to compare: range and blacks
+    if wider >= 1.12 and richer >= 1.12:
         return "converted"
-    if d_flat < 0.5 * d_conv:
+    if abs(drop) < 0.02 and 0.93 <= wider <= 1.07 and (flat[2] < 0.02 or 0.93 <= richer <= 1.07):
         return "flat"
     return None
 
@@ -328,6 +332,7 @@ def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str
     neutral_frac = float(np.mean([m["neutral"] for m in ms]))
     temp = tint = 0.0
     wb_conf = "low"
+    mixed = False
     if neu:
         n_t, n_g = np.median([c[0] for c in neu]), np.median([c[1] for c in neu])
         n_sd = max(np.std([c[0] for c in neu]), np.std([c[1] for c in neu]))
@@ -338,7 +343,14 @@ def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str
             wb_conf = "high"
         elif neutral_frac >= 0.005 and n_sd < 0.2:
             wb_conf = "medium"
-        if not agree:
+        w_t = float(np.median([c[0] for c in wor])) if wor else 0.0
+        if wor and n_t * w_t < 0 and abs(n_t) >= BALANCED[0] and abs(w_t) >= BALANCED[0]:
+            # opposite ways (0.10.28, Pulse Fitness under its LUT: the neutral patch warm -0.29, the blue-lit gym +0.8): mixed
+            # light, and either correction would be wrong for one of them (cooling a picture that looks blue)
+            wb_conf, mixed = "low", True
+            reasons.append(f"Mixed light: the neutral surfaces read {'warm' if n_t < 0 else 'cold'} and the whole picture "
+                           f"{'cold' if w_t > 0 else 'warm'}: white balance left alone.")
+        elif not agree:
             reasons.append("The neutral surfaces and the whole picture disagree (coloured objects or mixed light).")
     elif wor:
         temp = float(np.median([c[0] for c in wor]))
@@ -352,7 +364,7 @@ def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str
     fix_g = 0.0 if balanced else float(np.clip(-tint, -MAX_FIX[1], MAX_FIX[1]))
     if balanced and wb_conf != "low":
         reasons.append("The white balance is fine: no correction.")
-    if not balanced:
+    if not balanced and not mixed:
         if tint > 0.08:
             reasons.append(f"Green cast ({tint:+.2f}).")
         elif tint < -0.08:

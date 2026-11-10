@@ -143,7 +143,8 @@ def test_slog3_is_measured_after_conversion():
 
 
 def _slog3_frames():
-    lin = scene()
+    lin = scene() * np.array([1.25, 1.0, 0.8])                      # some colour: a log picture is flat in colour too
+    lin[:12] = 0.002                                                # and real blacks, which a conversion lowers
     sg = lin @ np.linalg.inv(C.SG3C_TO_709).T
 
     def slog3(x):
@@ -724,3 +725,14 @@ def test_identical_frames_after_a_correction_are_not_a_verdict(tmp_path):
     assert r["gates"]["revert"] == [] and "pullback_units" not in r
     same_but_nothing_applied = C.check_render(p, p, 0.0, C.Calibration(str(tmp_path / "l2.json")), applied={})
     assert not same_but_nothing_applied.get("render_unchanged")
+
+
+def test_mixed_light_in_opposite_directions_leaves_white_alone():
+    """0.10.28 (Pulse Fitness under its LUT): a warm neutral patch in a blue-lit room. Either correction is wrong for one of
+    them, so white balance is not touched (it used to be "medium" and cooled a picture that looks blue)."""
+    lin = scene(wall=True)
+    w = lin.shape[1]
+    room = lin * np.array([0.7, 0.9, 1.4])                           # blue light on most of the picture
+    room[:, :w // 4] = lin[:, :w // 4] * np.array([1.12, 1.0, 0.86])  # a neutral surface under warmer light
+    r = C.decide([C.encode(room)] * 3)
+    assert r["white"]["confidence"] == "low" and any("Mixed light" in x for x in r["reasons"]), (r["white"], r["reasons"])
