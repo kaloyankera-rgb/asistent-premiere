@@ -134,9 +134,9 @@ a row in docs/ROLLBACK.md, measured against Classic on the same inputs before it
 - **I11. Reframing and face-aware placement.** YuNet (already bundled) first: smoothed vertical crop suggestions and the planned
   "Move off faces" for upgraded caption graphics (Position via PointF, one Undo, verified 2026-11-04); safe margins, editor
   overrides, no jumps. MediaPipe only with a measured benefit (landmarks). Outside the ReShape preset; opt-in.
-- **I12. Pre-export checks.** Report: offline media, black gaps (not intentional ones), caption overlaps/overflow/unsafe placement,
-  missing fonts (where the API tells), peaks over −6 dBFS on the main mic; each marked confirmed / warning / not measurable through
-  the API.
+- [x] **I12. Pre-export checks** (0.10.35). Later if wanted: the sequence's In/Out as the range, a hand-made channel
+  mapping read through the host (now the louder channel counts), a check of the exported file itself after Show exports.
+  USER: run it on a finished client edit before export and say what it missed or flagged wrongly.
 - **I13. Later experiments** (each with its license and local-only check): pyannote (local, telemetry off, gated model needs a
   token: ask), Opus-MT bg→en against NLLB on terminology/numbers/negations (never replacing ReShape's English), PySceneDetect for
   B-roll index, open_clip (needs multilingual model or local query translation), music ducking, multicam suggestions.

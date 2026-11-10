@@ -427,3 +427,12 @@ names are never overwritten. A colour label exists only on the project item (no 
 recolours the file everywhere: Keep unless the editor chooses one. Sync and rough cut make sequences that are Asistent's own,
 so they are named right away; the hook in `main.js` is one guarded call after a successful build and never fails the build.
 
+## 2026-11-10: the pre-export check measures per clip, says what it cannot see (0.10.35)
+Premiere offers no script access to the mixed sound short of exporting it, so each clip is measured on its file in the range
+it uses (true peak, 4x oversampled) plus the highest Volume it reaches. Only the channel a clip plays counts when Asistent
+knows it (its own L / R copies by name, Fill effects); otherwise the louder channel decides, which can only over-warn. The
+-6 dBFS rule applies to camera and microphone tracks (tracknames.js); other tracks are only flagged near 0 dBFS. Track
+faders, Audio Gain and effects are not included and the panel says so. Safe areas: 9:16 keeps text off the apps' buttons and
+caption (common to TikTok, Reels, Shorts), other frames title safe 90 %. Caption track positions and missing fonts are not
+readable and are shown as "?", never as passed.
+

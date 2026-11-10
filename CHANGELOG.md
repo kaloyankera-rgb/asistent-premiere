@@ -31,6 +31,24 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.35 - Before export: offline media, black, text outside the safe area, microphone over -6 dBFS (TODO I12)
+- New Tools card "Before export" > Check before export (whole open sequence, no selection, read only). Five parts, each
+  ✓ measured and fine, ! to look at, or ? not measurable through the API:
+  - offline media (track, clip, time);
+  - black gaps and flash frames between 0 and the end (switched-off clips, hidden tracks and adjustment layers show nothing;
+    a SYNC sequence's 2 s gaps between groups are noted as on purpose);
+  - text graphics whose centre is outside the safe area (9:16: x 0.06-0.86, y 0.10-0.80 for the apps' buttons and caption;
+    otherwise title safe 90 %), and caption lines that overlap in time (a caption track's place cannot be read: said so);
+  - microphone level: each clip on a camera or microphone track (tracknames.js) peaking above -6 dBFS, music or effects
+    only near 0 dBFS; the file's true peak in the clip's range (new engine job `/export/peaks`, `exportcheck.py`) plus the
+    highest Volume the clip reaches; Fix audio's L / R copies and Fill effects count only the channel they play;
+  - missing fonts: always "?", Premiere does not tell a script.
+- `premiere.js` readItem keeps `offline` on each item (was computed, not kept).
+- Verified through the bridge on NEW TEST: ROUGH … v3 flagged C0728-C0730 at -1.5 dBFS (FFmpeg astats on C0728: -1.56, R
+  channel); SYNC – кам2 clean after the channel fix (C0728 L had been read on its louder R channel: -4.4 instead of ~-9);
+  a subtitle graphic moved to y 0.95 was reported "too low", then put back. NOT seen live: offline media and caption overlaps
+  (node-tested; NEW TEST has neither).
+
 ## 0.10.34 - Track names: POV 1 / POV 2, their sound, Mic, Subtitles BG / EN (TODO I7)
 - New Tools card "Track names": Name the tracks / Put names back, "Also after Sync and rough cut" (on), a label colour per
   camera (Keep by default). `tracknames.js` (pure, 9 node tests) decides, `premiere-labels.js` writes in one transaction.

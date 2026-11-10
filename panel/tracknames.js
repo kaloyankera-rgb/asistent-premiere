@@ -42,7 +42,8 @@ const isOurs = (name) => OURS.test(String(name || "").trim());
  * tracks: { video: [{index, name, paths}], audio: [{index, name, paths}], caption: [{index, name}] } (paths: the media
  * files of the track's clips; offline media, graphics and nests have none). own: {bg, en}: indexes of Asistent's own caption
  * tracks (null when none or no longer its own).
- * -> { renames: [{kind, index, from, to}], kept: [{kind, index, name, why}], cameras: [{pov, index, paths}] }
+ * -> { renames: [{kind, index, from, to}], kept: [{kind, index, name, why}], cameras: [{pov, index, paths}],
+ *      speech: [audio track index] (a camera's sound or a microphone: what the pre-export check holds to -6 dBFS) }
  */
 function plan(tracks, own = {}) {
   const renames = [];
@@ -87,6 +88,7 @@ function plan(tracks, own = {}) {
     return in1 ? "several" : null;
   };
   const perCamera = new Map();
+  const speech = [];
   let mics = 0;
   for (const t of [...(tracks.audio || [])].sort((a, b) => a.index - b.index)) {
     const paths = t.paths || [];
@@ -95,11 +97,15 @@ function plan(tracks, own = {}) {
     if (Number.isInteger(pov)) {
       const n = (perCamera.get(pov) || 0) + 1;
       perCamera.set(pov, n);
+      speech.push(t.index);
       want("audio", t, n === 1 ? `POV ${pov} audio` : `POV ${pov} audio ${n}`);
       continue;
     }
     const folder = main(paths.map(folderOf));
-    if (pov === null && folder !== undefined && !skippedFolders.has(folder)) want("audio", t, `Mic ${++mics}`);
+    if (pov === null && folder !== undefined && !skippedFolders.has(folder)) {
+      speech.push(t.index);
+      want("audio", t, `Mic ${++mics}`);
+    }
     else if (folder !== undefined && skippedFolders.has(folder)) kept.push({ kind: "audio", index: t.index, name: t.name, why: "the sound of B-roll or an edit, not one camera" });
     else kept.push({ kind: "audio", index: t.index, name: t.name, why: "sound from several cameras or microphones" });
   }
@@ -108,7 +114,7 @@ function plan(tracks, own = {}) {
     const t = (tracks.caption || []).find((c) => c.index === own[key]);
     if (t) want("caption", t, to);
   }
-  return { renames, kept, cameras };
+  return { renames, kept, cameras, speech };
 }
 
 /** What a press changed, as lines for the panel. */

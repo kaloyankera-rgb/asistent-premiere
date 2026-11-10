@@ -39,6 +39,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /audio                {"items": [{"path", "start", "end", "force"?}], "force"?, "target"?, "ceiling"?,
                               "phrases"?: true -> Volume keyframes that even out phrases,
                               "balance_db"?: how far apart two speakers may be (default 2)}
+  POST /export/peaks         {"items": [{path, start, end}]} -> job: each clip's true peak per channel in the used range
+                              (pre-export check, read only; exportcheck.py)
   POST /audio/route          {"items": [{track, start, end, route}], "sequence", "project"?} -> through the host:
                               L/L and R/R subclips placed and linked (host.jsx as_audio_route); {"ok", "items"}
   GET  /jobs/<id>            state, progress, message, result
@@ -84,6 +86,7 @@ from . import config
 from .jobs import JobManager
 from .audio import analyze_items
 from . import color as COLOR
+from . import exportcheck as EXPORTCHECK
 from .groups import sync_groups
 from .importer import Store, Watcher
 from .exports import ExportWatcher, Settings as ExportSettings
@@ -470,6 +473,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _start_groups(body))
             if self.path == "/audio":
                 return self._send(200, _start_audio(body))
+            if self.path == "/export/peaks":
+                items = body.get("items") or []
+                if not all(isinstance(i, dict) and isinstance(i.get("path"), str) for i in items):
+                    raise ValueError("Every audio clip needs its file.")
+
+                def work_peaks(job):
+                    def progress(f, msg):
+                        job.progress, job.message = f, msg
+                    return EXPORTCHECK.peaks(items, progress, lambda: job.cancelled)
+                return self._send(200, {"job": JOBS.submit("export_peaks", work_peaks).id})
             if self.path == "/color":
                 items = body.get("items") or []
                 if not items or not all(isinstance(i, dict) and isinstance(i.get("path"), str) for i in items):
