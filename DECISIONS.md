@@ -1,5 +1,11 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-10: every client style joins the article (0.10.23, replaces the next entry)
+The user said yes to the question in 0.10.22: all five client styles (one Submagic template) write „IPHONE-А“. ReShape, short and
+standard keep their output. The client's own brand takes no article at all (the user: "Its not GStroy-A its GStroy",
+"Its not CREDISSIMO-TO its CREDISSIMO"): the article is dropped (a writing rule for the brand, its time stays in the word);
+applied to every client's brand (ЕКОПАК, BEAUTY SECTOR, AULA, AULA.BG too). Other English names keep it (IPHONE-А, SANDBOX-А).
+
 ## 2026-11-10: AULA's article joining is AULA's only (0.10.22)
 AULA's editors write an English name with its Bulgarian article joined („IPHONE-А“); Whisper gives „iPhone -а“ as two words, so
 the other styles can show „IPHONE -А“ or even put „-А“ in the next chunk. The joining is a preset key (`join_articles`), on for

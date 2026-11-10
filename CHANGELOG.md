@@ -31,6 +31,12 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.23 - Every client style joins the article to an English name (the user's answer 2026-11-10)
+- GStroy, Credissimo, ЕКОПАК and Beauty Sector join the Bulgarian article to an English name as AULA does („iPhone -а“ →
+  IPHONE-А). The client's own brand takes no article (the user: "Its not GStroy-A its GStroy"): „G -Stroy -а“ → GStroy,
+  „Credissimo -то“ → CREDISSIMO, also ЕКОПАК, BEAUTY SECTOR, AULA and AULA.BG (preset key `brand`). ReShape, short and standard are
+  unchanged. On the saved speech of all five clients no caption changes (the four never say such a name there).
+
 ## 0.10.22 - Subtitle Style "AULA" (the user's request 2026-11-10)
 - Captions > Style > **AULA**, measured on the client's 10 exported videos (738 chunks): the shared Submagic template, up to 4
   words / 17 characters (2.20 words against the editors' 2.36, 45 % two-line against 46 %, 69 % of their breaks), even cuts

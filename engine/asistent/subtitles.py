@@ -53,7 +53,7 @@ PRESETS = {
     # the chunk appears with its first word (Asistent's usual 0.03 s lead, measured median 0.03-0.04 s). line_chars is the
     # whole chunk here: 18 gave the editors' own mean (2.21 words) and two-line share (41 %, theirs 40 %) on their speech
     "gstroy": {"max_words": 3, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 18,
-               "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "accent": 6, "drop_dashes": True,
+               "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "accent": 6, "drop_dashes": True, "join_articles": True, "brand": ("GStroy",),
                # the brand as the user writes it, also in capitals (2026-11-10); Whisper hears „G -Stroy“
                "names": {"gstroy": "GStroy", "g-stroy": "GStroy", "g -stroy": "GStroy", "g stroy": "GStroy", "джи строй": "GStroy",
                          "джистрой": "GStroy"}},
@@ -63,7 +63,7 @@ PRESETS = {
     # mean (2.50 against 2.52) and two-line share (49 % against 48 %) on their own speech in all 9 videos; the chunk appears
     # with its first word like GStroy's (Asistent's usual 0.03 s lead)
     "credissimo": {"max_words": 4, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 20,
-                   "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even", "drop_dashes": True,
+                   "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even", "drop_dashes": True, "join_articles": True, "brand": ("CREDISSIMO",),
                    "accent": 9, "accent_near": 2,
                    "accent_words": r"^(пари|парите|парички|бюджет|кредит|заем|назаем|вноск|разход|доход|финанс|кредисимо|credissimo"
                                    r"|спестя|заплат|сметк|лихв|харч|буфер|евро$|лев$|лева$|левчета|карта$|картата$|цента$|стотинк"
@@ -73,7 +73,7 @@ PRESETS = {
     # cut evenly like Credissimo's, a green keyword (#18CC6E) on about one chunk in four, often a recycling word; 17 characters
     # a chunk gave its editors' shape on their speech (2.25 words against 2.35, two-line 41 % against 42 %, breaks 65 %)
     "ekopak": {"max_words": 4, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 17,
-               "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even", "drop_dashes": True,
+               "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even", "drop_dashes": True, "join_articles": True, "brand": ("ЕКОПАК",),
                "accent": 7, "accent_near": 2,
                "accent_words": r"^(боклук|отпад|контейнер|опаковк|рецикл|разделн|картон|пластмас|стъкл|хартия|хартии|метал|алумини"
                                r"|кутийк|бутилк|буркан|екопак|ecopack|сортир|платформ|сигнал|карта$|картата$)",
@@ -83,7 +83,7 @@ PRESETS = {
     # product names in Latin capitals as its subtitles write them (Whisper: „Бюти Сектор“, „Double Gold“, „HiFull“)
     "beautysector": {"max_words": 4, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 18,
                      "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even",
-                     "drop_dashes": True, "accent": 6, "accent_near": 1,
+                     "drop_dashes": True, "join_articles": True, "brand": ("BEAUTY SECTOR",), "accent": 6, "accent_near": 1,
                      "accent_words": r"^(кож|контур|лифтинг|процедур|резултат|колаген|стегн|отпусн|брадичк|тонус|еластичн|консултаци"
                                      r"|стимул|дефинир|очертан|тренировк|курс|операци|неинвазив|ултразвук|целулит|мазнин|обиколк"
                                      r"|тяло|лице|лицето|салон)",
@@ -97,7 +97,7 @@ PRESETS = {
     # capitals with the Bulgarian article joined by a hyphen („IPHONE-А“), the brand AULA.BG.
     "aula": {"max_words": 4, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 17,
              "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even",
-             "drop_dashes": True, "join_articles": True, "accent": 7, "accent_near": 1,
+             "drop_dashes": True, "join_articles": True, "brand": ("AULA", "AULA.BG"), "accent": 7, "accent_near": 1,
              "accent_words": r"^(компютър|функци|файл|текст|известие|настройк|иконк|батери|папк|телефон|снимк|данни|качеств"
                              r"|кабел|технологи|алгоритъм|детектор|сигурност|парол|плъгин|хакер|сайт|трафик|уязвим|меню|бутон"
                              r"|прозор|колон|версия|систем|апликаци|трик|гадже|доверие|знани|стъпк|защит|блокир|разпозна"
@@ -500,6 +500,7 @@ def _group_phrases(words, cfg):
     return groups[::-1]
 
 
+ARTICLE_CORE = r"-(?:а|я|ът|ят|та|то|те|ти)"      # a Bulgarian article joined to an English name („IPHONE-А“)
 BARE = re.compile(r"^[„“\"«(]+|[.,?!…:;\"»“”)]+$")
 
 
@@ -513,6 +514,12 @@ def _shown(word, cfg):
         core = BARE.sub("", shown) or shown
         if core.lower() in names:                              # the name exactly as the client writes it, capitals or not
             return shown.replace(core, names[core.lower()])    # („GStroy“ stays GStroy in a capitals style, the user 2026-11-10)
+        m = re.fullmatch(r"(.+?)(" + ARTICLE_CORE + ")", core, flags=re.IGNORECASE)
+        if m and m.group(1).lower() in names:                  # a name with its article joined: the name its way
+            name = names[m.group(1).lower()]
+            if name in cfg.get("brand", ()):                   # the client's brand takes no article (the user 2026-11-10)
+                return shown.replace(core, name)
+            return shown.replace(core, name + (m.group(2).upper() if cfg.get("upper") else m.group(2)))
     return shown.upper() if cfg.get("upper") else shown
 
 
@@ -540,20 +547,24 @@ def _join_names(words, cfg):
     return out
 
 
-ARTICLE = re.compile(r"-(а|я|ът|ят|та|то|те|ти)[.,?!…:;]*")
+ARTICLE = re.compile(ARTICLE_CORE + r"[.,?!…:;]*")
 
 
 def _join_articles(words, cfg):
     """A "join_articles" preset (AULA) writes an English name with its Bulgarian article joined by a hyphen, as its editors do
     („IPHONE-А“, „SANDBOX-А“); Whisper hears „iPhone -а“ as two words. Only after a word with Latin letters; the name part is
-    written as the preset's `names` say („Sunbox -а“ -> „SANDBOX-А“). Times run from the name to the article."""
+    written as the preset's `names` say („Sunbox -а“ -> „SANDBOX-А“). The client's own brand (`brand`) takes no article: it is
+    dropped, as the user writes it („G -Stroy -а“ -> „GStroy“, „Credissimo -то“ -> „CREDISSIMO“, 2026-11-10). Times run from the
+    name to the article."""
     names = cfg.get("names") or {}
     out = []
     for w in words:
         if out and ARTICLE.fullmatch(w["word"].lower()) and re.search(r"[A-Za-z]", out[-1]["word"]):
             prev = out[-1]
             base = re.sub(r"[.,?!…:;]+$", "", prev["word"])
-            out[-1] = dict(prev, word=names.get(base.lower(), base) + w["word"], end=w["end"],
+            name = names.get(base.lower(), base)
+            art = w["word"] if name not in cfg.get("brand", ()) else re.sub(r"^" + ARTICLE_CORE, "", w["word"], flags=re.IGNORECASE)
+            out[-1] = dict(prev, word=name + art, end=w["end"],
                            p=min(prev.get("p", 1.0), w.get("p", 1.0)))
         else:
             out.append(w)

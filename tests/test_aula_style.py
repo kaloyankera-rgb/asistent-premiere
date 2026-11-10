@@ -61,6 +61,18 @@ def test_tech_words_are_suggested():
     assert 0 in picked and all(b - a >= 2 for a, b in zip(picked, picked[1:]))
 
 
-def test_other_styles_do_not_join_articles():
-    # the rule is AULA's (ReShape and the other clients' output stays as it was)
-    assert "IPHONE-А" not in text_of("Свържи iPhone -а и", "beautysector")
+def test_every_client_style_joins_articles_but_not_reshape():
+    # the user, 2026-11-10: the other client styles too (0.10.23); ReShape, short and standard stay as they were
+    for preset in ("gstroy", "credissimo", "ekopak", "beautysector"):
+        assert "IPHONE-А" in text_of("Свържи iPhone -а и", preset), preset
+    for preset in ("reshape", "short", "standard"):
+        assert "iPhone-а" not in text_of("Свържи iPhone -а и", preset), preset
+
+
+def test_a_name_keeps_its_own_writing_with_an_article():
+    # the client's own brand takes no article (the user, 2026-11-10: "Its not GStroy-A its GStroy")
+    assert text_of("при G -Stroy -а сме", "gstroy").replace(" | ", " ") == "ПРИ GStroy СМЕ"
+    assert "CREDISSIMO" in text_of("от Credissimo -то идва", "credissimo")
+    assert "CREDISSIMO-" not in text_of("от Credissimo -то идва", "credissimo")
+    assert "AULA.BG" in text_of("последвай AulaBG -то") and "AULA.BG-" not in text_of("последвай AulaBG -то")
+    assert "SANDBOX-А" in text_of("отвори Sunbox -а и")

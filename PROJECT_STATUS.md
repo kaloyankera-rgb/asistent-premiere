@@ -1,4 +1,7 @@
-# Project status — Asistent 0.10.22 (2026-11-10, branch improvements/2026-11)
+# Project status — Asistent 0.10.23 (2026-11-10, branch improvements/2026-11)
+
+0.10.23 (2026-11-10, installed, NOT tried in Premiere): every client style joins the article to an English name (IPHONE-А);
+the client's own brand takes none (GStroy, CREDISSIMO); ReShape, short and standard unchanged.
 
 0.10.22 (2026-11-10, NOT installed, NOT tried in Premiere): Subtitle Style "AULA" (docs/SUBTITLE_STYLES/AULA.md): green
 keywords, English names in Latin capitals with the article joined (IPHONE-А), AULA.BG. Five client styles from one Submagic
