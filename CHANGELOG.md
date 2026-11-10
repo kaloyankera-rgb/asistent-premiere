@@ -31,6 +31,20 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.18 - Subtitle Style "GStroy", measured on the client's exported videos (the user's request 2026-11-10)
+- Captions > Style > **GStroy**: the client's own subtitles, measured on 9 of its exported videos (395 chunks; Apple Vision text
+  recognition at 8 frames a second, Asistent's Whisper for the speech times): 1-3 words in CAPITALS, no punctuation; a chunk over
+  12 characters is stacked on two lines with its last word alone underneath ("ПРИ / ТРАДИЦИОННАТА"; never a little word alone
+  below, a number keeps its unit); the usual 0.03 s lead (their chunks appear with the word, not 0.18 s ahead like ReShape's).
+  On the editors' own speech: 2.22 words a chunk (theirs 2.21), 43 % two-line (theirs 40 %), 57 % of their break points.
+- Green keyword suggestions: about one chunk in three, its last word (the editors' green word is the last word in 80 of 86
+  cases); agrees with their picks on 43 % (they choose by meaning), so the result box lists them for the editor to colour and
+  change; the JSON has `accent` per line. Look for the Track Style (Montserrat Black 52 px, white, green #94D000, an even dark
+  glow, centre at 50 %) in `docs/SUBTITLE_STYLES/GSTROY.md`. Colour findings from the same videos (skin ends at 0.46-0.49, not
+  0.62) in `docs/CLIENT_COLOR/GSTROY.md`, nothing in the Colour tab changed.
+- New keys `stack`, `upper`, `accent` used only by this preset; ReShape's output is unchanged (baseline test byte-identical,
+  golden full-job check identical).
+
 ## 0.10.17 - The panel's settings survive updates (found while testing Move off faces)
 - **Every update erased the panel's own settings.** They lived in UXP localStorage, which Adobe's installer deletes with the panel,
   and every update removes the old panel (0.10.10's fix for the stale panel; before 0.10.6 the installer removed it too): the

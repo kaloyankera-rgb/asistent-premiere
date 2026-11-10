@@ -114,3 +114,13 @@ test("switched-off or muted audio is not recognised, and a side copy says which 
   assert.deepStrictEqual(p.skipped, ["off (switched off or on a muted track: not used)"]);
   assert.deepStrictEqual(p.use.map((x) => x.side || null), ["L", null]);
 });
+
+test("describeResult: a client style's suggested green keywords are listed with their times", () => {
+  const caps = [{ start: 2.9, end: 4, text: "ОЩЕ В\nПРОФИЛИТЕ", flags: [], accent: "ПРОФИЛИТЕ" }, { start: 4, end: 5, text: "РЕЛСА", flags: [] }];
+  const r = describeResult({ counts: { captions: 2, words: 4, flagged: 0 }, preset: "gstroy", fps: 29.97, cached: true, captions: caps, srt: "/x.srt" });
+  const all = r.lines.map((l) => l.text).join("\n");
+  assert.match(all, /style GStroy/);
+  assert.match(all, /Green keywords suggested on 1 of 2 lines .*: 0:02\.9 ПРОФИЛИТЕ\./);
+  const plain = describeResult({ counts: { captions: 1, words: 1, flagged: 0 }, preset: "short", fps: 25, cached: true, captions: [caps[1]], srt: "/x.srt" });
+  assert.doesNotMatch(plain.lines.map((l) => l.text).join("\n"), /Green keywords/);
+});

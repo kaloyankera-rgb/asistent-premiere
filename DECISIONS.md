@@ -1,5 +1,15 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-10: client subtitle styles are presets measured on the client's exports; GStroy touches protected files (0.10.18)
+The user asked for a GStroy subtitle profile from its finished videos and the same for every client later. A client style is a
+preset in `subtitles.PRESETS` (like ReShape), measured, not guessed: line lengths, breaks, timing, case and position from text
+recognition on the exports and Asistent's own word times. GStroy needs three things no preset had: capitals (`upper`), a
+stacked layout with the last word alone underneath (`stack`) and suggested keywords (`accent`). They are new optional keys
+read only when a preset has them, added to the protected `subtitles.py` and `PRESET_NAMES` in `subtitle_job.py`; ReShape's
+baseline test stays byte-identical and the golden full-job check identical. Keywords are only suggested (listed, `accent` in
+the JSON): the editors pick them by meaning and no length rule matched better than 43 %. The look (font, colour, shadow) stays
+the editor's Track Style, as no script can style captions.
+
 ## 2026-11-08: ▶ plays in Premiere, not in a player of Asistent's own (0.10.11)
 The user heard the line twice (Asistent's afplay beside the timeline) and wanted it in the Program Monitor. QE's sequence player is
 the only playback control a script has in 26.0.2, so the host plays and stops it; the stop happens only while the playhead is still
