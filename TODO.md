@@ -19,6 +19,23 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
   the GPU (built in experiments, 7.3x, one invented line seen). Greedy decoding measured: 20 % faster, worse words, not used.
 - [ ] **Rough cut "a bit inaccurate"** (the user): needs one example (where: cut too much, too little, wrong take, mid-word).
 
+## CP. Cockpit plan (`../COCKPIT_PLAN.md`, the user's go 2026-11-10: commit, then Phase 0, the rest here)
+Additive only: new files and pages, the existing tabs, sync, Fix audio, colour, subtitles, rough cut, import, updater frozen;
+each feature on its own branch off `improvements/2026-11`, baseline test numbers before and the same plus new after, a
+regression list in NEW TEST, a row in docs/ROLLBACK.md. Decisions taken in this session's advice (to confirm): tracker faces
+first; brand profiles deferred.
+- [ ] **Phase 0 probes** (NEW TEST, report in `docs/probes/cockpit-phase0.md`): P-A1 keyframe interpolation from UXP;
+  P-A2 position units and time base of `createKeyframe` on trimmed / sped-up clips; P-A3 non-Lumetri effects from UXP
+  (Fill, Transform, Pitch Shifter: match names, parameters, colour type); P-A4 Premiere mask tracking readable by script;
+  P-A5 exporting a selection as a project vs a recipe; P-A6 pointer events on inline SVG and a positioned image in the
+  panel; P-A7 tracker classes in OpenCV 5.0.0.93.
+- [ ] **A1 Keyframer**: `keyframeplan.js` (pure: bezier sampling, time mapping) + `premiere-keyframes.js`; a new panel page
+  with the curve editor, presets, ticked properties, Apply / Undo; native interpolation if P-A1, else baked per frame.
+- [ ] **A2 Stash v1** (animations as data in the engine folder, applied at the playhead), then v2 clips (if P-A5).
+- [ ] **A3 Tracker**: faces first (YuNet, reframing 9:16), then a placed target (OpenCV), confidence strip, smoothed and
+  thinned Position keys in one Undo step, never over the editor's keyframes.
+- [ ] **A4 Brand profiles**: deferred (text colour cannot be set by script); a new `brand.py` if taken up.
+
 ## EL. Learning from the other editors (the user, 2026-11-10: "add this to the to do list")
 Goal: Asistent learns from what the editors actually do (fixes, colour, sound, cuts), per client, and Claude turns the patterns
 into better presets. Read only: never change an editor's work (the "never touch a hand grade" rule). Stored on the office server
