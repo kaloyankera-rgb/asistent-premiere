@@ -244,3 +244,4 @@
 - 2026-11-09: user: 0.10.14 works on one shot; wants two POVs / scene changes. 0.10.15: lines split at cuts (cover), keyframes at the cut, own keyframes rewritable.
 - 2026-11-09: user's 2-POV test (panel still 0.10.14): two shots found (POV switched by disabled V3 pieces), wide profile shot 'no face' -> middle; lines looked unmoved because both heights ~0.43. 0.10.16: per-shot lines in the result and log.
 - 2026-11-09: Move off faces said 'moved by hand' for its own lines: the UXP storage folder was recreated empty at each install (removing the panel deletes it). 0.10.17: panel settings in <app>/panel_store.json (panelstore.py, store.js), one-time copy from localStorage.
+- 2026-11-09: user: rough cut of a 10-min video very slow and not good; log: Whisper CPU recognition, cancelled after 326 s; cutting itself seconds. Recorded in TODO with options. User asked about labels (I7): planned, probes first.
