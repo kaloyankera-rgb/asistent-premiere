@@ -1,4 +1,7 @@
-# Project status — Asistent 0.10.29 (2026-11-10, branch improvements/2026-11)
+# Project status — Asistent 0.10.31 (2026-11-10, branch improvements/2026-11)
+
+0.10.31 (2026-11-10, installed): same panel and engine as 0.10.29 (the Cockpit Phase 0 probe of 0.10.30 removed). Phase 0
+report: docs/probes/cockpit-phase0.md. Next in TODO CP: A1 Keyframer.
 
 0.10.26-0.10.29 (2026-11-10, installed on this Mac, Premiere 26.5.2): S-Log3 under a LUT adjustment layer. VERIFIED by the user
 in the Pulse project (IVO7V9795): the LUT-only layer is looked through, the timeline is judged converted, exposure applied by

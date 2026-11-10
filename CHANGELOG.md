@@ -31,6 +31,10 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.31 - Cockpit Phase 0 done: the temporary probe is removed
+- 0.10.30 carried a temporary panel module (`probe-cockpit.js`, test bridge only) for the Phase 0 probes
+  (`docs/probes/cockpit-phase0.md`). It is removed again: the panel is the same as 0.10.29 apart from the version.
+
 ## 0.10.29 - An exposure that went past the target is scaled back once (Pulse, S-Log3 under a LUT)
 - In Premiere 26.5.2 (Pulse Fitness IVO7V9795 under its LC-709 LUT layer) +2.15 landed 0.7 stops over the target: Lumetri
   Exposure on the log signal, under the LUT, moves more than on Rec.709. When the after-check finds the brightness more than
