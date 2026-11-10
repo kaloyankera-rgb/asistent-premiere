@@ -6,6 +6,8 @@
 const K = require("./keyframeplan.js");
 const KF = require("./premiere-keyframes.js");
 const store = require("./store.js");
+const ST = require("./premiere-stash.js");
+const engine = require("./engine.js");
 
 const SIZE = 200;
 const PAD = 50;                         // room above and below for Overshoot (y from -0.5 to 1.5 is visible)
@@ -72,6 +74,80 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   root.appendChild(actions);
   const status = el("div", "kf-status");
   root.appendChild(status);
+
+  // Stash v1 (0.10.37): the ticked properties' animation saved as data, applied to any clip at the playhead
+  root.appendChild(el("div", "title spaced", "Stash"));
+  root.appendChild(el("p", "desc", "Save the ticked properties' animation, then put it on any clip: select the clip, park the " +
+    "playhead where it should start, press the stash. Same timing and easing; kept on this computer for every project."));
+  const stashTop = el("div", "row buttons");
+  root.appendChild(stashTop);
+  const profileRow = el("div", "row options");
+  const profileLabel = el("label", "muted kf-wide", "Show");
+  profileLabel.setAttribute("for", "kfProfile");
+  const profile = document.createElement("select");
+  profile.id = "kfProfile";
+  profileRow.appendChild(profileLabel);
+  profileRow.appendChild(profile);
+  root.appendChild(profileRow);
+  const stashList = el("div", "kf-stash");
+  root.appendChild(stashList);
+  const stashFoot = el("div", "muted");
+  root.appendChild(stashFoot);
+  const PROFILE = "asistent.stash.profile";
+  let armed = null;                                          // the stash whose × was pressed once (a second press deletes)
+
+  async function fillStash() {
+    let r;
+    try {
+      r = await engine.stashList();
+    } catch (e) {
+      stashFoot.textContent = "The stash needs the engine.";
+      return;
+    }
+    const clients = [...new Set(r.items.map((i) => i.client).filter(Boolean))].sort();
+    const want = store.getItem(PROFILE) || "";
+    profile.innerHTML = "";
+    for (const [v, t] of [["", "All clients"], ...clients.map((c) => [c, c])]) {
+      const o = document.createElement("option");
+      o.value = v;
+      o.textContent = t;
+      profile.appendChild(o);
+    }
+    profile.value = clients.includes(want) ? want : "";
+    stashList.innerHTML = "";
+    const shown = r.items.filter((i) => !profile.value || i.client === profile.value);
+    for (const it of shown) {
+      const row = el("div", "row kf-stash-row");
+      const b = button("small", it.name, `Puts this animation on the selected clip from the playhead (${(it.props || []).join(", ")}; ${Number(it.span || 0).toFixed(2)} s). One Undo step.`,
+        () => guarded(async () => {
+          const s = await engine.stashGet(it.id);
+          const project = await premiere.activeProject();
+          const res = await ST.apply(project, s);
+          say([res.written ? `Done: ${it.name} on ${res.clip}, ${res.written} keyframes. Cmd/Ctrl+Z takes it back.` : `${it.name}: nothing written.`, ...res.lines], res.written ? "line" : "warn");
+          if (state.sel) await read(true);
+        }));
+      const del = button("link", armed === it.id ? "Delete?" : "×", "Deletes this stash from this computer (press twice).", async () => {
+        if (armed !== it.id) {
+          armed = it.id;
+          return fillStash();
+        }
+        armed = null;
+        await engine.stashDelete(it.id).catch(() => null);
+        say(`Deleted ${it.name}.`);
+        fillStash();
+      });
+      row.appendChild(b);
+      row.appendChild(del);
+      stashList.appendChild(row);
+    }
+    if (!r.items.length) stashList.appendChild(el("div", "muted", "No stash yet: read a clip, tick its moving properties, press Save animation."));
+    stashFoot.textContent = r.items.length ? `${r.items.length} saved · ${Math.max(1, Math.round(r.bytes / 1024))} KB on disk` : "";
+    bindTips(root);
+  }
+  profile.addEventListener("change", () => {
+    store.setItem(PROFILE, profile.value);
+    fillStash();
+  });
 
   const svg = box.querySelector("#kfSvg");
   const X = (x) => PAD + x * (SIZE - 2 * PAD);
@@ -301,7 +377,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
 
   function setBusy(b) {
     state.busy = b;
-    for (const x of [...top.children, ...actions.children]) enable(x, !b);
+    for (const x of [...top.children, ...actions.children, ...stashTop.children]) enable(x, !b);
   }
 
   async function read(keepTicks) {
@@ -346,6 +422,16 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     say([`Done: ${res.written} keyframes added. Cmd/Ctrl+Z takes it back.`, ...res.lines, ...skipped]);
   })));
 
+  stashTop.appendChild(button("secondary", "Save animation", "Saves the ticked properties of the read clip (their keyframes and easing, every frame) as a stash.", () => guarded(async () => {
+    if (!state.sel) return say("Read a clip first, then tick the properties to save.", "warn");
+    const { project, sel } = await read(true);
+    const s = await ST.capture(sel, state.ticked);
+    if (s.error) return say(s.error, "warn");
+    const r = await engine.stashSave(s, project.path);
+    say(`Saved as ${r.name}${r.client ? ` (${r.client})` : ""}.`);
+    await fillStash();
+  })));
+
   actions.appendChild(button("secondary", "Undo last", "Takes out the keyframes Asistent's last curve added on this clip (only those still where it put them).", () => guarded(async () => {
     const { project, sel } = await read(true);
     const res = await KF.undo(project, sel);
@@ -356,6 +442,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   fillMotion();
   fillPresets();
   draw();
+  fillStash();
 }
 
 module.exports = { mount };

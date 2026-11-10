@@ -31,6 +31,24 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.37 - Stash v1: save an animation, put it on another clip at the playhead (Cockpit plan A2)
+- Keyframer page, new Stash section: Save animation (the ticked properties of the read clip), a list of saved stashes with a
+  client filter ("Show"), each one a button that writes it on the selected clip from the playhead in one Undo step; × twice
+  deletes. Footer: how many and how much disk.
+- The easing is kept exactly: the value at every frame between the first and the last key is stored and written back like a
+  Keyframer bake (the editor's keys as keys, the frames between as Asistent's), so Undo last and a new curve work on an
+  applied stash. Keys the Keyframer baked on the source count as easing, not as the editor's keys. Another frame rate is
+  resampled. `stashplan.js` (pure, 5 node tests), `premiere-stash.js`.
+- Never over the editor's work: a property whose time on the target already holds a key of its own is not written; an effect
+  the target lacks is not added (listed); keys past the clip's end are cut; the playhead must be over the clip.
+- Stored as data in `<app>/stash/<id>.json` with the client of the project it came from (`stash.py`, endpoints
+  /stash/list|get|save|delete|rename, 3 pytest), so it works in every project and survives panel updates. No thumbnail yet.
+- `premiere-keyframes.js`: properties carry their effect's match name and parameter name; `remember()` for keys written
+  outside a Keyframer press.
+- Verified through the bridge on NEW TEST (ROUGH v3): fx31028 Position 0.3 -> 0.7 with Ease In-Out saved, put on C0728 from
+  35.00 s: 2 + 29 keys with the same values from media 2.734 s; Undo last left the 2 keys; a second press over those keys
+  wrote nothing; playhead outside the clip refused. Both clips put back, the test stash deleted.
+
 ## 0.10.36 - Colour learning at export: the editors' Lumetri next to Auto color, per client and camera (TODO EL1)
 - When Premiere says an export ended (the Export tab's EXPORT_MEDIA_COMPLETE; once per 20 s), the panel reads the open
   sequence's picture clips (up to 150): the five Basic values, whether the Lumetri is still Asistent's own, keyframes, Input
