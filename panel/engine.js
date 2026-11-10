@@ -122,6 +122,15 @@ function startSubtitles(payload) {
   return call("POST", "/subtitles", payload);
 }
 
+// colour learning at export (0.10.36): queued in the engine, read only
+function colorLearnRecord(project, sequence, clips) {
+  return call("POST", "/colorlearn/record", { project, sequence, clips });
+}
+
+function colorLearnReport(project) {
+  return call("GET", `/colorlearn/report?project=${encodeURIComponent(project)}`);
+}
+
 // pre-export check (0.10.35): each audio clip's peak in its range, read only
 function startExportPeaks(items) {
   return call("POST", "/export/peaks", { items });
@@ -240,4 +249,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, colorLearnRecord, colorLearnReport, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };

@@ -43,15 +43,13 @@ Goal: Asistent learns from what the editors actually do (fixes, colour, sound, c
 into better presets. Read only: never change an editor's work (the "never touch a hand grade" rule). Stored on the office server
 next to the existing "<Client> Subtitle Learning" folders, never in the cloud. Each rule change is a visible version the user can
 undo, never a silent change. Start with EL1.
-- [ ] **EL0. Learning folders for every client.** Subtitle fixes are already learned (0.9.95-0.9.96, `learning.py`), but only
-  ReShape has a "<Client> Subtitle Learning" folder. Ask the user before creating them for GStroy, Credissimo, ЕКОПАК, Beauty
-  Sector and AULA (and new clients).
-- [ ] **EL1. Colour learning at export (first).** On each export (`exports.py` already sees them): record per clip the final
-  Lumetri (Exposure, Temperature, Tint, Contrast, Saturation, Input LUT / Look) next to what Asistent would suggest for the same
-  clip, with client, camera and picture profile. Report: per client and camera, the editors' typical difference from Asistent
-  (e.g. "0.3 stop darker, warmer"); after a few weeks it becomes that client's colour target (TODO S per-client targets). Probe
-  first: reading a hand-set Lumetri on every clip at export is fast enough; grading on an adjustment layer (Pulse Fitness КП-5)
-  is read too.
+- [ ] **EL0. Learning folders for every client.** WAITING FOR THE USER'S YES (asked 2026-11-10): create "<Client> Learning"
+  (or extend "<Client> Subtitle Learning") on the office server for GStroy, Credissimo, ЕКОПАК, Beauty Sector, AULA (and new
+  clients). Then colorlearn.py writes `color/<computer>.jsonl` there as learning.py does (outbox when the server is away), and
+  the local `<app>/learning/color/*.jsonl` is copied in once.
+- [x] **EL1. Colour learning at export** (0.10.36, local records; verified through the bridge). USER: export a graded client
+  video from the Export tab, then Color > What the editors did. Later: the report as each client's colour target (TODO S);
+  Auto color's suggestion is the file analysis, not the value the frame check finally kept.
 - [ ] **EL2. Subtitle learning, wider.** Besides word fixes: lines the editors re-split, merged or moved (teaches each client
   style its breaks), and which words they colour (teaches the keyword suggestions; Premiere 26.0.2 cannot read a caption's word
   colour from a script (docs/NATIVE_GRAPHICS.md): probe again in 26.5 / 27 before promising it).
