@@ -1,5 +1,10 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.37 (2026-11-11, installed): Stash v1 on the Keyframer page (Cockpit A2): save the ticked properties' animation, apply
+at the playhead with the same easing, client filter. VERIFIED through the bridge on NEW TEST (exact values, Undo last,
+overwrite guard, playhead check). NOT yet: a thumbnail, rename in the panel, tried by the user. Tests: 700 pytest + 24
+skipped, node 236.
+
 0.10.36 (2026-11-10, installed): Colour learning at export (TODO EL1): local records per client and camera, the "What the
 editors did" report in the Color card. VERIFIED through the bridge on NEW TEST (own vs hand Lumetri, cameras from sidecars,
 report). NOT verified: a real export from the Export tab starting it (the event itself is seen in the log since 0.10.7).

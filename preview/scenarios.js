@@ -91,6 +91,12 @@ window.PREVIEW_SCENARIOS = (function () {
     keyframer: { run: (api) => api.openTab("paneKeyframer") },
     // 0.10.33: Elastic with Ping-pong until the clip ends, and Bounce at both ends (clicks the page's own buttons)
     "keyframer-elastic": { run: (api) => { api.openTab("paneKeyframer"); kfPress(["Elastic", "Ping-pong"]); } },
+    "keyframer-stash": {
+      engine: { stash: { bytes: 41000, items: [
+        { id: "a1", name: "C0738 · Position, Scale", client: "GStroy", span: 1.5, props: ["Motion › Position", "Motion › Scale"] },
+        { id: "a2", name: "Logo slide in", client: "ReShape", span: 0.8, props: ["Motion › Position"] }] } },
+      run: (api) => { api.openTab("paneKeyframer"); setTimeout(() => { const e = document.getElementById("kfProfile"); if (e) e.scrollIntoView(); }, 80); },
+    },
     "keyframer-bounce": { run: (api) => { api.openTab("paneKeyframer"); kfPress(["Bounce", "Both", "Loop", "+"]); } },
     review: {
       engine: { review: {

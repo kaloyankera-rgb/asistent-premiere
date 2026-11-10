@@ -53,7 +53,8 @@ async function readSelection(project) {
   const props = [];
   for (let c = 0; c < n; c++) {
     const comp = await chain.getComponentAtIndex(c);
-    const compName = (await maybe(comp, "getDisplayName")) || (await maybe(comp, "getMatchName")) || "Effect";
+    const compMatch = (await maybe(comp, "getMatchName")) || "";
+    const compName = (await maybe(comp, "getDisplayName")) || compMatch || "Effect";
     const count = await comp.getParamCount();
     for (let i = 0; i < count; i++) {
       const param = await comp.getParam(i);
@@ -70,7 +71,7 @@ async function readSelection(project) {
         debug(`keyframer: ${compName} › ${param.displayName}: values of this kind are not shaped`);
         continue;
       }
-      props.push({ id, param, label: `${compName} › ${param.displayName}`, keys, earlier: rec[id] || null });
+      props.push({ id, param, label: `${compName} › ${param.displayName}`, keys, earlier: rec[id] || null, comp: compMatch, paramName: param.displayName });
     }
   }
   return { clip, timeline, step, props, others: picked.length - 1 };
@@ -121,6 +122,15 @@ async function apply(project, sel, planned) {
   return { written, lines };
 }
 
+/** Remembers keys Asistent wrote on a clip outside a Keyframer press (a stash, 0.10.37), so Undo last and a new curve treat
+ * them as Asistent's: entries {id: {anchors: [t], added: [t], label}} */
+function remember(clip, entries) {
+  const all = records();
+  const key = clipKey(clip);
+  all[key] = { ...(all[key] || {}), ...entries };
+  saveRecords(all);
+}
+
 /** Takes out the keys the last bake added on this clip (only those still where Asistent put them), one Undo step. */
 async function undo(project, sel) {
   const key = clipKey(sel.clip);
@@ -146,4 +156,4 @@ async function undo(project, sel) {
   return { removed: jobs.reduce((n, j) => n + j.there.length, 0) };
 }
 
-module.exports = { readSelection, apply, undo, clipKey, plain };
+module.exports = { readSelection, apply, undo, clipKey, plain, remember };
