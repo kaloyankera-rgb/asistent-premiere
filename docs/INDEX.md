@@ -13,6 +13,7 @@ Read in this order when continuing the project (the first four are the whole han
 | 7 | [../README.md](../README.md) | User guide (Bulgarian): install and every button. |
 | 8 | [../COLOR_CORRECTION_PLAN.md](../COLOR_CORRECTION_PLAN.md) | Colour engine plan; spec package in [color-spec/](color-spec/00_START_HERE.md). |
 | 9 | [SUBTITLES_PLAN.md](SUBTITLES_PLAN.md) | Phase 7 (Bulgarian subtitles) plan and milestones M0-M5. |
+| 9e | [SUBTITLE_STYLES/AULA.md](SUBTITLE_STYLES/AULA.md) | AULA's style (preset `aula`, English names joined with the article), colour in [CLIENT_COLOR/AULA.md](CLIENT_COLOR/AULA.md). |
 | 9d | [SUBTITLE_STYLES/BEAUTY_SECTOR.md](SUBTITLE_STYLES/BEAUTY_SECTOR.md) | Beauty Sector's style (preset `beautysector`), colour in [CLIENT_COLOR/BEAUTY_SECTOR.md](CLIENT_COLOR/BEAUTY_SECTOR.md). |
 | 9c | [SUBTITLE_STYLES/EKOPAK.md](SUBTITLE_STYLES/EKOPAK.md) | ЕКОПАК's style (preset `ekopak`), colour in [CLIENT_COLOR/EKOPAK.md](CLIENT_COLOR/EKOPAK.md); what the three clients share: the vault's `editing/client-styles.md`. |
 | 9b | [SUBTITLE_STYLES/CREDISSIMO.md](SUBTITLE_STYLES/CREDISSIMO.md) | Credissimo's style (preset `credissimo`), colour in [CLIENT_COLOR/CREDISSIMO.md](CLIENT_COLOR/CREDISSIMO.md); measured with `scripts/measure_style.py`. |

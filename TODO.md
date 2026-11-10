@@ -184,6 +184,8 @@ UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips
   #18CC6E). Its keyword word list was made from the same videos: check the suggestions on new ones.
 - [ ] Beauty Sector (0.10.21, `beautysector`, docs/SUBTITLE_STYLES/BEAUTY_SECTOR.md): USER: try in NEW TEST; Track Style (keyword
   #D45E58); check "Aesthetic Dental Clinic" (left as Whisper writes it; the exports also show VANDEV CLINIC).
+- [ ] AULA (0.10.22, `aula`, docs/SUBTITLE_STYLES/AULA.md): USER: try in NEW TEST; Track Style (keyword #37D977; two heights:
+  about 45 % filmed, 65 % screen recordings). Whether the other clients' styles should also join „-а“ to an English name.
 - [ ] Next clients: `scripts/measure_style.py frames|chunks|asr|timing|compare|colour|pace` (font and shadow still by hand);
   add each to the vault's `editing/client-styles.md` and `clients/<client>/`.
 

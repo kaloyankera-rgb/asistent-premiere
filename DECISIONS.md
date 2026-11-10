@@ -1,5 +1,11 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-10: AULA's article joining is AULA's only (0.10.22)
+AULA's editors write an English name with its Bulgarian article joined („IPHONE-А“); Whisper gives „iPhone -а“ as two words, so
+the other styles can show „IPHONE -А“ or even put „-А“ in the next chunk. The joining is a preset key (`join_articles`), on for
+AULA only: ReShape, short, standard and the other clients stay byte-identical; whether the others want it is the user's call.
+Only after a word with Latin letters, so a Bulgarian word is never glued.
+
 ## 2026-11-10: names may span words and keep their own case; no lone letters or dashes in the client styles (0.10.21)
 The user wants GStroy written GStroy even in a capitals style, and Whisper gives it as two words („G -Stroy“), as it does
 „Бюти Сектор“, „Double Gold“. So `names` keys may hold the split form (joined before grouping, the times from the first piece to

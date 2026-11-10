@@ -1,4 +1,8 @@
-# Project status — Asistent 0.10.21 (2026-11-10, branch improvements/2026-11)
+# Project status — Asistent 0.10.22 (2026-11-10, branch improvements/2026-11)
+
+0.10.22 (2026-11-10, NOT installed, NOT tried in Premiere): Subtitle Style "AULA" (docs/SUBTITLE_STYLES/AULA.md): green
+keywords, English names in Latin capitals with the article joined (IPHONE-А), AULA.BG. Five client styles from one Submagic
+template.
 
 0.10.21 (2026-11-10, NOT installed, NOT tried in Premiere): Subtitle Style "Beauty Sector" (docs/SUBTITLE_STYLES/BEAUTY_SECTOR.md,
 names in Latin capitals), GStroy written GStroy (two-word names joined), no lone dashes, no one-letter line. Four client styles

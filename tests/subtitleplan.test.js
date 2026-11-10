@@ -148,3 +148,11 @@ test("describeResult: Beauty Sector's suggested keywords are named coral", () =>
   assert.match(all, /style Beauty Sector/);
   assert.match(all, /Coral keywords suggested on 1 of 1 lines .*: 0:01\.0 КОЖА\./);
 });
+
+test("describeResult: AULA's suggested keywords are named green", () => {
+  const caps = [{ start: 1.0, end: 1.5, text: "НАСТРОЙКИ", flags: [], accent: "НАСТРОЙКИ" }];
+  const r = describeResult({ counts: { captions: 1, words: 1, flagged: 0 }, preset: "aula", fps: 29.97, cached: true, captions: caps, srt: "/x.srt" });
+  const all = r.lines.map((l) => l.text).join("\n");
+  assert.match(all, /style AULA/);
+  assert.match(all, /Green keywords suggested on 1 of 1 lines .*: 0:01\.0 НАСТРОЙКИ\./);
+});
