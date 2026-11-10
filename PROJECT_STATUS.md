@@ -1,5 +1,11 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.34 (2026-11-10, installed): Track names (TODO I7), Tools card: POV 1 / POV 2 by track order, POV n audio, Mic n,
+Subtitles BG / EN; editor names kept; optional camera label colours; Put names back; automatic after Sync and rough cut.
+VERIFIED through the bridge on NEW TEST (names, renumbering, colours and their restore, Put names back, auto after Sync and
+rough cut). NOT verified: one Cmd+Z (needs a person), caption tracks (NEW TEST's sequences have no Asistent caption record).
+Tests: 689 pytest + 24 skipped, node 223.
+
 0.10.33 (2026-11-10, installed): Keyframer Elastic / Bounce (at the end, start or both; bounces; overshoot or height) and
 Ping-pong / Loop after the last keyframe (times or until the clip ends). VERIFIED through the bridge on NEW TEST C0738 (Elastic,
 Ping-pong replacing it, Bounce + Loop replacing that, Undo last, Linear + repeat refused). NOT yet seen by the user on screen.
