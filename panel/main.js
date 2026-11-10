@@ -1633,7 +1633,8 @@ onTap($("audioMore"), () => {
 function applyRemembered() {
   try {
     $("subtitleEnglish").checked = store.getItem("asistent.subtitleEnglish") === "1";
-    $("subtitleStyle").value = store.getItem("asistent.subtitleStyle") === "reshape" ? "reshape" : "auto";
+    const style = store.getItem("asistent.subtitleStyle");
+    $("subtitleStyle").value = style === "reshape" || style === "gstroy" ? style : "auto";
   } catch (e) {
     /* no storage */
   }

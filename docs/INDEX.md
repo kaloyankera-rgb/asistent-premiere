@@ -13,6 +13,7 @@ Read in this order when continuing the project (the first four are the whole han
 | 7 | [../README.md](../README.md) | User guide (Bulgarian): install and every button. |
 | 8 | [../COLOR_CORRECTION_PLAN.md](../COLOR_CORRECTION_PLAN.md) | Colour engine plan; spec package in [color-spec/](color-spec/00_START_HERE.md). |
 | 9 | [SUBTITLES_PLAN.md](SUBTITLES_PLAN.md) | Phase 7 (Bulgarian subtitles) plan and milestones M0-M5. |
+| 9a | [SUBTITLE_STYLES/GSTROY.md](SUBTITLE_STYLES/GSTROY.md) | GStroy's subtitle style measured on its exports (preset `gstroy`); colour findings in [CLIENT_COLOR/GSTROY.md](CLIENT_COLOR/GSTROY.md). |
 | 9b | [ROUGHCUT_PLAN.md](ROUGHCUT_PLAN.md) | Phase 8 (AI Auto Rough Cut: Safe/Smart cut, repeated takes) research and plan, milestones M0-M6. Planning only, nothing built (2026-11-03). |
 | 9a | [BULGARIAN_TRANSCRIPTION_GUIDE.md](BULGARIAN_TRANSCRIPTION_GUIDE.md) | **Read before touching the subtitle pipeline.** Linguistic and engineering rules for Bulgarian speech-to-text (gender forms, verb forms, numbers, punctuation, alignment, grouping) and the documented SRT errors used as regression tests. |
 | 9c | [ROLLBACK.md](ROLLBACK.md) | The protected backup of 2026-11-08, the ReShape guard/baseline/golden checks, and per feature how to switch off, revert and restore. |

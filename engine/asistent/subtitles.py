@@ -47,6 +47,13 @@ PRESETS = {
     # characters is their longest line, so „Задържането на течности“ (23) stays one line
     "reshape": {"max_words": 3, "max_chars": 14, "soft_chars": 16, "lines": 1, "line_chars": 25,
                 "min_s": 0.4, "max_s": 2.5, "phrases": True, "lead": 0.18, "bare": True},
+    # the GStroy client's own style (docs/SUBTITLE_STYLES/GSTROY.md, measured on 9 of its exported videos, 395 lines):
+    # 1-3 words, CAPITALS, no punctuation; a chunk longer than 12 characters is stacked on two lines with its last word
+    # alone underneath (112 of 132 two-line chunks); every third chunk or so that last word is the green keyword;
+    # the chunk appears with its first word (Asistent's usual 0.03 s lead, measured median 0.03-0.04 s). line_chars is the
+    # whole chunk here: 18 gave the editors' own mean (2.21 words) and two-line share (41 %, theirs 40 %) on their speech
+    "gstroy": {"max_words": 3, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 18,
+               "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "accent": 6},
 }
 
 # NTSC rates arrive as 23.976 / 29.97 / 59.94; the sequence really runs at N*1000/1001.
@@ -194,6 +201,8 @@ def _text_len(words):
 def _lines(units, cfg):
     """The units of one caption -> lines (lists of words). Two lines are split where they come out most even."""
     flat = [w for u in units for w in u]
+    if cfg.get("stack"):
+        return _stacked(units, cfg)
     if cfg["lines"] == 1 or len(units) == 1 or _text_len(flat) <= cfg["line_chars"]:
         return [flat]
     best = None
@@ -206,6 +215,48 @@ def _lines(units, cfg):
         if best is None or score < best[0]:
             best = (score, [a, b])
     return best[1]
+
+
+def _stacked(units, cfg):
+    """A "stack" preset (GStroy): a chunk up to `stack` characters is one line; a longer one is two lines, the last unit (a
+    word, or a number with its unit: „48 волта“) alone underneath, the rest above it. Only when the top line would come out
+    longer than `line_chars` / 2 + 4 (a rare 4-word chunk) are the two lines split where they are most even instead."""
+    flat = [w for u in units for w in u]
+    if len(units) == 1 or _text_len(flat) <= cfg["stack"]:
+        return [flat]
+    cut = len(units) - 1
+    if _word_core(units[-1][-1]) in NON_FINAL:                 # „осветителят / се“: a little word never stands alone below
+        cut -= 1
+    if cut < 1:
+        return [flat]
+    top, bottom = [w for u in units[:cut] for w in u], [w for u in units[cut:] for w in u]
+    if _text_len(top) <= cfg["line_chars"] // 2 + 4:
+        return [top, bottom]
+    best = None
+    for k in range(1, len(units)):
+        a, b = [w for u in units[:k] for w in u], [w for u in units[k:] for w in u]
+        if best is None or abs(_text_len(a) - _text_len(b)) < best[0]:
+            best = (abs(_text_len(a) - _text_len(b)), [a, b])
+    return best[1]
+
+
+def _accents(groups, cfg):
+    """An "accent" preset (GStroy's green keyword): the indices of the chunks whose last word is suggested for the accent
+    colour. The client's editors choose it by meaning; measured on its videos, the green word is the chunk's last word in
+    80 of 86 one-word cases and the longest word in 74, on about every third chunk. Rule: a last word of at least
+    `accent` letters that is not a function word, at least as long as the previous chunk's last word and longer than the
+    next one's, and never two chunks in a row. It agrees with the editors on 43 % of its picks (chance: about 30 %): a
+    suggestion for the editor, who changes it in Premiere."""
+    last = [_word_core(g[-1][-1]) for g in groups]
+    out, prev = [], -2
+    for i, w in enumerate(last):
+        if len(w) < cfg["accent"] or w in NON_FINAL or i - prev < 2:
+            continue
+        if (i and len(last[i - 1]) > len(w)) or (i + 1 < len(last) and len(last[i + 1]) >= len(w)):
+            continue
+        out.append(i)
+        prev = i
+    return out
 
 
 def _fits(units, cfg):
@@ -382,8 +433,10 @@ BARE = re.compile(r"^[„“\"«(]+|[.,?!…:;\"»“”)]+$")
 
 
 def _shown(word, cfg):
-    """A word as the caption shows it: a "bare" preset drops the punctuation around it (inside stays: „360-градусово“, „1,5“)."""
-    return BARE.sub("", word) or word if cfg.get("bare") else word
+    """A word as the caption shows it: a "bare" preset drops the punctuation around it (inside stays: „360-градусово“, „1,5“);
+    an "upper" preset (GStroy) shows it in capitals."""
+    shown = BARE.sub("", word) or word if cfg.get("bare") else word
+    return shown.upper() if cfg.get("upper") else shown
 
 
 def build_captions(words, preset="short", fps=25.0, cuts=()):
@@ -427,6 +480,7 @@ def build_captions(words, preset="short", fps=25.0, cuts=()):
     for i in range(1, len(first)):
         first[i] = max(first[i], first[i - 1] + 1)
 
+    accents = set(_accents(groups, cfg)) if cfg.get("accent") else set()
     captions = []
     for i, g in enumerate(groups):
         flat = [w for u in g for w in u]
@@ -449,6 +503,8 @@ def build_captions(words, preset="short", fps=25.0, cuts=()):
             "words": [dict(w) for w in flat],
             "flags": [{"word": w["word"], "p": w["p"], "at": w["start"]} for w in flat if w["p"] < LOW_P],
         })
+        if i in accents:                                       # the suggested keyword, as shown (its last word)
+            captions[-1]["accent"] = _shown(flat[-1]["word"], cfg)
     return captions
 
 

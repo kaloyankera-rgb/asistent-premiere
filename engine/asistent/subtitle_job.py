@@ -39,7 +39,7 @@ SECOND_BEAM = 2            # a cheaper decode for the second opinion (beam 5 for
 SECOND_PAD = 2.0           # the second opinion on a doubtful piece: that piece alone with this much context
 MIN_OVERLAP = 0.4          # a word belongs to the piece when this much of it lies inside the piece
 EDGE = 0.05                # seconds: a word this close to a clip's edge and not clearly heard is a scrap the cut left
-PRESET_NAMES = ("auto", "short", "standard", "reshape")
+PRESET_NAMES = ("auto", "short", "standard", "reshape", "gstroy")
 MAX_CHECKS = 24            # learned fixes checked against the sound in one run (about 9 s each on the Mac's processor)
 
 
@@ -669,7 +669,8 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     result = {
         "srt": stem + ".srt", "json": stem + ".json", "preset": preset, "fps": subtitles.exact_fps(p["fps"]),
         "captions": [{"start": c["start"], "end": c["end"], "text": c["text"], "flags": c["flags"],
-                      **({"en": english[i]} if english else {})} for i, c in enumerate(captions)],
+                      **({"en": english[i]} if english else {}), **({"accent": c["accent"]} if "accent" in c else {})}
+                     for i, c in enumerate(captions)],
         "srt_en": stem + ".en.srt" if english else None, "english_note": english_note,
         "english_learned": dict(learned.plan.english_words) if learned else {},      # so the panel can take one back (0.10.6)
         "counts": {"captions": len(captions), "words": len(words), "flagged": flagged, "pieces": len(segments)},

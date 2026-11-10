@@ -166,6 +166,18 @@ UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips
 - [ ] The dictionary repair is wrong on medical words („масните“ -> „масоните“, „масната“ -> „месната“; the doctor says
   „мастните“): learned fixes cover it once an editor fixes it; a better repair needs more than the nearest dictionary word.
 
+## S. Client subtitle profiles (started 2026-11-10: GStroy first, then every client)
+- [ ] GStroy (0.10.18, `gstroy` preset, docs/SUBTITLE_STYLES/GSTROY.md): USER: install (needs OK), press Subtitles with Style
+  GStroy in NEW TEST on a GStroy recording, judge the chunks and the suggested green words; make the Track Style "GStroy"
+  (Montserrat Black 52, white, glow) once; install Montserrat Black (not shipped: only Bold is).
+- [ ] Probe in NEW TEST whether an SRT `<font color="#94D000">` tag survives Premiere's caption import (then the green words
+  could arrive coloured); otherwise the editor colours them by hand from the list.
+- [ ] Move off faces uses ReShape's chin rule; GStroy keeps a fixed height (centre 0.50): a per-style placement if it matters.
+- [ ] Colour: per-client targets (GStroy skin 0.48, mid 0.54, docs/CLIENT_COLOR/GSTROY.md) only with the user's decision; better:
+  pair graded clips with their originals to learn the actual moves.
+- [ ] Next clients: same measurement (scripts in the session were ad hoc: make `scripts/measure_style.py` from them when the
+  second client starts).
+
 ## R. Subtitles in the reference style (ReShape; started 2026-11-04, the user's current priority)
 Spec: `docs/SUBTITLE_STYLE.md` (two layers: Bulgarian chunks word by word in Montserrat Bold with a soft shadow at ~48 % height; English
 phrase line under it, Arial-like bold on a ~60 % maroon rounded box; 1-2 frame fade-in). User decisions so far: Premiere's own text

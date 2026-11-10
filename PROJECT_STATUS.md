@@ -1,4 +1,9 @@
-# Project status — Asistent 0.10.17 (2026-11-09, branch improvements/2026-11)
+# Project status — Asistent 0.10.18 (2026-11-10, branch improvements/2026-11)
+
+0.10.18 (2026-11-10, NOT installed, NOT tried in Premiere): Subtitle Style "GStroy" measured on the client's 9 exported videos
+(docs/SUBTITLE_STYLES/GSTROY.md): capitals, no punctuation, stacked two-line chunks with the last word underneath, green
+keywords suggested, usual 0.03 s lead; engine tests and ReShape checks green. The look (Montserrat Black, green #94D000, glow) is
+a Track Style the editor makes once. Colour findings from the same exports in docs/CLIENT_COLOR/GSTROY.md (proposal only).
 
 Branch `improvements/2026-11` (the user's implementation prompt of 2026-11-08, priorities 1-6; nothing installed or
 pushed yet): protected backup done and verified (tag `backup/pre-improvements-2026-11-08`, private backup, `docs/ROLLBACK.md`);

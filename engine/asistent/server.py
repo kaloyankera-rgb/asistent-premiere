@@ -12,7 +12,7 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /subtitles/translator/download   job: download the ~1.4 GB English translator (only from its panel button; also replaces
                                         the 600 MB one of 0.9.94-0.9.96)
   POST /subtitles            {"items": [{path, start, end, at, name}], "out_dir", "name", "fps", "width", "height",
-                              "preset"?: auto|short|standard|reshape, "terms"?: [...], "skipped"?: [...]} -> job: dialogue mix ->
+                              "preset"?: auto|short|standard|reshape|gstroy, "terms"?: [...], "skipped"?: [...]} -> job: dialogue mix ->
                               Whisper -> captions -> SRT + JSON in <out_dir>/Asistent_subtitles (nothing goes to Premiere)
   GET  /host/poll?wait=s     the Premiere host (CEP extension, ExtendScript): the next command; GET /host/status
   POST /host/result          {id, ok, data} from the host
