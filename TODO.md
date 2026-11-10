@@ -175,8 +175,12 @@ UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips
 - [ ] Move off faces uses ReShape's chin rule; GStroy keeps a fixed height (centre 0.50): a per-style placement if it matters.
 - [ ] Colour: per-client targets (GStroy skin 0.48, mid 0.54, docs/CLIENT_COLOR/GSTROY.md) only with the user's decision; better:
   pair graded clips with their originals to learn the actual moves.
-- [ ] Next clients: same measurement (scripts in the session were ad hoc: make `scripts/measure_style.py` from them when the
-  second client starts).
+- [ ] Credissimo (0.10.19, `credissimo` preset, docs/SUBTITLE_STYLES/CREDISSIMO.md): USER: try it in NEW TEST on a Credissimo
+  recording; Track Style "Credissimo" (as GStroy's, keyword #F84430); say whether the brand is written CREDISSIMO or КРЕДИСИМО
+  (the exports use both).
+- [ ] GStroy's two-line split: "most even" matches its editors as well as "last word alone" (87 % vs 85 %); keep unless the
+  user's test shows otherwise.
+- [ ] Next clients: `scripts/measure_style.py frames|chunks|asr|timing|compare|colour` (font and shadow still by hand).
 
 ## R. Subtitles in the reference style (ReShape; started 2026-11-04, the user's current priority)
 Spec: `docs/SUBTITLE_STYLE.md` (two layers: Bulgarian chunks word by word in Montserrat Bold with a soft shadow at ~48 % height; English

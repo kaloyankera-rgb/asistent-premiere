@@ -1,4 +1,8 @@
-# Project status — Asistent 0.10.18 (2026-11-10, branch improvements/2026-11)
+# Project status — Asistent 0.10.19 (2026-11-10, branch improvements/2026-11)
+
+0.10.19 (2026-11-10, NOT installed, NOT tried in Premiere): Subtitle Style "Credissimo" (docs/SUBTITLE_STYLES/CREDISSIMO.md): GStroy's
+look with even two-line cuts, up to 4 words, red keywords suggested (money words); `scripts/measure_style.py` for the next
+client. Colour findings in docs/CLIENT_COLOR/CREDISSIMO.md (proposal only).
 
 0.10.18 (2026-11-10, NOT installed, NOT tried in Premiere): Subtitle Style "GStroy" measured on the client's 9 exported videos
 (docs/SUBTITLE_STYLES/GSTROY.md): capitals, no punctuation, stacked two-line chunks with the last word underneath, green

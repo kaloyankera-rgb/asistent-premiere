@@ -31,6 +31,20 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.19 - Subtitle Style "Credissimo", and a script to measure the next client (the user's request 2026-11-10)
+- Captions > Style > **Credissimo**, measured on 9 of the client's exported videos (674 chunks): the same template as GStroy's
+  (Montserrat Black 52, capitals, no punctuation, the even dark glow, centre at 50 %, appears with the word), but longer chunks
+  (up to 4 words, 20 characters: 2.50 words a chunk against the editors' 2.52, 49 % two-line against 48 %) cut where the two
+  lines come out most even (90 % of the editors' two-line chunks; ties give the longer top line), and a **red** keyword
+  (#F84430) suggested on about one chunk in six: the last word if it is a money word („пари“, „бюджет“, „вноска“…) or a long
+  word standing out among its neighbours (agrees with the editors on 28 %, chance 16 %). The result box says "Red keywords".
+- Preset keys `split: "even"`, `accent_near`, `accent_words` (used only by Credissimo); GStroy, ReShape, short and standard give
+  byte-identical captions on the 7 GStroy recordings at 25/29.97/30 fps; ReShape baseline and golden check identical.
+- `scripts/measure_style.py`: the measurement as one dev script (frames + Mac text recognition, chunks and their statistics,
+  Whisper word times, timing, a preset against the editors' chunks, colour). Reads the share only; refuses a work folder inside
+  the repo. Re-run on Credissimo, it gave the same 674 chunks and numbers as the hand-run analysis.
+- Docs: `docs/SUBTITLE_STYLES/CREDISSIMO.md`, colour findings `docs/CLIENT_COLOR/CREDISSIMO.md` (a warm grade, faces 0.53).
+
 ## 0.10.18 - Subtitle Style "GStroy", measured on the client's exported videos (the user's request 2026-11-10)
 - Captions > Style > **GStroy**: the client's own subtitles, measured on 9 of its exported videos (395 chunks; Apple Vision text
   recognition at 8 frames a second, Asistent's Whisper for the speech times): 1-3 words in CAPITALS, no punctuation; a chunk over
