@@ -76,6 +76,7 @@ async function readItem(ti, kind, track, muted = false, hidden = false) {
   if (clip) {
     const type = await maybe(clip, "getContentType");
     const offline = await maybe(clip, "isOffline");
+    item.offline = !!offline;                                       // the pre-export check lists these (0.10.35)
     if ((type === undefined || type === Constants.ContentType.MEDIA) && !offline) {
       item.path = (await maybe(clip, "getMediaFilePath")) || null;
       item.clip = clip;
