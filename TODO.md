@@ -29,6 +29,9 @@ first; brand profiles deferred.
   Stash of clips likely via exportAsProject/importSequences, OpenCV MIL + optical flow, no scripted adjustment layer.
 - [x] P-A6 drag in the panel works (SVG and divs); the temporary probe code was removed in 0.10.31.
 - [ ] Phase 0 leftovers for the builds: P-A2 on a sped-up clip (Keyframer), P-A4 with a hand-drawn tracked mask (optional).
+- [ ] **A1b Keyframer bounce** (the user, 2026-11-10: "a bounce feature like the AE one, smooth bounce in, ping pong"): maths
+  done on branch feature/keyframer-bounce; next: page controls (Curves / Elastic / Bounce, Where, Bounces and strength
+  steppers, Repeat off / ping-pong / loop with times or until the clip ends), install, bridge test on NEW TEST, merge.
 - [x] **A1 Keyframer** (0.10.32, branch feature/keyframer; verified through the bridge). USER: drag the handles, try Overshoot
   on a real animation; check a sped-up clip. Later if wanted: rename / delete saved curves, several clips at once.
 - [ ] **A2 Stash v1** (animations as data in the engine folder, applied at the playhead), then v2 clips (if P-A5).
@@ -119,7 +122,7 @@ a row in docs/ROLLBACK.md, measured against Classic on the same inputs before it
   LUT / Look (params 6-7, 34-35, 128-129) accept a .cube path before promising automatic LUTs; else a labelled manual .cube export.
   camera-match only after reading its license and pinning a released version. OpenColorIO only if more cameras need it.
   Accept: fewer Shot Match retries or smaller ΔE on held-out pairs than Classic Shot Match, which stays.
-- **I7. Timeline identification.** Probe first: ExtendScript `Track.name` writable? (UXP `VideoTrack` has no rename; clips have
+- **I7. Timeline identification.** The user's answer 2026-11-10: camera tracks named **POV 1 / POV 2** (by track order). Probe first: ExtendScript `Track.name` writable? (UXP `VideoTrack` has no rename; clips have
   `createSetNameAction`; project items have `setColorLabel`, already used by Fix audio). Then optional "Camera A — FX3" / "Subtitles —
   Bulgarian" names and configurable camera label colours, remembered old values for undo, editor names kept by default, applied in
   Sync, Fix audio and rough cut. Accept: names/colours survive a Sync + rough cut rebuild in NEW TEST; one Undo restores them.
