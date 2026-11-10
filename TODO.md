@@ -27,8 +27,8 @@ first; brand profiles deferred.
 - [x] **Phase 0 probes** (2026-11-10, report `docs/probes/cockpit-phase0.md`): interpolation modes yes but no bezier handles
   (custom curves baked), keys in media time on trimmed clips, Tint + new Transform attach from UXP (colour = `ppro.Color`),
   Stash of clips likely via exportAsProject/importSequences, OpenCV MIL + optical flow, no scripted adjustment layer.
-- [ ] **Phase 0 leftovers:** P-A6 one real drag (`cockpit_probe pointer`), then remove `panel/probe-cockpit.js`, its bridge
-  hook and zip entry (installed in 0.10.30, not committed); P-A2 on a sped-up clip; P-A4 with a hand-drawn tracked mask.
+- [x] P-A6 drag in the panel works (SVG and divs); the temporary probe code was removed in 0.10.31.
+- [ ] Phase 0 leftovers for the builds: P-A2 on a sped-up clip (Keyframer), P-A4 with a hand-drawn tracked mask (optional).
 - [ ] **A1 Keyframer**: `keyframeplan.js` (pure: bezier sampling, time mapping) + `premiere-keyframes.js`; a new panel page
   with the curve editor, presets, ticked properties, Apply / Undo; native interpolation if P-A1, else baked per frame.
 - [ ] **A2 Stash v1** (animations as data in the engine folder, applied at the playhead), then v2 clips (if P-A5).
