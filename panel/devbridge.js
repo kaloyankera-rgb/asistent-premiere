@@ -121,10 +121,13 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     },
     // fill the corrections box the way a person would
     async fill(a) {
-      if (a.id !== "notes") throw new Error("fill: notes only.");
+      // the notes box, and (0.10.34) the Track names options, so a test can choose colours and the auto switch
+      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto"].includes(a.id)) throw new Error("fill: notes and the Track names options only.");
       const e = doc.getElementById(a.id);
-      e.value = String(a.value);
-      return { id: a.id, value: e.value };
+      if (a.id === "labelsAuto") e.checked = !!a.value;
+      else e.value = String(a.value);
+      if (a.id !== "notes") e.dispatchEvent(new Event("change"));
+      return { id: a.id, value: a.id === "labelsAuto" ? e.checked : e.value };
     },
     async click(a) {
       if (!a.now) await idle(120);                       // { now: true }: press while the panel is busy (Cancel during a job)

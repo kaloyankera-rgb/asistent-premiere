@@ -226,4 +226,5 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .kf-step { margin-top: 2px; }
 .kf-step .btn.small { margin-bottom: 0; }
 .kf-label { width: 72px; color: var(--text-2); }
+.options > label.kf-wide { width: 84px; }
 .kf-value { min-width: 34px; margin-right: 4px; text-align: center; }
