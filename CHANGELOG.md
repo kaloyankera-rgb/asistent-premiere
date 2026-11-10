@@ -31,6 +31,11 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## In progress (branch feature/keyframer-bounce, not installed) - Keyframer bounce, maths only
+- `keyframeplan.js`: Elastic (exactly n overshoots, the first one the % set, each later one smaller, no jerk), Bounce (a ball
+  dropped on the target: n hops, each a set height of the one before, never past it), each at the end, the start or both;
+  Ping-pong and Loop after the last keyframe (n times or until the clip ends). 12 node tests. The page does not offer them yet.
+
 ## 0.10.32 - Keyframer: shape the motion between keyframes with a curve (Cockpit plan A1)
 - A new page, Keyframer (the other tabs are unchanged): Read the selected clip lists its keyframed properties (numbers and
   positions, any effect) with their frame counts; tick them, pick a curve (Ease In-Out, Ease In, Ease Out, Cubic, Expo Out,

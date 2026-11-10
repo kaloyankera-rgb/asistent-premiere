@@ -1,5 +1,8 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+In progress (branch feature/keyframer-bounce, NOT installed): the Keyframer's Elastic / Bounce / Ping-pong / Loop maths is
+built and node-tested; the page controls for it are not written yet.
+
 0.10.32 (2026-11-10, installed): Keyframer page (Cockpit plan A1). VERIFIED in Premiere 26.5.2 through the bridge on NEW TEST
 C0738 (bake, replace, Undo last, Premiere ease). NOT yet tried: a sped-up clip, the handles dragged by hand, Overshoot on
 screen. Baseline kept: 689 pytest + 24 skipped, node 202 -> 208 (6 new), ReShape golden identical.
