@@ -11,7 +11,7 @@ const TEST_PROJECT = /(^|[\\/])(NEW )?TEST\.prproj$/i;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const SETTLE = 900;                                 // main.js ignores clicks for 700 ms after the panel changed
 
-function createBridge({ premiere, premiereColor, premiereAudio, doc, version, engineApi = engine, sleep = wait }) {
+function createBridge({ premiere, premiereColor, premiereAudio, doc, version, engineApi = engine, sleep = wait, hooks = {} }) {
   const $ = (id) => doc.getElementById(id);
   const text = (n) => ((n && n.textContent) || "").trim();
   const buttons = () => [...doc.querySelectorAll("button, .btn")].filter((b) => !b.hidden);        // .btn: the panel's own buttons (divs)
@@ -507,6 +507,11 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
         }
       }
       return { constants: consts, manager: !!manager, manager_methods: manager ? Object.getOwnPropertyNames(Object.getPrototypeOf(manager)) : [], attached };
+    },
+    // 0.10.36: what the panel does when Premiere says an export ended (an export started by a script fires no event)
+    async learn_export() {
+      if (!hooks.learnFromExport) throw new Error("no colour learning in this panel");
+      return hooks.learnFromExport(true);
     },
     async export_events(a) {
       const out = exportProbe.events.slice();
