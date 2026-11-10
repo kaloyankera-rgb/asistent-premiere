@@ -31,6 +31,18 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.32 - Keyframer: shape the motion between keyframes with a curve (Cockpit plan A1)
+- A new page, Keyframer (the other tabs are unchanged): Read the selected clip lists its keyframed properties (numbers and
+  positions, any effect) with their frame counts; tick them, pick a curve (Ease In-Out, Ease In, Ease Out, Cubic, Expo Out,
+  Overshoot, or drag the two handles; Save this curve keeps your own) and press Apply. A custom curve is baked as one keyframe
+  per frame between your keyframes, which stay as they are; Premiere's own Linear, Premiere ease and Hold only set your
+  keyframes' interpolation. One Undo step per press; Undo last takes out only what Asistent added; a second press replaces
+  Asistent's earlier curve instead of stacking on it. A sped-up clip gets one key per sequence frame; reversed clips are refused.
+- Verified in Premiere 26.5.2 by Claude through the bridge (NEW TEST, C0738, two Position keys 1 s apart at 29.97 fps): Ease
+  In-Out added 29 keys (0.300 -> 0.500 in the middle -> 0.700, symmetric), Expo Out replaced them (removed 29, added 29),
+  Undo last left the two keys, Premiere ease set Bezier with no keys added. C0738 restored afterwards. Not yet tried: a
+  sped-up clip, Overshoot on screen, dragging the handles by hand.
+
 ## 0.10.31 - Cockpit Phase 0 done: the temporary probe is removed
 - 0.10.30 carried a temporary panel module (`probe-cockpit.js`, test bridge only) for the Phase 0 probes
   (`docs/probes/cockpit-phase0.md`). It is removed again: the panel is the same as 0.10.29 apart from the version.
