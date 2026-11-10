@@ -31,6 +31,22 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.21 - Subtitle Style "Beauty Sector"; GStroy written GStroy (the user's answers 2026-11-10)
+- Captions > Style > **Beauty Sector**, measured on the client's 7 exported videos (350 chunks): the shared Submagic template
+  (Montserrat Heavy = Black, capitals, glow, with the word), up to 4 words / 18 characters (2.17 words against the editors' 2.19,
+  44 % two-line against 46 %, 65 % of their breaks), even cuts (96 % of the editors'), a coral keyword (#D45E58) suggested on
+  about one chunk in three (agrees 53 %, chance 35 %). Names in Latin capitals as the exports write them: BEAUTY SECTOR, DOUBLO
+  GOLD, HIFU (from Whisper's „HiFull“, „HIFO“, „High Flow“; „High Flow Lifting“ → HIFU ЛИФТИНГ), BODY SCULPT, SMAS, DOCTOR VANDEV.
+  The result box says "Coral keywords".
+- GStroy: the brand is **GStroy** even among the capitals (the user); Whisper's two words „G -Stroy“ are joined (preset `names`
+  now takes split forms, longest first, and a name keeps the client's own case). A lone „–“ is not shown in the client styles
+  (`drop_dashes`; 3 in 837 GStroy words). ЕКОПАК's name is written ЕКОПАК by the same rule.
+- Even two-line cuts never leave a one-letter word alone on a line („С DOUBLO GOLD“ stays one line); Credissimo and ЕКОПАК keep
+  their fit (2.50 / 2.25 words a chunk, 49 % / 40 % two-line).
+- Docs: `docs/SUBTITLE_STYLES/BEAUTY_SECTOR.md`, `docs/CLIENT_COLOR/BEAUTY_SECTOR.md` (the cleanest grade: faces 0.57, neutral);
+  the subtitles of all four clients are made in Submagic with Montserrat Heavy (the user); vault: `clients/Beauty Sector/`,
+  `editing/client-styles.md`.
+
 ## 0.10.20 - Subtitle Style "ЕКОПАК", CREDISSIMO in Latin, Montserrat Black installed (the user's requests 2026-11-10)
 - Captions > Style > **ЕКОПАК**, measured on 7 of the client's exported videos (400 chunks, `scripts/measure_style.py`): the
   shared template again (Montserrat Black 52, capitals, no punctuation, glow, appears with the word), up to 4 words / 17

@@ -1634,7 +1634,7 @@ function applyRemembered() {
   try {
     $("subtitleEnglish").checked = store.getItem("asistent.subtitleEnglish") === "1";
     const style = store.getItem("asistent.subtitleStyle");
-    $("subtitleStyle").value = ["reshape", "gstroy", "credissimo", "ekopak"].includes(style) ? style : "auto";
+    $("subtitleStyle").value = ["reshape", "gstroy", "credissimo", "ekopak", "beautysector"].includes(style) ? style : "auto";
   } catch (e) {
     /* no storage */
   }

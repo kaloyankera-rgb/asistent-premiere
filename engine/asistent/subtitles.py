@@ -53,14 +53,17 @@ PRESETS = {
     # the chunk appears with its first word (Asistent's usual 0.03 s lead, measured median 0.03-0.04 s). line_chars is the
     # whole chunk here: 18 gave the editors' own mean (2.21 words) and two-line share (41 %, theirs 40 %) on their speech
     "gstroy": {"max_words": 3, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 18,
-               "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "accent": 6},
+               "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "accent": 6, "drop_dashes": True,
+               # the brand as the user writes it, also in capitals (2026-11-10); Whisper hears „G -Stroy“
+               "names": {"gstroy": "GStroy", "g-stroy": "GStroy", "g -stroy": "GStroy", "g stroy": "GStroy", "джи строй": "GStroy",
+                         "джистрой": "GStroy"}},
     # the Credissimo client's own style (docs/SUBTITLE_STYLES/CREDISSIMO.md, 9 exported videos, 674 chunks): the same look
     # as GStroy's, but its two lines are cut where they come out most even, and a red keyword on about one chunk in six,
     # often a money word; its chunks run longer (2.5 words, 11 % with 4): up to 4 words and 20 characters gave its editors'
     # mean (2.50 against 2.52) and two-line share (49 % against 48 %) on their own speech in all 9 videos; the chunk appears
     # with its first word like GStroy's (Asistent's usual 0.03 s lead)
     "credissimo": {"max_words": 4, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 20,
-                   "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even",
+                   "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even", "drop_dashes": True,
                    "accent": 9, "accent_near": 2,
                    "accent_words": r"^(пари|парите|парички|бюджет|кредит|заем|назаем|вноск|разход|доход|финанс|кредисимо|credissimo"
                                    r"|спестя|заплат|сметк|лихв|харч|буфер|евро$|лев$|лева$|левчета|карта$|картата$|цента$|стотинк"
@@ -70,11 +73,26 @@ PRESETS = {
     # cut evenly like Credissimo's, a green keyword (#18CC6E) on about one chunk in four, often a recycling word; 17 characters
     # a chunk gave its editors' shape on their speech (2.25 words against 2.35, two-line 41 % against 42 %, breaks 65 %)
     "ekopak": {"max_words": 4, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 17,
-               "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even",
+               "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even", "drop_dashes": True,
                "accent": 7, "accent_near": 2,
                "accent_words": r"^(боклук|отпад|контейнер|опаковк|рецикл|разделн|картон|пластмас|стъкл|хартия|хартии|метал|алумини"
                                r"|кутийк|бутилк|буркан|екопак|ecopack|сортир|платформ|сигнал|карта$|картата$)",
-               "names": {"ecopack": "Екопак", "екопак": "Екопак"}},
+               "names": {"ecopack": "ЕКОПАК", "екопак": "ЕКОПАК"}},
+    # the Beauty Sector client's own style (docs/SUBTITLE_STYLES/BEAUTY_SECTOR.md, 7 exported videos, 350 chunks): the template,
+    # cut evenly (96 %), a coral keyword (#D45E58) on about one chunk in three, often the procedure or its result; brand and
+    # product names in Latin capitals as its subtitles write them (Whisper: „Бюти Сектор“, „Double Gold“, „HiFull“)
+    "beautysector": {"max_words": 4, "max_chars": 12, "soft_chars": 13, "lines": 2, "line_chars": 18,
+                     "min_s": 0.35, "max_s": 2.5, "phrases": True, "bare": True, "upper": True, "stack": 12, "split": "even",
+                     "drop_dashes": True, "accent": 6, "accent_near": 1,
+                     "accent_words": r"^(кож|контур|лифтинг|процедур|резултат|колаген|стегн|отпусн|брадичк|тонус|еластичн|консултаци"
+                                     r"|стимул|дефинир|очертан|тренировк|курс|операци|неинвазив|ултразвук|целулит|мазнин|обиколк"
+                                     r"|тяло|лице|лицето|салон)",
+                     "names": {"бюти сектор": "BEAUTY SECTOR", "beauty sector": "BEAUTY SECTOR",
+                               "double gold": "DOUBLO GOLD", "doublo gold": "DOUBLO GOLD", "дабъл голд": "DOUBLO GOLD",
+                               "hifu": "HIFU", "hifull": "HIFU", "hifo": "HIFU", "хайфу": "HIFU", "high flow": "HIFU",
+                               "high flow lifting": "HIFU ЛИФТИНГ", "hifu lifting": "HIFU ЛИФТИНГ",
+                               "bodysculpt": "BODY SCULPT", "body sculpt": "BODY SCULPT", "боди скълпт": "BODY SCULPT",
+                               "smas": "SMAS", "смас": "SMAS", "dr vandev": "DOCTOR VANDEV", "доктор вандев": "DOCTOR VANDEV"}},
 }
 
 # NTSC rates arrive as 23.976 / 29.97 / 59.94; the sequence really runs at N*1000/1001.
@@ -248,8 +266,13 @@ def _stacked(units, cfg):
     if len(units) == 1 or _text_len(flat) <= cfg["stack"]:
         return [flat]
     if cfg.get("split") == "even":                             # Credissimo: the most even cut, a tie gives the longer top line
-        k = min(range(1, len(units)), key=lambda k: (abs(_text_len([w for u in units[:k] for w in u])
-                                                         - _text_len([w for u in units[k:] for w in u])), -k))
+        lone = lambda part: len(part) == 1 and len(_word_core(part[0]).strip("„“\"«(")) <= 1   # „С“ alone on a line
+        cuts = [k for k in range(1, len(units))
+                if not lone([w for u in units[:k] for w in u]) and not lone([w for u in units[k:] for w in u])]
+        if not cuts:                                           # „С DOUBLO GOLD“ stays one line, as the editors wrote it
+            return [flat]
+        k = min(cuts, key=lambda k: (abs(_text_len([w for u in units[:k] for w in u])
+                                         - _text_len([w for u in units[k:] for w in u])), -k))
         return [[w for u in units[:k] for w in u], [w for u in units[k:] for w in u]]
     cut = len(units) - 1
     if _word_core(units[-1][-1]) in NON_FINAL:                 # „осветителят / се“: a little word never stands alone below
@@ -475,9 +498,33 @@ def _shown(word, cfg):
     names = cfg.get("names")
     if names:
         core = BARE.sub("", shown) or shown
-        if core.lower() in names:
-            shown = shown.replace(core, names[core.lower()])
+        if core.lower() in names:                              # the name exactly as the client writes it, capitals or not
+            return shown.replace(core, names[core.lower()])    # („GStroy“ stays GStroy in a capitals style, the user 2026-11-10)
     return shown.upper() if cfg.get("upper") else shown
+
+
+def _join_names(words, cfg):
+    """A client's name Whisper splits into several words („G -Stroy“) becomes one word, written as the preset's `names` says;
+    its times run from the first piece to the last. Keys of `names` with a space are the split forms (lowercase)."""
+    split = dict(sorted(((k, v) for k, v in (cfg.get("names") or {}).items() if " " in k), key=lambda kv: -len(kv[0].split())))
+    if not split:
+        return words
+    core = lambda w: re.sub(r"[.,?!…:;]+$", "", w["word"]).lower()
+    out, i = [], 0
+    while i < len(words):
+        for key, name in split.items():
+            n = len(key.split())
+            if " ".join(core(w) for w in words[i:i + n]) == key:
+                last = words[i + n - 1]["word"]
+                tail = last[len(re.sub(r"[.,?!…:;]+$", "", last)):]
+                out.append(dict(words[i], word=name + tail, end=words[i + n - 1]["end"],
+                                p=min(w.get("p", 1.0) for w in words[i:i + n])))
+                i += n
+                break
+        else:
+            out.append(words[i])
+            i += 1
+    return out
 
 
 def build_captions(words, preset="short", fps=25.0, cuts=()):
@@ -492,7 +539,9 @@ def build_captions(words, preset="short", fps=25.0, cuts=()):
     """
     cfg = PRESETS[preset] if isinstance(preset, str) else preset
     fps = exact_fps(fps)
-    words = _clean_words(words)
+    words = _join_names(_clean_words(words), cfg)
+    if cfg.get("drop_dashes"):                                 # the client template shows no punctuation, not even a lone „–“
+        words = [w for w in words if not re.fullmatch(r"[–—-]+[.,]?", w["word"])]
     if not words:
         return []
     # Spelling applies to the shown text only; the times stay as spoken.

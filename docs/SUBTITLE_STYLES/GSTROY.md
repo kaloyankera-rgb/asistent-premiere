@@ -16,7 +16,7 @@ faces with Asistent's YuNet. Numbers below are for the 9:16 videos unless said o
 
 | | Measured | Set in Premiere (Properties > Track Style "GStroy") |
 |---|---|---|
-| Font | Montserrat **Black** (width/cap-height 14.76 vs 14.83 measured, stem 12.4 vs 11.9 px; ExtraBold 10.2, Bold 8.9; the client's own LT Superior and Cygre are too narrow and thin) | Montserrat Black (OFL; install it: Asistent ships only Montserrat Bold) |
+| Font | Montserrat **Black** = Submagic's Montserrat Heavy, the tool the subtitles are made with (the user, 2026-11-10) (width/cap-height 14.76 vs 14.83 measured, stem 12.4 vs 11.9 px; ExtraBold 10.2, Bold 8.9; the client's own LT Superior and Cygre are too narrow and thin) | Montserrat Black (OFL; install it: Asistent ships only Montserrat Bold) |
 | Size | cap height 36 px on a 1080 px wide frame = font size about 51-52 px; 16:9 (1920x1080) about 64 px | 52 (9:16 and 1:1), 64 (16:9) |
 | Case | CAPITALS everywhere (no lowercase in 463 lines) | All Caps on, or Asistent's capitals |
 | Colour | white #FFFFFF; keyword in green **#94D000** (RGB 148 208 0, the same in three videos) | fill white; the keyword's fill #94D000 |
@@ -64,6 +64,11 @@ faces with Asistent's YuNet. Numbers below are for the 9:16 videos unless said o
 
 The rest of the break differences are mostly where the editor cut by the speech rhythm (one-word chunks: theirs 24 %,
 Asistent 16 %). The real job also applies the writing rules (по-/най-, numbers), which this comparison skipped.
+
+## The brand
+
+**GStroy**, written exactly so even among the capitals (the user, 2026-11-10). Whisper hears „G -Stroy“ (two words); the preset
+joins them and writes GStroy (`names` with a split form, 0.10.21). A lone „–“ Whisper writes is not shown (`drop_dashes`).
 
 ## Not in the preset
 

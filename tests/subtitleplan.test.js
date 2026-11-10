@@ -140,3 +140,11 @@ test("describeResult: ЕКОПАК's suggested keywords are named green", () => 
   assert.match(all, /style ЕКОПАК/);
   assert.match(all, /Green keywords suggested on 1 of 1 lines .*: 0:02\.1 БОКЛУК\./);
 });
+
+test("describeResult: Beauty Sector's suggested keywords are named coral", () => {
+  const caps = [{ start: 1.0, end: 1.5, text: "КОЖА", flags: [], accent: "КОЖА" }];
+  const r = describeResult({ counts: { captions: 1, words: 1, flagged: 0 }, preset: "beautysector", fps: 29.97, cached: true, captions: caps, srt: "/x.srt" });
+  const all = r.lines.map((l) => l.text).join("\n");
+  assert.match(all, /style Beauty Sector/);
+  assert.match(all, /Coral keywords suggested on 1 of 1 lines .*: 0:01\.0 КОЖА\./);
+});
