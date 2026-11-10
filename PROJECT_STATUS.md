@@ -1,4 +1,10 @@
-# Project status — Asistent 0.10.25 (2026-11-10, branch improvements/2026-11)
+# Project status — Asistent 0.10.29 (2026-11-10, branch improvements/2026-11)
+
+0.10.26-0.10.29 (2026-11-10, installed on this Mac, Premiere 26.5.2): S-Log3 under a LUT adjustment layer. VERIFIED by the user
+in the Pulse project (IVO7V9795): the LUT-only layer is looked through, the timeline is judged converted, exposure applied by
+the face (high), white balance left alone (mixed light). The exposure landed 0.7 stops over (+2.15): 0.10.29 scales an
+overshoot back once (NOT yet tried in Premiere). Settings load after an engine restart (0.10.27, seen working: the
+reference Lumetri was found after the retry).
 
 0.10.25 (2026-11-10, installed on this Mac; Premiere 26.5.2): the field bugs of TODO F. VERIFIED in Premiere by Claude through the
 bridge: the host's L/R split on NEW TEST while TEST.prproj was in front (the Fix audio "No active sequence." cause). Measured on

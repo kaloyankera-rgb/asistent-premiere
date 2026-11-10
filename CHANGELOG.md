@@ -31,6 +31,34 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.29 - An exposure that went past the target is scaled back once (Pulse, S-Log3 under a LUT)
+- In Premiere 26.5.2 (Pulse Fitness IVO7V9795 under its LC-709 LUT layer) +2.15 landed 0.7 stops over the target: Lumetri
+  Exposure on the log signal, under the LUT, moves more than on Rec.709. When the after-check finds the brightness more than
+  0.35 stops past the target on the other side, what this press added is scaled once by wanted / achieved (here 2.15 -> about
+  1.56) and re-checked. It only ever lowers. NOT yet tried in Premiere.
+
+## 0.10.28 - Log clips: "converted" judged against the flat file; mixed light leaves white alone
+- Premiere's own frames through the LC-709 Look were softer than FFmpeg's render of the same LUT (range x1.25, colour x1.34,
+  blacks 0.081 lower than the file), so the 0.10.25 check against a model of the conversion said "could not tell".
+  `color.log_shown` now asks whether the timeline is still the flat file: range and colour both 12 % or more wider ->
+  converted; the same blacks, range and colour -> flat. The flat file cropped 9:16 like the timeline stays at x0.99-1.00 on
+  five Pulse clips.
+- White balance: when the neutral surfaces and the whole picture read opposite ways (Pulse: the neutral patch warm -0.29,
+  the blue-lit gym +0.8), white balance is left alone ("Mixed light"). It used to be "medium" and would have cooled a
+  picture that looks blue. More careful on every clip; nothing else changes.
+- Verified in Premiere 26.5.2 by the user: IVO7V9795 measured on the timeline through the LUT layer, exposure applied
+  (high), white balance left alone.
+
+## 0.10.27 - The panel's settings load when the engine comes back (found testing Pulse)
+- Premiere reloads the panel the moment an update installs it, while the engine is still restarting: the one load of the
+  panel's settings failed and was never retried, so the untouched-Lumetri reference (and the other settings) were missing
+  until the panel was reopened. The header refresh now retries; settings made in the meantime stay.
+
+## 0.10.26 - A Lumetri section opened in the panel no longer counts as a grade on a LUT layer
+- The Pulse LUT layer was refused for "Color Wheels & Match": a section heading whose true/false is whether it is opened in
+  the Lumetri panel. Section headings may differ in that state only; every setting is still compared. A refusal now logs
+  the two values.
+
 ## 0.10.25 - Field bugs fixed: Fix audio with several projects open, iPhone audio, S-Log3 under a LUT layer; faster rough cut
 - **Fix audio / subtitles with several projects open** (field report 2026-11-10, Credissimo: "No active sequence." 5 times of 6).
   With several projects open, ExtendScript's `app.project` is the front project, and `activeSequence` read from any project

@@ -6,11 +6,9 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 ## F. Field reports 2026-11-10 (the user: fixed in 0.10.25, see CHANGELOG)
 - [x] **Fix audio "No active sequence."** (several projects open: the host read the front project). Verified in 26.5.2.
 - [x] **Sync on an iPhone clip with Apple spatial audio (APAC)**: the AAC track is used.
-- [ ] **Colour on S-Log3 under a LUT adjustment layer** (built in 0.10.25, NOT tried in Premiere). USER: close and reopen the
-  Asistent panel once (0.10.25), then in the Pulse project select IVO7V9795 or 9798 under the LUT layer and press Auto color. The
-  log should say "adjustment layer on V2 …: only a LUT: measured through it" and the result "the timeline shows it converted".
-  Open question to measure there: how far Lumetri Exposure/Temperature on the log signal (under the LUT) moves the picture; the
-  frame check keeps only what improved.
+- [x] **Colour on S-Log3 under a LUT adjustment layer** (0.10.25-0.10.28, verified in Premiere 26.5.2 on Pulse IVO7V9795).
+- [ ] **0.10.29 overshoot step back:** USER: Cmd+Z the +2.15 on IVO7V9795, press Auto color again: expect "the brightness
+  went 0.7 stops past the target: exposure lowered to ~1.56" and a result near the target. Also IVO7V9798.
 - [ ] **Subtitles faster (the user's decision):** a long window is read by one reader of three (ReShape 93 s in one window:
   94.6 s). Measured reading in ~30 s parts at the quietest moments: GStroy C9036 189 -> 87 s (the long reading looped and lost
   ~80 words), Beauty Sector fx30-2-1304 137 -> 45 s (without the names prompt "бюти сектор" for "beauty sector"). The words

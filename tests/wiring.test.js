@@ -383,3 +383,10 @@ test("Fix audio: the L/R copies get the clip's own label, and copies from an ear
   assert.match(main, /plans\.filter\(\(p\) => p\.it\.side\)\.map\(\(p\) => \(\{ track: p\.it\.track, start: p\.it\.start, end: p\.it\.end, route: "label" \}\)\)/);
   assert.match(main, /items: \[\.\.\.todo\.map\(/);                            // the split clips first: their answers keep their index
 });
+
+test("an exposure that went past the target is scaled back once by wanted / achieved, never raised (0.10.29)", () => {
+  const col = fs.readFileSync(path.join(panel, "premiere-color.js"), "utf8");
+  assert.match(col, /else if \(pl\.values\.exposure && chk\.exposure_before > 0 && chk\.exposure_after < -OVERSHOOT\)/);
+  assert.match(col, /fixValues\.exposure = Math\.round\(\(base \+ \(added \* chk\.exposure_before\) \/ moved\) \* 100\) \/ 100;/);
+  assert.match(col, /if \(added > 0 && moved > 0\)/);           // moved > before when it overshot: the new value is lower
+});

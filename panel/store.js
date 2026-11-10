@@ -5,6 +5,7 @@
 let engine = null;
 let storage = null;
 const mem = new Map();
+let loaded = false;
 let queue = Promise.resolve();
 
 function local() {
@@ -16,19 +17,25 @@ function local() {
   }
 }
 
-function use(eng, st) {                 // tests: a fake engine and storage
+function use(eng, st) {                 // tests: a fake engine and storage, nothing loaded yet
   engine = eng;
   storage = st || null;
+  mem.clear();
+  loaded = false;
 }
 
+// Loaded from the engine once it answers. A panel that opens while the engine restarts (Premiere reloads the panel the
+// moment an update installs it: 2026-11-10, 0.10.26) is retried by the header refresh (`loaded()`); what was set in the
+// meantime stays, the engine's values fill in the rest.
 async function load() {
   if (!engine) engine = require("./engine.js");
   try {
     const r = await engine.panelStore();
-    for (const [k, v] of Object.entries((r && r.values) || {})) mem.set(k, v);
+    for (const [k, v] of Object.entries((r && r.values) || {})) if (!mem.has(k)) mem.set(k, v);
   } catch (e) {
     return false;                       // engine offline: localStorage below still answers
   }
+  loaded = true;
   const ls = local();
   try {
     for (let i = 0; ls && i < ls.length; i++) {
@@ -65,4 +72,4 @@ function setItem(key, value) {
   return queue;
 }
 
-module.exports = { use, load, getItem, setItem };
+module.exports = { use, load, getItem, setItem, loaded: () => loaded };

@@ -26,3 +26,19 @@ test("engine offline: the old storage still answers", async () => {
   assert.strictEqual(await store.load(), false);
   assert.strictEqual(store.getItem("asistent.x"), "1");
 });
+
+test("a panel that opened while the engine restarted loads its settings once the engine answers (0.10.26)", async () => {
+  let up = false;
+  const engine = { panelStore: async () => { if (!up) throw new Error("offline"); return { values: { "asistent.lumetriFresh.v1": "snap", "asistent.subtitleStyle": "gstroy" } }; },
+    panelStorePut: async () => {} };
+  store.use(engine, fakeStorage({}));
+  assert.strictEqual(await store.load(), false);
+  assert.strictEqual(store.loaded(), false);
+  assert.strictEqual(store.getItem("asistent.lumetriFresh.v1"), null);
+  await store.setItem("asistent.subtitleStyle", "aula");                          // chosen while the engine was down
+  up = true;
+  assert.strictEqual(await store.load(), true);
+  assert.strictEqual(store.loaded(), true);
+  assert.strictEqual(store.getItem("asistent.lumetriFresh.v1"), "snap");          // the untouched Lumetri is known again
+  assert.strictEqual(store.getItem("asistent.subtitleStyle"), "aula");            // the newer choice stays
+});
