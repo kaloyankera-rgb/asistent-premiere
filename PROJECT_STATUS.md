@@ -1,4 +1,8 @@
-# Project status — Asistent 0.10.20 (2026-11-10, branch improvements/2026-11)
+# Project status — Asistent 0.10.21 (2026-11-10, branch improvements/2026-11)
+
+0.10.21 (2026-11-10, NOT installed, NOT tried in Premiere): Subtitle Style "Beauty Sector" (docs/SUBTITLE_STYLES/BEAUTY_SECTOR.md,
+names in Latin capitals), GStroy written GStroy (two-word names joined), no lone dashes, no one-letter line. Four client styles
+from one Submagic template (Montserrat Heavy).
 
 0.10.20 (2026-11-10, NOT installed, NOT tried in Premiere): Subtitle Style "ЕКОПАК" (docs/SUBTITLE_STYLES/EKOPAK.md), CREDISSIMO
 always in Latin, Montserrat Black installed by the setup, `measure_style.py pace`. Three client styles (GStroy, Credissimo,

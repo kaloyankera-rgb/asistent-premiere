@@ -182,8 +182,8 @@ UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips
   user's test shows otherwise.
 - [ ] ЕКОПАК (0.10.20, `ekopak` preset, docs/SUBTITLE_STYLES/EKOPAK.md): USER: try it in NEW TEST; Track Style "ЕКОПАК" (keyword
   #18CC6E). Its keyword word list was made from the same videos: check the suggestions on new ones.
-- [ ] GStroy: Whisper hears the brand as „G -Stroy“ (two words); the subtitles write GSTROY. A Captions-tab line
-  "G -Stroy => GStroy" fixes it once per client; a preset rule would have to join two words (not built).
+- [ ] Beauty Sector (0.10.21, `beautysector`, docs/SUBTITLE_STYLES/BEAUTY_SECTOR.md): USER: try in NEW TEST; Track Style (keyword
+  #D45E58); check "Aesthetic Dental Clinic" (left as Whisper writes it; the exports also show VANDEV CLINIC).
 - [ ] Next clients: `scripts/measure_style.py frames|chunks|asr|timing|compare|colour|pace` (font and shadow still by hand);
   add each to the vault's `editing/client-styles.md` and `clients/<client>/`.
 

@@ -78,3 +78,19 @@ def test_other_presets_mark_no_accents_and_keep_their_case():
     caps = S.build_captions(words("при традиционната релсова система"), "short", 25)
     assert all("accent" not in c for c in caps)
     assert any(ch.islower() for c in caps for ch in c["text"])
+
+
+def test_the_brand_is_written_gstroy_even_in_capitals_and_from_whisper_s_two_pieces():
+    # the user, 2026-11-10: „GStroy“; Whisper writes „G -Stroy“ (two words) or „GStroy“
+    for said in ("Ние в G -Stroy ще", "Ние в GStroy ще", "клиент си? G -Stroy."):
+        caps = S.build_captions(words(said), "gstroy", 29.97)
+        text = " ".join(c["text"] for c in caps)
+        assert "GStroy" in text and "GSTROY" not in text and "-STROY" not in text
+    joined = S._join_names(words("в G -Stroy, майсторът"), S.PRESETS["gstroy"])
+    assert [w["word"] for w in joined] == ["в", "GStroy,", "майсторът"]
+    assert joined[1]["start"] == words("в G")[1]["start"] and joined[1]["end"] == words("в G -Stroy,")[2]["end"]
+
+
+def test_a_lone_dash_is_not_shown():
+    text = " ".join(c["text"] for c in S.build_captions(words("Ние сме GStroy – майсторът си ти"), "gstroy", 29.97))
+    assert "–" not in text and "GStroy" in text

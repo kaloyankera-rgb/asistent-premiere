@@ -1,5 +1,12 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-10: names may span words and keep their own case; no lone letters or dashes in the client styles (0.10.21)
+The user wants GStroy written GStroy even in a capitals style, and Whisper gives it as two words („G -Stroy“), as it does
+„Бюти Сектор“, „Double Gold“. So `names` keys may hold the split form (joined before grouping, the times from the first piece to
+the last, longest key first), and a name is shown exactly as the preset writes it. The client styles (all four from one Submagic
+template) also drop a lone dash Whisper writes and never leave a one-letter word alone on a line: the exports show neither.
+ReShape, short and standard are byte-identical; the client presets changed only where these rules apply.
+
 ## 2026-11-10: a client's name is written its way by the preset (0.10.20)
 The user chose CREDISSIMO (the exports wrote it both ways). A preset's `names` maps a said word to the client's spelling, only in
 that style and only how the word is written (the guide allows a writing rule; the said word is not changed). One word only:
