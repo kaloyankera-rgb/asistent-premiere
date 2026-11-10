@@ -3,6 +3,9 @@
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
 ## Open bugs
+- **Open (the user, 2026-11-10; TODO F):** Auto color leaves a clearly cool S-Log3 clip untouched ("low" confidence; an
+  S-Log3 LUT on an adjustment layer above it). Fix audio: Sync cameras cannot decode an iPhone clip's spatial audio (apple_apac);
+  the routing step answered "No active sequence." 5 times of 6 with no message in the panel. Subtitles and rough cut too slow.
 - **Fixed in 0.10.17:** every update erased the panel's settings (UXP localStorage is deleted with the panel).
 - **Fixed in 0.10.10:** after an update Premiere kept running an old panel (Adobe kept older copies enabled; Premiere loads the first).
 - **Open (seen 2026-11-08 after a Premiere restart):** the test bridge's `select` set no selection in NEW TEST (0 selected,
