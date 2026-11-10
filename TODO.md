@@ -29,8 +29,10 @@ first; brand profiles deferred.
   Stash of clips likely via exportAsProject/importSequences, OpenCV MIL + optical flow, no scripted adjustment layer.
 - [x] P-A6 drag in the panel works (SVG and divs); the temporary probe code was removed in 0.10.31.
 - [ ] Phase 0 leftovers for the builds: P-A2 on a sped-up clip (Keyframer), P-A4 with a hand-drawn tracked mask (optional).
-- [ ] **A1 Keyframer**: `keyframeplan.js` (pure: bezier sampling, time mapping) + `premiere-keyframes.js`; a new panel page
-  with the curve editor, presets, ticked properties, Apply / Undo; native interpolation if P-A1, else baked per frame.
+- [x] **A1b Keyframer bounce** (0.10.33, verified through the bridge). USER: try Elastic on a title popping in and Ping-pong
+  on a logo; say if the default strength (20 % overshoot, 50 % height) feels right.
+- [x] **A1 Keyframer** (0.10.32, branch feature/keyframer; verified through the bridge). USER: drag the handles, try Overshoot
+  on a real animation; check a sped-up clip. Later if wanted: rename / delete saved curves, several clips at once.
 - [ ] **A2 Stash v1** (animations as data in the engine folder, applied at the playhead), then v2 clips (if P-A5).
 - [ ] **A3 Tracker**: faces first (YuNet, reframing 9:16), then a placed target (OpenCV), confidence strip, smoothed and
   thinned Position keys in one Undo step, never over the editor's keyframes.
@@ -119,7 +121,7 @@ a row in docs/ROLLBACK.md, measured against Classic on the same inputs before it
   LUT / Look (params 6-7, 34-35, 128-129) accept a .cube path before promising automatic LUTs; else a labelled manual .cube export.
   camera-match only after reading its license and pinning a released version. OpenColorIO only if more cameras need it.
   Accept: fewer Shot Match retries or smaller ΔE on held-out pairs than Classic Shot Match, which stays.
-- **I7. Timeline identification.** Probe first: ExtendScript `Track.name` writable? (UXP `VideoTrack` has no rename; clips have
+- **I7. Timeline identification.** The user's answer 2026-11-10: camera tracks named **POV 1 / POV 2** (by track order). Probe first: ExtendScript `Track.name` writable? (UXP `VideoTrack` has no rename; clips have
   `createSetNameAction`; project items have `setColorLabel`, already used by Fix audio). Then optional "Camera A — FX3" / "Subtitles —
   Bulgarian" names and configurable camera label colours, remembered old values for undo, editor names kept by default, applied in
   Sync, Fix audio and rough cut. Accept: names/colours survive a Sync + rough cut rebuild in NEW TEST; one Undo restores them.

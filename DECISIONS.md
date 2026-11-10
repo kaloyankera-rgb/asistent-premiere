@@ -402,3 +402,19 @@ Whisper token), only the usual Cyrillic spelling of their sound, never a Bulgari
 Only changes that give the same subtitles were made (checked byte for byte on a cold ReShape run): running independent work at
 the same time and more threads per reading (2, 4 and 8 threads read identical words). Splitting one long window into parallel
 pieces or Whisper on the Apple GPU (MLX) would be faster still but change the words; they wait for the user's choice.
+
+## 2026-11-10: protected subtitle files touched by the field-bug fixes (0.10.25), golden identical
+`host/host.jsx` (`as_target`: the panel's project by path and the sequence by id, for captions, graphics and the L/R split),
+`engine/asistent/hostbridge.py` and `panel/premiere-captions.js` (the sequence id passed to the host), and
+`engine/asistent/subtitle_job.py` (`plan_windows` takes `max_window`, default unchanged; `window_audio` split out of
+`read_window`, same audio and key) changed only how the sequence is found and how the rough cut may plan its windows. The
+subtitle output is the same: `scripts/reshape_golden.py check` identical on 2026-11-10 (SRT, English SRT, job JSON; 76 s).
+The guard also lists `subtitles.py`, changed earlier by the client styles (0.10.18-0.10.24), which leave the ReShape preset
+as it was (same golden run).
+
+## 2026-11-10: Keyframer curves are baked; Premiere's own modes are set natively (0.10.32)
+Phase 0 (docs/probes/cockpit-phase0.md): UXP sets a keyframe's interpolation (Bezier, Linear, Hold) but not its bezier
+handles. A custom curve is therefore written as one keyframe per sequence frame between the editor's two keyframes (media
+time, speed taken into account); Premiere's own modes are set on the editor's keys and add nothing. Only keys Asistent added
+(its record, re-checked on the clip) are ever removed, each in a quarter-frame window, so a key the editor adds in between
+survives. A press above 3000 keys is refused.

@@ -31,6 +31,32 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.33 - Keyframer: Elastic, Bounce, Ping-pong and Loop (the user: "a smooth bounce in, ping pong")
+- `keyframeplan.js`: Elastic (exactly n overshoots, the first one the % set, each later one smaller, no jerk), Bounce (a ball
+  dropped on the target: n hops, each a set height of the one before, never past it), each at the end, the start or both;
+  Ping-pong and Loop after the last keyframe (n times, or as many whole repeats as fit before the clip's out point).
+  Our own functions, not a copy of any After Effects script. 12 node tests.
+- Keyframer page: Motion switch Curve / Elastic / Bounce; for Elastic and Bounce, Where (at the end / at the start / both),
+  Bounces (1-8) and Overshoot (5-50 %) or Height (5-80 %) steppers, the curve drawn in the box; a "Repeat after the last
+  keyframe" row (Off / Ping-pong / Loop, Times 1-20 or "until the clip ends"). Premiere's own Linear / ease / Hold with a
+  repeat is refused (they add no keys). The result line counts the repeated keys.
+- Verified through the bridge in Premiere 26.5.2 on NEW TEST C0738 (two Position keys 0.3 -> 0.7, 4.40-5.40 s, out 12.91 s):
+  Elastic 29 keys (peak 0.773, lands on 0.700); Ping-pong until the end replaced them (-29, +239, ends 12.40 s on 0.3);
+  Bounce x5 with Loop replaced those (-239, +239, hops 50/25/12/6/3 % under the target, never past it); Undo last left the
+  2 keys; Linear with Loop refused, Linear alone set without keys. C0738 put back afterwards.
+
+## 0.10.32 - Keyframer: shape the motion between keyframes with a curve (Cockpit plan A1)
+- A new page, Keyframer (the other tabs are unchanged): Read the selected clip lists its keyframed properties (numbers and
+  positions, any effect) with their frame counts; tick them, pick a curve (Ease In-Out, Ease In, Ease Out, Cubic, Expo Out,
+  Overshoot, or drag the two handles; Save this curve keeps your own) and press Apply. A custom curve is baked as one keyframe
+  per frame between your keyframes, which stay as they are; Premiere's own Linear, Premiere ease and Hold only set your
+  keyframes' interpolation. One Undo step per press; Undo last takes out only what Asistent added; a second press replaces
+  Asistent's earlier curve instead of stacking on it. A sped-up clip gets one key per sequence frame; reversed clips are refused.
+- Verified in Premiere 26.5.2 by Claude through the bridge (NEW TEST, C0738, two Position keys 1 s apart at 29.97 fps): Ease
+  In-Out added 29 keys (0.300 -> 0.500 in the middle -> 0.700, symmetric), Expo Out replaced them (removed 29, added 29),
+  Undo last left the two keys, Premiere ease set Bezier with no keys added. C0738 restored afterwards. Not yet tried: a
+  sped-up clip, Overshoot on screen, dragging the handles by hand.
+
 ## 0.10.31 - Cockpit Phase 0 done: the temporary probe is removed
 - 0.10.30 carried a temporary panel module (`probe-cockpit.js`, test bridge only) for the Phase 0 probes
   (`docs/probes/cockpit-phase0.md`). It is removed again: the panel is the same as 0.10.29 apart from the version.
