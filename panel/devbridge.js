@@ -125,7 +125,7 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     async fill(a) {
       // the notes box, and (0.10.34) the Track names options, so a test can choose colours and the auto switch
       // 0.10.41: and the rough cut's Fast switch (with whether its row and the download offer are shown)
-      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughFast", "tr_scale", "tr_rotation"].includes(a.id)) throw new Error("fill: notes, the Track names options, roughFast and the Tracker's Scale / Rotation only.");
+      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughFast", "tr_scale", "tr_rotation", "tr_centre", "tr_smooth", "tr_zoom"].includes(a.id)) throw new Error("fill: notes, the Track names options, roughFast and the Tracker's Scale / Rotation only.");
       const e = doc.getElementById(a.id);
       const box = a.id === "labelsAuto" || a.id === "roughFast" || a.id.startsWith("tr_");
       if (box) e.checked = !!a.value;

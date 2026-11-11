@@ -12,6 +12,7 @@ const { point, number } = require("./premiere-placement.js");
 const { UserError, transaction, maybe, debug, secs } = P;
 const MOTION = "AE.ADBE Motion";
 const RECORD = "asistent.tracker.v1";
+const SMOOTH = 6;                                   // frames of Gaussian sigma for Lock's Smooth (about 0.2 s at 30 fps)
 
 function records() {
   try {
@@ -119,10 +120,10 @@ async function sourceMotion(project, source, frames) {
   const fit = await fitOf(x.ti);
   const moving = [];
   for (const k of ["Position", "Scale", "Scale Width", "Rotation", "Anchor Point"]) if (ps[k] && (await maybe(ps[k], "isTimeVarying"))) moving.push(k);
-  if (!moving.length) return { motions: await motionAt(ps, source.t0, fit), timeline, moving };
+  if (!moving.length) return { motions: await motionAt(ps, source.t0, fit), timeline, moving, item: x, ps };
   const motions = [];
   for (const f of frames) motions.push(await motionAt(ps, f.t, fit));
-  return { motions, timeline, moving };
+  return { motions, timeline, moving, item: x, ps };
 }
 
 /** Writes the attached clip's keys. -> {written, lines, clip} */
@@ -233,6 +234,63 @@ async function detach(project) {
   return { removed: jobs.reduce((n, j) => n + j.there.length, 0), clip: target.name };
 }
 
+/** Lock to it (0.10.54): Position keys on the TRACKED clip so the object stays put on screen (and, when asked, the clip zoomed
+ * just enough that no frame shows an edge). One Undo step. -> {written, lines, clip} */
+async function lockClip(project, source, track, opts) {
+  const { motions, timeline, item, ps } = await sourceMotion(project, source, track.frames);
+  if (!ps || !ps.Position) throw new UserError(`${source.clip.name} has no Motion to move.`);
+  const frame = await frameSize(timeline.sequence);
+  if (!frame) throw new UserError("Premiere did not say the sequence's frame size.");
+  const plan = TP.lock(track, motions, frame, { centre: !!opts.centre, smooth: opts.smooth ? SMOOTH : 0, zoom: !!opts.zoom });
+  if (plan.error) throw new UserError(plan.error);
+  if (plan.keys.length > 3000) throw new UserError(`That would add ${plan.keys.length} keyframes (more than 3000): track a shorter part.`);
+  const key = KF.clipKey(item);
+  const all = records();
+  const mine = all[key] || {};
+  const tol = 0.25 * source.step;
+  const first = plan.keys[0].t;
+  const last = plan.keys[plan.keys.length - 1].t;
+  const pos = ps.Position;
+  const animated = !!(await maybe(pos, "isTimeVarying"));
+  const times = animated ? ((await maybe(pos, "getKeyframeListAsTickTimes")) || []).map(secs).filter(Number.isFinite) : [];
+  const ours = (mine.Position || []).filter((t) => times.some((x) => Math.abs(x - t) < tol));
+  const theirs = times.filter((t) => t >= first - tol && t <= last + tol && !ours.some((o) => Math.abs(o - t) < tol));
+  if (theirs.length) {
+    throw new UserError(`${source.clip.name} already has ${theirs.length} Position keyframe${theirs.length > 1 ? "s" : ""} of its own in that time: ` +
+      "remove them first (or nest the clip and lock the nest). Nothing was changed.");
+  }
+  const zoomed = plan.zoom !== 1 && plan.scale;
+  const nonUniform = ps["Scale Width"] && (await valueAt(ps["Uniform Scale"], source.t0, bool)) === false;
+  transaction(project, `Asistent: Lock ${source.clip.name || "clip"} to the track`, (c) => {
+    for (const t of ours) c.addAction(pos.createRemoveKeyframeRangeAction(ppro.TickTime.createWithSeconds(t - tol), ppro.TickTime.createWithSeconds(t + tol), true));
+    if (zoomed) {
+      const m0 = Array.isArray(motions) ? motions[0] : motions;
+      c.addAction(ps.Scale.createSetValueAction(ps.Scale.createKeyframe(plan.scale), true));
+      if (nonUniform && m0.sw !== undefined) c.addAction(ps["Scale Width"].createSetValueAction(ps["Scale Width"].createKeyframe(Math.round(m0.sw * plan.zoom * 10) / 10), true));
+    }
+    if (!animated) c.addAction(pos.createSetTimeVaryingAction(true));
+    for (const k of plan.keys) {
+      const kf = pos.createKeyframe(new ppro.PointF(k.x, k.y));
+      kf.position = ppro.TickTime.createWithSeconds(k.t);
+      c.addAction(pos.createAddKeyframeAction(kf));
+    }
+  });
+  const got = ((await maybe(pos, "getKeyframeListAsTickTimes")) || []).map(secs).filter((t) => t >= first - tol && t <= last + tol).length;
+  all[key] = { ...mine, Position: plan.keys.map((k) => k.t) };
+  store.setItem(RECORD, JSON.stringify(all));
+  const lines = [`Position: ${plan.keys.length} keyframes${got === plan.keys.length ? "" : ` (expected ${plan.keys.length}, the clip has ${got} there: check it)`}` +
+    `${plan.smooth ? ", smoothed" : ", locked exactly"}${opts.centre ? ", the object in the centre" : ""}.`];
+  if (zoomed) lines.push(`Zoomed to ${plan.scale} % so no frame shows an edge.`);
+  else if (plan.uncovered) {
+    lines.push(`${plan.uncovered} frame${plan.uncovered > 1 ? "s show" : " shows"} an edge of the clip` +
+      (plan.needScale ? `: Scale ${plan.needScale} % hides them (tick Zoom and press Lock again)` : ": even 4x zoom does not hide them") +
+      (plan.keyedScale ? " (the clip's Scale is keyframed, so Asistent did not zoom it)." : "."));
+  }
+  if (plan.lost && !plan.smooth) lines.push(`${plan.lost} lost frame${plan.lost > 1 ? "s" : ""} got no key (Premiere moves straight across).`);
+  debug(`tracker lock ${source.clip.name}: ${plan.keys.length} keys, smooth ${!!plan.smooth}, centre ${!!opts.centre}, zoom ${plan.zoom}, uncovered ${plan.uncovered}, replaced ${ours.length}`);
+  return { written: plan.keys.length, lines, clip: source.clip.name };
+}
+
 async function seek(project, at) {
   const seq = await maybe(project, "getActiveSequence");
   if (!seq || !P.has(seq, "setPlayerPosition")) return false;
@@ -240,4 +298,4 @@ async function seek(project, at) {
   return true;
 }
 
-module.exports = { readSource, attach, detach, seek, motionParams };
+module.exports = { readSource, attach, lockClip, detach, seek, motionParams };

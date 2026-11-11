@@ -22,6 +22,10 @@ like it's in After Effects". Panel page **Tracker**; engine `tracker.py`; maths 
    step. Lost frames get no key. Refused over Position / Scale / Rotation keyframes of the editor's own in that time; the
    tracker's own earlier keys are replaced (record in the panel store). **Detach** takes the tracker's keys off.
 
+5. **Lock to it** (0.10.54): the tracked clip's own Position keys, `Position = T − R·scale·fit·(p − Anchor)` per frame, T the
+   object's place on the boxed frame (or the centre). Smooth: a Gaussian path (sigma 6 frames). Zoom: the smallest Scale
+   factor (steps of 0.5 %, up to 4x) that leaves no frame uncovered. Verified: the object on the same pixel in full-size frames.
+
 ## Accuracy (scripts/bench_tracker.py, synthetic, error against the known path)
 | Scene | Median | Max | Notes |
 |---|---|---|---|
