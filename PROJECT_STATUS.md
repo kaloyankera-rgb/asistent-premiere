@@ -1,5 +1,7 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.43 (2026-11-11, installed): dev-only clone probe for Stash clips (works across sequences, effects kept).
+
 0.10.42 (2026-11-11, installed): 0.10.39 after-export check and 0.10.40 Fast rough cut VERIFIED in Premiere 26.5.2 through the bridge
 (NEW TEST: real export checked in 20.7 s, real letterbox found on fx31030; Fast rough cut with turbo 21.1 s).
 

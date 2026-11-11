@@ -300,6 +300,29 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     },
     // ---- Phase 7 probes (docs/SUBTITLES_PLAN.md, M0); they write only into TEST.prproj, the user undoes/deletes
 
+    // P-A5b (Stash clips, 2026-11-11, temporary): clone the clips of one video track of sequence a.from into sequence a.to
+    // (test project only) with createCloneTrackItemAction: does a clone cross sequences, with its effects and keyframes?
+    async clone_probe(a) {
+      const { p } = await project();
+      const ppro = require("premierepro");
+      const seqs = await p.getSequences();
+      const src = seqs.find((s) => s.name === a.from), dst = seqs.find((s) => s.name === a.to);
+      if (!src || !dst) throw new Error("from / to sequence not found");
+      const track = await src.getVideoTrack(a.track || 0);
+      const items = await track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false);
+      const editor = ppro.SequenceEditor.getEditor(dst);
+      const tried = [];
+      for (const it of items) {
+        try {
+          premiere.transaction(p, "Asistent test: clone", (c) => c.addAction(editor.createCloneTrackItemAction(it,
+            ppro.TickTime.createWithSeconds(a.offset || 0), a.vOffset || 0, 0, true, false)));
+          tried.push({ name: it.name, ok: true });
+        } catch (e) {
+          tried.push({ name: it.name, ok: false, error: (e && e.message) || String(e) });
+        }
+      }
+      return { items: items.length, tried };
+    },
     // P1: import .srt files (paths on this Mac) into the bin "Asistent test" and report what Premiere made of them
     async srt_import(a) {
       const { p } = await project();

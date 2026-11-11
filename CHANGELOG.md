@@ -31,6 +31,11 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.43 - Stash clips probe (dev only)
+- Temporary bridge `clone_probe`: `createCloneTrackItemAction` copies clips from one sequence into another with their effects in
+  order (NEW TEST). Plan for Stash clips in docs/probes/cockpit-phase0.md; one decision is the user's (delete Asistent's own
+  temporary sequences or keep them in a bin). Also there: how Quick Search now makes adjustment layers (P-Q1 to P-Q3 answered).
+
 ## 0.10.41-0.10.42 - Test bridge for the after-export check and the Fast switch; both verified in Premiere 26.5.2
 - Bridge `after_export {out}`: the panel's export-event path (read the sequence, `/exports/done` with it), since a scripted
   export fires no event. Bridge `fill` also takes `roughFast` and says whether its row and the download offer are shown.
