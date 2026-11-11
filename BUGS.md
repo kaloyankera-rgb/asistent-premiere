@@ -5,11 +5,11 @@
   not saved). Bridge only; the editor clicking a box is not affected. Fix: dispatch in try/catch or call the handler.
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
-## Open: the translator model tests crash pytest (found 2026-11-11, not caused by 0.10.50-0.10.53)
-`tests/test_translate.py` real-model tests (`test_real_model_*`) end the pytest process with a segmentation fault inside
-sentencepiece (`translate._load`), also on the committed code and alone. The same call outside pytest works
-(`translate.english_lines(["Здравей, как си?"])` -> an English line). Run the suite with
-`-k "not (test_translate and real_model)"` until the cause (pytest's import order, two copies of a native library) is found.
+## Fixed 2026-11-12: the translator crashed pytest (and macOS reported "Python quit unexpectedly")
+sentencepiece is built with SWIG, which warns on Python 3.12 while it sets itself up; under the test command's `-W error` the
+warning became an error inside its C code and left it half set up, so Python crashed while loading the model or when unloading
+it at exit (5 crash reports 2026-11-11/12, all from test runs started in the terminal, none from the engine, which never runs
+with -W error). `tests/conftest.py` imports it once with only that warning ignored; the real-model tests run again (12 pass).
 
 ## Open bugs
 - **Open (2026-11-10, Premiere 26.5.2):** after `release_mac.sh` the old panel can stay loaded even when the panel is closed
