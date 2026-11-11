@@ -9,6 +9,7 @@ const { sizeFrom } = require("./subtitleplan.js");
 const { point, number } = require("./premiere-placement.js");
 
 const { maybe } = P;
+const secs = (t) => P.secs(t);
 
 async function frameSize(sequence) {
   const settings = await maybe(sequence, "getSettings");
@@ -71,6 +72,96 @@ async function levelDb(ps) {
   return ok.length ? Math.round((20 * Math.log10(Math.max(...ok)) + 15) * 100) / 100 : 0;
 }
 
+// ---- 0.10.44: does each clip's picture fill the frame (coverage.js does the maths) ----
+const MOTION = "AE.ADBE Motion";
+const GEOMETRY = /^AE\.ADBE Geometry/;                                // Transform effect (old and new)
+
+function bool(v) {
+  let o = v;
+  for (let i = 0; i < 4 && o !== null && typeof o === "object"; i++) o = o.value;
+  return typeof o === "boolean" ? o : typeof o === "number" ? o !== 0 : null;
+}
+
+// a parameter by match name or display name of its effect
+const pick = (ps, names) => { for (const n of names) if (ps[n]) return ps[n]; return null; };
+
+async function valueAt(prm, t, read) {
+  if (!prm) return undefined;
+  if (await maybe(prm, "isTimeVarying")) {
+    const ppro = require("premierepro");
+    const v = read(await maybe(prm, "getValueAtTime", ppro.TickTime.createWithSeconds(t)));
+    if (v !== null && v !== undefined) return v;
+  }
+  const v = read(await maybe(prm, "getStartValue"));
+  return v === null ? undefined : v;
+}
+
+/**
+ * One clip's Motion and Crop at its start, its end and every keyframe, for coverage.check:
+ * -> {samples: [{at (sequence s), m}], fitUnknown, transform}
+ */
+async function pictureSamples(x, fps) {
+  const ps = await params(x.ti);
+  const Q = {
+    pos: pick(ps, [`${MOTION}|Position`, "Motion|Position"]),
+    scale: pick(ps, [`${MOTION}|Scale`, "Motion|Scale", `${MOTION}|Scale Height`, "Motion|Scale Height"]),
+    width: pick(ps, [`${MOTION}|Scale Width`, "Motion|Scale Width"]),
+    uniform: pick(ps, [`${MOTION}|Uniform Scale`, "Motion|Uniform Scale"]),
+    rot: pick(ps, [`${MOTION}|Rotation`, "Motion|Rotation"]),
+    anchor: pick(ps, [`${MOTION}|Anchor Point`, "Motion|Anchor Point"]),
+    cl: pick(ps, [`${MOTION}|Crop Left`, "Motion|Crop Left", "Crop|Left", "AE.ADBE AECrop|Left"]),
+    ct: pick(ps, [`${MOTION}|Crop Top`, "Motion|Crop Top", "Crop|Top", "AE.ADBE AECrop|Top"]),
+    cr: pick(ps, [`${MOTION}|Crop Right`, "Motion|Crop Right", "Crop|Right", "AE.ADBE AECrop|Right"]),
+    cb: pick(ps, [`${MOTION}|Crop Bottom`, "Motion|Crop Bottom", "Crop|Bottom", "AE.ADBE AECrop|Bottom"]),
+  };
+  const transform = Object.keys(ps).some((k) => GEOMETRY.test(k.split("|")[0]) || k.split("|")[0] === "Transform");
+  // keyframes are in media time (Phase 0 P-A2); the clip shows media inPt..outPt
+  const inPt = x.inPt || 0;
+  const speed = x.speed > 0 ? x.speed : 1;
+  const outPt = Number.isFinite(x.outPt) ? x.outPt : inPt + (x.end - x.start) * speed;
+  const times = new Set([inPt, Math.max(inPt, outPt - 1 / (fps || 30))]);
+  for (const prm of Object.values(Q)) {
+    if (!prm || !(await maybe(prm, "isTimeVarying"))) continue;
+    for (const k of (await maybe(prm, "getKeyframeListAsTickTimes")) || []) {
+      const t = secs(k);
+      if (Number.isFinite(t) && t >= inPt - 1e-6 && t <= outPt + 1e-6) times.add(t);
+    }
+  }
+  const samples = [];
+  for (const t of [...times].sort((a, b) => a - b)) {
+    const pos = await valueAt(Q.pos, t, point);
+    const anchor = await valueAt(Q.anchor, t, point);
+    const scale = await valueAt(Q.scale, t, number);
+    const uniform = Q.width ? await valueAt(Q.uniform, t, bool) : true;
+    const width = Q.width ? await valueAt(Q.width, t, number) : undefined;
+    const m = {
+      x: pos ? pos.x : undefined, y: pos ? pos.y : undefined, ax: anchor ? anchor.x : undefined, ay: anchor ? anchor.y : undefined,
+      sw: uniform === false && width !== undefined ? width : scale, sh: scale,
+      rot: await valueAt(Q.rot, t, number),
+      crop: { l: await valueAt(Q.cl, t, number), t: await valueAt(Q.ct, t, number), r: await valueAt(Q.cr, t, number), b: await valueAt(Q.cb, t, number) },
+    };
+    // Scale to Frame Size is a clip setting, not a parameter: read it where this Premiere offers it
+    let fit;
+    for (const name of ["isScaleToFrameSize", "getScaleToFrameSize", "isScaledToFrameSize"]) {
+      const v = await maybe(x.ti, name);
+      if (typeof v === "boolean") { fit = v; break; }
+    }
+    m.fit = !!fit;
+    samples.push({ at: x.start + (t - inPt) / speed, m, fitKnown: fit !== undefined });
+  }
+  return { samples, fitUnknown: samples.some((s) => !s.fitKnown), transform };
+}
+
+/** Every video / photo clip with a file, with its samples (the engine adds each file's frame). */
+async function pictures(items, fps) {
+  const out = [];
+  for (const x of items) {
+    if (x.kind !== "video" || !x.path || x.unused || x.hidden || x.adjustment) continue;
+    out.push({ name: x.name, track: x.track, start: x.start, end: x.end, path: x.path, kind: "video", ...(await pictureSamples(x, fps)) });
+  }
+  return out;
+}
+
 /** Everything the check needs except the peaks: -> { input, peakItems, clips } (clips[i] is measured by peakItems[i]) */
 async function gather(project) {
   const t = await P.readTimeline(project);
@@ -95,7 +186,8 @@ async function gather(project) {
     peakItems.push(x.path ? { path: x.path, start: x.inPt || 0, end: Number.isFinite(x.outPt) ? x.outPt : null } : null);
   }
   return {
-    input: { items, end, fps: t.fps, frame: await frameSize(sequence), captions, graphics, clips, sequence: sequence.name },
+    input: { items, end, fps: t.fps, frame: await frameSize(sequence), captions, graphics, clips, sequence: sequence.name,
+      pictures: await pictures(items, t.fps) },
     peakItems, clips,
   };
 }
