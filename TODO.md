@@ -19,6 +19,9 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
   the GPU (built in experiments, 7.3x, one invented line seen). Greedy decoding measured: 20 % faster, worse words, not used.
 - [ ] **Rough cut "a bit inaccurate"** (the user): needs one example (where: cut too much, too little, wrong take, mid-word).
 
+- [ ] **0.10.38 Sync keeps Fix audio, no gap:** USER: in B-Roll select C0930, C0932, IMG_0357 and press Sync: iPhone on V2 over
+  C0930, C0932 straight after C0930, both with their L / R copies and levels.
+
 ## CP. Cockpit plan (`../COCKPIT_PLAN.md`, the user's go 2026-11-10: commit, then Phase 0, the rest here)
 Additive only: new files and pages, the existing tabs, sync, Fix audio, colour, subtitles, rough cut, import, updater frozen;
 each feature on its own branch off `improvements/2026-11`, baseline test numbers before and the same plus new after, a

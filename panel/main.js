@@ -419,6 +419,11 @@ async function onSync() {
         `files. Selected now: ${seen}. (For color or audio one clip is enough: the buttons in COLOR and AUDIO.)`);
     }
     engine.log("info", `timeline: ${timeline.clips.length} files selected, fps ${timeline.fps}`);
+    // 0.10.38 (the user: Sync "removed it once again"): Sync places whole files, so Fix audio's L / R copies are not in the
+    // new sequence; the files that had them are fixed again there, the same way, right after it is made
+    // (selected or not: with linked selection off only the picture may be selected)
+    const files = new Set(timeline.clips.map((c) => c.path));
+    const refix = new Set(timeline.items.filter((x) => x.kind === "audio" && files.has(x.path) && audioplan.sideOf(x.name)).map((x) => x.path));
     const t0 = Date.now();
     const { job } = await engine.startGroups(timeline.clips.map((c) => c.path));
     const result = await runJob(job);
@@ -437,9 +442,26 @@ async function onSync() {
       return;
     }
     const synced = result.groups.reduce((n, g) => n + g.members.length, 0);
+    let again = "";
+    let againOk = true;
+    if (refix.size) {
+      progress(0.96, "Fix audio again, as in your sequence…");
+      try {
+        const sel = await premiereAudio.readAudioSelection(project, (x) => refix.has(x.path));
+        if (sel.timeline.sequence.name !== done.name) throw new premiere.UserError(`${done.name} is not the open sequence`);
+        const out = await fixAudio(project, sel, undefined);
+        againOk = out.ok;
+        again = ` Fix audio done again on ${refix.size} ${refix.size === 1 ? "file" : "files"}, as in your sequence: ${out.text}`;
+        blocks.push(el("div", "name", "Fix audio again"), ...out.blocks);
+      } catch (e) {
+        againOk = false;
+        again = ` Fix audio could not be done again (${e.message || e}): select the clips in ${done.name} and press Fix audio.`;
+        engine.log("warning", `sync: fix audio again: ${e && e.stack ? e.stack : e}`);
+      }
+    }
     const named = await autoLabels(project);
     finish(`Done in ${secsTaken} s: ${done.name}, ${synced} clips in ${result.groups.length} groups. ` +
-      `Checked (off by at most ${done.worstMs.toFixed(1)} ms from the frames). Your sequence was not touched.${named}`, true, blocks);
+      `Checked (off by at most ${done.worstMs.toFixed(1)} ms from the frames). Your sequence was not touched.${again}${named}`, againOk, blocks);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `sync: ${e && e.stack ? e.stack : e}`);
@@ -449,9 +471,78 @@ async function onSync() {
   }
 }
 
-async function onAudio(force) {
-  // "phrases": everything "Fix audio" does, plus Volume keyframes that even out the phrases
+// Fix audio on the clips of `sel` (premiereAudio.readAudioSelection): measure, split the channels through the host, set the
+// levels. -> {ok, text, blocks}. Used by the button and, since 0.10.38, by Sync on its new sequence.
+async function fixAudio(project, sel, force) {
   const phrases = force === "phrases";
+  const work = audioplan.engineJobs(sel.items, force);
+  engine.log("info", `audio: ${sel.items.length} clips (${work.jobs.length} measured), force ${force || "auto"}`);
+  const { job } = await engine.startAudio(work.jobs, phrases);
+  const result = await runJob(job);
+  const plans = sel.items.map((it, i) => ({ it, res: result.items[work.index[i]], routed: null, lines: [], problems: [] }));
+  for (const p of plans) if (p.res.error) p.problems.push(p.res.error);
+
+  // the channels: the host makes the L/L and R/R copies and puts them where the clip is (ExtendScript)
+  const wanted = plans.map((p) => ({ p, route: audioplan.routeFor(p.it, p.res, force) })).filter((x) => x.route);
+  // a clip with effects or keyframes is not split: the copies would replace it without them (0.10.6)
+  const todo = [];
+  for (const x of wanted) {
+    const why = await premiereAudio.routeBlockers(x.p.it.ti);
+    if (why.length) x.p.routed = { ok: false, refused: true, msg: `it has ${why.join(", ")}, which the split copies would not keep: split it by hand, or remove them and press again` };
+    else todo.push(x);
+  }
+  // copies split by an earlier press: the host only gives them the clip's own label (a cut piece came out green)
+  const relabel = plans.filter((p) => p.it.side).map((p) => ({ track: p.it.track, start: p.it.start, end: p.it.end, route: "label" }));
+  if (todo.length || relabel.length) {
+    if (todo.length) progress(0.9, `Splitting the channels: ${todo.length} ${todo.length === 1 ? "clip" : "clips"}…`);
+    const answer = await engine.routeAudio({ sequence: sel.timeline.sequence.name,
+      guid: premiereCaptions.seqGuid(sel.timeline.sequence), project: project.path,
+      items: [...todo.map((x) => ({ track: x.p.it.track, start: x.p.it.start, end: x.p.it.end, route: x.route })), ...relabel] });
+    if (!answer.ok) throw new premiere.UserError(answer.msg || "Premiere did not split the channels.");
+    todo.forEach((x, i) => { x.p.routed = answer.items[i] || { ok: false, msg: "no answer" }; });
+    engine.log("info", `audio route: ${JSON.stringify(answer.items)}`);
+  }
+  if (state.cancelRequested && todo.length) throw new premiere.UserError("Cancelled after the channels were split: the levels were not set (Cmd/Ctrl+Z takes the split back).");
+  progress(0.95, "Setting the levels…");
+  const { undoSteps } = await premiereAudio.applyLevels(project, sel.timeline.sequence, audioplan.levelTargets(plans));
+
+  const blocks = [];
+  let changed = 0;
+  let failed = 0;
+  for (const p of plans) {
+    const box = el("div", "group");
+    box.appendChild(el("div", "name", p.it.name));
+    // a side Asistent made earlier: its analysis lines describe the pair, not this clip
+    if (p.it.side) {
+      box.appendChild(el("div", "reason", "Already split by Asistent: level only."));
+      // what the pair's analysis said about the balance of the two speakers still applies
+      for (const r of (p.res && p.res.reasons) || []) if (/The speakers differed|has no speaker of its own/.test(r)) box.appendChild(el("div", "reason", r));
+    }
+    else if (p.it.route) box.appendChild(el("div", "reason", "Has a Fill effect from before: channels left alone, level only."));
+    else for (const r of (p.res && p.res.reasons) || []) if (r) box.appendChild(el("div", "reason", r));
+    const line = audioplan.routeLine(p.routed);
+    if (line) box.appendChild(el("div", p.routed.ok ? "line" : "warn", line));
+    for (const l of p.lines) box.appendChild(el("div", "line", l));
+    if (p.res && p.res.action === "ask") box.appendChild(el("div", "warn", "Not touched: choose by hand (Manual ▸)."));
+    if (p.routed && !p.routed.ok) p.problems.push("the channels were not split");
+    for (const pr of p.problems) box.appendChild(el("div", "warn", pr));
+    if (p.problems.length) failed++;
+    else if (p.res && p.res.action !== "ask") changed++;
+    blocks.push(box);
+  }
+  for (const s of sel.skipped) blocks.push(el("div", "warn", `Skipped: ${s}.`));
+  blocks.push(el("div", "hint", `The limiter (Dynamics → Limiter ${audioplan.LIMITER_DB} dB) is on every clip, not on the Mix track: Premiere's ` +
+    "scripts cannot reach the main track. The sum of both tracks is kept under −6 dB by the levels themselves."));
+  const split = plans.filter((p) => p.routed && p.routed.ok && p.routed.status === "done").length;
+  const clips = (n) => `${n} ${n === 1 ? "clip" : "clips"}`;
+  const undo = [undoSteps ? `the levels and the limiter are ${undoSteps === 1 ? "one step" : `${undoSteps} steps`} of Cmd/Ctrl+Z` : "",
+    split ? "the split is separate Premiere steps (the copies and the link of each clip)" : ""].filter(Boolean).join("; ");
+  return { ok: !failed, blocks, text: `${failed ? `Done with problems: ${clips(changed)} fixed, ${failed} not.` : `Done: ${changed} of ${clips(plans.length)}.`}` +
+    `${split ? ` Split: ${split}.` : ""}${undo ? ` Undo: ${undo}.` : ""}` };
+}
+
+// force "phrases": everything "Fix audio" does, plus Volume keyframes that even out the phrases
+async function onAudio(force) {
   if (state.busy) return;
   if (!state.online) {
     finish("No connection to the engine. See README.", false);
@@ -464,70 +555,8 @@ async function onAudio(force) {
     const project = await premiere.activeProject();
     const sel = await premiereAudio.readAudioSelection(project);
     if (!sel.items.length) throw new premiere.UserError("Select at least one clip with sound in the timeline (its video or its audio).");
-    const work = audioplan.engineJobs(sel.items, force);
-    engine.log("info", `audio: ${sel.items.length} clips (${work.jobs.length} measured), force ${force || "auto"}`);
-    const { job } = await engine.startAudio(work.jobs, phrases);
-    const result = await runJob(job);
-    const plans = sel.items.map((it, i) => ({ it, res: result.items[work.index[i]], routed: null, lines: [], problems: [] }));
-    for (const p of plans) if (p.res.error) p.problems.push(p.res.error);
-
-    // the channels: the host makes the L/L and R/R copies and puts them where the clip is (ExtendScript)
-    const wanted = plans.map((p) => ({ p, route: audioplan.routeFor(p.it, p.res, force) })).filter((x) => x.route);
-    // a clip with effects or keyframes is not split: the copies would replace it without them (0.10.6)
-    const todo = [];
-    for (const x of wanted) {
-      const why = await premiereAudio.routeBlockers(x.p.it.ti);
-      if (why.length) x.p.routed = { ok: false, refused: true, msg: `it has ${why.join(", ")}, which the split copies would not keep: split it by hand, or remove them and press again` };
-      else todo.push(x);
-    }
-    // copies split by an earlier press: the host only gives them the clip's own label (a cut piece came out green)
-    const relabel = plans.filter((p) => p.it.side).map((p) => ({ track: p.it.track, start: p.it.start, end: p.it.end, route: "label" }));
-    if (todo.length || relabel.length) {
-      if (todo.length) progress(0.9, `Splitting the channels: ${todo.length} ${todo.length === 1 ? "clip" : "clips"}…`);
-      const answer = await engine.routeAudio({ sequence: sel.timeline.sequence.name,
-        guid: premiereCaptions.seqGuid(sel.timeline.sequence), project: project.path,
-        items: [...todo.map((x) => ({ track: x.p.it.track, start: x.p.it.start, end: x.p.it.end, route: x.route })), ...relabel] });
-      if (!answer.ok) throw new premiere.UserError(answer.msg || "Premiere did not split the channels.");
-      todo.forEach((x, i) => { x.p.routed = answer.items[i] || { ok: false, msg: "no answer" }; });
-      engine.log("info", `audio route: ${JSON.stringify(answer.items)}`);
-    }
-    if (state.cancelRequested && todo.length) throw new premiere.UserError("Cancelled after the channels were split: the levels were not set (Cmd/Ctrl+Z takes the split back).");
-    progress(0.95, "Setting the levels…");
-    const { undoSteps } = await premiereAudio.applyLevels(project, sel.timeline.sequence, audioplan.levelTargets(plans));
-
-    const blocks = [];
-    let changed = 0;
-    let failed = 0;
-    for (const p of plans) {
-      const box = el("div", "group");
-      box.appendChild(el("div", "name", p.it.name));
-      // a side Asistent made earlier: its analysis lines describe the pair, not this clip
-      if (p.it.side) {
-        box.appendChild(el("div", "reason", "Already split by Asistent: level only."));
-        // what the pair's analysis said about the balance of the two speakers still applies
-        for (const r of (p.res && p.res.reasons) || []) if (/The speakers differed|has no speaker of its own/.test(r)) box.appendChild(el("div", "reason", r));
-      }
-      else if (p.it.route) box.appendChild(el("div", "reason", "Has a Fill effect from before: channels left alone, level only."));
-      else for (const r of (p.res && p.res.reasons) || []) if (r) box.appendChild(el("div", "reason", r));
-      const line = audioplan.routeLine(p.routed);
-      if (line) box.appendChild(el("div", p.routed.ok ? "line" : "warn", line));
-      for (const l of p.lines) box.appendChild(el("div", "line", l));
-      if (p.res && p.res.action === "ask") box.appendChild(el("div", "warn", "Not touched: choose by hand (Manual ▸)."));
-      if (p.routed && !p.routed.ok) p.problems.push("the channels were not split");
-      for (const pr of p.problems) box.appendChild(el("div", "warn", pr));
-      if (p.problems.length) failed++;
-      else if (p.res && p.res.action !== "ask") changed++;
-      blocks.push(box);
-    }
-    for (const s of sel.skipped) blocks.push(el("div", "warn", `Skipped: ${s}.`));
-    blocks.push(el("div", "hint", `The limiter (Dynamics → Limiter ${audioplan.LIMITER_DB} dB) is on every clip, not on the Mix track: Premiere's ` +
-      "scripts cannot reach the main track. The sum of both tracks is kept under −6 dB by the levels themselves."));
-    const split = plans.filter((p) => p.routed && p.routed.ok && p.routed.status === "done").length;
-    const clips = (n) => `${n} ${n === 1 ? "clip" : "clips"}`;
-    const undo = [undoSteps ? `the levels and the limiter are ${undoSteps === 1 ? "one step" : `${undoSteps} steps`} of Cmd/Ctrl+Z` : "",
-      split ? "the split is separate Premiere steps (the copies and the link of each clip)" : ""].filter(Boolean).join("; ");
-    finish(`${failed ? `Done with problems: ${clips(changed)} fixed, ${failed} not.` : `Done: ${changed} of ${clips(plans.length)}.`}` +
-      `${split ? ` Split: ${split}.` : ""}${undo ? ` Undo: ${undo}.` : ""}`, !failed, blocks);
+    const out = await fixAudio(project, sel, force);
+    finish(out.text, out.ok, out.blocks);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `audio: ${e && e.stack ? e.stack : e}`);
