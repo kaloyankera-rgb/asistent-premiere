@@ -390,3 +390,11 @@ test("an exposure that went past the target is scaled back once by wanted / achi
   assert.match(col, /fixValues\.exposure = Math\.round\(\(base \+ \(added \* chk\.exposure_before\) \/ moved\) \* 100\) \/ 100;/);
   assert.match(col, /if \(added > 0 && moved > 0\)/);           // moved > before when it overshot: the new value is lower
 });
+
+test("Sync does Fix audio again on the files that had Asistent's L / R copies, through the same code as the button (0.10.38)", () => {
+  const sync = main.slice(main.indexOf("async function onSync"), main.indexOf("async function onSync") + 6000);
+  assert.match(sync, /files\.has\(x\.path\) && audioplan\.sideOf\(x\.name\)/);
+  assert.match(sync, /readAudioSelection\(project, \(x\) => refix\.has\(x\.path\)\)/);
+  assert.match(sync, /await fixAudio\(project, sel, undefined\)/);
+  assert.match(main, /async function onAudio[\s\S]*?await fixAudio\(project, sel, force\)/);
+});

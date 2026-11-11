@@ -57,11 +57,13 @@ async function readLevel(param) {
 
 // Audio clips selected in the active sequence, with the part of the media they use. A selected video clip brings its
 // own audio (same file, same place), so the button also works with linked selection off.
-async function readAudioSelection(project) {
+// `pick` (0.10.38): which clips, instead of the timeline selection (Sync redoes Fix audio on the files that had it)
+async function readAudioSelection(project, pick = null) {
   const t = await P.readTimeline(project);
-  const picked = t.items.filter((x) => x.selected && x.kind === "audio" && x.path);
+  const chosen = pick || ((x) => x.selected);
+  const picked = t.items.filter((x) => chosen(x) && x.kind === "audio" && x.path);
   const near = (a, b) => Math.abs(a - b) < 0.002;
-  for (const v of t.items.filter((x) => x.selected && x.kind === "video" && x.path)) {
+  for (const v of t.items.filter((x) => chosen(x) && x.kind === "video" && x.path)) {
     for (const a of t.items) {
       if (a.kind === "audio" && a.path === v.path && near(a.start, v.start) && near(a.end, v.end) && !picked.includes(a)) picked.push(a);
     }

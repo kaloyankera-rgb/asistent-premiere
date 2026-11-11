@@ -106,7 +106,7 @@ function report(input) {
   const g = gaps(input.items || [], input.end || 0, input.fps);
   const syncSeq = /^SYNC – /.test(input.sequence || "");
   out.push({ id: "black", title: "Black gaps", status: g.length && !syncSeq ? "warn" : "ok",
-    lines: g.length && syncSeq ? [`${g.length} gaps: a SYNC sequence keeps 2 s between groups on purpose (not for export).`] : g.length ? g.map((x) => `${clock(x.from)}–${clock(x.to)}: ${x.frames <= 2 ? `${x.frames || 1} frame${x.frames > 1 ? "s" : ""} of black (a flash frame)` : `${(x.to - x.from).toFixed(1)} s of black`}`)
+    lines: g.length && syncSeq ? [`${g.length} gaps: a SYNC sequence is a working sequence, not for export.`] : g.length ? g.map((x) => `${clock(x.from)}–${clock(x.to)}: ${x.frames <= 2 ? `${x.frames || 1} frame${x.frames > 1 ? "s" : ""} of black (a flash frame)` : `${(x.to - x.from).toFixed(1)} s of black`}`)
       : ["No black between the start and the end."] });
 
   const capLines = [];

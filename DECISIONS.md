@@ -442,3 +442,9 @@ for an explicit yes; EL1 records locally in `<app>/learning/color/` so nothing i
 (one export at a time), not in the job pool, so a long analysis after an export never delays Sync or subtitles. The report
 compares with Auto color's file analysis (not the value the frame check kept) and only where Asistent was sure.
 
+## 2026-11-11: Sync redoes Fix audio instead of copying the clips; no gap between recordings (0.10.38)
+The SYNC sequence is built from whole files (a fixed sync point per recording), so edits on the clips cannot come with it.
+Fix audio is deterministic for the same range, so Sync runs it again on the files that had Asistent's L / R copies, through
+the button's own code; anything else the editor did to the clips (cuts, effects) still stays in the editor's sequence. The
+2 s gap between recordings was the layout's own choice; the user does not want it, so recordings now follow directly.
+

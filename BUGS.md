@@ -92,3 +92,5 @@ probe, `scripts/setup_win.ps1` (never run), Windows overall.
 - Do not delete track items via UXP; do not reintroduce muting.
 - Panel results appear at the top and the panel scrolls (`#app`); new UI must keep that.
 - `tests/test_real_footage.py` depends on `~/Kaloyan/01_CLIENTS/The Pact/GStroy/Media/GStroy brand/9x16`.
+- **Fixed in 0.10.38 (not yet verified in Premiere): Sync dropped Fix audio's L / R copies and left 2 s between recordings**
+  (4a1a mobilefox, 2026-11-11). Sync builds from whole files; it now redoes Fix audio on the new sequence, GAP 0.
