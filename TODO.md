@@ -29,6 +29,7 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] Recording on how to do the keyframes
 - [ ] Cancelling doesn't work or takes a long time
 - [ ] After the sync detects double POV's it needs to not only rename the audio/video tracks it needs to label with color POV 1/2
+- [ ] After rough cut, when I've used "Fix audio" it resets it after the rough cut
 
 ## FILL. Picture fills the frame (0.10.44, the user 2026-11-11)
 - [ ] Verify in NEW TEST: a 4K clip at 88 % on V2 over V1 (expect "10 px at the top and bottom ... V1 shows through"), Anchor
