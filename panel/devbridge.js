@@ -122,12 +122,15 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     // fill the corrections box the way a person would
     async fill(a) {
       // the notes box, and (0.10.34) the Track names options, so a test can choose colours and the auto switch
-      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto"].includes(a.id)) throw new Error("fill: notes and the Track names options only.");
+      // 0.10.41: and the rough cut's Fast switch (with whether its row and the download offer are shown)
+      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughFast"].includes(a.id)) throw new Error("fill: notes, the Track names options and roughFast only.");
       const e = doc.getElementById(a.id);
-      if (a.id === "labelsAuto") e.checked = !!a.value;
+      const box = a.id === "labelsAuto" || a.id === "roughFast";
+      if (box) e.checked = !!a.value;
       else e.value = String(a.value);
       if (a.id !== "notes") e.dispatchEvent(new Event("change"));
-      return { id: a.id, value: a.id === "labelsAuto" ? e.checked : e.value };
+      const extra = a.id === "roughFast" ? { row_shown: !$("roughFastRow").hidden, download_shown: !$("roughFaster").hidden } : {};
+      return { id: a.id, value: box ? e.checked : e.value, ...extra };
     },
     async click(a) {
       if (!a.now) await idle(120);                       // { now: true }: press while the panel is busy (Cancel during a job)
@@ -512,6 +515,12 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     async learn_export() {
       if (!hooks.learnFromExport) throw new Error("no colour learning in this panel");
       return hooks.learnFromExport(true);
+    },
+    // 0.10.39: what the panel's export-event handler sends for the after-export check (a scripted export fires no event):
+    // the active sequence read by premiere-exportcheck.js, then /exports/done with the file
+    async after_export(a) {
+      if (!hooks.afterExport) throw new Error("no after-export check in this panel");
+      return hooks.afterExport(a.out || null);
     },
     async export_events(a) {
       const out = exportProbe.events.slice();

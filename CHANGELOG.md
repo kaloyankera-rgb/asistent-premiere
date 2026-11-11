@@ -31,6 +31,16 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.41-0.10.42 - Test bridge for the after-export check and the Fast switch; both verified in Premiere 26.5.2
+- Bridge `after_export {out}`: the panel's export-event path (read the sequence, `/exports/done` with it), since a scripted
+  export fires no event. Bridge `fill` also takes `roughFast` and says whether its row and the download offer are shown.
+- VERIFIED in NEW TEST: the sequence read (2160x3840, 29.97 fps, 128.5 s), a real 128 s export (`export_try`) checked in 20.7 s,
+  the report in the panel (Log > Report). It found real letterbox bars 1:18.5-1:44.0: exactly clip fx31030 (pure black rows at
+  the top and bottom, measured), and 1.5 s of silence at the start. Fast rough cut: turbo loaded, 51.5 s read in 21.1 s,
+  sequence "as written".
+- Found: in Premiere 26.5.2 the bridge's `dispatchEvent(new Event("change"))` throws "reading 'detail'" (the box is ticked
+  before it throws, so the test still ran); BUGS.md.
+
 ## 0.10.40 - Fast rough cut with large-v3-turbo, as a switch (TODO A, the user's choice 2026-11-11)
 - `asr.py` knows two models: large-v3 (subtitles, unchanged and still the default of every call) and large-v3-turbo
   (`mobiuslabsgmbh/faster-whisper-large-v3-turbo`, MIT, pinned commit and SHA-256 in `pins.py`, `<app>/models/whisper-turbo`).
