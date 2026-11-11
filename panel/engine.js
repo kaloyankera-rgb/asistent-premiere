@@ -223,8 +223,8 @@ function exportsRecent() {
   return call("GET", "/exports/recent");
 }
 
-function exportDone(path, kind, source) {
-  return call("POST", "/exports/done", { path: path || null, kind, source });
+function exportDone(path, kind, source, sequence) {
+  return call("POST", "/exports/done", { path: path || null, kind, source, sequence: sequence || null });
 }
 
 function exportReveal(id) {

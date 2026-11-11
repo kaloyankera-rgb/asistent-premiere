@@ -69,8 +69,10 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /import/unbind        {"project"}
   POST /import/result        {"id", "ok", "note"?}   the panel reports each import
   GET  /exports/settings     {enabled, project, folders: [{path, why: project|added|learned}], app: Finder|Explorer}
-  POST /exports/settings     {"project"?, "enabled"?, "add"?: folder, "remove"?: folder} -> the same (exports.py)
-  POST /exports/done         {"path"?, "kind": complete|error|cancel, "source"} an export event from the panel or host
+  POST /exports/settings     {"project"?, "enabled"?, "check"?, "add"?: folder, "remove"?: folder} -> the same (exports.py)
+  POST /exports/done         {"path"?, "kind": complete|error|cancel, "source", "sequence"?: {name, width, height, fps,
+                             duration, range}} an export event from the panel or host; each finished export is then checked
+                             (filecheck.py, its report in /exports/recent as "check")
   GET  /exports/recent       {items: [{id, name, path, at, shown, note}]} for the Log tab
   POST /exports/reveal       {"id"} show an export from the list again (only files the engine itself recorded)
 """
@@ -638,12 +640,15 @@ class Handler(BaseHTTPRequestHandler):
                 add, remove = body.get("add"), body.get("remove")
                 res = _exports().configure(str(body.get("project") or "") or None,
                                            None if body.get("enabled") is None else bool(body.get("enabled")),
-                                           add if isinstance(add, str) else None, remove if isinstance(remove, str) else None)
+                                           add if isinstance(add, str) else None, remove if isinstance(remove, str) else None,
+                                           None if body.get("check") is None else bool(body.get("check")))
                 return self._send(200, res)
             if self.path == "/exports/done":
                 path = body.get("path")
+                seq = body.get("sequence")
                 return self._send(200, _exports().done(path if isinstance(path, str) else None,
-                                                       str(body.get("kind") or "complete"), str(body.get("source") or "")))
+                                                       str(body.get("kind") or "complete"), str(body.get("source") or ""),
+                                                       seq if isinstance(seq, dict) else None))
             if self.path == "/exports/reveal":
                 return self._send(200, _exports().again(str(body.get("id") or "")))
             m = re.fullmatch(r"/jobs/([0-9a-f]{12})/cancel", self.path)

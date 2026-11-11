@@ -330,4 +330,4 @@ async function buildSyncSequence(project, timeline, lay) {
 }
 
 module.exports = { UserError, activeProject, readTimeline, readItems, buildSyncSequence, transaction, has, maybe,
-  secs, debug, ensureBin };
+  secs, debug, ensureBin, frameRate };
