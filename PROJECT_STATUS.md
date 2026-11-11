@@ -1,5 +1,8 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.48 (2026-11-11, installed): Auto color sees a LUT-only adjustment layer in Premiere 27.0 (Lumetri compared by value).
+NOT verified by the user in 27.0 yet (reopen the Asistent panel, press Auto color on the Pulse clip).
+
 0.10.47 (2026-11-11, installed, tested through the bridge in NEW TEST on Premiere 26.5.2 while the user edited in 27.0):
 the user's seven reminders. VERIFIED: rough cut from clones (rotation, colour space, effects, Fix audio L/R kept, linked),
 Cancel during recognition (0.06 s), Fix audio track order (A1+A2 / A3+A4, A4 added, named), check before export timecodes,

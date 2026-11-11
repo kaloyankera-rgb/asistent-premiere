@@ -76,4 +76,42 @@ function statusOf(pl) {
   return "CORRECTED";
 }
 
-module.exports = { plansFor, corrections, mergeValues, whiteWithinCheck, WHITE_OK, statusOf, STATUS_BG };
+
+// ---------------------------------------------------------------- is a Lumetri only a LUT? (premiere-color.js lutOnly)
+// The parameters a LUT is set in (read in Premiere 26.5.2, 2026-11-10: 4-7 Input LUT, 32-37 Look and its colour space,
+// 122-124 embedded LUT, 128-129 the LUT assets), the blob that mirrors them, and Auto Tone's notes (no effect until its
+// button is pressed). A blank-named parameter within two of an Input LUT or Look belongs to it. SECTION: the headings.
+const LUT_PARAM = /^(blob|input lut|look|lutasset|lookasset|embedded luts|media embedded lut type|media embedded lut blob|auto tone analytics data|color space)$/i;
+const SECTION = /^(basic correction|color|light|creative|adjustments|curves|rgb curves|hue saturation curves|color wheels( & match)?|hsl secondary|key|refine|correction|vignette|speedgrade custom|legacy tone and saturation)$/i;
+
+/**
+ * What differs between a Lumetri's fingerprint and an untouched one's (both premiere-color.js snapshot(): "i:Name=value"
+ * joined by "|"), other than its LUT. -> "" when it is only a LUT, else the reason. 0.10.48 (the user's Pulse Fitness Video 6
+ * in Premiere 27.0, 2026-11-11: "its Lumetri has more than a LUT (Color Wheels: false, untouched false)"): the untouched
+ * one was learnt in 26.5.2, and 27.0 names a parameter differently, so the same value at the same place counted as a change
+ * and Auto color measured the flat file under the LUT layer and applied nothing. A parameter is compared by its VALUE; its
+ * name only says what it is.
+ */
+function lutOnlyDiff(nowSnap, baseSnap) {
+  const split = (s) => s.split(/\|(?=\d+:)/);
+  const now = split(nowSnap);
+  const base = split(baseSnap);
+  if (now.length !== base.length) return "its Lumetri is not one Asistent knows";
+  const nameOf = (part) => part.replace(/^\d+:/, "").replace(/=[\s\S]*$/, "").trim();
+  const valueOf = (part) => part.replace(/^\d+:[^=]*=/, "");
+  const anchors = now.map((p, i) => (/^(input lut|look)$/i.test(nameOf(p)) ? i : -1)).filter((i) => i >= 0);
+  for (let i = 0; i < now.length; i++) {
+    if (/~$/.test(now[i])) return "its Lumetri has keyframes";
+    if (now[i] === base[i] || valueOf(now[i]) === valueOf(base[i])) continue;
+    const name = nameOf(now[i]);
+    if (LUT_PARAM.test(name) || (!name && anchors.some((j) => Math.abs(i - j) <= 2))) continue;
+    // a section heading's true/false is whether it is opened in the Lumetri panel (Pulse, 2026-11-10: "Color Wheels & Match"
+    // differed on a LUT-only layer); each section's own switch is its "Active" parameter and its settings are compared
+    if ((SECTION.test(name) || SECTION.test(nameOf(base[i]))) && /=(true|false)$/.test(now[i]) && /=(true|false)$/.test(base[i])) continue;
+    const val = (part) => valueOf(part).slice(0, 40);
+    return `its Lumetri has more than a LUT (${name || `parameter ${i}`}: ${val(now[i])}, untouched ${val(base[i])})`;
+  }
+  return "";
+}
+
+module.exports = { lutOnlyDiff, plansFor, corrections, mergeValues, whiteWithinCheck, WHITE_OK, statusOf, STATUS_BG };

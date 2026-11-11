@@ -164,3 +164,15 @@ test("a medium correction of the other part is not reported as left out", () => 
   assert.strictEqual(plansFor([{}], results, "sure", "exposure").length, 0);
   assert.deepStrictEqual(plansFor([{}], results, "sure")[0].left, ["the exposure"]);
 });
+
+// ---- 0.10.48: a LUT-only layer in Premiere 27.0, compared with an untouched Lumetri learnt in 26.5.2
+test("lutOnlyDiff: the same value under another name is no change; a moved slider or keyframes are", () => {
+  const { lutOnlyDiff } = require("../panel/colorplans.js");
+  const base = "0:Basic Correction=true|1:Exposure=0.0000|2:Input LUT=\"\"|3:=null|4:Color Wheels & Match=false|5:Saturation=100.0000";
+  const lut27 = "0:Basic Correction=true|1:Exposure=0.0000|2:Input LUT=\"SLog3-709.cube\"|3:=\"blob\"|4:Color Wheels=false|5:Saturation=100.0000";
+  assert.strictEqual(lutOnlyDiff(lut27, base), "");
+  assert.strictEqual(lutOnlyDiff(lut27.replace("4:Color Wheels=false", "4:Color Wheels=true"), base), "");   // a heading opened
+  assert.match(lutOnlyDiff(lut27.replace("1:Exposure=0.0000", "1:Exposure=1.0000"), base), /more than a LUT \(Exposure: 1\.0000/);
+  assert.match(lutOnlyDiff(lut27.replace("5:Saturation=100.0000", "5:Saturation=100.0000~"), base), /keyframes/);
+  assert.match(lutOnlyDiff(lut27 + "|6:X=1", base), /not one Asistent knows/);
+});
