@@ -1,5 +1,8 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.60 (2026-11-12, installed, SEEN by the user in Premiere 2026: the panel with the glow behind it): the glow is the body's
+background image (0.10.59's glow image covered the whole panel in Premiere).
+
 0.10.59 (2026-11-12, installed, checked through the bridge): a minimal panel: Tools as rows (Run + Automatic with switches),
 Motion tab (Keyframer | Tracker), clock (Log) and gear (Settings) icons, one-line header, Amethyst + Golden, a glow
 image behind translucent cards; three buttons renamed (Name tracks, Make subtitles, Check export). NOT seen by the user.
