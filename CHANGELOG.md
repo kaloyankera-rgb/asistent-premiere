@@ -31,6 +31,13 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## Tests 2026-11-12 (no version change) - the "Python quit unexpectedly" crashes were the test runs
+- Every Python crash report of 2026-11-11/12 (5) came from a test run started in the terminal, never from the engine: the
+  translator's sentencepiece (SWIG) warns on Python 3.12 while setting itself up, the test command's `-W error` turned that
+  into an error inside its C code, and Python crashed while loading the model or at exit. `tests/conftest.py` imports it once
+  with only that warning ignored (`python -W error -c "import sentencepiece"`: 139 before, 0 with the filter). The real-model
+  translator tests run again: 751 passed, 24 skipped, no crash report.
+
 ## 0.10.61 - Subtitles are cut where the speaker ends a phrase (the user 2026-11-12: "the last word of a connected phrase appears in the next subtitle")
 - **The cause, measured** on the editors' own chunks of 40 client videos (GStroy, Credissimo, ЕКОПАК, Beauty Sector, AULA; their
   speech through Whisper, chunks read from the exports in 2026-11-10): 133 times a word said straight on from the phrase before

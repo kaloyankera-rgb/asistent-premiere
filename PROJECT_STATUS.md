@@ -1,5 +1,8 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+Tests (2026-11-12): the Python crash reports were test runs, not the engine (the translator under -W error); fixed in
+tests/conftest.py, the real-model translator tests run again.
+
 0.10.61 (2026-11-12, installed, measured on 40 client videos, NOT yet seen by the user): subtitles are cut where the
 speaker ends a phrase (Auto + the five client styles): leftover words 133 -> 8, cuts where the editors cut F1 0.740 -> 0.761;
 ReShape unchanged (baseline + golden identical).
