@@ -100,4 +100,23 @@ async function gather(project) {
   };
 }
 
-module.exports = { gather, textCentre, volumeDb };
+// The sequence that was just exported, for the after-export check of the file (0.10.39, TODO I14): its name, frame size,
+// frame rate, length and the In to Out length when an In / Out is set (an In / Out export is that long). The Export tab exports
+// the active sequence; when the editor exported another one (a queue, Media Encoder), the check's words name the sequence it
+// compared with. Read only, and only what is cheap: no clips are read while Premiere finishes the export.
+async function exportedSequence(project) {
+  const seq = await maybe(project, "getActiveSequence");
+  if (!seq) return null;
+  const size = await frameSize(seq);
+  const duration = P.secs(await maybe(seq, "getEndTime"));
+  const inPt = P.secs(await maybe(seq, "getInPoint"));
+  const outPt = P.secs(await maybe(seq, "getOutPoint"));
+  const range = Number.isFinite(inPt) && Number.isFinite(outPt) && outPt > inPt &&
+    (inPt > 0.001 || (Number.isFinite(duration) && outPt < duration - 0.001)) ? outPt - inPt : null;
+  return {
+    name: seq.name || null, width: size ? size.width : null, height: size ? size.height : null,
+    fps: (await P.frameRate(seq)) || null, duration: Number.isFinite(duration) && duration > 0 ? duration : null, range,
+  };
+}
+
+module.exports = { gather, textCentre, volumeDb, exportedSequence };

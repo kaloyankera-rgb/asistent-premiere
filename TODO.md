@@ -140,7 +140,8 @@ a row in docs/ROLLBACK.md, measured against Classic on the same inputs before it
 - [x] **I12. Pre-export checks** (0.10.35). Later if wanted: the sequence's In/Out as the range, a hand-made channel
   mapping read through the host (now the louder channel counts), a check of the exported file itself after Show exports.
   USER: run it on a finished client edit before export and say what it missed or flagged wrongly.
-- **I14. After-export check (the user asked 2026-11-11: "checking if everything is alright after the video is done, black
+- [x] **0.10.39 built (not installed, not verified in Premiere): automatic, -14 LUFS as information. USER: export once, read the After
+  export card.** **I14. After-export check (the user asked 2026-11-11: "checking if everything is alright after the video is done, black
   bars etc"). NEXT candidate.** On the exported FILE (Show exports already knows when and where it is), local FFmpeg only:
   black bars (letter/pillarbox: cropdetect), black and flash frames (blackdetect), frozen frames (freezedetect), resolution /
   aspect / fps / codec / bitrate / colour tags against the sequence, true peak over -1 dBFS, loudness (LUFS), no sound / silence

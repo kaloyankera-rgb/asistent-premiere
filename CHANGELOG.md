@@ -31,6 +31,20 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.39 - After-export check of the exported file (TODO I14, the user 2026-11-11)
+- New `engine/asistent/filecheck.py`: every export the watcher finds is played once through FFmpeg in the background (two
+  threads, `nice` 10, working picture 640 px long side): black bars (cropdetect per frame, runs of 0.3 s or more), black
+  frames (one frame or more), frozen picture (a second or more), sound on one channel only, silent sound, no sound, true
+  peak above -1 dBFS, samples at full scale, silence in the first 0.5 s / last 1 s, FFprobe's size, frame rate, codec, bit
+  rate, HDR colour; and against the exported sequence (sent by the panel with Premiere's export event): a different shape,
+  frame rate or length (an In to Out length counts). Loudness is information only, next to -14 LUFS (the user's choice).
+- Automatic, on by default (the user's choice): `exports.json` `check`; the watcher runs while showing OR checking is on, so
+  exports are checked also with Show exports off. Report in `/exports/recent` (`check`), the new After export card (the newest
+  export, line by line) and the Log's Exports list (summary + Report).
+- Measured on 8 real finished exports (numbers only): 1.6-22 s each (a 4K minute is the slowest); true peaks over 0 dBFS
+  found on two. NOT verified in Premiere yet (the user was editing; the event payload and the sequence read are new).
+- Tests: 9 new pytest (synthetic files for each finding) + 4 watcher tests; 713 pytest + 24 skipped, node 238.
+
 ## 0.10.38 - Sync keeps Fix audio, and no gap between recordings (the user's field report, 2026-11-11)
 - The user (4a1a mobilefox › B-Roll, C0930 / C0932 / IMG_0357): after Fix audio, Sync "removed it once again" and "left a small
   gap between the clips which we don't have in the original timeline". The log showed the engine right (IMG_0357 on C0930 at

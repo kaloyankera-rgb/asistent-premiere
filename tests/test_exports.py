@@ -17,6 +17,26 @@ def no_premiere_prefs(monkeypatch):
     monkeypatch.setattr(E, "prefs_files", lambda: [])
 
 
+CHECKED = []
+
+
+@pytest.fixture(autouse=True)
+def quick_filecheck(monkeypatch):
+    """The after-export check is tested in test_filecheck.py; here it only records what it was asked to check."""
+    CHECKED.clear()
+    monkeypatch.setattr(E.filecheck, "run", lambda path, expect=None, cancelled=None:
+                        CHECKED.append((path, expect)) or {"status": "fine", "summary": "fine", "lines": []})
+
+
+def wait_checked(w, n=1, timeout=5.0):
+    end = time.time() + timeout
+    while time.time() < end:
+        if len(CHECKED) >= n and all((i.get("check") or {}).get("status") not in ("waiting", "running") for i in w.recent()):
+            return
+        time.sleep(0.02)
+    raise AssertionError("the after-export check did not run")
+
+
 PREFS = """<?xml version="1.0" encoding="UTF-8"?>
 <PremiereData Version="3">
 <MZ.Prefs.Export.Media.Path>{folder}/
@@ -145,8 +165,8 @@ def test_off_means_nothing_is_watched_and_events_are_not_counted(tmp_path, monke
     (tmp_path / "P").mkdir()
     shown = []
     w = E.ExportWatcher(E.Settings(str(tmp_path / "e.json")), show=shown.append)
-    st = w.configure(project=str(tmp_path / "P" / "A.prproj"))
-    assert st["enabled"] is False and w.observer is None and st["watching"] == []
+    st = w.configure(project=str(tmp_path / "P" / "A.prproj"), check=False)          # showing AND checking off
+    assert st["enabled"] is False and st["check"] is False and w.observer is None and st["watching"] == []
     path = video(tmp_path / "P" / "a.mp4")
     assert w.done(path)["counted"] is False
 
@@ -177,7 +197,7 @@ def test_an_event_path_in_a_new_folder_is_learned_and_shown(setup, tmp_path):
         run(w, time.time(), E.QUIET + 3)
         assert shown == [out] and w.recent()[0]["how"] == "event"
     finally:
-        w.configure(enabled=False)
+        w.configure(enabled=False, check=False)
     assert w.observer is None
 
 
@@ -231,7 +251,7 @@ def test_real_watchdog_end_to_end(tmp_path, monkeypatch):
             time.sleep(0.25)
         assert shown == [out]
     finally:
-        w.configure(enabled=False)
+        w.configure(enabled=False, check=False)
 
 
 def test_premiere_prefs_name_the_export_folder_and_file(tmp_path):
@@ -417,7 +437,7 @@ def test_the_export_folder_is_watched_once_its_drive_is_mounted(tmp_path, monkey
             time.sleep(0.1)
         assert shown == [out]
     finally:
-        w.configure(enabled=False)
+        w.configure(enabled=False, check=False)
     assert w.observer is None
 
 
@@ -464,7 +484,7 @@ def test_an_event_with_a_path_is_shown_without_waiting(setup, tmp_path):
         run(w, time.time(), 0.5, step=0.25)
         assert shown == [out]
     finally:
-        w.configure(enabled=False)
+        w.configure(enabled=False, check=False)
 
 
 def _tree(tmp_path):
@@ -519,7 +539,7 @@ def test_a_new_plan_folder_in_the_tree_is_caught_by_its_file_event(tmp_path, mon
             time.sleep(0.1)
         assert shown == [out]
     finally:
-        w.configure(enabled=False)
+        w.configure(enabled=False, check=False)
 
 
 def test_the_tree_is_never_scanned(tmp_path, monkeypatch):
@@ -535,3 +555,44 @@ def test_the_tree_is_never_scanned(tmp_path, monkeypatch):
     video(root / "Credissimo" / "Plan 1" / "colleague.mp4")
     run(w, time.time(), E.STABLE + E.QUIET + 4)
     assert shown == []
+
+
+# ---------------------------------------------------------------- after-export check (0.10.39, TODO I14)
+
+def test_checking_is_on_by_default_and_runs_after_the_export_is_shown(setup):
+    folder, w, shown = setup
+    assert E.Settings(str(folder / "fresh.json")).data["check"] is True
+    out = video(folder / "Video 8.mp4")
+    t = time.time()
+    run(w, t, E.STABLE + E.QUIET + 3)
+    assert shown == [out]
+    wait_checked(w)
+    assert CHECKED[0][0] == out and w.recent()[0]["check"]["status"] == "fine" and "took" in w.recent()[0]["check"]
+
+
+def test_with_showing_off_an_export_is_still_checked_but_not_shown(setup):
+    folder, w, shown = setup
+    w.settings.data["enabled"] = False
+    assert w.on()
+    out = video(folder / "Video 9.mp4")
+    run(w, time.time(), E.STABLE + E.QUIET + 3)
+    wait_checked(w)
+    assert shown == [] and CHECKED[0][0] == out and not w.recent()[0]["shown"]
+
+
+def test_the_sequence_from_the_export_event_goes_with_the_check(setup):
+    folder, w, shown = setup
+    out = video(folder / "Video 10.mp4")
+    seq = {"name": "Reel", "width": 1080, "height": 1920, "fps": 30, "duration": 2.0, "junk": "x"}
+    assert w.done(out, "complete", "test", seq)["counted"]
+    run(w, time.time(), E.QUIET + 2)
+    wait_checked(w)
+    assert CHECKED[0][1] == {"name": "Reel", "width": 1080, "height": 1920, "fps": 30, "duration": 2.0, "range": None}
+
+
+def test_checking_off_checks_nothing(setup):
+    folder, w, shown = setup
+    w.settings.data["check"] = False
+    out = video(folder / "Video 11.mp4")
+    run(w, time.time(), E.STABLE + E.QUIET + 3)
+    assert shown == [out] and CHECKED == [] and "check" not in w.recent()[0]
