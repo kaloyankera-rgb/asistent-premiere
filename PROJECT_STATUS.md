@@ -1,5 +1,9 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.50 (2026-11-11, installed, tested through the bridge in Premiere 26.5.2, NEW TEST and TEST): Stash clips (Cockpit A2b):
+Save selected clips on the Keyframer page's Stash; a clips stash goes in at the playhead with effects and keyframes, on free
+tracks, linked, in this or another project. Stash sequences stay in the bin "Asistent stash". NOT tried by the user.
+
 0.10.49 (2026-11-11, installed): Auto color reads frames of slowed-down clips (range kept inside the file). NOT verified by the user.
 
 0.10.48 (2026-11-11, installed, VERIFIED by the user on a few clips in 27.0): Auto color sees a LUT-only adjustment layer in Premiere 27.0 (Lumetri compared by value).

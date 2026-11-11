@@ -461,3 +461,10 @@ Fix audio is deterministic for the same range, so Sync runs it again on the file
 the button's own code; anything else the editor did to the clips (cuts, effects) still stays in the editor's sequence. The
 2 s gap between recordings was the layout's own choice; the user does not want it, so recordings now follow directly.
 
+
+## 2026-11-11: Stash clips keeps its sequences and never overwrites (0.10.50)
+The user said "go" without choosing between deleting Asistent's temporary stash sequences and keeping them. Keeping is the
+choice that needs no new exception to the rule "the host removes nothing without the user's approval of that deletion", so
+the stash sequences (and what an import brings) stay in the bin "Asistent stash". A stash goes in only where its tracks are
+free (moved to free tracks, tracks added on top): a clone with overwrite would cut or remove the editor's clips under it,
+which is the same kind of removal.

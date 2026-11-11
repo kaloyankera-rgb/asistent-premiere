@@ -60,3 +60,43 @@ test("capture refuses nothing to save and a too long animation; names say what m
   assert.match(S.capture([long]).error, /too long/);
   assert.strictEqual(S.nameFor("C0738.MP4", ["Motion › Position", "Motion › Scale"]), "C0738 · Position, Scale");
 });
+
+// ---------------------------------------------------------------- Stash clips (0.10.50)
+const sel = [
+  { kind: "video", track: 1, start: 10.0, end: 13.0, name: "logo.png", path: "/a/logo.png" },
+  { kind: "video", track: 0, start: 9.5, end: 14.0, name: "bg.mp4", path: "/a/bg.mp4" },
+  { kind: "audio", track: 0, start: 9.5, end: 14.0, name: "bg.mp4", path: "/a/bg.mp4" },
+];
+
+test("captureClips: times from the selection's start, tracks kept, a clip and its sound grouped", () => {
+  const c = S.captureClips(sel, 30);
+  assert.strictEqual(c.kind, "clips");
+  assert.strictEqual(c.span, 4.5);
+  assert.strictEqual(c.video, 2);
+  assert.strictEqual(c.audio, 1);
+  assert.strictEqual(c.name, "logo + 2");
+  const logo = c.items.find((x) => x.name === "logo.png");
+  assert.deepStrictEqual([logo.track, logo.start, logo.end, logo.group], [1, 0.5, 3.5, 0]);
+  const bg = c.items.filter((x) => x.name === "bg.mp4");
+  assert.ok(bg[0].group && bg[0].group === bg[1].group);
+  assert.ok(S.captureClips([], 25).error);
+});
+
+test("fitClips: same tracks when free, moved up past a busy track, tracks added when needed", () => {
+  const c = S.captureClips(sel, 30);
+  const free = S.fitClips(c, 20, [], { video: 3, audio: 2 }, 30);
+  assert.deepStrictEqual([free.dv, free.da, free.add.video, free.add.audio], [0, 0, 0, 0]);
+  assert.strictEqual(free.ranges.find((r) => r.label === "V2 logo.png").start, 20.5);
+  // V1 busy at 20-22: the whole video group goes up one (V2, V3); there are 3 video tracks so nothing is added
+  const busy = [{ kind: "video", track: 0, start: 19, end: 22 }];
+  const up = S.fitClips(c, 20, busy, { video: 3, audio: 2 }, 30);
+  assert.deepStrictEqual([up.dv, up.da, up.add.video], [1, 0, 0]);
+  // only 2 video tracks: one is added
+  assert.strictEqual(S.fitClips(c, 20, busy, { video: 2, audio: 2 }, 30).add.video, 1);
+  // a clip that only touches the range (ends exactly where the stash starts) is not in the way
+  assert.strictEqual(S.fitClips(c, 20, [{ kind: "video", track: 0, start: 15, end: 20 }], { video: 3, audio: 2 }, 30).dv, 0);
+  // links follow the shift
+  const g = S.linkGroups(up.ranges);
+  assert.strictEqual(g.length, 1);
+  assert.deepStrictEqual(g[0].map((x) => `${x.kind}${x.track}`).sort(), ["audio0", "video1"]);
+});

@@ -470,6 +470,34 @@ function as_link(a) {
     return as_result(true, "ok", { linked: linked, groups: groups.length, missing: missing });
 }
 
+// Stash clips (0.10.50): the stash's own sequence (made by Asistent from its shell, in the bin "Asistent stash") saved as a
+// project file in the stash folder. exportAsProject writes the sequence with its clips, effects, keyframes and the project
+// items they use (the media stays where it is). Nothing in the project is changed.
+function as_stash_export(a) {
+    var tg = as_target(a);
+    if (tg.error) return as_result(false, tg.error);
+    if (!/^Stash - /.test(String(tg.seq.name))) return as_result(false, "That is not one of Asistent's stash sequences: not exported.");
+    var f = new File(a.path);
+    if (f.exists) return as_result(false, "The stash already has a project file.");
+    var ok = tg.seq.exportAsProject(f.fsName);
+    f = new File(a.path);
+    return as_result(!!f.exists && f.length > 0, f.exists ? "ok" : "Premiere did not write the project file.",
+        { bytes: f.exists ? f.length : 0, returned: String(ok) });
+}
+
+// Tracks added at the top of the ACTIVE sequence (QE works only on the active one): {video, audio} -> {ok, video, audio}
+// (the counts after). Used when a stash or a tracked layer has no free room; adding a track removes nothing.
+function as_add_tracks(a) {
+    var tg = as_target(a);
+    if (tg.error) return as_result(false, tg.error);
+    var seq = tg.seq, v0 = seq.videoTracks.numTracks, a0 = seq.audioTracks.numTracks;
+    if (!app.project.activeSequence || app.project.activeSequence.sequenceID !== seq.sequenceID) return as_result(false, "Open the sequence first.");
+    app.enableQE();
+    // addTracks(video count, after video index, audio count, audio type 1 = stereo, after audio index)
+    qe.project.getActiveSequence().addTracks(Math.max(0, a.video | 0), v0, Math.max(0, a.audio | 0), 1, a0);
+    return as_result(true, "ok", { video: seq.videoTracks.numTracks, audio: seq.audioTracks.numTracks, before: { video: v0, audio: a0 } });
+}
+
 // args: {project, sequence, items: [...]} -> {ok, items: [result per item, in order]}
 function as_audio_route(a) {
     var tg = as_target(a);
@@ -527,6 +555,8 @@ function as_run(name, args) {
         if (name === "graphics") return as_graphics(args || {});
         if (name === "audio_route") return as_audio_route(args || {});
         if (name === "link") return as_link(args || {});
+        if (name === "stash_export") return as_stash_export(args || {});
+        if (name === "add_tracks") return as_add_tracks(args || {});
         if (name === "eval") return as_eval(args || {});
         if (name === "play") return as_play(args || {});
         if (name === "play_stop") return as_play_stop(args || {});

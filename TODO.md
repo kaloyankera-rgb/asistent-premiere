@@ -55,8 +55,9 @@ first; brand profiles deferred.
   on a real animation; check a sped-up clip. Later if wanted: rename / delete saved curves, several clips at once.
 - [x] **A2 Stash v1** (0.10.37, verified through the bridge). USER: save a real title animation and put it on another clip.
   Later: a thumbnail, rename in the panel, stashes shared through the office (with EL0).
-- [ ] **A2b Stash clips v2** (a logo on V2 over a background on V1). P-A5 answered 2026-11-11 (clone across sequences +
-  exportAsProject, plan in docs/probes/cockpit-phase0.md). WAITING: the user's word on deleting Asistent's own temporary sequences.
+- [x] **A2b Stash clips v2** (0.10.50, verified through the bridge in NEW TEST and TEST). The user said "go" without choosing
+  delete or keep: the stash sequences are KEPT in the bin "Asistent stash" (nothing deleted). USER: save a real logo + background
+  and put it in another project. Later: a thumbnail, rename in the panel.
 - [ ] **A3 Tracker**: faces first (YuNet, reframing 9:16), then a placed target (OpenCV), confidence strip, smoothed and
   thinned Position keys in one Undo step, never over the editor's keyframes.
 - [ ] **A4 Brand profiles**: deferred (text colour cannot be set by script); a new `brand.py` if taken up.
