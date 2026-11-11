@@ -14,6 +14,14 @@ WHISPER_SHA256 = {
     "vocabulary.json": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
     "model.bin": "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1",
 }
+TURBO_REVISION = "0a363e9161cbc7ed1431c9597a8ceaf0c4f78fcf"          # mobiuslabsgmbh/faster-whisper-large-v3-turbo (0.10.40)
+TURBO_SHA256 = {
+    "config.json": "b0253ea6c0d3bea6b1e19e91a02acfd3b53f4467362efcb5a3e6b16c9b3a9b7e",
+    "preprocessor_config.json": "7ccc62c6f2765af1f3b46c00c9b5894426835a05021c8b9c01eecb6dfb542711",
+    "tokenizer.json": "297b13372ac43916285644fb9687add3cc62ee2a1adb60da3dc25cc94c1871fd",
+    "vocabulary.json": "c69260f2ab26d659b7c398f9a2b2b48ed0df16c3b47d7326782fd9cba71690c1",
+    "model.bin": "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da",
+}
 NLLB_REVISION = "30c36268408177b0fce2bfcfa205d877accd327d"          # JustFrederik/nllb-200-distilled-1.3B-ct2-int8
 NLLB_SHA256 = {
     "config.json": "0c2f6fa2057c7264d052fb4a62ba3476eeae70487acddfa8e779a53a00cbf44c",

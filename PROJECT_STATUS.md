@@ -1,5 +1,9 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.40 (2026-11-11, branch feature/roughcut-turbo, NOT installed: the user was editing): Fast rough cut switch (large-v3-turbo,
+2.1x faster on 15 GStroy clips, but fewer repeated takes found: off by default). Turbo downloaded on this Mac. ReShape golden
+identical. Panel switch and download button NOT verified in Premiere.
+
 0.10.38 (2026-11-11, installed): Sync does Fix audio again on files that had Asistent's L / R copies, and leaves no gap
 between recordings. NOT verified in Premiere yet (user to try in 4a1a mobilefox › B-Roll). Tests: 700 pytest + 24 skipped, node 238.
 

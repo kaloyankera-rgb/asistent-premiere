@@ -52,7 +52,7 @@ async function readInput(project, opts) {
     meta.push(m);
   }
   const payload = { items: plan.dialogue, layout: plan.layout, out_dir: folder, name: t.sequence.name || "sequence", fps: t.fps || 25,
-    width: size && size.width, height: size && size.height, mode: opts.mode, tempo: opts.tempo, markers: !!opts.markers, skipped: plan.skipped };
+    width: size && size.width, height: size && size.height, mode: opts.mode, tempo: opts.tempo, markers: !!opts.markers, fast: !!opts.fast, skipped: plan.skipped };
   engine.log("info", `roughcut: ${plan.layout.length} items (${plan.layout.map((x) => `${x.kind[0].toUpperCase()}${x.track + 1} ${x.name}`).join(" | ")}), ` +
     `${plan.dialogue.length} for the sound, ${plan.skipped.length} skipped, ${t.fps} fps, ${opts.mode}/${opts.tempo}`);
   return { payload, plan, meta, sequence: t.sequence };

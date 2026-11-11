@@ -404,3 +404,44 @@ def test_a_long_piece_is_read_in_parts_cut_in_its_quietest_moments():
     assert all(p["at"] == 200.0 + (p["start"] - 10.0) for p in parts)
     short = {"path": "/m/b.mp4", "start": 0.0, "end": 39.0, "at": 0.0, "track": 0}
     assert R.split_long([short], read=lambda s, pad: (_ for _ in ()).throw(AssertionError("not read"))) == [short]
+
+
+# ---------------------------------------------------------------- 0.10.40: large-v3-turbo for the rough cut only
+
+def test_the_rough_cut_uses_turbo_only_when_fast_and_falls_back_to_large(monkeypatch):
+    from asistent import roughcut_job as R
+    have = {asr.LARGE: True, asr.TURBO: True}
+    monkeypatch.setattr(asr, "backend_installed", lambda: True)
+    monkeypatch.setattr(asr, "model_present", lambda kind=asr.LARGE: have[kind])
+    assert R.model() == asr.LARGE                                   # turbo only when the editor switched Fast on
+    assert R.model(fast=True) == asr.TURBO
+    have[asr.TURBO] = False
+    assert R.model(fast=True) == asr.LARGE
+    have[asr.LARGE] = False
+    assert R.model(fast=True) is None
+
+
+def test_turbo_words_never_reach_the_subtitles_cache_but_subtitle_words_are_reused(tmp_path, monkeypatch):
+    from asistent import roughcut_job as R, subtitle_job as S
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path / "app"))
+    audio = np.zeros(16000, dtype=np.float32)
+    monkeypatch.setattr(R, "window_audio", lambda win, prompt: (audio, "k1"))
+    calls = []
+    monkeypatch.setattr(asr, "transcribe", lambda y, prompt, progress, cancelled, model=asr.LARGE:
+                        calls.append(model) or [{"word": "турбо", "start": 0.0, "end": 0.5, "p": 0.9}])
+    r = R.read_rough({}, asr.TURBO, None, lambda: False)
+    assert calls == [asr.TURBO] and r["key"] == R.TURBO_KEY + "k1" and not r["cached"]
+    assert S._cached("k1") is None                                  # the subtitles' key stays empty
+    assert R.read_rough({}, asr.TURBO, None, lambda: False)["cached"] and calls == [asr.TURBO]   # cached under its own key
+    S._store("k1", {"words": [{"word": "голям", "start": 0.0, "end": 0.5, "p": 0.9}]})       # subtitles read it with large-v3
+    r = R.read_rough({}, asr.TURBO, None, lambda: False)
+    assert r["cached"] and r["entry"]["words"][0]["word"] == "голям" and calls == [asr.TURBO]
+
+
+def test_asr_keeps_large_v3_as_the_default_model(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    assert asr.model_dir().endswith(os.path.join("models", "whisper"))
+    assert asr.model_dir(asr.TURBO).endswith(os.path.join("models", "whisper-turbo"))
+    import inspect
+    assert inspect.signature(asr.transcribe).parameters["model"].default == asr.LARGE
+    assert asr.model_status(asr.TURBO)["expected_bytes"] < asr.model_status()["expected_bytes"]

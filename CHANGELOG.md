@@ -31,6 +31,17 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.40 - Fast rough cut with large-v3-turbo, as a switch (TODO A, the user's choice 2026-11-11)
+- `asr.py` knows two models: large-v3 (subtitles, unchanged and still the default of every call) and large-v3-turbo
+  (`mobiuslabsgmbh/faster-whisper-large-v3-turbo`, MIT, pinned commit and SHA-256 in `pins.py`, `<app>/models/whisper-turbo`).
+- Rough cut: a new "Fast (fewer takes found)" switch, off by default, shown once turbo is downloaded (a "Download the fast
+  recognizer" button under Rough cut, `POST /roughcut/model/download`). Turbo words are cached under their own key, so the
+  subtitles never see them; a subtitle reading of the same audio is still reused.
+- Measured on GStroy FX3 (15 clips, 215 s, empty cache, M4 Max, at low priority while Premiere ran): large-v3 76.7 s, turbo
+  35.8 s (2.1x). The cut differs: turbo missed one false start and resolved one group of three takes differently (takes cut
+  58.4 -> 34.5 s, result 108.8 -> 123.3 s). Hence a switch, not the new default.
+- ReShape golden check identical (SRT, English SRT, job JSON). Tests: 3 new pytest; 705 pytest + 24 skipped, node 238.
+
 ## 0.10.38 - Sync keeps Fix audio, and no gap between recordings (the user's field report, 2026-11-11)
 - The user (4a1a mobilefox › B-Roll, C0930 / C0932 / IMG_0357): after Fix audio, Sync "removed it once again" and "left a small
   gap between the clips which we don't have in the original timeline". The log showed the engine right (IMG_0357 on C0930 at
