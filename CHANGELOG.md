@@ -31,6 +31,18 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.38 - Sync keeps Fix audio, and no gap between recordings (the user's field report, 2026-11-11)
+- The user (4a1a mobilefox › B-Roll, C0930 / C0932 / IMG_0357): after Fix audio, Sync "removed it once again" and "left a small
+  gap between the clips which we don't have in the original timeline". The log showed the engine right (IMG_0357 on C0930 at
+  +46.30 s, C0932 alone); the SYNC sequence is built from whole files, so Fix audio's L / R copies and levels were not in it,
+  and the layout put 2 s between entries.
+- Sync now does Fix audio again on its new sequence for every selected file that has Asistent's L / R copies anywhere in the
+  user's sequence (selected or not), with the same code as the button (`fixAudio()`, split out of `onAudio`;
+  `readAudioSelection(project, pick)` takes a rule instead of the selection). A failure there is said, never hides the sync.
+- `layout.js` GAP 0: recordings follow each other directly. The export check's note on SYNC gaps reworded.
+- Tests: the user's case in layout.test.js, a wiring test for the redo; 700 pytest + 24 skipped, node 238.
+- NOT verified in Premiere: the user had the client project in front (the bridge refuses it); to try in B-Roll.
+
 ## 0.10.37 - Stash v1: save an animation, put it on another clip at the playhead (Cockpit plan A2)
 - Keyframer page, new Stash section: Save animation (the ticked properties of the read clip), a list of saved stashes with a
   client filter ("Show"), each one a button that writes it on the selected clip from the playhead in one Undo step; × twice

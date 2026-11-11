@@ -5,10 +5,12 @@
 // order:  path -> where the clip was in the editor's timeline (groups keep that order)
 //
 // Every camera (= folder of the file) gets its own track, the same one in every group. Groups and clips
-// without a match follow each other with a gap in the order they were recorded (`chronological`).
+// without a match follow each other in the order they were recorded (`chronological`), with no gap (0.10.38).
 // Times are where each clip's media starts. No markers are written into the sequence.
 
-const GAP = 2.0;
+// 0.10.38 (the user: "a small gap between the clips which we don't have in the original timeline"): no gap, entries follow
+// each other directly in recording order
+const GAP = 0;
 
 function folderOf(path) {
   const i = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
