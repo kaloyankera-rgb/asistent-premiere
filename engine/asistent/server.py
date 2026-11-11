@@ -9,6 +9,7 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /update/install       job: download, check and install the newest release, then the engine restarts
   GET  /subtitles/model      speech model status (backend installed, model present, size, device, "translator")
   POST /subtitles/model/download   job: download the ~3 GB model (only from the confirmed panel button)
+  POST /roughcut/model/download    job: download large-v3-turbo (~1.6 GB), the rough cut's faster recognizer (its panel button)
   POST /subtitles/translator/download   job: download the ~1.4 GB English translator (only from its panel button; also replaces
                                         the 600 MB one of 0.9.94-0.9.96)
   POST /subtitles            {"items": [{path, start, end, at, name}], "out_dir", "name", "fps", "width", "height",
@@ -309,7 +310,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, _import_status(project))
         if self.path == "/subtitles/model":
             return self._send(200, {**asr.model_status(), "translator": translate.available(),
-                                    "translator_better": translate.better_available(), "translator_mb": translate.MODEL_MB})
+                                    "translator_better": translate.better_available(), "translator_mb": translate.MODEL_MB,
+                                    "turbo": asr.model_present(asr.TURBO), "turbo_bytes": asr.MODELS[asr.TURBO]["bytes"]})
         if url.path == "/update/check":
             return self._send(200, updater.check(force=(parse_qs(url.query).get("force") or ["0"])[0] == "1"))
         if url.path == "/subtitles/settings":
@@ -381,6 +383,15 @@ class Handler(BaseHTTPRequestHandler):
                         job.progress, job.message = f, msg
                     return asr.download_model(progress, lambda: job.cancelled)
                 return self._send(200, {"job": JOBS.submit("subtitles_model", work).id})
+            if self.path == "/roughcut/model/download":                # 0.10.40: large-v3-turbo, the rough cut's recognizer
+                if asr.model_present(asr.TURBO):
+                    return self._send(200, {"done": True})
+
+                def work(job):
+                    def progress(f, msg):
+                        job.progress, job.message = f, msg
+                    return asr.download_model(progress, lambda: job.cancelled, asr.TURBO)
+                return self._send(200, {"job": JOBS.submit("roughcut_model", work).id})
             if self.path == "/subtitles/translator/download":
                 if translate.available() and not translate.better_available():
                     return self._send(200, {"done": True})
