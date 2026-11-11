@@ -23,6 +23,13 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] **0.10.38 Sync keeps Fix audio, no gap:** USER: in B-Roll select C0930, C0932, IMG_0357 and press Sync: iPhone on V2 over
   C0930, C0932 straight after C0930, both with their L / R copies and levels.
 
+## R. Reminders (the user, 2026-11-11: "add these as a reminder when I ask"; not to start unasked)
+- [ ] Timing fix on the before export black bars thing
+- [ ] Rough cut bugs
+- [ ] Recording on how to do the keyframes
+- [ ] Cancelling doesn't work or takes a long time
+- [ ] After the sync detects double POV's it needs to not only rename the audio/video tracks it needs to label with color POV 1/2
+
 ## FILL. Picture fills the frame (0.10.44, the user 2026-11-11)
 - [ ] Verify in NEW TEST: a 4K clip at 88 % on V2 over V1 (expect "10 px at the top and bottom ... V1 shows through"), Anchor
   Point moved, Motion Crop, Scale to Frame Size on (can it be read?), a rotated clip, a keyframed scale. Then the user's own case.
