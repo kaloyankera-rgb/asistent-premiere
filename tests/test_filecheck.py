@@ -113,3 +113,18 @@ def test_parse_reads_ffmpegs_summary():
     assert m["loudness"] == -15.5 and m["true_peak"] == -0.4 and m["lra"] == 4.0
     assert m["channels"][0] == {"peak": -3.0, "rms": -20.0} and m["channels"][1]["rms"] == -math.inf
     assert m["overall_rms"] == -23.0 and m["silence"] == [[0.0, 0.7]] and m["freeze"] == [[3.0, 5.0]]
+
+
+def test_bars_name_the_sides_that_really_show_one():
+    assert F.bar_sides("top/bottom") == "Black bars top and bottom"
+    assert F.bar_sides("left/right") == "Black bars left and right"
+    assert F.bar_sides("all") == "Black bars on all sides"
+    assert F.bar_sides("right") == "Black bar on the right"
+    assert F.bar_sides("bottom/right") == "Black bars at the bottom and on the right"
+
+
+def test_a_shifted_picture_reports_only_its_open_sides(tmp_path):
+    # the picture moved down and to the left: bars at the top and on the right only (a moved Anchor Point or a tracked clip)
+    r = F.run(make(tmp_path / "shift.mp4", vfilter="crop=230:420:0:0,pad=270:480:0:60:black,setsar=1"))
+    bars = [c for c in checks(r) if c.startswith("Black bar")]
+    assert bars and all(c.startswith("Black bars at the top and on the right") for c in bars), bars

@@ -31,6 +31,20 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.62 - The after-export check names the sides that really show a black bar; tried in Premiere
+- **Tried in Premiere 26.5.2 (NEW TEST, through the bridge, 2026-11-12)**: the 6 s sequence "Tracker test" (a synthetic clip,
+  no client footage) exported with Premiere's own "Match Source - Low bitrate" H.264 preset into a scratch folder the watcher
+  had learned. The watcher found the file by itself and the check ran in 1.9 s: complete 0:06.0, 2160x3840 29.97 fps H264,
+  no black frames, no frozen picture, silent sound (the sequence has none), and black edges where the tracked clip moves
+  (measured on the file's own pixels: top at 0-0.6 s, right 0.6-1.5 s and from 2.7 s, bottom from 3.6 s). Premiere's export
+  event did NOT reach the panel for a scripted export (`exportSequence`, IMMEDIATELY), so the comparison with the sequence
+  (shape, frame rate, length) still needs a real Export from the Export tab.
+- **Fixed**: bars were named by pairs only ("top and bottom", "left and right", "on all sides"); that clip's right and bottom
+  bars read "on all sides". Now the sides that show one: "Black bar on the right", "Black bars at the bottom and on the right"
+  (a moved Anchor Point, a tracked or keyed Position); centred bars read as before.
+- Checked: 753 pytest (2 new in `tests/test_filecheck.py`: the naming, a shifted picture with bars at the top and on the right)
+  + 274 node.
+
 ## Tests 2026-11-12 (no version change) - the "Python quit unexpectedly" crashes were the test runs
 - Every Python crash report of 2026-11-11/12 (5) came from a test run started in the terminal, never from the engine: the
   translator's sentencepiece (SWIG) warns on Python 3.12 while setting itself up, the test command's `-W error` turned that
