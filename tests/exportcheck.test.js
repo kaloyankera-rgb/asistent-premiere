@@ -66,3 +66,21 @@ test("a SYNC sequence's gaps between groups are not reported as black to fix", (
   assert.strictEqual(r.find((s) => s.id === "black").status, "ok");
   assert.match(r.find((s) => s.id === "black").lines[0], /working sequence/);
 });
+
+test("0.10.44: the report has a 'Picture fills the frame' part when the clips' frames are known", () => {
+  const { report } = require("../panel/exportcheck.js");
+  const items = [{ kind: "video", track: 0, name: "talk.mp4", start: 0, end: 20, path: "/m/talk.mp4" },
+    { kind: "video", track: 1, name: "broll.mp4", start: 5, end: 9, path: "/m/broll.mp4" }];
+  const pictures = [
+    { name: "talk.mp4", track: 0, start: 0, end: 20, path: "/m/talk.mp4", kind: "video", samples: [{ at: 0, m: { sw: 100 } }] },
+    { name: "broll.mp4", track: 1, start: 5, end: 9, path: "/m/broll.mp4", kind: "video", samples: [{ at: 5, m: { sw: 88 } }] },
+    { name: "logo.png", track: 2, start: 0, end: 20, path: "/m/logo.png", kind: "video", samples: [{ at: 0, m: { sw: 20 } }] },
+  ];
+  const files = { "/m/talk.mp4": { width: 1080, height: 1920 }, "/m/broll.mp4": { width: 3840, height: 2160 }, "/m/logo.png": { width: 500, height: 500, alpha: true } };
+  const parts = report({ items, end: 20, fps: 30, frame: { width: 1080, height: 1920 }, pictures, files });
+  const fill = parts.find((p) => p.id === "fill");
+  assert.equal(fill.status, "warn");
+  assert.match(fill.lines[0], /^V2 broll\.mp4 at 0:05\.0: 10 px at the top and bottom uncovered \(scale 88 %\); V1 talk\.mp4 shows through$/);
+  assert.ok(fill.lines.some((l) => /1 logo, graphic or transparent file was not checked/.test(l)));
+  assert.equal(report({ items, end: 20, fps: 30, frame: { width: 1080, height: 1920 } }).some((p) => p.id === "fill"), false);
+});

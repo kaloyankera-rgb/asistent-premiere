@@ -48,3 +48,21 @@ def test_endpoint_runs_a_job(engine, tmp_path):  # noqa: F811
             break
         time.sleep(0.1)
     assert st["state"] == "done" and st["result"]["items"][0]["peak_db"][0] > -1.5
+
+
+def test_frames_reports_size_rotation_and_transparency(tmp_path):
+    import subprocess
+    vid, png, alpha = tmp_path / "v.mp4", tmp_path / "logo.png", tmp_path / "a.mov"
+    raw = tmp_path / "raw.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:duration=0.5", "-c:v", "libx264",
+                    "-pix_fmt", "yuv420p", str(raw)], check=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-display_rotation", "90", "-i", str(raw), "-c", "copy", str(vid)], check=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=red@0.5:size=64x32,format=rgba", "-frames:v", "1",
+                    str(png)], check=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=64x32:duration=0.2,format=yuva444p10le",
+                    "-c:v", "prores_ks", "-profile:v", "4444", str(alpha)], check=True)
+    got = {os.path.basename(i["path"]): i for i in exportcheck.frames([str(vid), str(png), str(alpha), str(vid),
+                                                                         str(tmp_path / "gone.mp4")])["items"]}
+    assert got["v.mp4"]["width"] == 320 and got["v.mp4"]["height"] == 180 and got["v.mp4"]["rotation"] in (90, 270)
+    assert not got["v.mp4"]["alpha"] and got["logo.png"]["alpha"] and got["a.mov"]["alpha"]
+    assert "error" in got["gone.mp4"] and len(got) == 4

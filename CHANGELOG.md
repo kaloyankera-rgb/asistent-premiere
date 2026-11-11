@@ -31,6 +31,19 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.44 - Check before export: does every clip's picture fill the frame (the user, 2026-11-11)
+- The user: "I often make the mistake for the B-Rolls to not be fully scaled and you can see either black bars or a little
+  bit of the video that is below the B-Roll ... we need to catch that before the export". New part "Picture fills the frame"
+  in Check before export: for every video and photo clip (not PNG / PSD / SVG / GIF logos, not transparent files, not
+  graphics, adjustment layers or switched-off clips) the picture's place is worked out from the file's frame (engine
+  `/export/frames`: size, display rotation, alpha) and Motion (Position, Scale / Scale Width, Uniform Scale, Rotation, Anchor
+  Point, Crop, or the Crop effect) at the clip's start, end and every keyframe; any strip over half a pixel is reported with
+  its size, side, time, scale and what shows through ("V1 C0728 shows through" or "black shows").
+- New `panel/coverage.js` (pure geometry, 7 node tests), reader in `premiere-exportcheck.js`, `exportcheck.frames` (1 pytest).
+- NOT verified in Premiere yet: the units of Anchor Point (taken as a fraction of the file; the default centre is right either
+  way), the names of Motion's Crop parameters, and whether "Scale to Frame Size" can be read (if not, the report says the clips
+  are measured as if it is off). A Transform effect is noted, not measured.
+
 ## 0.10.43 - Stash clips probe (dev only)
 - Temporary bridge `clone_probe`: `createCloneTrackItemAction` copies clips from one sequence into another with their effects in
   order (NEW TEST). Plan for Stash clips in docs/probes/cockpit-phase0.md; one decision is the user's (delete Asistent's own
