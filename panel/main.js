@@ -203,6 +203,7 @@ function bindTips(root) {
 // The main view keeps only the summary, the decisions (Apply …) and links; the full report goes to
 // Log and the before/after pictures to Before / after (2026-11-03: they used to push the buttons away).
 const history = [];
+let trackerPage = null;                                   // the Tracker page (mounted below, 0.10.51)
 
 function openTab(pane) {
   hideTip();
@@ -211,6 +212,7 @@ function openTab(pane) {
     t.className = on ? "btn tab on" : "btn tab";
     show(t.getAttribute("data-tab"), on);
   }
+  if (pane === "paneTracker" && trackerPage) trackerPage.relayout();
   try {
     $("app").scrollTop = 0;
   } catch (e) {
@@ -1973,6 +1975,7 @@ onTap($("cancel"), () => {
 
 for (const t of document.querySelectorAll(".btn.tab")) onTap(t, () => openTab(t.getAttribute("data-tab")));
 require("./keyframer.js").mount({ $, el, button, enable, bindTips, premiere });     // the Keyframer page (0.10.32)
+trackerPage = require("./tracker.js").mount({ $, el, button, enable, bindTips, premiere });   // the Tracker page (0.10.51)
 onTap($("openLog"), () => openTab("paneLog"));
 onTap($("openPreview"), () => openTab("panePreview"));
 onTap($("hideResult"), () => show("result", false));       // the full answer stays in Log
@@ -2049,7 +2052,7 @@ async function afterExport(path) {
   const sequence = await premiereCheck.exportedSequence(await premiere.activeProject());
   return { sequence, done: await engine.exportDone(path, "complete", "bridge", sequence) };
 }
-createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION, hooks: { learnFromExport, afterExport } }).loop();
+createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION, hooks: { learnFromExport, afterExport, tracker: () => trackerPage } }).loop();
 setInterval(() => {
   if (!state.busy) refreshHeader();
 }, 4000);

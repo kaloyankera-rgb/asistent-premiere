@@ -1,5 +1,10 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.53 (2026-11-11, installed, tested through the bridge in Premiere 26.5.2, NEW TEST "Tracker test"): Motion tracker (Cockpit
+A3), page Tracker: box an object, track it, attach a text / logo with Position (Scale, Rotation) keys. Synthetic 4K clip: within
+0.5 px in Premiere's own full-size frames, scale and rotation right; Detach and the refusal over the editor's keys checked.
+docs/TRACKER.md. NOT tried by the user on real footage.
+
 0.10.50 (2026-11-11, installed, tested through the bridge in Premiere 26.5.2, NEW TEST and TEST): Stash clips (Cockpit A2b):
 Save selected clips on the Keyframer page's Stash; a clips stash goes in at the playhead with effects and keyframes, on free
 tracks, linked, in this or another project. Stash sequences stay in the bin "Asistent stash". NOT tried by the user.

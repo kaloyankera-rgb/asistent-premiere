@@ -42,6 +42,8 @@ drive the engine. The Host header is checked against DNS rebinding.
                               "balance_db"?: how far apart two speakers may be (default 2)}
   GET  /stash/list, /stash/get?id=   saved animations (stash.py, <app>/stash/); POST /stash/save {stash, project},
                               /stash/delete {id}, /stash/rename {id, name}
+  POST /tracker/frame {path, t, width?} -> {jpeg, width, height, w, h}; POST /tracker/track {path, from, to, step, t0, box}
+                              -> job: {frames: [{t, x, y, s, a, c, state}], width, height} (motion tracker, 0.10.51)
   POST /stash/clips/begin {name, fps, width, height, video, audio, seconds}, /stash/clips/export {id, sequence, guid,
                               project} (Stash clips, 0.10.50); /host/tracks {sequence, guid, project, video, audio}
   POST /colorlearn/record    {project, sequence, clips: [{path, start, end, lumetri, owned, layer, lut, animated}]} -> queued:
@@ -101,6 +103,7 @@ from . import color as COLOR
 from . import exportcheck as EXPORTCHECK
 from . import colorlearn
 from . import stash as STASH
+from . import tracker as TRACKER
 from .groups import sync_groups
 from .importer import Store, Watcher
 from .exports import ExportWatcher, Settings as ExportSettings
@@ -571,6 +574,27 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
                     raise ValueError("A list of files is needed.")
                 return self._send(200, EXPORTCHECK.frames(paths))
+            if self.path == "/tracker/frame":
+                # 0.10.51: the frame the editor boxes the object on (the file at media time t, upright)
+                path = body.get("path")
+                if not isinstance(path, str) or not os.path.isfile(path):
+                    raise ValueError("The clip's file is missing (offline media?).")
+                return self._send(200, TRACKER.preview(path, float(body.get("t") or 0), int(body.get("width") or 640)))
+            if self.path == "/tracker/track":
+                # 0.10.51: track the boxed region over the clip's media range, forwards and backwards from the boxed frame
+                path = body.get("path")
+                if not isinstance(path, str):
+                    raise ValueError("The clip's file is missing.")
+                box = body.get("box")
+                if not isinstance(box, list) or len(box) != 4:
+                    raise ValueError("Draw the box around the object first.")
+
+                def work_track(job):
+                    def progress(f):
+                        job.progress, job.message = f, f"Tracking: {int(100 * f)} %"
+                    return TRACKER.track(path, body.get("from") or 0, body.get("to") or 0, body.get("step") or 0,
+                                         body.get("t0") or 0, box, progress, lambda: job.cancelled)
+                return self._send(200, {"job": JOBS.submit("tracker", work_track).id})
             if self.path == "/export/peaks":
                 items = body.get("items") or []
                 if not all(isinstance(i, dict) and isinstance(i.get("path"), str) for i in items):

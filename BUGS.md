@@ -5,6 +5,12 @@
   not saved). Bridge only; the editor clicking a box is not affected. Fix: dispatch in try/catch or call the handler.
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
+## Open: the translator model tests crash pytest (found 2026-11-11, not caused by 0.10.50-0.10.53)
+`tests/test_translate.py` real-model tests (`test_real_model_*`) end the pytest process with a segmentation fault inside
+sentencepiece (`translate._load`), also on the committed code and alone. The same call outside pytest works
+(`translate.english_lines(["Здравей, как си?"])` -> an English line). Run the suite with
+`-k "not (test_translate and real_model)"` until the cause (pytest's import order, two copies of a native library) is found.
+
 ## Open bugs
 - **Open (2026-11-10, Premiere 26.5.2):** after `release_mac.sh` the old panel can stay loaded even when the panel is closed
   and opened ("Failed to add plugin as it already exists" in UXPLogs; 0.10.29 kept running after 0.10.30 installed). Removing

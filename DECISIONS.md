@@ -468,3 +468,11 @@ choice that needs no new exception to the rule "the host removes nothing without
 the stash sequences (and what an import brings) stay in the bin "Asistent stash". A stash goes in only where its tracks are
 free (moved to free tracks, tracks added on top): a clone with overwrite would cut or remove the editor's clips under it,
 which is the same kind of removal.
+
+## 2026-11-11: the tracker follows a placed box first, without smoothing, and writes no key where it is lost (0.10.51)
+The plan had faces first; the user asked for After Effects style tracking of any object with text attached, so the placed
+box came first (the face mode can reuse the same write path later). After Effects does not smooth a track, and a smoothed
+path slides against the object, so the keys are the measured positions (they are within a tenth of a pixel on the
+benchmark). A lost frame gets no key rather than a guessed one (Premiere moves straight across it, the strip shows it red).
+The attached clip keeps its offset from the tracked point as After Effects' "apply to layer" does; Scale and Rotation are
+off by default because a text that grows and turns with a hand-held object is rarely wanted.
