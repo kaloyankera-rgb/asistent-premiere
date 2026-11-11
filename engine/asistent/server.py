@@ -297,6 +297,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(403)
         self.end_headers()
 
+    def _lane(self) -> str:
+        """Which Premiere the request comes from (devbridge.Bridge.submit); set for hostbridge.run in this thread."""
+        lane = (self.headers.get("X-Asistent-Lane") or "").strip()[:20]
+        hostbridge.set_lane(lane)
+        return lane
+
     def do_GET(self):
         if not self._allowed():
             return self._send(403, {"error": "forbidden"})
@@ -348,7 +354,7 @@ class Handler(BaseHTTPRequestHandler):
             q = parse_qs(url.query)
             hostbridge.touch(self.headers.get("X-Asistent-Host"))
             wait = float((q.get("wait") or ["0"])[0] or 0)
-            cmd = hostbridge.HOST.poll(wait)
+            cmd = hostbridge.HOST.poll(wait, self._lane())
             hostbridge.touch()                     # the poll itself can last 20 s: it is alive when it returns
             return self._send(200, cmd or {})
         if url.path in ("/dev/poll", "/dev/result"):
@@ -357,7 +363,7 @@ class Handler(BaseHTTPRequestHandler):
             q = parse_qs(url.query)
             wait = float((q.get("wait") or ["0"])[0] or 0)
             if url.path == "/dev/poll":
-                return self._send(200, BRIDGE.poll(wait) or {})
+                return self._send(200, BRIDGE.poll(wait, self._lane()) or {})
             res = BRIDGE.wait_result((q.get("id") or [""])[0], wait)
             return self._send(200, res) if res else self._send(202, {"pending": True})
         if self.path == "/status":
@@ -376,6 +382,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, {"error": "forbidden"})
         try:
             body = self._body()
+            self._lane()                                  # host commands of this request go back to its own Premiere
             if self.path == "/subtitles/model/download":
                 if asr.model_present():
                     return self._send(200, {"done": True, "status": asr.model_status()})
@@ -436,6 +443,16 @@ class Handler(BaseHTTPRequestHandler):
                 res = hostbridge.place_graphics(body.get("captions"), str(body.get("preset") or "standard"), seq, proj, _guid(body))
                 log.info("captions/graphics: %s", {k: v for k, v in res.items() if k != "captions"})
                 return self._send(200, res)
+            if self.path == "/roughcut/link":
+                # 0.10.45: the rough cut's clones linked again, video with its audio (host.jsx as_link)
+                seq = body.get("sequence")
+                if not isinstance(seq, str) or not seq or not isinstance(body.get("groups"), list):
+                    raise ValueError("The sequence or the groups are missing.")
+                proj = body.get("project") if isinstance(body.get("project"), str) else None
+                res = hostbridge.run("link", {"groups": body["groups"][:2000], "sequence": seq, "project": proj, "guid": _guid(body)},
+                                     wait=60.0 + 0.5 * len(body["groups"]))
+                log.info("roughcut/link: %s", {k: v for k, v in res.items() if k != "groups"})
+                return self._send(200, res)
             if self.path == "/audio/route":
                 seq = body.get("sequence")
                 if not isinstance(seq, str) or not seq:
@@ -489,6 +506,8 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/host/command":
                 if not devbridge.enabled():
                     return self._send(404, {"error": "The test bridge is off."})
+                if body.get("lane"):
+                    hostbridge.set_lane(str(body.get("lane")))         # the developer names the Premiere (dev_cmd.py --lane)
                 res = hostbridge.run(str(body.get("name") or ""), body.get("args") if isinstance(body.get("args"), dict) else {},
                                      float(body.get("wait") or 60))
                 return self._send(200, res)
@@ -496,7 +515,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not devbridge.enabled():
                     return self._send(404, {"error": "The test bridge is off."})
                 if self.path == "/dev/command":
-                    cid = BRIDGE.submit(str(body.get("name") or ""), body.get("args") if isinstance(body.get("args"), dict) else {})
+                    cid = BRIDGE.submit(str(body.get("name") or ""), body.get("args") if isinstance(body.get("args"), dict) else {},
+                                        lane=str(body.get("lane") or ""))
                     log.info("dev bridge command %s %s %s", cid, body.get("name"), body.get("args") or {})
                     return self._send(200, {"id": cid})
                 BRIDGE.result(str(body.get("id") or ""), bool(body.get("ok")), body.get("data"))

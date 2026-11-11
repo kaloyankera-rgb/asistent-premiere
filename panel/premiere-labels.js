@@ -64,7 +64,7 @@ async function ownCaptions(project, sequence) {
  * Names the tracks of the active sequence. colors: {1: index, 2: index, ...} label colour per camera (none = keep).
  * -> { sequence, lines, renamed, colored }
  */
-async function nameTracks(project, colors = {}) {
+async function nameTracks(project, colors = {}, painted = []) {
   const sequence = await project.getActiveSequence();
   if (!sequence) throw new UserError("Open a sequence first.");
   const { tracks, objs, items } = await read(sequence);
@@ -86,16 +86,20 @@ async function nameTracks(project, colors = {}) {
   const renames = p.renames.filter((r) => P.has(objs[r.kind][r.index], "createSetNameAction"));
   const lines = T.describe(p);
   if (renames.length < p.renames.length) lines.push(`${p.renames.length - renames.length} tracks cannot be renamed in this Premiere version`);
-  if (!renames.length && !paint.length) {
+  if (!renames.length && !paint.length && !painted.length) {
     return { sequence: sequence.name, renamed: 0, colored: 0, lines: lines.length ? lines : ["Every track already has its name."] };
   }
-  transaction(project, "Asistent: Name the tracks", (c) => {
-    for (const r of renames) c.addAction(objs[r.kind][r.index].createSetNameAction(r.to));
-    for (const x of paint) c.addAction(x.item.createSetColorLabelAction(x.to));
-  });
+  if (renames.length || paint.length) {
+    transaction(project, "Asistent: Name the tracks", (c) => {
+      for (const r of renames) c.addAction(objs[r.kind][r.index].createSetNameAction(r.to));
+      for (const x of paint) c.addAction(x.item.createSetColorLabelAction(x.to));
+    });
+  }
   const all = records();
   const key = C.seqKey(sequence);
   const prev = all[key] || { renames: [], colors: [] };
+  // the files Sync coloured before it placed them (colorFiles): Put names back gives them their colour back too
+  for (const x of painted) if (!prev.colors.some((q) => q.path === x.path)) prev.colors.push(x);
   // merged with the earlier press, so Put names back always returns to the editor's names, not to Asistent's earlier ones
   const merged = prev.renames.filter((r) => !renames.some((n) => n.kind === r.kind && n.index === r.index));
   for (const r of renames) {
@@ -116,6 +120,31 @@ async function nameTracks(project, colors = {}) {
   if (paint.length) lines.push(`${paint.length} camera files given a label colour`);
   debug(`labels ${sequence.name}: renamed ${renames.length} (${wrong.length} not confirmed), coloured ${paint.length}, kept ${p.kept.length}`);
   return { sequence: sequence.name, renamed: renames.length - wrong.length, colored: paint.length, lines };
+}
+
+/**
+ * Sync (0.10.45, the user: "label the multiple POV's so you can differentiate them"). A clip on the timeline takes its
+ * file's label colour when it is placed and keeps it afterwards (seen in Pulse Fitness 2026-11-11: the first SYNC stayed
+ * blue although its 32 files were coloured right after it; the next SYNC, made from coloured files, came out violet and
+ * green). So the camera files are coloured BEFORE Sync places them. files: [{projectItem, path, pov}]; colors as in
+ * nameTracks. One Undo step of its own. -> [{path, from, to}] for the Put names back record
+ */
+async function colorFiles(project, files, colors = {}) {
+  const paint = [];
+  const seen = new Set();
+  for (const f of files) {
+    const want = colors[f.pov];
+    if (!Number.isInteger(want) || !f.projectItem || seen.has(f.path)) continue;
+    seen.add(f.path);
+    const from = await maybe(f.projectItem, "getColorLabelIndex");
+    if (from !== want && P.has(f.projectItem, "createSetColorLabelAction")) paint.push({ item: f.projectItem, path: f.path, from, to: want });
+  }
+  if (!paint.length) return [];
+  transaction(project, "Asistent: Camera colours", (c) => {
+    for (const x of paint) c.addAction(x.item.createSetColorLabelAction(x.to));
+  });
+  debug(`labels: ${paint.length} camera files coloured before placing`);
+  return paint.map((x) => ({ path: x.path, from: x.from, to: x.to }));
 }
 
 /** Puts back the names (and colours) the last presses changed, where they are still as Asistent left them. One Undo step. */
@@ -144,4 +173,4 @@ async function putBack(project) {
   return { renamed: back.length, colored: paint.length };
 }
 
-module.exports = { nameTracks, putBack, read };
+module.exports = { nameTracks, putBack, read, colorFiles };

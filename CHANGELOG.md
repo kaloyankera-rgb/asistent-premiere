@@ -31,6 +31,39 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.45-0.10.47 - The user's seven reminders (2026-11-11), tested in NEW TEST in Premiere 26.5.2 while the user edited in 27.0
+- **Rough cut from clones (reminders 2 and 6):** the XML import made NEW master clips; Premiere 26.5.2 switched off their
+  rotation flag (`IsOverridenImageOrientationType`, the FX3's vertical shots came in sideways) and dropped S-Log3, and Fix
+  audio's L/R copies came in as plain stereo. The XML now only makes the empty sequence (`xmeml.write(shell=True)`: size,
+  rate, tracks, review markers); every piece is a clone of the editor's own clip (`createCloneTrackItemAction`), trimmed with
+  In / Out and moved into place, then video and audio are linked again through the host (`as_link`, `/roughcut/link`).
+  Verified: same project items, effects kept, L/R copies kept and linked, nothing left past the end. The XML with clips is
+  still written as the fallback.
+- **Cancel (reminder 4):** recognition runs in its own thread and the waiter looks at Cancel every 0.2 s (`asr.transcribe`):
+  a rough cut cancelled in 0.06 s (was 75 s). Cause measured on Pulse Fitness: one 30 s stretch took up to 132 s because a
+  repeated take tripped Whisper's compression-ratio limit (2.4) and the stretch was read six times. The rough cut now reads
+  with `asr.ROUGH_COMPRESSION` 3.0 under its own cache keys (`rough3-`, `turbo3-`): 95 -> 31 s and 51 -> 19 s on two clips,
+  same or better words. Subtitles unchanged.
+- **Sync short takes (reminder 7):** a Low pair whose two stretches agree (peak ratio >= 1.25) becomes High when the
+  cameras' LEARNT clocks agree within 1.5 s; a two-offset pair is decided by the clocks when the other offset is far. On the
+  Pulse Fitness footage 7 of the 10 pairs the user synced by hand now sync; the rest are named ("recorded at the same time by
+  the camera clocks", `clock_overlaps`). A suggestion the clocks place in another take says so.
+- **POV colours (reminder 5):** a placed clip keeps the colour its file had then, so Sync colours the camera files BEFORE
+  placing (`premiere-labels.colorFiles`, its own Undo step; Put names back restores them). Files verified (Forest / Magenta);
+  the clips' own colour is not readable by scripts: the user to look.
+- **Fix audio track order (the user's note with reminder 5):** one second-side track per source track
+  (`audioplan.lowerTracks`), and Sync puts each camera's sound on every other audio track. Verified: A1+A2 POV 1, A3+A4 POV 2,
+  A4 added through QE `addTracks` (`as_add_audio_track`), tracks named "POV n audio 2" right after the split.
+- **Check before export (reminder 1):** Premiere's timecode (drop frame at 59.94 / 29.97), a click on a timed line moves the
+  playhead, "Put N markers on the timeline" (one Undo step, no duplicates), the In / Out respected, and sound running on after
+  the last picture said as such (the ReShape "0:58.1-2:23.9: 85.9 s of black"). Verified in NEW TEST.
+- **Keyframer Overshoot+ and Bounce Back (reminder 3, the user's BOUNCr reference):** the motion after the last keyframe,
+  driven by the arriving speed, BOUNCr's settings and defaults (50/2/4, 50/50/10), measured against the recording frame by
+  frame. Overshoot+ verified in NEW TEST (0 -> 143 -> 83 -> 106 -> 100 %).
+- **Two Premiere versions side by side:** every command carries a lane (the Premiere's major version: `X-Asistent-Lane`
+  from the panel and the host, `ASISTENT_LANE` for `dev_cmd.py`); the engine hands a command only to the side of the Premiere
+  it came from. Bridge probe `rough_probe` (dev only).
+
 ## 0.10.44 - Check before export: does every clip's picture fill the frame (the user, 2026-11-11)
 - The user: "I often make the mistake for the B-Rolls to not be fully scaled and you can see either black bars or a little
   bit of the video that is below the B-Roll ... we need to catch that before the export". New part "Picture fills the frame"

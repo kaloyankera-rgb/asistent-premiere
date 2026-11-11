@@ -63,6 +63,33 @@ function routeFor(it, res, force) {
   return null;
 }
 
+/**
+ * Where each split puts its second side (0.10.45, the user: after Sync, Fix audio on two POVs left the tracks "messy, it
+ * should be A1 A2 for POV 1 and A3 A4 for POV 2"). The host used to take the nearest free track below EACH clip, so a POV 1
+ * clip went to A2 where POV 2 was silent and to A3 where it spoke. Now every clip of one track uses the SAME track: the
+ * first one below that no other source uses and that is free over all of that track's split clips; none free = a new
+ * track after the last (the host adds it). splits: [{track, start, end}] (the clips to split), busy: [{track, start, end}]
+ * (every audio clip of the sequence), count: audio tracks now. -> {sourceTrack: lowerTrack}
+ */
+function lowerTracks(splits, busy, count) {
+  const sources = [...new Set(splits.map((x) => x.track))].sort((a, b) => a - b);
+  const taken = new Set(sources);
+  const used = busy.map((x) => ({ ...x }));
+  const out = {};
+  let next = Math.max(count, ...sources.map((s) => s + 1));
+  for (const s of sources) {
+    const ranges = splits.filter((x) => x.track === s);
+    const free = (t) => !used.some((b) => b.track === t && ranges.some((r) => Math.min(r.end, b.end) - Math.max(r.start, b.start) > 0.001));
+    let t = s + 1;
+    while (t < count && (taken.has(t) || !free(t))) t++;
+    if (t >= count) t = next++;
+    out[s] = t;
+    taken.add(t);
+    for (const r of ranges) used.push({ track: t, start: r.start, end: r.end });
+  }
+  return out;
+}
+
 const OUT_OF_SIDE = { L: "LL", R: "RR" };
 
 /**
@@ -134,4 +161,4 @@ function limiterState(dynamics, db = LIMITER_DB) {
   return { state: "configure" };
 }
 
-module.exports = { sideOf, forceFor, engineJobs, routeFor, levelTargets, routeLine, limiterState, dynValue, LIMITER_DB };
+module.exports = { lowerTracks, sideOf, forceFor, engineJobs, routeFor, levelTargets, routeLine, limiterState, dynValue, LIMITER_DB };

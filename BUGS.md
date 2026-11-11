@@ -61,6 +61,7 @@
    calibration (`lumetri.json`) are unproven. First apply will use the guess 60/80 slider units per log2.
 
 ## Not verified in Premiere (implemented)
+0.10.45-0.10.47: the SYNC clips' own POV colour on the timeline (scripts cannot read a clip's label; the files are coloured), Bounce Back, the clone rough cut on footage with a rotation flag (the clones keep the original project item, so the flag stays).
 Subtitles M3 (0.9.42): verified working in Premiere on 2026-11-01 (see `PROJECT_STATUS.md`); still unjudged: Bulgarian accuracy and caption timing against the picture, behaviour with an unsaved project (refused with a message, not tried).
 Fixed in 0.9.43: wrong words because the noisiest duplicate microphone was recognised (see `PROJECT_STATUS.md`); to be confirmed by the user in Premiere. Open: caption timing is only as exact as Whisper's word times (±0.1-0.3 s), direction of the error unknown.
 Fixed in 0.9.44 (engine-tested, not yet in Premiere): words wrong at the cuts (joined mix), word starts early (alignment, optional), 3-4 word captions across sentence ends.

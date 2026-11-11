@@ -114,9 +114,118 @@ function ease(curve, x) {
   return progress(curve.p, x);
 }
 
+// ---------------------------------------------------------------- after the keyframe (0.10.45, the user's reference)
+// The user's reference (references/Screen Recording 2026-11-11 at 10.36.45.mov): After Effects with the BOUNCr plugin on a
+// title's Scale, keys 0 -> 100 a few frames apart, linear. Unlike Elastic and Bounce above, nothing happens between the keys:
+// the move arrives at full speed and the motion carries on AFTER the key, driven by that speed. Measured frame by frame on
+// the recording (text width):
+// - Overshoot+ (Amplitude 50, Frequency 2, Decay 4): 100 -> 135 % -> 83 % -> 104 % -> settled after about 1 s; peaks
+//   0.25-0.28 s apart, so a 2 Hz sine fading as e^(-4 t): value + v * (amplitude / 1000) * sin(2 pi f t) / e^(decay t),
+//   v = the speed the move arrives with (units per second). The amplitude / 1000 fits the measured first peak (0.047).
+// - Bounce Back (Elasticity 50, Gravity 50, Max Bounces 10): 100 -> back to 56 % -> 100 -> 88 % -> 100, never past the
+//   target: a ball thrown back at elasticity x the arriving speed, falling to the target under gravity, each bounce e times
+//   as fast. Gravity is taken per unit of the move (so Scale and Position behave alike): 50 -> 33.5 moves / s^2 measured
+//   (first bounce 0.367 s, 0.56 of the move deep).
+const AFTER_KINDS = new Set(["overshoot", "bounceBack"]);
+const GRAVITY_PER_UNIT = 33.5 / 50;
+const AFTER_MAX = 3;                     // s: the longest tail after a key
+const AFTER_SMALL = 0.002;               // of the move: smaller than this is still (a fifth of a pixel on a 100 px move)
+
+function norm(d) {
+  return Array.isArray(d) ? Math.hypot(...d) : Math.abs(d);
+}
+
+// the offset `t` seconds after a key that the move arrived at with speed `v` (units / s, a number or [x, y]); size = |move|
+function afterOffset(curve, v, size, t) {
+  if (!(t > 0) || !(size > 0)) return Array.isArray(v) ? v.map(() => 0) : 0;
+  if (curve.kind === "overshoot") {
+    const k = (curve.amp / 1000) * Math.sin(2 * Math.PI * curve.freq * t) * Math.exp(-curve.decay * t);
+    return Array.isArray(v) ? v.map((x) => x * k) : v * k;
+  }
+  // bounce back: thrown back along -v at e*|v|, gravity g pulls it to the target; each landing loses a factor e
+  const e = curve.elast / 100;
+  const g = GRAVITY_PER_UNIT * curve.grav * size;
+  let speed = e * norm(v);
+  if (!(speed > 0) || !(g > 0)) return Array.isArray(v) ? v.map(() => 0) : 0;
+  let start = 0;
+  let dur = (2 * speed) / g;
+  for (let n = 1; n <= curve.max; n++) {
+    if (t < start + dur) {
+      const d = t - start;
+      const h = d * (speed - (g * d) / 2);                     // height above the target, along -v
+      const unit = Array.isArray(v) ? v.map((x) => -x / norm(v)) : -Math.sign(v);
+      return Array.isArray(v) ? unit.map((u) => u * h) : unit * h;
+    }
+    start += dur;
+    speed *= e;
+    dur *= e;
+  }
+  return Array.isArray(v) ? v.map(() => 0) : 0;
+}
+
+// how long the tail lasts before it is still (never more than AFTER_MAX)
+function afterLength(curve, v, size) {
+  const speed = norm(v);
+  if (!(speed > 0) || !(size > 0)) return 0;
+  if (curve.kind === "overshoot") {
+    const t = Math.log(Math.max(1, (speed * curve.amp / 1000) / (AFTER_SMALL * size))) / curve.decay;
+    return Math.min(AFTER_MAX, t);
+  }
+  const e = curve.elast / 100;
+  const g = GRAVITY_PER_UNIT * curve.grav * size;
+  let s = e * speed;
+  let total = 0;
+  for (let n = 1; n <= curve.max && (s * s) / (2 * g) > AFTER_SMALL * size; n++) {
+    total += (2 * s) / g;
+    s *= e;
+  }
+  return Math.min(AFTER_MAX, total);
+}
+
+/**
+ * The animation with the motion after each key: linear between the editor's keys (as in the reference), plus the tail of
+ * the last key passed, driven by the speed it was reached with. The first key has none (nothing moved before it).
+ */
+function afterValueAt(anchors, curve, t) {
+  let i = 0;
+  while (i + 1 < anchors.length && anchors[i + 1].t <= t) i++;
+  const a = anchors[i];
+  const b = anchors[i + 1];
+  const base = b ? lerp(a.v, b.v, (t - a.t) / (b.t - a.t)) : a.v;
+  if (i === 0) return base;
+  const p = anchors[i - 1];
+  const dt = a.t - p.t;
+  const delta = Array.isArray(a.v) ? a.v.map((x, k) => x - p.v[k]) : a.v - p.v;
+  const v = Array.isArray(delta) ? delta.map((x) => x / dt) : delta / dt;
+  const off = afterOffset(curve, v, norm(delta), t - a.t);
+  return Array.isArray(base) ? base.map((x, k) => x + off[k]) : base + off;
+}
+
+/** Keys, one per frame, from the first anchor until the last tail is still (or `until`). Anchors are the editor's own. */
+function afterKeys(anchors, curve, step, until) {
+  const last = anchors[anchors.length - 1];
+  const prev = anchors[anchors.length - 2];
+  const delta = Array.isArray(last.v) ? last.v.map((x, k) => x - prev.v[k]) : last.v - prev.v;
+  const dt = last.t - prev.t;
+  const v = Array.isArray(delta) ? delta.map((x) => x / dt) : delta / dt;
+  let end = last.t + afterLength(curve, v, norm(delta));
+  if (Number.isFinite(until)) end = Math.min(end, until);
+  const add = [];
+  const near = (t) => anchors.some((a) => Math.abs(a.t - t) < step / 2);
+  for (let t = anchors[0].t + step; t < end + step / 2; t += step) {
+    if (near(t)) continue;
+    add.push({ t, v: afterValueAt(anchors, curve, t) });
+  }
+  // the tail ends on its rest value, so nothing jumps after the last baked frame
+  if (add.length && add[add.length - 1].t > last.t) add.push({ t: add[add.length - 1].t + step, v: last.v });
+  return add;
+}
+
 function curveOk(c) {
   if (Array.isArray(c)) return validCurve(c);
   if (!c) return false;
+  if (c.kind === "overshoot") return c.amp > 0 && c.amp <= 500 && c.freq > 0 && c.freq <= 20 && c.decay > 0 && c.decay <= 50;
+  if (c.kind === "bounceBack") return c.elast > 0 && c.elast < 100 && c.grav > 0 && c.grav <= 500 && Number.isInteger(c.max) && c.max >= 1 && c.max <= 30;
   if (c.kind === "elastic") return Number.isInteger(c.n) && c.n >= 1 && c.n <= 8 && c.over > 0 && c.over < 1;
   if (c.kind === "bounce") return Number.isInteger(c.n) && c.n >= 1 && c.n <= 8 && c.h > 0 && c.h < 1;
   return validCurve(c.p);
@@ -200,6 +309,7 @@ function plan(props, curve, step, opts = {}) {
   if (!curve || (!curve.mode && !curveOk(curve.kind ? curve : curve.p))) return { props: [], total: 0, error: "choose a curve" };
   const repeat = opts.repeat && opts.repeat.mode && opts.repeat.mode !== "off" ? opts.repeat : null;
   if (repeat && curve.mode) return { props: [], total: 0, error: "Ping-pong and Loop work with the curves, not with Premiere's own interpolation" };
+  if (repeat && AFTER_KINDS.has(curve.kind)) return { props: [], total: 0, error: "Overshoot+ and Bounce Back already move after the last keyframe: switch Repeat off" };
   const out = [];
   let total = 0;
   for (const pr of props) {
@@ -217,6 +327,13 @@ function plan(props, curve, step, opts = {}) {
       continue;
     }
     const shape = curve.kind ? curve : curve.p;
+    if (AFTER_KINDS.has(curve.kind)) {
+      // linear between the keys, the motion after each key (keys go past the last anchor, up to the clip's end)
+      const add = afterKeys(anchors, curve, step, opts.until).filter((k) => !Number.isFinite(opts.until) || k.t <= opts.until + step / 2);
+      total += add.length;
+      out.push({ id: pr.id, remove, add, anchors, segments: anchors.slice(1).map((b, i) => ({ from: anchors[i].t, to: b.t, frames: Math.round((b.t - anchors[i].t) / step) })) });
+      continue;
+    }
     const b = bake(anchors, shape, step);
     // repeats never run over a key of the editor's after the last anchor (there is none by definition) nor past the clip
     const more = repeat ? repeatKeys(anchors, shape, step, repeat, opts.until).filter((k) => !Number.isFinite(opts.until) || k.t <= opts.until + step / 2) : [];
@@ -235,15 +352,23 @@ function curvePath(p, size, pad) {
   return `M ${X(0)} ${Y(0)} C ${X(p[0])} ${Y(p[1])}, ${X(p[2])} ${Y(p[3])}, ${X(1)} ${Y(1)}`;
 }
 
-// any curve as a polyline (elastic and bounce are not beziers)
+// any curve as a polyline (elastic and bounce are not beziers). Overshoot+ / Bounce Back: a 0 -> 1 move in PREVIEW_MOVE s,
+// as in the reference, then its motion, over PREVIEW_SPAN s
+const PREVIEW_MOVE = 0.08;
+const PREVIEW_SPAN = 1.2;
 function samplePath(curve, size, pad, n = 120) {
   const span = size - 2 * pad;
   const pts = [];
+  const after = curve && AFTER_KINDS.has(curve.kind);
+  const anchors = [{ t: 0, v: 0 }, { t: PREVIEW_MOVE, v: 1 }];
   for (let i = 0; i <= n; i++) {
     const x = i / n;
-    pts.push(`${(pad + x * span).toFixed(1)} ${(size - pad - ease(curve, x) * span).toFixed(1)}`);
+    const y = after ? afterValueAt(anchors, curve, x * PREVIEW_SPAN) : ease(curve, x);
+    // the box shows 0..1 with room above; the after kinds are drawn at 2/3 height so a 35 % overshoot fits
+    const shown = after ? y * 0.66 : y;
+    pts.push(`${(pad + x * span).toFixed(1)} ${(size - pad - shown * span).toFixed(1)}`);
   }
   return `M ${pts.join(" L ")}`;
 }
 
-module.exports = { PRESETS, NATIVE, MAX_KEYS, progress, ease, curveOk, validCurve, lerp, bake, plan, valueAt, repeatKeys, curvePath, samplePath };
+module.exports = { afterOffset, afterValueAt, afterKeys, afterLength, AFTER_KINDS, PRESETS, NATIVE, MAX_KEYS, progress, ease, curveOk, validCurve, lerp, bake, plan, valueAt, repeatKeys, curvePath, samplePath };

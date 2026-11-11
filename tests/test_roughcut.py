@@ -427,15 +427,15 @@ def test_turbo_words_never_reach_the_subtitles_cache_but_subtitle_words_are_reus
     audio = np.zeros(16000, dtype=np.float32)
     monkeypatch.setattr(R, "window_audio", lambda win, prompt: (audio, "k1"))
     calls = []
-    monkeypatch.setattr(asr, "transcribe", lambda y, prompt, progress, cancelled, model=asr.LARGE:
-                        calls.append(model) or [{"word": "турбо", "start": 0.0, "end": 0.5, "p": 0.9}])
+    monkeypatch.setattr(asr, "transcribe", lambda y, prompt, progress, cancelled, model=asr.LARGE, compression=None:
+                        calls.append((model, compression)) and False or [{"word": "турбо", "start": 0.0, "end": 0.5, "p": 0.9}])
     r = R.read_rough({}, asr.TURBO, None, lambda: False)
-    assert calls == [asr.TURBO] and r["key"] == R.TURBO_KEY + "k1" and not r["cached"]
+    assert calls == [(asr.TURBO, asr.ROUGH_COMPRESSION)] and r["key"] == R.TURBO_KEY + "k1" and not r["cached"]
     assert S._cached("k1") is None                                  # the subtitles' key stays empty
-    assert R.read_rough({}, asr.TURBO, None, lambda: False)["cached"] and calls == [asr.TURBO]   # cached under its own key
+    assert R.read_rough({}, asr.TURBO, None, lambda: False)["cached"] and len(calls) == 1   # cached under its own key
     S._store("k1", {"words": [{"word": "голям", "start": 0.0, "end": 0.5, "p": 0.9}]})       # subtitles read it with large-v3
     r = R.read_rough({}, asr.TURBO, None, lambda: False)
-    assert r["cached"] and r["entry"]["words"][0]["word"] == "голям" and calls == [asr.TURBO]
+    assert r["cached"] and r["entry"]["words"][0]["word"] == "голям" and len(calls) == 1
 
 
 def test_asr_keeps_large_v3_as_the_default_model(tmp_path, monkeypatch):
@@ -445,3 +445,57 @@ def test_asr_keeps_large_v3_as_the_default_model(tmp_path, monkeypatch):
     import inspect
     assert inspect.signature(asr.transcribe).parameters["model"].default == asr.LARGE
     assert asr.model_status(asr.TURBO)["expected_bytes"] < asr.model_status()["expected_bytes"]
+
+
+# ---------------------------------------------------------------- 0.10.45: the rough cut's own reading, and Cancel at once
+
+def test_the_rough_cut_reads_large_v3_with_its_own_limit_under_its_own_key(tmp_path, monkeypatch):
+    from asistent import roughcut_job as R, subtitle_job as S
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path / "app"))
+    audio = np.zeros(16000, dtype=np.float32)
+    monkeypatch.setattr(R, "window_audio", lambda win, prompt: (audio, "k2"))
+    calls = []
+    monkeypatch.setattr(asr, "transcribe", lambda y, prompt, progress, cancelled, model=asr.LARGE, compression=None:
+                        calls.append((model, compression)) and False or [{"word": "дубъл", "start": 0.0, "end": 0.5, "p": 0.9}])
+    r = R.read_rough({}, asr.LARGE, None, lambda: False)
+    assert calls == [(asr.LARGE, asr.ROUGH_COMPRESSION)] and r["key"] == R.ROUGH_KEY + "k2"
+    assert S._cached("k2") is None                                  # never in the subtitles' cache
+    S._store("k2", {"words": [{"word": "субтитри", "start": 0.0, "end": 0.5, "p": 0.9}]})
+    assert R.read_rough({}, asr.LARGE, None, lambda: False)["entry"]["words"][0]["word"] == "субтитри"
+
+
+def test_cancel_returns_at_once_while_a_stretch_is_still_being_read(monkeypatch):
+    import threading
+    import time as _t
+    from asistent.sync import Cancelled
+    gate = threading.Event()
+
+    class Slow:
+        def transcribe(self, audio, **kw):
+            def gen():
+                gate.wait(5)                                         # one long stretch that cannot be interrupted
+                yield from ()
+            return gen(), None
+    monkeypatch.setattr(asr, "_load", lambda kind=asr.LARGE: Slow())
+    flag = {"on": False}
+    threading.Timer(0.3, lambda: flag.update(on=True)).start()
+    t0 = _t.time()
+    with pytest.raises(Cancelled):
+        asr.transcribe(np.zeros(16000, dtype=np.float32), cancelled=lambda: flag["on"])
+    assert _t.time() - t0 < 1.5
+    gate.set()
+
+
+def test_the_shell_xml_has_the_sequence_tracks_and_markers_but_no_clips():
+    # 0.10.45: the panel fills it with clones of the editor's own clips (no new master clips, nothing re-interpreted)
+    items = [{"kind": "video", "track": 1, "path": "/m/a.mp4", "start": 0.0, "end": 10.0, "inPt": 0.0, "name": "a"},
+             {"kind": "audio", "track": 2, "path": "/m/a.mp4", "start": 0.0, "end": 10.0, "inPt": 0.0, "name": "a"}]
+    ps = edl.pieces(items, edl.kept_ranges(0, 10, [(4.0, 6.0)]), FPS)
+    import tempfile
+    path = os.path.join(tempfile.mkdtemp(), "s.xml")
+    xmeml.write(path, "ROUGH – s", FPS, 2160, 3840, ps, [{"frame": 30, "name": "Review", "comment": "x"}],
+                probe=lambda s: (_ for _ in ()).throw(AssertionError("a shell reads no file")), shell=True)
+    xml = read(path)
+    assert "<clipitem" not in xml and "<file" not in xml and "<marker>" in xml
+    assert xml.count("<track>") == 2 and xml.count('premiereTrackType="Stereo"') == 6     # V1-V2, A1-A3 as pairs
+    assert "<width>2160</width><height>3840</height>" in xml

@@ -38,7 +38,8 @@ PART = 30.0
 # resolved one group of three takes differently (takes cut 58.4 -> 34.5 s, result 108.8 -> 123.3 s). So it is a switch the
 # editor turns on ("Fast"), never the default. Its words are kept under their own cache key (TURBO_KEY + the subtitles' key), so
 # the subtitles never see them; a subtitle reading of the same audio (large-v3) is still reused when it is there, at no cost.
-TURBO_KEY = "turbo-"
+TURBO_KEY = "turbo3-"      # 0.10.45: read with asr.ROUGH_COMPRESSION (the 0.10.40 "turbo-" readings are not reused)
+ROUGH_KEY = "rough3-"      # 0.10.45: the rough cut's own large-v3 reading (asr.ROUGH_COMPRESSION)
 
 
 def model(fast: bool = False) -> str | None:
@@ -51,18 +52,23 @@ def model(fast: bool = False) -> str | None:
 
 
 def read_rough(win: dict, kind: str, progress, cancelled) -> dict:
-    """One window's words for the cut: the subtitles' large-v3 reading if cached, else the rough cut's own reading."""
-    if kind == asr.LARGE:
-        return read_window(win, "", progress, cancelled)
+    """One window's words for the cut: the subtitles' large-v3 reading if cached, else the rough cut's own reading (with
+    asr.ROUGH_COMPRESSION, under its own cache key, so the subtitles never get a reading made with other settings)."""
     y, key = window_audio(win, "")
-    entry = _cached(key) or {}
-    if "words" in entry:
-        return {"y": y, "key": key, "entry": entry, "cached": True}
-    key = TURBO_KEY + key
+    if kind == asr.LARGE:
+        entry = _cached(key) or {}
+        if "words" in entry:
+            return {"y": y, "key": key, "entry": entry, "cached": True}
+        key = ROUGH_KEY + key
+    else:
+        entry = _cached(key) or {}
+        if "words" in entry:
+            return {"y": y, "key": key, "entry": entry, "cached": True}
+        key = TURBO_KEY + key
     entry = _cached(key) or {}
     cached = "words" in entry
     if not cached:
-        entry = {"words": asr.transcribe(y, None, progress, cancelled, model=asr.TURBO)}
+        entry = {"words": asr.transcribe(y, None, progress, cancelled, model=kind, compression=asr.ROUGH_COMPRESSION)}
         _store(key, entry)
     return {"y": y, "key": key, "entry": entry, "cached": cached}
 
@@ -274,16 +280,19 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     progress(0.85, "Building the sequence…")
     xml_path = os.path.join(folder, seq_name + ".xml")
     layout_check = xmeml.write(xml_path, seq_name, fps, p["width"], p["height"], pieces, marks)
+    # 0.10.45: the same sequence without clips; the panel fills it with clones of the editor's own clips (xmeml.write shell)
+    shell_path = os.path.join(folder, seq_name + " (shell).xml")
+    xmeml.write(shell_path, seq_name, fps, p["width"], p["height"], pieces, marks, shell=True)
     review = [{"at": round(a, 2), "end": round(b, 2), "kind": "voiced", "text": "Speech without a recognised word (laughter, a reaction or a missed word): kept."}
               for a, b in plan["voiced"]]
     saved = sum(b - a for a, b in cuts)
     result = {
-        "xml": xml_path, "json": os.path.join(folder, seq_name + ".json"), "name": seq_name, "mode": p["mode"], "tempo": p["tempo"], "tempo_label": pauses.TEMPO_LABEL[p["tempo"]],
+        "xml": xml_path, "shell": shell_path, "json": os.path.join(folder, seq_name + ".json"), "name": seq_name, "mode": p["mode"], "tempo": p["tempo"], "tempo_label": pauses.TEMPO_LABEL[p["tempo"]],
         "before_s": round(before, 2), "after_s": round(after, 2), "saved_s": round(saved, 2),
         "takes_cut_s": round(sum(g["cut_s"] for g in found), 2),
         "flashes_dropped": flashes, "hole_speech_s": plan["hole_speech_s"], "no_sound_s": plan["no_sound_s"], "empty_s": plan["empty_s"],
         "pieces": [{"kind": x["kind"], "track": x["track"], "item": x["item"], "start": x["start"], "end": x["end"],
-                    "path": x["path"], "src_in": x["src_in"]} for x in pieces],                # the panel checks each one (0.10.6)
+                    "path": x["path"], "src_in": x["src_in"], "src_out": x["src_out"]} for x in pieces],                # the panel checks each one (0.10.6)
         "counts": {"pauses_seen": plan["gaps"], "cuts": len(cuts), "kept_ranges": len(kept), "pieces": len(pieces), "review": len(review), "takes": len(found),
                    "takes_cut": sum(1 for g in found if g["applied"])},
         "takes": found,

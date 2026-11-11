@@ -230,3 +230,5 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .kf-stash { margin-top: 4px; }
 .kf-stash-row .btn.small { margin-right: 6px; }
 .kf-value { min-width: 34px; margin-right: 4px; text-align: center; }
+/* 0.10.45: a check line with a time is a link (the playhead goes there) */
+.jump { cursor: pointer; text-decoration: underline; }

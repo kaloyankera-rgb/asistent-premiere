@@ -40,25 +40,29 @@ class Bridge:
         self._taken: dict = {}                  # id -> time the other side took it
         self._abandoned: set = set()            # ids whose waiter gave up after they were taken
 
-    def submit(self, name: str, args: dict | None = None, deadline: float | None = None) -> str:
+    def submit(self, name: str, args: dict | None = None, deadline: float | None = None, lane: str = "") -> str:
+        """lane (0.10.45): which Premiere may take it. Two Premiere versions can run side by side (the user edits in one
+        while Claude tests in the other); each panel and host says its Premiere's major version, and a command goes only to
+        the side of the Premiere it came from. Clients from before 0.10.45 say nothing: lane ""."""
         if not isinstance(name, str) or not name or len(name) > 40:
             raise ValueError("Invalid command.")
         cid = uuid.uuid4().hex[:12]
         with self._cv:
-            self._queue.append({"id": cid, "name": name, "args": args or {}, "_deadline": deadline})
+            self._queue.append({"id": cid, "name": name, "args": args or {}, "_deadline": deadline, "_lane": lane or ""})
             self._cv.notify_all()
         return cid
 
-    def poll(self, wait: float) -> dict | None:
-        """The next command for the panel, or None after `wait` seconds. Commands past their deadline are dropped."""
+    def poll(self, wait: float, lane: str = "") -> dict | None:
+        """The next command of this lane, or None after `wait` seconds. Commands past their deadline are dropped."""
         end = time.time() + max(0.0, min(wait, 25.0))
         with self._cv:
             while True:
-                while self._queue and self._queue[0].get("_deadline") and self._queue[0]["_deadline"] < time.time():
-                    old = self._queue.popleft()
+                for old in [c for c in self._queue if c.get("_deadline") and c["_deadline"] < time.time()]:
+                    self._queue.remove(old)
                     log.warning("bridge: %s %s expired before it was taken: never run", old["name"], old["id"])
-                if self._queue:
-                    cmd = self._queue.popleft()
+                cmd = next((c for c in self._queue if c.get("_lane", "") == (lane or "")), None)
+                if cmd:
+                    self._queue.remove(cmd)
                     self._taken[cmd["id"]] = time.time()
                     return {k: v for k, v in cmd.items() if not k.startswith("_")}
                 left = end - time.time()

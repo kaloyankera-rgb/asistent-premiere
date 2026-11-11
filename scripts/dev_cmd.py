@@ -22,7 +22,8 @@
   dev_cmd.py host_status                             is the host polling the engine?
   dev_cmd.py css_probe                               which CSS this UXP really supports (panel redesign)
 
-Any other name is sent as a command as it is. The panel refuses everything but `ping` outside TEST.prproj and NEW TEST.prproj.
+Any other name is sent as a command as it is. ASISTENT_LANE=27 (env) sends it to the panel / host in Premiere 27 only
+(0.10.45: two Premiere versions side by side; without it only to clients from before 0.10.45). The panel refuses everything but `ping` outside TEST.prproj and NEW TEST.prproj.
 """
 import json
 import os
@@ -33,6 +34,7 @@ from http.client import HTTPConnection
 APP = os.path.expanduser("~/Library/Application Support/Asistent")
 FLAG = os.path.join(APP, "devbridge.enabled")
 HEAD = {"X-Asistent": "1", "Content-Type": "application/json"}
+LANE = os.environ.get("ASISTENT_LANE", "")
 
 
 def call(method, path, body=None, timeout=130):
@@ -61,7 +63,7 @@ def main(argv):
         print(json.dumps(res, ensure_ascii=False))
         return 0 if code == 200 else 1
     if name == "host":
-        code, res = call("POST", "/host/command", {"name": rest[0], "args": json.loads(rest[1]) if len(rest) > 1 else {}, "wait": 90}, 120)
+        code, res = call("POST", "/host/command", {"name": rest[0], "args": json.loads(rest[1]) if len(rest) > 1 else {}, "wait": 90, "lane": LANE}, 120)
         print(json.dumps(res, ensure_ascii=False, indent=1))
         return 0 if code == 200 and res.get("ok") else 1
     args = {}
@@ -71,7 +73,7 @@ def main(argv):
         args = {"timeout": float(rest[0]) if rest else 120}
     elif rest:
         args = json.loads(rest[0])
-    code, sent = call("POST", "/dev/command", {"name": name, "args": args})
+    code, sent = call("POST", "/dev/command", {"name": name, "args": args, "lane": LANE})
     if code != 200:
         print(code, sent)
         return 1

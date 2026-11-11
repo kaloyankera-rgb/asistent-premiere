@@ -43,9 +43,13 @@ def _level(gain_db: float) -> str:
 
 
 def write(path: str, name: str, fps: float, width: int, height: int, pieces: list[dict], markers: list[dict] | None = None,
-          probe=None) -> dict:
+          probe=None, shell: bool = False) -> dict:
     """pieces: edl.pieces(); markers: [{"frame", "name", "comment"}] in output frames. -> {"frames", "video", "audio"}
-    where video/audio count the pieces per track (the panel checks the sequence it gets against them)."""
+    where video/audio count the pieces per track (the panel checks the sequence it gets against them).
+    shell (0.10.45): the same sequence (size, rate, tracks, markers) WITHOUT clips. Imported clips become new master clips
+    with their own interpretation: Premiere 26.5.2 switched off the rotation flag of the user's FX3 files (they came in
+    sideways) and dropped their S-Log3 colour space, and Fix audio's L/R copies came in as plain stereo. The panel fills the
+    shell with clones of the editor's own clips instead (premiere-roughcut.js)."""
     probe = probe or media.probe
     rate = _rate(fps)
     info_cache: dict[str, object] = {}
@@ -116,12 +120,12 @@ def write(path: str, name: str, fps: float, width: int, height: int, pieces: lis
     track_end = "<enabled>TRUE</enabled><locked>FALSE</locked>"
     v_xml, a_xml = [], []
     for t in range(max(video) + 1 if video else 0):
-        v_xml.append("<track>%s%s</track>" % ("".join(clipitem(p["id"], p, links(p, p["id"])) for p in video.get(t, [])), track_end))
+        v_xml.append("<track>%s%s</track>" % ("" if shell else "".join(clipitem(p["id"], p, links(p, p["id"])) for p in video.get(t, [])), track_end))
     for t in range(max(audio) + 1 if audio else 0):
         for side in (1, 2):
             phys = 2 * t + side
             items = []
-            for p in audio.get(t, []):
+            for p in ([] if shell else audio.get(t, [])):
                 chans = info(p["path"]).audio[0].channels if info(p["path"]).audio else 1
                 # an Asistent split clip (L/L upper, R/R lower) reads ONE source channel on both sides: that is what Modify Clip >
                 # Audio Channels does; otherwise side 1 reads channel 1 and side 2 channel 2

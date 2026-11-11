@@ -134,3 +134,48 @@ test("the sampled path of a curve for the editor box", () => {
   assert.match(d, /^M 10\.0 90\.0 L /);
   assert.match(d, /L 90\.0 10\.0$/);
 });
+
+// ---- 0.10.45: Overshoot+ and Bounce Back after the keyframe, measured on the user's reference (BOUNCr in After Effects)
+{
+  const K2 = require("../panel/keyframeplan.js");
+  const anchors = [{ t: 0, v: 0 }, { t: 0.08, v: 100 }];        // Scale 0 -> 100 in a few frames, as in the reference
+  const ov = { kind: "overshoot", amp: 50, freq: 2, decay: 4 };
+  const bb = { kind: "bounceBack", elast: 50, grav: 50, max: 10 };
+  const series = (c) => Array.from({ length: 40 }, (_, i) => K2.afterValueAt(anchors, c, 0.08 + i * 0.02));
+
+  test("Overshoot+ swings to about 135 %, back to about 83 %, then about 104 % (the reference, measured)", () => {
+    const s = series(ov);
+    const peak = Math.max(...s.slice(0, 12));
+    const low = Math.min(...s.slice(8, 25));
+    const peak2 = Math.max(...s.slice(20, 40));
+    assert.ok(peak > 130 && peak < 142, `peak ${peak}`);
+    assert.ok(low > 80 && low < 88, `low ${low}`);
+    assert.ok(peak2 > 101 && peak2 < 108, `second peak ${peak2}`);
+  });
+
+  test("Bounce Back falls back toward the start (about 44 %), never past the target, and rests on it", () => {
+    const s = series(bb);
+    assert.ok(Math.min(...s) > 38 && Math.min(...s) < 50, `deepest ${Math.min(...s)}`);
+    assert.ok(s.every((x) => x <= 100 + 1e-9));
+    assert.strictEqual(K2.afterValueAt(anchors, bb, 2), 100);
+  });
+
+  test("the plan keys every frame after the last keyframe until it is still, never past the clip's end", () => {
+    const step = 1 / 50;
+    const r = K2.plan([{ id: "scale", keys: anchors }], ov, step, { until: 5 });
+    assert.ok(!r.error);
+    const add = r.props[0].add;
+    assert.ok(add[0].t > 0 && add.every((k) => Math.abs(k.t - 0.08) > step / 2));      // the editor's keys stay theirs
+    const last = add[add.length - 1];
+    assert.ok(last.t > 1 && last.t < 1.8 && last.v === 100, `ends at ${last.t} on ${last.v}`);
+    const cut = K2.plan([{ id: "scale", keys: anchors }], ov, step, { until: 0.5 }).props[0].add;
+    assert.ok(cut.every((k) => k.t <= 0.5 + step / 2));
+    assert.match(K2.plan([{ id: "scale", keys: anchors }], ov, step, { repeat: { mode: "loop" } }).error, /switch Repeat off/);
+  });
+
+  test("positions move along the line they arrived on", () => {
+    const pos = [{ t: 0, v: [0, 0] }, { t: 0.1, v: [300, 400] }];
+    const v = K2.afterValueAt(pos, bb, 0.2);
+    assert.ok(v[0] < 300 && v[1] < 400 && Math.abs((300 - v[0]) / (400 - v[1]) - 0.75) < 1e-6);
+  });
+}

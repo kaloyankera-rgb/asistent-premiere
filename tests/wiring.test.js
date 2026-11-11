@@ -174,7 +174,11 @@ test("ROUGH CUT: the source sequence is only read; the result is imported as a n
   assert.match(main, /onTap\(\$\("rough"\), onRoughCut\)/);
   assert.match(rough, /project\.importFiles\(\[result\.xml\]/);
   assert.match(rough, /verify\(result\.check, got\)/);
-  assert.doesNotMatch(rough, /createRemove|removeItem|deleteSequence|createSetInPoint|createSetOutPoint|createOverwrite|createInsert/);
+  assert.doesNotMatch(rough, /createRemove|removeItem|deleteSequence|createOverwrite|createInsert/);
+  // 0.10.45: trims and moves only ever touch the copies in the NEW sequence, never a source clip (ref.ti is only read and cloned)
+  for (const m of rough.matchAll(/([\w.]+)\.(createSetInPointAction|createSetOutPointAction|createMoveAction)\(/g)) assert.match(m[1], /^(j\.copy\.ti|lead\.ti|x\.ti)$/, m[0]);
+  assert.doesNotMatch(rough, /ref\.ti\.create(?!CloneTrackItemAction)/);
+  assert.match(rough, /createCloneTrackItemAction\(j\.ref\.ti/);
   assert.match(fs.readFileSync(path.join(__dirname, "..", "scripts", "package_ccx.sh"), "utf8"), /roughcutplan\.js premiere-roughcut\.js/);
 });
 

@@ -94,3 +94,80 @@ def test_file_times_are_never_a_witness():
     e = _edge(0, 1, 2.273, "medium")
     G._clock_check(_clips(2), ["/A", "/B"], True, [e], [1000.0, 1002.0], ["file", "file"])
     assert e["confidence"] == "medium"
+
+
+# ---- short takes confirmed by the learnt clocks (0.10.45, Pulse Fitness: 4-12 s clips, two stretches each)
+
+def _learn(n_pairs=2):
+    """strict pairs teach: B's clock runs 3141.3 s ahead of A's (rec of B minus its offset)."""
+    edges, rec = [], []
+    for k in range(n_pairs):
+        a, b = 2 * k, 2 * k + 1
+        edges.append(_edge(a, b, 1.0, "high"))
+        rec += [1000.0 + 100 * k, 1000.0 + 100 * k + 1.0 + 3141.3 + (0.3 if k else 0.0)]
+    return edges, rec
+
+
+def _short(a, b, off, **kw):
+    return _edge(a, b, off, "low", **{"n_agree": 2, "n_info": 3, "peak_ratio": 1.6, **kw})
+
+
+def test_short_take_with_two_stretches_is_confirmed_by_learnt_clocks():
+    strict, rec = _learn()
+    e = _short(4, 5, 2.29)
+    rec += [5000.0, 5000.0 + 1.7 + 3141.3]                 # the clocks say +1.7 s, the sound +2.29 s
+    G._clock_check(_clips(6), ["/A", "/B"] * 3, True, strict + [e], rec, ["metadata"] * 6)
+    assert e["confidence"] == "high" and e["clock_confirmed"] and "short take" in e["reasons"][0]
+
+
+def test_short_take_needs_learnt_clocks_not_raw_ones():
+    e = _short(0, 1, 2.29)
+    G._clock_check(_clips(2), ["/A", "/B"], True, [e], [1000.0, 1002.0], ["metadata"] * 2)
+    assert e["confidence"] == "low"
+
+
+def test_short_take_far_from_the_clocks_stays_low():
+    strict, rec = _learn()
+    e = _short(4, 5, 4.0)
+    rec += [5000.0, 5000.0 + 1.7 + 3141.3]
+    G._clock_check(_clips(6), ["/A", "/B"] * 3, True, strict + [e], rec, ["metadata"] * 6)
+    assert e["confidence"] == "low"
+
+
+def test_short_take_with_a_weak_peak_or_one_stretch_stays_low():
+    strict, rec = _learn()
+    weak = _short(4, 5, 1.7, peak_ratio=1.1)
+    one = _edge(6, 7, 1.7, "low", n_agree=1, n_info=2, peak_ratio=2.0)
+    rec += [5000.0, 5000.0 + 1.7 + 3141.3, 6000.0, 6000.0 + 1.7 + 3141.3]
+    G._clock_check(_clips(8), ["/A", "/B"] * 4, True, strict + [weak, one], rec, ["metadata"] * 8)
+    assert weak["confidence"] == "low" and one["confidence"] == "low"
+
+
+def test_two_possible_offsets_decided_by_learnt_clocks_only_when_the_other_is_far():
+    strict, rec = _learn()
+    near = _edge(4, 5, 26.47, "medium", ambiguous=True, runner_offset=28.0)
+    far = _edge(6, 7, 26.47, "medium", ambiguous=True, runner_offset=3.0)
+    rec += [5000.0, 5000.0 + 26.7 + 3141.3, 6000.0, 6000.0 + 26.7 + 3141.3]
+    G._clock_check(_clips(8), ["/A", "/B"] * 4, True, strict + [near, far], rec, ["metadata"] * 8)
+    assert near["confidence"] == "medium"
+    assert far["confidence"] == "high" and far["clock_confirmed"]
+
+
+def test_uncertain_pair_from_another_take_is_said_by_the_clocks():
+    strict, rec = _learn()
+    e = _edge(4, 5, 0.63, "medium")
+    rec += [5654.0, 5386.0 + 3141.3]
+    G._clock_check(_clips(6), ["/A", "/B"] * 3, True, strict + [e], rec, ["metadata"] * 6)
+    assert e["confidence"] == "medium" and "not recorded together" in e["reasons"][-1]
+
+
+def test_clock_overlaps_name_unconfirmed_pairs():
+    clips = [SimpleNamespace(length=d, name=f"c{i}", info=SimpleNamespace(duration=d)) for i, d in enumerate([40.0, 11.0, 5.0])]
+    when = {"time": [100.0, 117.7, 300.0], "note": [None, None, None], "reference": "/B",
+            "cameras": [{"camera": "/A", "pairs": 3, "spread": 0.6}, {"camera": "/B", "pairs": 0, "spread": 0.0}]}
+    out = G._clock_overlaps(clips, ["/A", "/B", "/B"], [], when)
+    assert out == [{"a": 0, "b": 1, "offset": 17.7}]
+    # in one group already, or a camera whose clock was never learnt: nothing to say
+    assert G._clock_overlaps(clips, ["/A", "/B", "/B"], [{"members": [{"clip": 0}, {"clip": 1}]}], when) == []
+    when["cameras"][0]["pairs"] = 0
+    assert G._clock_overlaps(clips, ["/A", "/B", "/B"], [], when) == []

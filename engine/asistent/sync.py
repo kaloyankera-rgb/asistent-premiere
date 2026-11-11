@@ -563,6 +563,9 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
                                    f"right to ±{spread * 500:.0f} ms.")
     res["confidence"] = conf
     res["ambiguous"] = bool(ambiguous)
+    if ambiguous:
+        # the other possible offset, so the camera clocks can tell which of the two it is (groups._clock_check, 0.10.45)
+        res["runner_offset"] = round(runner.offset + lead_fix, 6)
     res["drifting"] = bool(drift_total > half_frame)
 
     if drift_total > 0.001 and conf == "high":

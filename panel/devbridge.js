@@ -14,7 +14,8 @@ const SETTLE = 900;                                 // main.js ignores clicks fo
 function createBridge({ premiere, premiereColor, premiereAudio, doc, version, engineApi = engine, sleep = wait, hooks = {} }) {
   const $ = (id) => doc.getElementById(id);
   const text = (n) => ((n && n.textContent) || "").trim();
-  const buttons = () => [...doc.querySelectorAll("button, .btn")].filter((b) => !b.hidden);        // .btn: the panel's own buttons (divs)
+  // .btn: the panel's own buttons (divs); .jump (0.10.45): a check line with a time, which moves the playhead
+  const buttons = () => [...doc.querySelectorAll("button, .btn, .jump")].filter((b) => !b.hidden);
   const busy = () => !$("work").hidden;
 
   async function project() {
@@ -322,6 +323,54 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
         }
       }
       return { items: items.length, tried };
+    },
+    // 0.10.45 rough cut by clones (temporary probe): clone one clip of `from` into `to` far out (scratch), trim the copy,
+    // move it into place; report what each step did (which parts came along, their files, in / out, start / end)
+    async rough_probe(a) {
+      const { p } = await project();
+      const ppro = require("premierepro");
+      const seqs = await p.getSequences();
+      const src = seqs.find((s) => s.name === a.from), dst = seqs.find((s) => s.name === a.to);
+      if (!src || !dst) throw new Error("from / to sequence not found");
+      const T = (s) => ppro.TickTime.createWithSeconds(s);
+      const snap = async () => (await premiere.readItems(dst)).items.map((x) => ({ kind: x.kind, track: x.track, name: x.name,
+        file: x.path, start: +x.start.toFixed(3), end: +x.end.toFixed(3), in: +(x.inPt || 0).toFixed(3), out: +(x.outPt || 0).toFixed(3) }));
+      const before = await snap();
+      const srcItems = (await premiere.readItems(src)).items.filter((x) => x.kind === (a.kind || "video") && x.track === (a.track || 0));
+      const it = srcItems[a.index || 0];
+      if (!it) throw new Error("no such clip in from");
+      const scratch = a.scratch || 3000;
+      const out = { source: { name: it.name, start: it.start, end: it.end, in: it.inPt, out: it.outPt }, before: before.length, steps: [] };
+      const editor = ppro.SequenceEditor.getEditor(dst);
+      try {
+        premiere.transaction(p, "Asistent test: clone far", (c) => c.addAction(editor.createCloneTrackItemAction(it.ti,
+          T(scratch - it.start), a.vOffset || 0, a.aOffset || 0, a.align !== false, false)));
+        out.steps.push({ step: "clone", ok: true });
+      } catch (e) { out.steps.push({ step: "clone", ok: false, error: String(e && e.message || e) }); return out; }
+      const afterClone = (await snap()).filter((x) => x.start >= scratch - 1);
+      out.afterClone = afterClone;
+      const all = (await premiere.readItems(dst)).items.filter((x) => x.start >= scratch - 1);
+      const mine = all.find((x) => x.kind === (a.kind || "video")) || all[0];
+      if (!mine) return out;
+      out.methods = Object.getOwnPropertyNames(Object.getPrototypeOf(mine.ti)).filter((n) => /^create/.test(n));
+      const newIn = (mine.inPt || 0) + (a.cutIn || 1), newOut = (mine.inPt || 0) + (a.cutOut || 3);
+      for (const [name, make] of [
+        ["in", () => mine.ti.createSetInPointAction(T(newIn))],
+        ["out", () => mine.ti.createSetOutPointAction(T(newOut))],
+      ]) {
+        try {
+          premiere.transaction(p, `Asistent test: trim ${name}`, (c) => c.addAction(make()));
+          out.steps.push({ step: `trim ${name}`, ok: true, now: (await snap()).filter((x) => x.start >= scratch - 1 - 60) });
+        } catch (e) { out.steps.push({ step: `trim ${name}`, ok: false, error: String(e && e.message || e) }); }
+      }
+      const moved = (await premiere.readItems(dst)).items.filter((x) => x.start >= scratch - 60);
+      try {
+        premiere.transaction(p, "Asistent test: move", (c) => {
+          for (const x of moved) c.addAction(x.ti.createMoveAction(T((a.moveTo || 0) - x.start)));
+        });
+        out.steps.push({ step: "move", ok: true, now: await snap() });
+      } catch (e) { out.steps.push({ step: "move", ok: false, error: String(e && e.message || e) }); }
+      return out;
     },
     // P1: import .srt files (paths on this Mac) into the bin "Asistent test" and report what Premiere made of them
     async srt_import(a) {

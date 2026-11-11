@@ -130,3 +130,25 @@ test("the limiter is switched on with a read-back, in the clip's single Dynamics
   assert.match(src, /"Limiter Threshold"\]\.createKeyframe\(dynValue\(LIMITER_DB\)\)/);
   assert.match(src, /const st = back \? limiterState\(\[\{ params: back\.values \}\]\)/);       // verified after the write
 });
+
+// ---- 0.10.45: one second-side track per source track, in order (the user: "A1 A2 for POV 1 and A3 A4 for POV 2")
+test("lowerTracks: Sync's spaced layout puts each camera's second side right under it", () => {
+  const { lowerTracks } = require("../panel/audioplan.js");
+  const pov1 = [{ track: 0, start: 0, end: 10 }, { track: 0, start: 20, end: 30 }];
+  const pov2 = [{ track: 2, start: 5, end: 12 }];
+  assert.deepStrictEqual(lowerTracks([...pov1, ...pov2], [...pov1, ...pov2], 3), { 0: 1, 2: 3 });
+});
+
+test("lowerTracks: an older SYNC (POV 1 on A1, POV 2 on A2) gets one track per camera, never one per clip", () => {
+  const { lowerTracks } = require("../panel/audioplan.js");
+  const pov1 = [{ track: 0, start: 0, end: 10 }, { track: 0, start: 20, end: 30 }];
+  const pov2 = [{ track: 1, start: 5, end: 12 }];              // A2 is free from 20 to 30, but it is POV 2's track
+  assert.deepStrictEqual(lowerTracks([...pov1, ...pov2], [...pov1, ...pov2], 3), { 0: 2, 1: 3 });
+});
+
+test("lowerTracks: a track busy anywhere under a source's clips is skipped for all of them", () => {
+  const { lowerTracks } = require("../panel/audioplan.js");
+  const splits = [{ track: 0, start: 0, end: 10 }, { track: 0, start: 20, end: 30 }];
+  const music = { track: 1, start: 25, end: 40 };
+  assert.deepStrictEqual(lowerTracks(splits, [...splits, music], 4), { 0: 2 });
+});
