@@ -140,6 +140,13 @@ a row in docs/ROLLBACK.md, measured against Classic on the same inputs before it
 - [x] **I12. Pre-export checks** (0.10.35). Later if wanted: the sequence's In/Out as the range, a hand-made channel
   mapping read through the host (now the louder channel counts), a check of the exported file itself after Show exports.
   USER: run it on a finished client edit before export and say what it missed or flagged wrongly.
+- **I14. After-export check (the user asked 2026-11-11: "checking if everything is alright after the video is done, black
+  bars etc"). NEXT candidate.** On the exported FILE (Show exports already knows when and where it is), local FFmpeg only:
+  black bars (letter/pillarbox: cropdetect), black and flash frames (blackdetect), frozen frames (freezedetect), resolution /
+  aspect / fps / codec / bitrate / colour tags against the sequence, true peak over -1 dBFS, loudness (LUFS), no sound / silence
+  at the ends / one channel only, clipping, length equal to the sequence, file complete. Report in the Export card (+ Telegram
+  if wanted), each line measured-fine or what and where. Engine module + synthetic test files. QUESTIONS for the user:
+  automatic after every export or a button (proposed: automatic); loudness target (proposed: -14 LUFS, information only).
 - **I13. Later experiments** (each with its license and local-only check): pyannote (local, telemetry off, gated model needs a
   token: ask), Opus-MT bg→en against NLLB on terminology/numbers/negations (never replacing ReShape's English), PySceneDetect for
   B-roll index, open_clip (needs multilingual model or local query translation), music ducking, multicam suggestions.
