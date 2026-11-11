@@ -1,5 +1,8 @@
 # Known bugs, limitations and warnings
 
+- **Test bridge `fill` on a checkbox (Premiere 26.5.2, 2026-11-11):** `dispatchEvent(new Event("change"))` throws "Cannot read
+  properties of undefined (reading 'detail')"; the box is set before it, the change handler does not run (a stored preference is
+  not saved). Bridge only; the editor clicking a box is not affected. Fix: dispatch in try/catch or call the handler.
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
 ## Open bugs

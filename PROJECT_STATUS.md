@@ -1,5 +1,8 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.42 (2026-11-11, installed): 0.10.39 after-export check and 0.10.40 Fast rough cut VERIFIED in Premiere 26.5.2 through the bridge
+(NEW TEST: real export checked in 20.7 s, real letterbox found on fx31030; Fast rough cut with turbo 21.1 s).
+
 0.10.40 (2026-11-11, merged into improvements/2026-11 with 0.10.39; 716 pytest + 24 skipped, node 238): Fast rough cut switch (large-v3-turbo,
 2.1x faster on 15 GStroy clips, but fewer repeated takes found: off by default). Turbo downloaded on this Mac. ReShape golden
 identical. Panel switch and download button NOT verified in Premiere.

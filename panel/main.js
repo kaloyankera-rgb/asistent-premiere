@@ -1984,7 +1984,12 @@ $("app").addEventListener("scroll", hideTip);
 
 refreshHeader();
 // test bridge: does nothing unless the engine has its flag file (see devbridge.js)
-createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION, hooks: { learnFromExport } }).loop();
+// the export event's path for the after-export check, for the test bridge (the same two calls as the event handler)
+async function afterExport(path) {
+  const sequence = await premiereCheck.exportedSequence(await premiere.activeProject());
+  return { sequence, done: await engine.exportDone(path, "complete", "bridge", sequence) };
+}
+createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION, hooks: { learnFromExport, afterExport } }).loop();
 setInterval(() => {
   if (!state.busy) refreshHeader();
 }, 4000);
