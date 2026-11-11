@@ -495,3 +495,13 @@ path slides against the object, so the keys are the measured positions (they are
 benchmark). A lost frame gets no key rather than a guessed one (Premiere moves straight across it, the strip shows it red).
 The attached clip keeps its offset from the tracked point as After Effects' "apply to layer" does; Scale and Rotation are
 off by default because a text that grows and turns with a hand-held object is rarely wanted.
+
+## 2026-11-12: subtitle cuts follow the delivery; ReShape keeps the classic rules (0.10.61)
+The user asked for captions cut as a subtitle editor would by the speaker's delivery, not by a word count, and for the last word
+of a phrase never to wait for the next caption. Measured first on the editors' own chunks of 40 client videos: the leftovers
+came from hard limits (the style's usual size, three words), so those became targets with a price and a lone leftover word got
+a cost of its own. The editors' cuts are a check, not the goal: they end chunks on „за“, „да“, „че“ (their tool's habit) where
+our rule never ends one, so nothing was tuned towards that. ReShape's preset is protected (the user, 2026-11-08) and the user
+was asleep when this was built, so it stays on the classic rules; switching it is one key (`"delivery": True`) once the user
+says so (its golden check will then differ). Word lengthening was measured and left out: it made the cuts worse on Whisper's
+word times; pitch and loudness need the sound, which the job has but these 40 videos do not.

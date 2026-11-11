@@ -108,6 +108,14 @@ PRESETS = {
                        "айфон": "IPHONE", "айфона": "IPHONE-А", "айфонът": "IPHONE-ЪТ"}},
 }
 
+# Cuts follow the speaker's delivery (`_delivery`, 0.10.61, the user 2026-11-12: "follow the speaker's natural delivery") in
+# every style but ReShape's, which stays exactly as approved (protected, tests/test_reshape_baseline.py). The two-line client
+# styles keep line_chars as their usual size but may go over it up to chunk_max when that keeps a spoken phrase whole; no line
+# wider than line_max (their editors' lines: 14-15 characters at the 97th percentile, 16-21 at most).
+PRESETS["short"]["delivery"] = True
+for _name in ("gstroy", "credissimo", "ekopak", "beautysector", "aula"):
+    PRESETS[_name].update({"delivery": True, "chunk_max": PRESETS[_name]["line_chars"] + 7, "line_max": 16})
+
 # NTSC rates arrive as 23.976 / 29.97 / 59.94; the sequence really runs at N*1000/1001.
 _NTSC = (24000 / 1001.0, 30000 / 1001.0, 60000 / 1001.0, 120000 / 1001.0)
 
@@ -211,21 +219,25 @@ def _norm_token(word):
     return re.sub(r"[^\w]", "", str(word).lower(), flags=re.UNICODE)
 
 
-def _glued(w, nxt):
+def _glued(w, nxt, counted=False):
     # A number and the word next to it are read together: "Формула 1", "за 8 евро", "едно евро", "25 Nm".
     if PUNCT_END.search(w["word"]):
         return False
     digit = lambda t: bool(re.search(r"\d", t))
     num = lambda t: digit(t) or t.lower().strip(".,?!") in NUMBER_WORDS
     # A digit goes with the word before it ("Формула 1", "за 8"), any number with the unit after it.
-    return digit(nxt["word"]) or (num(w["word"]) and nxt["word"].lower().strip(".,?!") in UNITS)
+    if digit(nxt["word"]) or (num(w["word"]) and nxt["word"].lower().strip(".,?!") in UNITS):
+        return True
+    # counted (the delivery styles): a number written in digits keeps whatever it counts, not only the listed units
+    # („220 волта“, „3 месеца“, „48 часа“), unless the next word is a little word („5 и 6“, „2 за 1“)
+    return counted and digit(w["word"]) and _word_core(nxt) not in NON_FINAL and bool(re.match(r"[^\W\d_]", nxt["word"]))
 
 
-def _units(words):
+def _units(words, counted=False):
     """Words -> units that must stay on one line ("за 8 евро", "Формула 1")."""
     units = []
     for i, w in enumerate(words):
-        if units and _glued(words[i - 1], w):
+        if units and _glued(words[i - 1], w, counted):
             units[-1].append(w)
         else:
             units.append([w])
@@ -397,19 +409,32 @@ def _ends_on_clitic(flat):
         and not PUNCT_END.search(flat[-2]["word"])
 
 
-def _break_cost(prev, nxt):
-    """How good a place to cut between two words: 0 = best (sentence end or a real pause), higher = inside a phrase."""
+def _ends_on_clitics(flat):
+    """The caption ends on a chain of short pronouns and „ли“ that leans on the content word before it: „Готова ли си“,
+    „признавате ли си“, „дай ми го“ (the delivery styles; the classic rule allows one short word only)."""
+    k = len(flat) - 1
+    while k > 0 and _word_core(flat[k]) in TRAILING | {"ли"} and not PUNCT_END.search(flat[k - 1]["word"]):
+        k -= 1
+    return k < len(flat) - 1 and _word_core(flat[k]) not in NON_FINAL and not PUNCT_END.search(flat[k]["word"])
+
+
+def _break_cost(prev, nxt, st=None):
+    """How good a place to cut between two words: 0 = best (sentence end or a real pause), higher = inside a phrase.
+    st: the delivery strengths (`_delivery`); a cut then costs what the speaker's delivery says about this boundary."""
     t = prev["word"]
     gap = nxt["start"] - prev["end"]
-    cost = 0.0 if re.search(r"[.?!…]$", t) else 0.3 if t.endswith(",") else 1.4
-    if gap >= PAUSE_SPLIT:
-        cost = min(cost, 0.0)
-    elif gap >= 0.2:
-        cost = min(cost, 0.5)
-    elif gap >= 0.12:
-        cost = min(cost, 0.9)
-    elif cost > 0:
-        cost += 0.4                                            # no pause at all: one breath, one phrase
+    if st is not None:
+        cost = DELIVERY["break"] * (1.0 - st[id(prev)])
+    else:
+        cost = 0.0 if re.search(r"[.?!…]$", t) else 0.3 if t.endswith(",") else 1.4
+        if gap >= PAUSE_SPLIT:
+            cost = min(cost, 0.0)
+        elif gap >= 0.2:
+            cost = min(cost, 0.5)
+        elif gap >= 0.12:
+            cost = min(cost, 0.9)
+        elif cost > 0:
+            cost += 0.4                                        # no pause at all: one breath, one phrase
     if _word_core(nxt) in ENCLITIC and not re.search(r"[.?!…]$", t) and gap < PAUSE_SPLIT:
         cost += PHRASE_COST["starts_enclitic"]
     if _word_core(nxt) == "ли":                                # „ли“ always leans on the word before it
@@ -417,7 +442,7 @@ def _break_cost(prev, nxt):
     if gap < PAUSE_SPLIT and _bond(t, nxt["word"]):           # „хронично / заболяване“: an adjective stays with its noun
         cost += PHRASE_COST["splits_adjective"]
     if gap < PAUSE_SPLIT and _word_core(prev) in MODAL and _word_core(nxt) == "да":
-        cost += PHRASE_COST["splits_modal"]
+        cost += PHRASE_COST["splits_modal"] + (DELIVERY["verb_chain"] if st is not None else 0.0)
     if prev.get("english") and nxt.get("english") and not re.search(r"[.,?!…]$", t):   # „Beauty / Sector“: one name
         cost += PHRASE_COST["splits_name"]
     return cost
@@ -433,38 +458,109 @@ def _bond(a, b):
     return _bonds[(a, b)]
 
 
-def _phrase_cost(units, cfg, forced_edges, after=()):
-    """Cost of showing these units as one caption (lower is better). after: the next two words, if any."""
+def _delivery(words):
+    """How the speaker delivered each word boundary: {id(word): strength of the boundary AFTER that word}, 0 = inside one
+    breath (the words run on), 1 = a clear phrase end. Used by the styles with "delivery" (not ReShape's protected one).
+
+    The cues a subtitle editor hears, as far as the words carry them: the punctuation Whisper writes from the intonation it
+    hears (a falling end is a sentence end = 1, a rise or a held breath before a comma = 0.8), and the pause after the word
+    (0.35 s or more = 1, as the classic rules). Tried and left out (2026-11-12, the 40 client videos): a drawn-out last word
+    of a phrase (its time per letter against the speaker's pace around it) moved the cuts away from the editors' (F1 0.754 ->
+    0.748, leftover words 3 -> 6) on Whisper's own word times; the gap read against the speaker's typical gap changed nothing.
+    Both may be worth a new measurement on aligned word times with the sound (TODO).
+    """
+    out = {}
+    for w, nxt in zip(words, words[1:]):
+        t = w["word"]
+        if re.search(r"[.?!…]+[\"»“)]*$", t):
+            out[id(w)] = 1.0
+            continue
+        punct = DELIVERY["comma"] if re.search(r"[,;:]$|[–—]$", t) else 0.0
+        pause = _interp(max(0.0, nxt["start"] - w["end"]), DELIVERY["pause"])
+        out[id(w)] = 1.0 - (1.0 - punct) * (1.0 - pause)
+    if words:
+        out[id(words[-1])] = 1.0
+    return out
+
+
+def _interp(x, table):
+    """Piecewise linear through (x, y) points, flat outside them."""
+    if x <= table[0][0]:
+        return table[0][1]
+    for (x0, y0), (x1, y1) in zip(table, table[1:]):
+        if x <= x1:
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+    return table[-1][1]
+
+
+# The delivery model's settings (styles with "delivery"). pause: (gap s, strength), so 0.35 s is a clear phrase end as in
+# the classic rules. break: what a cut costs inside one breath (a strength of 0). orphan: a caption of one word that belongs
+# to the phrase before it (said on, then a phrase end after it: „със съвместим / адаптер.“), per unit of how much stronger
+# the boundary after it is than the one before it; opener: the same the other way (a lone first word that runs into the
+# next words), smaller: editors do start a phrase with one word alone. inner: a heard phrase end inside a caption.
+# verb_chain: on top of the classic cost, a cut between „може“ / „трябва“ and its „да“ (the user's rule): as bad as a leftover
+# word, so keeping one of them whole never costs the other („които / може да изглеждат / малки,“).
+# over_target: per character over the style's measured size (line_chars), up to chunk_max, which only two-line styles have
+# (their editors' chunks reach 21-23 characters as two lines, 97th percentile, 25 at most, docs/SUBTITLE_STYLES); one-line
+# styles keep line_chars as the screen's width.
+# Chosen on the editors' own chunks of 40 client videos (GStroy, Credissimo, ЕКОПАК, Beauty Sector, AULA; their speech through
+# Whisper): a word said straight on from the phrase before it and left alone 133 -> 3 times, cuts where the editors cut
+# F1 0.740 -> 0.754, 2.28 -> 2.52 words a chunk (the editors: 2.2-2.5).
+DELIVERY = {"comma": 0.8, "pause": ((0.04, 0.0), (0.12, 0.5), (0.2, 0.72), (0.35, 1.0)),
+            "break": 1.8, "inner": 3.0, "orphan": 6.0, "opener": 1.5, "over_target": 0.5, "verb_chain": 6.0}
+
+
+def _phrase_cost(units, cfg, forced_edges, after=(), st=None):
+    """Cost of showing these units as one caption (lower is better). after: the next two words, if any.
+    st: the delivery strengths (`_delivery`) for a style that has "delivery"; None keeps the classic rules exactly."""
     c = PHRASE_COST
     flat = [w for u in units for w in u]
     n = len(flat)
     chars = _text_len(flat)
     glued = any(len(u) > 1 for u in units)
     little = sum(1 for w in flat if _word_core(w) in NON_FINAL)    # function words add no weight to a phrase
-    if n > cfg["max_words"] + 1 or (n == cfg["max_words"] + 1 and not glued and little < 2) \
-            or (chars > cfg["line_chars"] and len(units) > 1):
+    limit = cfg.get("chunk_max", cfg["line_chars"]) if st is not None else cfg["line_chars"]
+    # the delivery styles take 2-4 words as the target: a fourth word is allowed in a 3-word style (at a price, below)
+    # whatever the words are, so a phrase stays whole; the classic rule allows it only with little words or a number in it.
+    # A fifth word stays the classic exception (allowing it moved Credissimo's cuts away from its editors': F1 0.738 -> 0.724)
+    soft = st is not None and n == 4
+    if n > cfg["max_words"] + 1 or (n == cfg["max_words"] + 1 and not glued and little < 2 and not soft) \
+            or (chars > limit and len(units) > 1):
         return None                                            # not allowed
+    if st is not None and len(units) > 1 and cfg.get("stack") and \
+            any(_text_len(line) > cfg["line_max"] for line in _lines(units, cfg)):
+        return None                                            # a line wider than the editors ever made one
     cost = c["base"]
     cost += c["one_word"] * (0.3 if forced_edges else 1.0) if n == 1 else 0.0
     cost += c["three_words"] if n == 3 else (c["four_words_function"] if little >= 2 or glued else c["four_words"]) if n == 4 else 0.0
     for a, b in zip(flat, flat[1:]):                           # a caption is one phrase: no sentence end, pause or comma inside
         if re.search(r"[.?!…]$", a["word"]):
             cost += c["inner_sentence_end"]
+        elif st is not None:                                   # a phrase end heard inside the caption (a comma, a pause)
+            cost += DELIVERY["inner"] * st[id(a)]
         elif b["start"] - a["end"] >= PAUSE_SPLIT:
             cost += c["inner_pause"]
         elif a["word"].endswith(","):
             cost += c["inner_comma"]
-    cost += max(0, chars - cfg["soft_chars"]) * c["over_soft"] + (c["over_hard"] if chars > cfg["line_chars"] else 0)
+    cost += max(0, chars - cfg["soft_chars"]) * c["over_soft"]
+    if st is not None:                                         # over the style's size: allowed, at a price per character
+        cost += max(0, chars - cfg["line_chars"]) * DELIVERY["over_target"]
+    else:
+        cost += c["over_hard"] if chars > cfg["line_chars"] else 0
     speech = flat[-1]["end"] - flat[0]["start"]
     cost += c["too_short"] if speech < 0.35 and n > 1 else c["too_short"] + 1.0 if speech < 0.3 and n == 1 else 0.0
     cost += c["too_long"] if speech > cfg["max_s"] else 0.0
     if not _can_end(units[-1]):
-        if _ends_on_clitic(flat):
+        if _ends_on_clitic(flat) or (st is not None and _ends_on_clitics(flat)):
             cost += c["ends_clitic"]
         elif _word_core(flat[-1]) in COPULA and len(after) == 2 and _bond(after[0]["word"], after[1]["word"]):
             cost += c["ends_copula"]
         else:
             cost += c["ends_function"]
+    if st is not None and n == 1:                              # a lone word: does it belong to the phrase before or after?
+        before = st.get(("before", id(flat[0])), 1.0)          # the boundary before it (1 at the start)
+        behind = st[id(flat[0])]                               # and after it
+        cost += DELIVERY["orphan"] * max(0.0, behind - before) + DELIVERY["opener"] * max(0.0, before - behind)
     return cost
 
 
@@ -472,8 +568,13 @@ def _group_phrases(words, cfg):
     """Dynamic programming over the units (number phrases stay whole): the cheapest way to cut the speech into
     captions. Cuts prefer sentence ends and real pauses, never end on a function word, rarely start on a clitic, and
     keep 2-3 words together. Returns the groups as lists of units, like `_group`."""
-    units = _units(words)
+    units = _units(words, counted=bool(cfg.get("delivery")))
     n = len(units)
+    st = None
+    if cfg.get("delivery"):
+        st = _delivery(words)
+        for a, b in zip(words, words[1:]):                     # the boundary before each word, for the lone-word rule
+            st[("before", id(b))] = st[id(a)]
     best = [(0.0, -1)] + [(float("inf"), -1)] * n
     for j in range(1, n + 1):
         for i in range(max(0, j - 5), j):                      # at most 5 units in a caption (a glued unit counts as one)
@@ -483,11 +584,11 @@ def _group_phrases(words, cfg):
             before = i == 0 or re.search(r"[.?!…]$", units[i - 1][-1]["word"]) or units[i][0]["start"] - units[i - 1][-1]["end"] >= PAUSE_SPLIT
             after = j == n or re.search(r"[.?!…]$", units[j - 1][-1]["word"]) or units[j][0]["start"] - units[j - 1][-1]["end"] >= PAUSE_SPLIT
             nxt = [w for u in units[j:j + 2] for w in u][:2]
-            c = _phrase_cost(seg, cfg, bool(before and after), nxt)
+            c = _phrase_cost(seg, cfg, bool(before and after), nxt, st)
             if c is None:
                 continue
             if i > 0:
-                c += _break_cost(units[i - 1][-1], units[i][0])
+                c += _break_cost(units[i - 1][-1], units[i][0], st)
             if best[i][0] + c < best[j][0]:
                 best[j] = (best[i][0] + c, i)
     if best[n][0] == float("inf"):                             # cannot happen with 5-unit captions, but never fail

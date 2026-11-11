@@ -121,6 +121,9 @@ The goal is easy reading in sync with natural phrase delivery, **not** a rigid p
   Exact grouping depends on actual speech, word alignment and edit style.
 - Avoid strobing captions with extremely short display times; set minimum durations based on readability and avoid overlong lingering.
 - Do not infer intonation reliably from text alone; use actual pauses/prosody when available and treat them as signals, not infallible boundaries.
+- As built (0.10.61, `subtitles._delivery`, every style but ReShape's): a word boundary is as strong as the speaker made it
+  (sentence end, a comma Whisper heard, the pause); a lone word said straight on from the phrase before it never stands
+  in the next caption when the phrase fits two lines; the word count and the style's size are targets, not walls.
 
 ## 10. Project-specific regression examples
 
