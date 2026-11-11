@@ -1,5 +1,8 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.44 Picture fills the frame (Check export): VERIFIED through the bridge in Premiere 26.5.2 on 2026-11-12 (scale, anchor,
+crop, rotation, scale keys; strips measured on Premiere's own frames within a pixel). NOT tried by the user on own B-roll.
+
 Tests (2026-11-12): the Python crash reports were test runs, not the engine (the translator under -W error); fixed in
 tests/conftest.py, the real-model translator tests run again.
 

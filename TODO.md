@@ -45,8 +45,13 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] The user to look: are the SYNC clips in the POV colours on the timeline (scripts cannot read a clip's colour)?
 
 ## FILL. Picture fills the frame (0.10.44, the user 2026-11-11)
-- [ ] Verify in NEW TEST: a 4K clip at 88 % on V2 over V1 (expect "10 px at the top and bottom ... V1 shows through"), Anchor
-  Point moved, Motion Crop, Scale to Frame Size on (can it be read?), a rotated clip, a keyframed scale. Then the user's own case.
+- [x] Verified in NEW TEST 2026-11-12 (Premiere 26.5.2, C0737 on V2 of SYNC – кам2, values put back after): 88 % -> 130 / 230 px,
+  Anchor Point 0.45 -> 108 px left (Anchor Point is a fraction of the frame), Crop Left 5 -> 108 px left (names "Crop Left" ...),
+  Rotation 2 -> a corner, Scale keys 100 -> 80 % -> 216 / 384 px at the key and "V1 fx31034 shows through"; Premiere's own
+  exported frames measured 128 / 224, 104, 112 px (within one pixel of the 1/8-size export). Scale to Frame Size cannot be read
+  in 26.5.2 (the report says so). USER: the own B-roll case.
+- [ ] The report names one moment per clip (its first problem): at 88 % it said "black shows" at the clip's start (V1 had a gap
+  there) and not that fx31034 shows through after it; enough to find the clip, maybe name both.
 - [ ] After export: thin edge strips of any colour (uniform rows unlike the picture next to them), from about 0.3 % of the frame.
 
 ## CP. Cockpit plan (`../COCKPIT_PLAN.md`, the user's go 2026-11-10: commit, then Phase 0, the rest here)
