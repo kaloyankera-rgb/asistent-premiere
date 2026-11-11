@@ -148,6 +148,10 @@ window.PREVIEW_SCENARIOS = (function () {
     },
     // 0.10.55: the Tracker page with a made-up track of a bouncing ball (an unsure and a lost stretch), on frame 52
     tracker: { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 52); } },
+    // 0.10.59: a Tools row opened (Rough cut), Settings, the Log icon's page
+    "row-open": { run: (api) => { const b = document.querySelector('#secRough .btn.more'); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); } },
+    settings: { run: (api) => { api.openTab("paneSettings"); } },
+    "log-page": { run: (api) => { api.openTab("paneLog"); } },
     "tracker-empty": { run: (api) => { api.openTab("paneTracker"); } },
     "tracker-box": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 0, "box"); } },
     "tracker-busy": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 0, "busy"); } },
@@ -200,7 +204,7 @@ window.PREVIEW_SCENARIOS = (function () {
           ] },
       },
       run: (api) => {
-        document.querySelector('[data-more="aboutExports"]').click();
+        document.querySelector('[data-more="optExports"]').click();
         setTimeout(() => api.openTab("paneLog"), 400);
       },
     },
@@ -221,7 +225,7 @@ window.PREVIEW_SCENARIOS = (function () {
           ] },
       },
       run: (api) => {
-        document.querySelector('[data-more="aboutAfter"]').click();
+        document.querySelector('[data-more="optAfter"]').click();
         setTimeout(() => document.getElementById("secAfter").scrollIntoView(), 600);
       },
     },
@@ -235,7 +239,7 @@ window.PREVIEW_SCENARIOS = (function () {
         ] },
       },
       run: () => {
-        for (const sel of ["#audioMore", '[data-more="aboutRough"]', '[data-more="devTools"]']) document.querySelector(sel).click();
+        document.querySelector('[data-more="optAudio"]').click();
       },
     },
   };

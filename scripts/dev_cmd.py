@@ -5,6 +5,7 @@
   dev_cmd.py ping | state | selection | timeline [json args]
   dev_cmd.py click "Auto color"                       press a panel button by its label (waits until the panel is idle)
   dev_cmd.py click "Cancel" now                       press it at once, while a job runs
+  dev_cmd.py click "#afterSwitch"                     press an element by its id (the Automatic switches)
   dev_cmd.py fill '{"id": "notes", "value": "раф => рафт"}'   fill the corrections box
   dev_cmd.py wait_idle [seconds]                     wait until the panel is not busy, print its answer
   dev_cmd.py select '{"kind": "any"}'               select clips on the timeline (kind video|audio|any, names, track, from, to)
@@ -69,6 +70,8 @@ def main(argv):
     args = {}
     if name == "click":
         args = {"text": rest[0], **({"now": True} if "now" in rest[1:] else {})}      # click "Cancel" now: while busy
+        if rest[0].startswith("#"):                       # click "#afterSwitch": by id (the switches have no label, 0.10.59)
+            args = {"id": rest[0][1:], **({"now": True} if "now" in rest[1:] else {})}
     elif name == "wait_idle":
         args = {"timeout": float(rest[0]) if rest else 120}
     elif rest:

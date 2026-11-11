@@ -274,6 +274,16 @@ The user pressed Внимателно on three takes of one line and expected tw
 ## 2026-11-03: the tool is in English
 The user asked for the whole tool in English, replacing Bulgarian (no language switch), with English names for what Asistent creates in Premiere. The rule "panel texts in Bulgarian" in CLAUDE.md is replaced. Bulgarian stays only where it is data about Bulgarian speech or folder names, not text for the user to read.
 
+## 2026-11-12: a minimal panel, chosen from mockups (0.10.59)
+The user found the panel crowded ("everything is everywhere") but uses every feature, so nothing was hidden behind a
+"more" list. Three clickable mockups (artifacts: A · Rows, B · Tiles, C · Stages, with the Motion tab drawn in each) let
+the user choose: **A · Rows** for Tools and Motion, **Amethyst #8745A5 + Golden Yellow #FFC945**, and a soft blurred glow.
+Rules kept: only CSS `css_probe` proved (rows are flex with a fixed button width, not the mockup's grid; the glow is a
+pre-rendered image because UXP has no proven blur; the gradient is a second background that UXP may ignore), `div.btn`
+through `button()` / `enable()`, colours through tokens. Set-once things stay next to their tool (Track names' colours in
+its ▾, the export folders in their Automatic row); Settings holds only the developer tools; the Log is a clock icon that
+is always one press away (the user's choice over a tab or Settings).
+
 ## 2026-11-11: the whole panel takes the Tracker page's dark look (0.10.58)
 The user asked for the Tracker's look (0.10.57: charcoal grounds, quiet lines, a violet accent, short explanations with the
 rest in tooltips) on the whole tool, within the existing UI rules. Done by changing the `:root` tokens only, so every page

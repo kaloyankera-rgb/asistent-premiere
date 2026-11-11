@@ -31,6 +31,36 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.59 - A minimal panel: Tools as rows, Motion, the user's colours and a glow (the user 2026-11-11/12: "keep it minimal, right now everything is everywhere"; chosen from three clickable mockups: A · Rows, Amethyst + Golden, the glow Soft)
+- **Tools as rows**: two bordered lists. **Run**: one row per tool (Sync, Rough cut, Track names, Audio, Color, Subtitles,
+  Before export) with its icon, its name (the tooltip says what it does: the old ⓘ text) and its main button, all one
+  width; **▾** opens the row's options under it (the about text first), one row at a time, remembered. **Automatic**: Auto
+  import, Show exports, Export check (the after-export check) and Learn from exports, each with a switch and a status line
+  ("Watching Downloads", "In Finder · Premiere's folder", "Checks every export"); ▾ holds the folders, the newest
+  export's check and the **Recent exports** list (moved from Log). Nothing was removed; every id and handler is the same.
+  At 240 px the run rows show the button alone.
+- **Renamed buttons** (to fit one width): Name the tracks → **Name tracks**, Subtitles (Bulgarian) → **Make subtitles**,
+  Check before export → **Check export**. "Manual ▸" is gone: its six buttons are in the Audio row's ▾.
+- **Tabs**: Tools · **Motion** (Keyframer and Tracker with a switch between them; the last one used comes back) and, at the
+  right, a **clock** (Log: the last report and the earlier runs, any time) and a **gear** (Settings: the developer tools).
+  Before / after and Captions still appear after a run. The bridge's `click "Keyframer"` / `"Tracker"` press the switch.
+- **Header**: one line: the dot, the project, the version (red "No engine" when the engine is down).
+- **Keyframer**: its sections in cards (Clip, Motion, Repeat and Apply, Stash); stash rows fill the width.
+- **Colours**: Amethyst #8745A5 for actions and switches (a gradient where UXP draws one), Golden Yellow #FFC945 (`--sel`)
+  for what is active or chosen (tab underline, open row, chosen chips, Motion and Attach / Lock switches, the Tracker's
+  step bar and boxed-frame mark); the Tracker's "unsure" frames are orange (#f0883e) so they don't read as a selection.
+- **Glow**: `panel/img/glow.jpg` (14 KB, made once with OpenCV: soft amethyst, deep purple and a faint golden light) behind
+  the panel; cards, lists and the result bar are translucent (`--glass`). UXP has no proven blur, so the blur is in the
+  image. Packed by `package_ccx.sh` (`img`).
+- Dev: `dev_cmd.py click "#id"` presses an element by id (the switches have no label); preview states row-open,
+  settings, log-page.
+- Checked: panel tests 274, engine version/package/wiring tests; browser preview 87 shots at 240 / 300 / 420 px. Premiere
+  26.5.2 (NEW TEST, bridge): loads as 0.10.59; the button list against 0.10.58 differs only by the renames, the switches
+  and the tabs; Motion / Keyframer / Tracker / Tools open; Keyframer read "Tracker test"; Tracker loaded its frame; Check
+  export ran ("1 to look at: picture fills the frame"); the Export check, Show exports and Learn switches each turned the
+  engine's setting off and on again. Not checked: how it looks in UXP (the glow image, translucency, the gradient) and the
+  Auto import switch (switching it on would import Downloads into NEW TEST).
+
 ## 0.10.58 - The whole panel takes the Tracker's look (the user 2026-11-11: "put the same UI on the overall tool while following the rules for UI design we have")
 - **Palette**: the `:root` tokens are the Tracker's: grounds #141518 / #1c1d22, controls #26282f, lines #303239 / #3a3d45,
   text #e7e8ec / #9a9ca6 / #686b75, violet accent #705cf6 (hover #8270f8), links #a99dff; status colours re-tinted for the

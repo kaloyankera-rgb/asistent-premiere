@@ -80,7 +80,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   `css_probe` proved in Premiere (CHANGELOG 0.9.71-0.9.72): flexbox, absolute position, variables, calc, transform, ellipsis,
   width media queries, inline SVG with outlines from CSS only; NOT gap, grid, transitions, animations, :focus-visible, matchMedia,
   `<header>`/`<footer>` (centred flex rows: use divs). Buttons are `div.btn` (Premiere paints `<button>` grey): make them with
-  `button()`, switch them with `enable()`. Colours only through the tokens in `style.css` `:root`.
+  `button()`, switch them with `enable()`. Colours only through the tokens in `style.css` `:root`. Layout (0.10.59, the user's chosen mockup): Tools = rows
+  (`.feat` in a `.list`, groups Run / Automatic; options under ▾ via `data-more`, one open), Motion = Keyframer | Tracker
+  (`openTab("motion")`), Log and Settings = icon tabs; the glow is `panel/img/glow.jpg` behind translucent `--glass`.
 - Dependencies: Python 3.12 venv with `numpy==2.5.4`, `scipy==1.18.1`, `watchdog==7.0.0`, `opencv-python-headless==5.0.0.93` (`requirements.txt`),
   `pytest==9.2.0` (`requirements-dev.txt`); system FFmpeg/FFprobe (Homebrew on Mac); Node only for tests.
 

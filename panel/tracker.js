@@ -11,8 +11,9 @@ const TP = require("./trackplan.js");
 const TR = require("./premiere-tracker.js");
 const engine = require("./engine.js");
 
-const COLORS = { sure: "#3fb950", unsure: "#e3b341", lost: "#e5534b" };   // the --ok-dot / --warn / --err-dot tokens
-const ACCENT = "#705cf6";                                                  // --accent
+const COLORS = { sure: "#3fb950", unsure: "#f0883e", lost: "#e5534b" };   // the --ok-dot / --unsure / --err-dot tokens (0.10.59: unsure orange, golden marks a selection)
+const ACCENT = "#8745a5";                                                  // --accent (Amethyst, 0.10.59)
+const SEL = "#ffc945";                                                     // --sel (Golden Yellow): the boxed frame
 const NS = "http://www.w3.org/2000/svg";
 const TL_H = 44;                                     // timeline: ruler 0-14, lane 17-41
 const LANE = [17, 41];
@@ -352,7 +353,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     if (k0 >= 0 && k0 < n) {
       const x = pos(k0);
       svgEl(g, "polygon", { points: `${x.toFixed(1)},${y0 - 6} ${(x + 3.5).toFixed(1)},${y0 - 2.5} ${x.toFixed(1)},${y0 + 1} ${(x - 3.5).toFixed(1)},${y0 - 2.5}` },
-        `fill:${ACCENT};stroke:#141518;stroke-width:1px`);
+        `fill:${SEL};stroke:#141518;stroke-width:1px`);
     }
     // the playhead
     if (t && !state.job) {

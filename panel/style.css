@@ -1,26 +1,32 @@
 /* Design tokens: every colour the panel uses, by role. 0.10.58 (the user 2026-11-11: "put the same UI on the overall tool"):
-   the dark workspace made for the Tracker page (0.10.57) is the whole panel's look now: charcoal grounds, quiet lines, one
-   violet accent. Plain values: Premiere's --uxp-host-* variables are not defined in this UXP (css_probe 0.9.71), so the panel
-   always ran on its own colours anyway. */
+   the dark workspace made for the Tracker page (0.10.57) is the whole panel's look. 0.10.59 (the user's colours): Amethyst
+   #8745A5 carries the actions, Golden Yellow #FFC945 (--sel) marks what is active or chosen, over a soft blurred glow
+   (img/glow.jpg) seen through translucent surfaces (--glass). Plain values: Premiere's --uxp-host-* variables are not
+   defined in this UXP (css_probe 0.9.71). */
 :root {
   --text: #e7e8ec;
   --text-2: #9a9ca6;
   --text-2-soft: #b0b2bb;
   --text-3: #686b75;
-  --bg: #141518;
+  --bg: #111216;
   --surface: #1c1d22;
+  --glass: rgba(26, 27, 34, 0.62);
+  --glass-line: rgba(255, 255, 255, 0.08);
+  --glass-faint: rgba(255, 255, 255, 0.06);
   --control: #26282f;
   --control-press: #2e3038;
   --stage: #0b0c0e;
   --line: #303239;
   --line-strong: #3a3d45;
   --line-faint: #24262c;
-  --accent: #705cf6;
-  --accent-hover: #8270f8;
-  --accent-dim: #4a3f9e;
-  --accent-text: #b4a9ff;
+  --accent: #8745a5;
+  --accent-hover: #9b58ba;
+  --accent-dim: #5e3174;
+  --accent-text: #d9b0ec;
   --on-accent: #ffffff;
-  --link: #a99dff;
+  --link: #d9b0ec;
+  --sel: #ffc945;
+  --unsure: #f0883e;
   --ok-dot: #3fb950;
   --err-dot: #e5534b;
   --warn: #e3b341;
@@ -31,8 +37,8 @@
   --mid-bg: #3d3418;
   --err: #ff9a94;
   --err-bg: #44201f;
-  --ref: #b4a9ff;
-  --ref-bg: #2a2547;
+  --ref: #d9b0ec;
+  --ref-bg: #2f2037;
   --tip-bg: #0b0c0e;
   --tip-text: #e7e8ec;
   --tip-line: #3a3d45;
@@ -72,13 +78,16 @@ body {
 .small { font-size: 10px; }
 
 /* ---------------------------------------------------------------- the frame: top, scrolling views, bottom */
-#shell { height: 100%; display: flex; flex-direction: column; }
-#top { flex: none; display: flex; flex-direction: column; padding: 10px 12px 6px 12px; }
+#shell { position: relative; height: 100%; display: flex; flex-direction: column; }
+/* the glow: an image under everything (the panel paints over it: #shell is positioned and comes later) */
+#glow { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+#top { flex: none; display: flex; flex-direction: column; padding: 9px 12px 7px 12px; }
 .dot { flex: none; width: 8px; height: 8px; border-radius: 4px; margin-right: 8px; }
 .dot.on { background-color: var(--ok-dot); }
 .dot.off { background-color: var(--err-dot); }
 .project { flex: 1; min-width: 0; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.engine { margin: 2px 0 0 16px; font-size: 11px; color: var(--text-2); }
+.engine { flex: none; margin-left: 8px; font-size: 10px; color: var(--text-3); white-space: nowrap; }
+.engine.off { color: var(--err); }
 .detail { margin-top: 4px; font-size: 11px; line-height: 15px; color: var(--warn); }
 .update { margin-top: 6px; align-items: center; }
 .updatetext { flex: 1; min-width: 0; margin-right: 8px; font-size: 11px; line-height: 15px; color: var(--text); }
@@ -87,18 +96,22 @@ body {
 #app { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 12px 12px 12px; box-sizing: border-box; }
 
 /* tabs: one quiet row, the open view underlined */
-.tabs { flex: none; display: flex; flex-direction: row; margin: 0 12px; border-bottom: 1px solid var(--line); }
+.tabs { flex: none; display: flex; flex-direction: row; align-items: flex-end; margin: 0 12px; border-bottom: 1px solid var(--glass-line); }
 .btn.tab { background-color: transparent; border-color: transparent; border-bottom: 2px solid transparent; border-radius: 0;
   padding: 6px 8px; margin-right: 4px; font-size: 12px; color: var(--text-2); }
 .btn.tab:hover { color: var(--text); border-color: transparent; }
-.btn.tab.on { color: var(--text); border-bottom-color: var(--accent); }
+.btn.tab.on { color: var(--text); border-bottom-color: var(--sel); }
+/* Log and Settings: icons at the right of the tab row */
+.btn.tab.icon { padding: 5px 4px 6px 4px; margin-right: 0; margin-left: 2px; display: flex; flex-direction: row; align-items: center; }
+.btn.tab.icon svg.i path, .btn.tab.icon svg.i circle { stroke: var(--text-2); }
+.btn.tab.icon:hover svg.i path, .btn.tab.icon:hover svg.i circle, .btn.tab.icon.on svg.i path, .btn.tab.icon.on svg.i circle { stroke: var(--text); }
 .count { margin-left: 5px; padding: 0 5px; border-radius: 7px; font-size: 10px; background-color: var(--mid-bg); color: var(--mid); }
 .count.err { background-color: var(--err-bg); color: var(--err); }
 
 /* the progress and the answer of the last run: at the bottom, above nothing that could move */
 #bottom { flex: none; display: flex; flex-direction: column; }
-#work, #result { max-height: 240px; overflow-y: auto; padding: 8px 12px 10px 12px; background-color: var(--surface);
-  border-top: 1px solid var(--line); }
+#work, #result { max-height: 240px; overflow-y: auto; padding: 8px 12px 10px 12px; background-color: var(--glass);
+  border-top: 1px solid var(--glass-line); }
 #message { flex: 1; min-width: 0; font-size: 11px; line-height: 15px; color: var(--text); }
 .bar { height: 4px; background-color: var(--control); border-radius: 2px; margin: 8px 0 2px 0; }
 #fill { height: 4px; width: 0%; background-color: var(--accent); border-radius: 2px; }
@@ -126,8 +139,9 @@ body {
 .btn:active { background-color: var(--control-press); }
 .btn[disabled] { opacity: 0.4; cursor: default; }
 .btn[disabled]:hover { border-color: var(--line-strong); }
-.btn.action { padding: 7px 10px; font-weight: bold; background-color: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.btn.action:hover { background-color: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.action { padding: 7px 10px; font-weight: bold; background-color: var(--accent); border-color: var(--accent); color: var(--on-accent);
+  background-image: linear-gradient(135deg, #8745a5, #9b58ba); }
+.btn.action:hover { background-color: var(--accent-hover); border-color: var(--accent-hover); background-image: none; }
 .btn.action:active { background-color: var(--accent); }
 .btn.action[disabled]:hover { background-color: var(--accent); border-color: var(--accent); }
 .btn.small { font-size: 11px; line-height: 14px; padding: 4px 8px; margin: 0 4px 4px 0; }
@@ -141,7 +155,7 @@ body {
 #cancel { flex: none; margin-left: 8px; }
 
 /* ---------------------------------------------------------------- feature cards */
-.card { margin-bottom: 8px; padding: 10px; border-radius: 6px; background-color: var(--surface); border: 1px solid var(--line); }
+.card { margin-bottom: 8px; padding: 10px; border-radius: 6px; background-color: var(--glass); border: 1px solid var(--glass-line); }
 .card.quiet { background-color: transparent; }
 .cardhead { display: flex; flex-direction: row; align-items: center; margin-bottom: 8px; }
 .card.quiet .cardhead { margin-bottom: 0; }
@@ -153,7 +167,8 @@ svg.i path, svg.i circle, svg.i rect { fill: none; stroke: var(--text-2); stroke
 /* the ⓘ / chevron at the right of a card's name: opens what the feature does (or the developer tools) */
 .btn.more { flex: none; width: 24px; height: 24px; padding: 4px; border-color: transparent; background-color: transparent; }
 .btn.more:hover { border-color: var(--line-strong); }
-.btn.more.open { border-color: var(--line-strong); background-color: var(--control); }
+.btn.more.open { border-color: var(--sel); background-color: var(--control); }
+.btn.more.open svg.i path { stroke: var(--sel); }
 .desc { margin: 0 0 8px 0; font-size: 11px; line-height: 15px; color: var(--text-2-soft); }
 /* one line; the whole explanation is its tooltip (the help cursor says there is more) */
 .desc.brief { color: var(--text-2); cursor: help; }
@@ -235,7 +250,7 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 
 /* Keyframer page (0.10.32) */
 .row.wrap { flex-wrap: wrap; }
-.btn.small.on { border-color: var(--accent); color: var(--text); background-color: var(--ref-bg); }
+.btn.small.on { border-color: var(--sel); color: var(--text); background-color: var(--ref-bg); }
 .kf-props { margin-top: 6px; }
 .kf-editor { margin-top: 6px; }
 /* the curve graph (0.10.58): colours from CSS, as UXP ignores SVG stroke / fill attributes (css_probe 0.9.71) */
@@ -264,7 +279,7 @@ svg .kf-handle { fill: var(--accent); stroke: var(--on-accent); stroke-width: 1p
 .tr-step-l { margin-top: 4px; font-size: 10px; line-height: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tr-step.done .tr-step-bar { background-color: var(--accent-dim); }
 .tr-step.done .tr-step-l { color: var(--text-2); }
-.tr-step.on .tr-step-bar { background-color: var(--accent); }
+.tr-step.on .tr-step-bar { background-color: var(--sel); }
 .tr-step.on .tr-step-l { color: var(--text); font-weight: bold; }
 
 .tr-clipbar { margin-bottom: 8px; }
@@ -274,7 +289,7 @@ svg .kf-handle { fill: var(--accent); stroke: var(--on-accent); stroke-width: 1p
 .tr-clipact { flex: none; }
 
 /* cards */
-.tr-card { margin-top: 8px; padding: 8px; border-radius: 6px; background-color: var(--surface); border: 1px solid var(--line); }
+.tr-card { margin-top: 8px; padding: 8px; border-radius: 6px; background-color: var(--glass); border: 1px solid var(--glass-line); }
 .tr-card.tr-work { margin-top: 0; padding: 0; overflow: hidden; }
 .tr-card.tr-off .tr-modes, .tr-card.tr-off .tr-opts, .tr-card.tr-off .tr-mode-d { opacity: 0.55; }
 .tr-card-h { margin-bottom: 8px; }
@@ -285,8 +300,8 @@ svg .kf-handle { fill: var(--accent); stroke: var(--on-accent); stroke-width: 1p
 
 /* buttons on this page: quiet by default, the next step's one in the accent */
 #paneTracker .btn { font-size: 11px; line-height: 14px; padding: 5px 10px; font-weight: normal;
-  background-color: var(--control); border-color: var(--line-strong); color: var(--text); }
-#paneTracker .btn.tr-hot { background-color: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: bold; }
+  background-color: var(--control); background-image: none; border-color: var(--line-strong); color: var(--text); }
+#paneTracker .btn.tr-hot { background-color: var(--accent); background-image: linear-gradient(135deg, #8745a5, #9b58ba); border-color: var(--accent); color: var(--on-accent); font-weight: bold; }
 #paneTracker .btn.tr-hot:hover { background-color: var(--accent-hover); border-color: var(--accent-hover); }
 #paneTracker .btn.tr-loading { border-color: var(--accent); color: var(--accent-text); cursor: progress; opacity: 1; }
 .tr-btns { flex-wrap: wrap; margin-bottom: -6px; }
@@ -320,7 +335,7 @@ svg .kf-handle { fill: var(--accent); stroke: var(--on-accent); stroke-width: 1p
 svg.tr-ico path { fill: var(--text-2); }
 .btn.tr-icon:hover svg.tr-ico path, .btn.tr-play svg.tr-ico path { fill: var(--text); }
 .btn.tr-prob svg.tr-ico path { fill: var(--text-3); }
-.btn.tr-prob:hover svg.tr-ico path { fill: var(--warn); }
+.btn.tr-prob:hover svg.tr-ico path { fill: var(--unsure); }
 .tr-time { position: relative; height: 44px; cursor: ew-resize; }
 .tr-tl { position: absolute; left: 0; top: 0; }
 .tr-tick { position: absolute; top: 0; font-size: 9px; line-height: 10px; color: var(--text-3); }
@@ -337,7 +352,7 @@ svg.tr-ico path { fill: var(--text-2); }
 .tr-modes { margin-bottom: 2px; padding: 2px; border-radius: 6px; background-color: var(--bg); border: 1px solid var(--line); }
 #paneTracker .btn.tr-mode { flex: 1; margin: 0; padding: 4px 8px; border-color: transparent; background-color: transparent; color: var(--text-2); }
 #paneTracker .btn.tr-mode:hover { color: var(--text); border-color: transparent; }
-#paneTracker .btn.tr-mode.on { background-color: var(--control); border-color: var(--line-strong); color: var(--text); font-weight: bold; }
+#paneTracker .btn.tr-mode.on { background-color: var(--control); border-color: var(--sel); color: var(--text); font-weight: bold; }
 .tr-mode-d { margin: 6px 0 0 0; }
 .tr-opts { flex-wrap: wrap; margin: 8px 0 8px 0; }
 .tr-optw { align-items: center; margin: 0 12px 4px 0; }
@@ -345,7 +360,7 @@ svg.tr-ico path { fill: var(--text-2); }
 
 /* the answer of the last press */
 .tr-msg { margin-top: 8px; padding: 6px 8px; border-radius: 5px; font-size: 11px; line-height: 15px; color: var(--text-2);
-  background-color: var(--surface); border: 1px solid var(--line); }
+  background-color: var(--glass); border: 1px solid var(--glass-line); }
 .tr-msg-l.first { color: var(--text); }
 .tr-msg.ok { border-color: var(--ok-line); background-color: var(--ok-tint); }
 .tr-msg.warn { border-color: var(--warn-line); background-color: var(--warn-tint); }
@@ -359,7 +374,52 @@ svg.tr-ico path { fill: var(--text-2); }
   .tr-cols > .tr-card { flex: 1; min-width: 0; }
   .tr-cols > .tr-card:first-child { margin-right: 8px; }
 }
-.kf-stash-row .btn.small { margin-right: 6px; }
 .kf-value { min-width: 34px; margin-right: 4px; text-align: center; }
 /* 0.10.45: a check line with a time is a link (the playhead goes there) */
 .jump { cursor: pointer; text-decoration: underline; }
+
+/* ---------------------------------------------------------------- Tools as rows (0.10.59, the user: "keep it minimal")
+   One bordered list per group; a row is icon, name (its tooltip says what the tool does), the main button (one width for
+   all), ▾ for its options (one row open at a time). Automatic rows: a switch and a status line instead of the button. */
+.fgroup { margin: 14px 2px 6px 2px; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); }
+.fgroup.first { margin-top: 2px; }
+.list { border-radius: 6px; border: 1px solid var(--glass-line); background-color: var(--glass); }
+.feat { border-top: 1px solid var(--glass-faint); }
+.feat:first-child { border-top-width: 0; }
+.frow { display: flex; flex-direction: row; align-items: center; min-height: 40px; padding: 6px 6px 6px 10px; box-sizing: border-box; }
+.frow .ico { margin-right: 8px; }
+.fname { flex: 1; min-width: 0; margin-right: 6px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: help; }
+.fname2 { flex: 1; min-width: 0; margin-right: 6px; display: flex; flex-direction: column; }
+.fname2 .fname { flex: none; margin-right: 0; }
+.fstatus { font-size: 10px; line-height: 13px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fstatus.live { color: var(--ok); }
+.frow .btn.action { flex: none; width: 112px; margin: 0 6px 0 0; padding: 5px 8px; font-size: 12px; line-height: 16px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.frow .btn.more { margin: 0; }
+.fghost { flex: none; width: 24px; }
+.fopts { padding: 0 10px 12px 34px; }
+.fopts.open { padding: 10px; }
+.fopts .desc { margin: 0 0 4px 0; }
+.fopts .title.spaced { margin-top: 10px; font-size: 11px; }
+/* a narrow panel: the button carries the row (the name is its tooltip) */
+@media (max-width: 279px) {
+  .feat:not(.auto) .fname { display: none; }
+  .frow .btn.action { flex: 1; width: auto; }
+}
+/* the switch of an Automatic row: a div.btn drawn by Asistent (Premiere draws its own checkbox) */
+.btn.small.sw { flex: none; position: relative; width: 30px; height: 18px; padding: 0; margin: 0 6px 0 0; border-radius: 9px;
+  background-color: var(--control); border-color: var(--line-strong); }
+.btn.small.sw .knob { position: absolute; left: 2px; top: 2px; width: 12px; height: 12px; border-radius: 6px; background-color: var(--text-3); }
+.btn.small.sw.on { background-color: var(--accent); border-color: var(--accent); }
+.btn.small.sw.on .knob { left: 14px; background-color: #ffffff; }
+/* Motion: Keyframer | Tracker */
+.mswitch { margin: 0 0 10px 0; padding: 2px; border-radius: 6px; border: 1px solid var(--glass-line); background-color: var(--chip); }
+.btn.mside { flex: 1; padding: 4px 8px; font-size: 11px; line-height: 14px; border-color: transparent; background-color: transparent; color: var(--text-2); }
+.btn.mside:hover { color: var(--text); border-color: transparent; }
+.btn.mside.on { background-color: var(--control); border-color: var(--sel); color: var(--text); font-weight: bold; }
+/* the Keyframer's sections as cards (0.10.59) */
+.kf-card { margin: 0 0 8px 0; padding: 8px 10px 10px 10px; border-radius: 6px; background-color: var(--glass); border: 1px solid var(--glass-line); }
+.kf-card > .title.spaced:first-child, .kf-card > .title:first-child { margin-top: 0; }
+.kf-card .kf-stash-row { padding: 4px 0; border-top: 1px solid var(--glass-faint); }
+.kf-card .kf-stash-row:first-child { border-top-width: 0; }
+.kf-stash-row .btn.small { flex: 1; min-width: 0; margin: 0 6px 0 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
