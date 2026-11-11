@@ -5,6 +5,8 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!-- 0.10.59: soft amethyst light behind the panel (a pre-rendered image: UXP has no proven blur) -->
+<img id="glow" src="img/glow.jpg" alt="">
 <!-- Buttons are divs with class btn (0.9.72): Premiere draws every <button> with its own grey face. -->
 <!-- The panel is one column (2026-11-03 redesign): the project line and the views stay at the top, the views scroll,
      and the progress and the answer of the last run sit at the bottom, so nothing above the buttons ever moves. -->
@@ -13,8 +15,8 @@
     <div class="row">
       <span id="dot" class="dot off"></span>
       <span id="project" class="project">No project open</span>
+      <span id="engine" class="engine">Connecting…</span>
     </div>
-    <div id="engine" class="engine">Connecting…</div>
     <div id="detail" class="detail" hidden></div>
     <div id="update" class="row update" hidden>
       <span id="updateText" class="updatetext"></span>
@@ -24,35 +26,28 @@
 
   <!-- Views: the actions, the full report of the last run, the before/after pictures, the caption lines. -->
   <div class="tabs">
-    <div id="tabTools" class="btn tab on" data-tab="paneTools" data-tip="Asistent's buttons.">Tools</div>
-    <div id="tabKeyframer" class="btn tab" data-tab="paneKeyframer" data-tip="Shape the motion between keyframes with a curve (Keyframer).">Keyframer</div>
-    <div id="tabTracker" class="btn tab" data-tab="paneTracker" data-tip="Make a text or logo follow a moving object (Tracker).">Tracker</div>
-    <div id="tabLog" class="btn tab" data-tab="paneLog" data-tip="The full report of the last operation and earlier results.">Log<span id="logBadge" class="count" hidden></span></div>
+    <div id="tabTools" class="btn tab on" data-tab="paneTools" data-tip="Asistent's tools.">Tools</div>
+    <div id="tabMotion" class="btn tab" data-tab="motion" data-tip="Keyframer and Tracker: shape the motion between keyframes, make a text or a clip follow a moving object.">Motion</div>
     <div id="tabPreview" class="btn tab" data-tab="panePreview" data-tip="Before and after frames of the last color proposal." hidden>Before / after</div>
     <div id="tabCaptions" class="btn tab" data-tab="paneCaptions" data-tip="The lines of the last subtitles: type a wrong word right and rebuild." hidden>Captions</div>
+    <span class="spacer"></span>
+    <div id="tabLog" class="btn tab icon" data-icon="1" data-tab="paneLog" data-tip="Log: the full report of the last operation and the earlier ones."><svg class="i" width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="logBadge" class="count" hidden></span></div>
+    <div id="tabSettings" class="btn tab icon" data-icon="1" data-tab="paneSettings" data-tip="Settings: the developer tools."><svg class="i" width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></div>
   </div>
 
   <div id="app">
   <div id="paneTools" class="pane">
-    <!-- One card per feature in the order of the work: its name, the ⓘ for what it does, its main controls. -->
-    <div class="card" id="secSync">
-      <div class="cardhead">
-        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg></span>
-        <div class="title">Sync</div>
-        <div class="btn more" data-more="aboutSync" data-tip="What Sync cameras does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
-      </div>
-      <p id="aboutSync" class="desc" hidden>Lines up the cameras by their shared sound in a new SYNC sequence, in recording order. Your sequence is not touched.</p>
-      <div id="sync" class="btn action" data-tip="Select the clips in the timeline (all of them is fine) and press. Makes a new SYNC sequence with each camera on its own track; clips without a pair stay in their place in time.">Sync cameras</div>
+    <!-- 0.10.59 (the user: "keep it minimal"): one row per tool, its options under ▾ (one open at a time); the tools that
+         run by themselves in their own group with a switch and a status line. -->
+    <div class="fgroup first">Run</div>
+    <div class="list">
+    <div class="feat" id="secSync">
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg></span><div class="fname" data-tip="Lines up the cameras by their shared sound in a new SYNC sequence, in recording order. Your sequence is not touched.">Sync</div><div id="sync" class="btn action" data-tip="Select the clips in the timeline (all of them is fine) and press. Makes a new SYNC sequence with each camera on its own track; clips without a pair stay in their place in time.">Sync cameras</div><span class="fghost"></span></div>
     </div>
-
-    <div class="card" id="secRough">
-      <div class="cardhead">
-        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88"/><path d="M14.47 14.48 20 20"/><path d="M8.12 8.12 12 12"/></svg></span>
-        <div class="title">Rough cut</div>
-        <div class="btn more" data-more="aboutRough" data-tip="What Rough cut does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
-      </div>
-      <p id="aboutRough" class="desc" hidden>Select the cameras and the microphones with speech. Pauses and repeated takes are cut in a new sequence; the original is not touched. Audio you do not use (a quiet camera microphone): mute its track first, it is then left out.</p>
-      <div id="rough" class="btn action" data-tip="Finds the pauses from the words, the sound level and Silero, and the repeated takes from the words, then makes a new ROUGH sequence with the same cuts on every selected camera and microphone (sync is kept). Each press is a new version; the original and older versions are not touched.">Rough cut</div>
+    <div class="feat" id="secRough">
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88"/><path d="M14.47 14.48 20 20"/><path d="M8.12 8.12 12 12"/></svg></span><div class="fname" data-tip="Select the cameras and the microphones with speech. Pauses and repeated takes are cut in a new sequence; the original is not touched. Audio you do not use (a quiet camera microphone): mute its track first, it is then left out.">Rough cut</div><div id="rough" class="btn action" data-tip="Finds the pauses from the words, the sound level and Silero, and the repeated takes from the words, then makes a new ROUGH sequence with the same cuts on every selected camera and microphone (sync is kept). Each press is a new version; the original and older versions are not touched.">Rough cut</div><div class="btn more" data-more="optRough" data-tip="Options for Rough cut."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div id="optRough" class="fopts" hidden>
+      <p id="aboutRough" class="desc">Select the cameras and the microphones with speech. Pauses and repeated takes are cut in a new sequence; the original is not touched. Audio you do not use (a quiet camera microphone): mute its track first, it is then left out.</p>
       <div class="row options">
         <label for="roughMode" class="muted" data-tip="Safe: cuts only long pauses that are surely silence, and repeated takes (the last full take stays). Smart: also shortens every pause to the tempo and cuts a start repeated inside a sentence.">Mode</label>
         <select id="roughMode"><option value="safe" selected>Safe</option><option value="smart">Smart</option></select>
@@ -73,19 +68,13 @@
         <p class="desc">Fast rough cut needs a second recognizer, large-v3-turbo. It is used only for the rough cut, never for subtitles.</p>
         <div id="roughTurbo" class="btn small" data-tip="Downloads large-v3-turbo once (checked against its fixed checksum). Then the Fast switch appears.">Download the fast recognizer (1.6 GB)</div>
       </div>
+      </div>
     </div>
-
-    <div class="card" id="secLabels">
-      <div class="cardhead">
-        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.42 0l8.58-8.58a1 1 0 0 0 0-1.42z"/><path d="M7 7h.01"/></svg></span>
-        <div class="title">Track names</div>
-        <div class="btn more" data-more="aboutLabels" data-tip="What Track names does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
-      </div>
-      <p id="aboutLabels" class="desc" hidden>Names the tracks of the open sequence: each camera POV 1, POV 2 in track order, its sound POV 1 audio, a recorder or lavalier Mic 1, Asistent's subtitles Subtitles BG / EN. A name you typed yourself is kept; B-roll and graphics tracks are left alone. One Cmd+Z takes a press back.</p>
-      <div class="row buttons">
-        <div id="labelsName" class="btn small" data-tip="Names the tracks of the open sequence (and colours the cameras' files if you chose colours below). One Undo step.">Name the tracks</div>
-        <div id="labelsBack" class="btn small" data-tip="Puts back the names (and colours) Asistent changed in this sequence, where they are still as it left them.">Put names back</div>
-      </div>
+    <div class="feat" id="secLabels">
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M12 2H2v10l9.29 9.29a1 1 0 0 0 1.42 0l8.58-8.58a1 1 0 0 0 0-1.42z"/><path d="M7 7h.01"/></svg></span><div class="fname" data-tip="Names the tracks of the open sequence: each camera POV 1, POV 2 in track order, its sound POV 1 audio, a recorder or lavalier Mic 1, Asistent's subtitles Subtitles BG / EN. A name you typed yourself is kept; B-roll and graphics tracks are left alone. One Cmd+Z takes a press back.">Track names</div><div id="labelsName" class="btn action" data-tip="Names the tracks of the open sequence (and colours the cameras' files if you chose colours below). One Undo step.">Name tracks</div><div class="btn more" data-more="optLabels" data-tip="Options for Track names."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div id="optLabels" class="fopts" hidden>
+      <p id="aboutLabels" class="desc">Names the tracks of the open sequence: each camera POV 1, POV 2 in track order, its sound POV 1 audio, a recorder or lavalier Mic 1, Asistent's subtitles Subtitles BG / EN. A name you typed yourself is kept; B-roll and graphics tracks are left alone. One Cmd+Z takes a press back.</p>
+      <div class="row buttons"><div id="labelsBack" class="btn small" data-tip="Puts back the names (and colours) Asistent changed in this sequence, where they are still as it left them.">Put names back</div></div>
       <div class="row options">
         <input type="checkbox" id="labelsAuto" />
         <label for="labelsAuto" class="muted" data-tip="Names the tracks of every new SYNC and ROUGH sequence right after it is made (those sequences are Asistent's own).">Also after Sync and rough cut</label>
@@ -98,18 +87,13 @@
         <label for="labelsColor2" class="muted kf-wide" data-tip="A label colour for every file of camera POV 2. Keep = not touched.">POV 2 colour</label>
         <select id="labelsColor2"></select>
       </div>
-    </div>
-
-    <div class="card" id="secAudio">
-      <div class="cardhead">
-        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span>
-        <div class="title">Audio</div>
-        <div class="btn more" data-more="aboutAudio" data-tip="What Fix audio does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
       </div>
-      <p id="aboutAudio" class="desc" hidden>Select the clips (video or audio). The left and right channels go on two tracks: L/L above, R/R below, linked to the picture. Loudness goes to −17 LUFS, the peak stays under −6 dB.</p>
-      <div id="audio" class="btn action" data-tip="Each stereo clip: a copy with L/L in place of the audio and a copy with R/R on the track below (Audio Channels, no Fill effects), linked to the video. Then evens out the level of both. A second press makes no new copies.">Fix audio</div>
-      <div id="audioMore" class="btn disclose" data-tip="Shows the manual audio options.">Manual ▸</div>
-      <div id="audioManual" class="row buttons" hidden>
+    </div>
+    <div class="feat" id="secAudio">
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span><div class="fname" data-tip="Select the clips (video or audio). The left and right channels go on two tracks: L/L above, R/R below, linked to the picture. Loudness goes to −17 LUFS, the peak stays under −6 dB.">Audio</div><div id="audio" class="btn action" data-tip="Each stereo clip: a copy with L/L in place of the audio and a copy with R/R on the track below (Audio Channels, no Fill effects), linked to the video. Then evens out the level of both. A second press makes no new copies.">Fix audio</div><div class="btn more" data-more="optAudio" data-tip="Options for Audio."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div id="optAudio" class="fopts" hidden>
+      <p id="aboutAudio" class="desc">Select the clips (video or audio). The left and right channels go on two tracks: L/L above, R/R below, linked to the picture. Loudness goes to −17 LUFS, the peak stays under −6 dB.</p>
+      <div id="audioManual" class="row buttons">
         <div class="btn small" data-force="split" data-tip="The same as Fix audio: L/L in place of the audio, R/R on the track below.">Split L/R</div>
         <div class="btn small" data-force="split_rl" data-tip="Like Split L/R, but the other way round: R/R in place of the audio, L/L on the track below.">Split R/L</div>
         <div class="btn small" data-force="use_left" data-tip="Puts a copy with L/L (the left channel on both sides) in place of the audio.">L only</div>
@@ -117,16 +101,12 @@
         <div class="btn small" data-force="none" data-tip="Leaves the channels alone and only evens out the level.">Level only</div>
         <div class="btn small" data-force="phrases" data-tip="Like Fix audio, plus keyframes that even out quiet and loud sentences.">Even out phrases</div>
       </div>
-    </div>
-
-    <div class="card" id="secColor">
-      <div class="cardhead">
-        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></span>
-        <div class="title">Color</div>
-        <div class="btn more" data-more="aboutColor" data-tip="What the color buttons do."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
       </div>
-      <p id="aboutColor" class="desc" hidden>Select the video clips and press: the correction goes into Lumetri at once and is checked on a frame; Before / after shows it, Cmd/Ctrl+Z undoes it. Match POVs is for after the corrections: clips from two cameras.</p>
-      <div id="color" class="btn action" data-tip="Measures the white balance and exposure of the selected clips and puts both corrections into Lumetri at once, then checks them on a frame. Before / after shows the change; Cmd/Ctrl+Z undoes it.">Auto color</div>
+    </div>
+    <div class="feat" id="secColor">
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg></span><div class="fname" data-tip="Select the video clips and press: the correction goes into Lumetri at once and is checked on a frame; Before / after shows it, Cmd/Ctrl+Z undoes it. Match POVs is for after the corrections: clips from two cameras.">Color</div><div id="color" class="btn action" data-tip="Measures the white balance and exposure of the selected clips and puts both corrections into Lumetri at once, then checks them on a frame. Before / after shows the change; Cmd/Ctrl+Z undoes it.">Auto color</div><div class="btn more" data-more="optColor" data-tip="Options for Color."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div id="optColor" class="fopts" hidden>
+      <p id="aboutColor" class="desc">Select the video clips and press: the correction goes into Lumetri at once and is checked on a frame; Before / after shows it, Cmd/Ctrl+Z undoes it. Match POVs is for after the corrections: clips from two cameras.</p>
       <div class="row buttons">
         <div id="colorWhite" class="btn small" data-tip="The same measurement as Auto color, but puts only the white balance into Lumetri (Temperature and Tint), at once.">White balance</div>
         <div id="colorExposure" class="btn small" data-tip="The same measurement as Auto color, but puts only the brightness into Lumetri (Exposure), at once.">Exposure</div>
@@ -136,21 +116,12 @@
         <div id="exposureDown" class="btn small" data-tip="Adds -0.5 to the Exposure of the selected clips' Lumetri at once, as you would by hand (no measuring, works without faces). In a Lumetri you set yourself only Exposure moves; your other sliders stay. Not on keyframed Exposure. Cmd+Z undoes it.">Exposure −0.5</div>
         <div id="exposureUp" class="btn small" data-tip="Adds +0.5 to the Exposure of the selected clips' Lumetri at once, as you would by hand (no measuring, works without faces). In a Lumetri you set yourself only Exposure moves; your other sliders stay. Not on keyframed Exposure. Cmd+Z undoes it.">Exposure +0.5</div>
       </div>
-      <div class="row options">
-        <input type="checkbox" id="colorLearn" />
-        <label for="colorLearn" class="muted" data-tip="When an export ends, Asistent notes each clip's Lumetri next to what Auto color would have set, per client and camera, on this computer. It only reads: nothing in the project changes.">Learn from exports</label>
-        <div id="colorLearnReport" class="btn link" data-tip="Per camera of this project's client: how the editors' Lumetri differs from Auto color (the middle value), how often Asistent's correction was kept.">What the editors did</div>
       </div>
     </div>
-
-    <div class="card" id="secSubtitles">
-      <div class="cardhead">
-        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4"/><path d="M15 15h2"/><path d="M7 11h2"/><path d="M13 11h4"/></svg></span>
-        <div class="title">Subtitles</div>
-        <div class="btn more" data-more="aboutSubtitles" data-tip="What Subtitles does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
-      </div>
-      <p id="aboutSubtitles" class="desc" hidden>Select the audio clips with speech. Recognition runs only on this computer; the .srt goes into the project folder and onto a new caption track. Select all its captions to restyle them together in Properties.</p>
-      <div id="subtitles" class="btn action" data-tip="Recognises the Bulgarian speech in the selected clips, makes an .srt (folder Asistent_subtitles) and puts it on a new caption track of the active sequence. Select all the captions and change font, size, outline or shadow in the Properties panel.">Subtitles (Bulgarian)</div>
+    <div class="feat" id="secSubtitles">
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15h4"/><path d="M15 15h2"/><path d="M7 11h2"/><path d="M13 11h4"/></svg></span><div class="fname" data-tip="Select the audio clips with speech. Recognition runs only on this computer; the .srt goes into the project folder and onto a new caption track. Select all its captions to restyle them together in Properties.">Subtitles</div><div id="subtitles" class="btn action" data-tip="Recognises the Bulgarian speech in the selected clips, makes an .srt (folder Asistent_subtitles) and puts it on a new caption track of the active sequence. Select all the captions and change font, size, outline or shadow in the Properties panel.">Make subtitles</div><div class="btn more" data-more="optSubtitles" data-tip="Options for Subtitles."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div id="optSubtitles" class="fopts" hidden>
+      <p id="aboutSubtitles" class="desc">Select the audio clips with speech. Recognition runs only on this computer; the .srt goes into the project folder and onto a new caption track. Select all its captions to restyle them together in Properties.</p>
       <div class="row buttons"><div id="moveOffFaces" class="btn small" data-tip="After Upgrade Caption to Graphic (right-click on the captions): select the subtitle graphics and press. Each line goes to the client's height for its shot: under the speaker's chin, above a low face, the middle with no face; an English line stays under its Bulgarian line. Only Position changes, in one Undo step; lines you moved by hand or keyframed are left alone.">Move off faces</div></div>
       <div class="row options">
         <label for="subtitleStyle" class="muted" data-tip="How the lines are cut and timed. Auto: 2-3 words for 9:16, two lines for 16:9. ReShape: that client's own style, measured on its videos: 2-3 words, no punctuation, each line 0.18 s before its first word. GStroy: 1-3 words in capitals, no punctuation, a longer chunk on two lines with its last word alone underneath, green keywords suggested. Credissimo: the same look, the two lines cut evenly, red keywords suggested. ЕКОПАК: the same, green keywords (recycling words) suggested. Beauty Sector: the same, coral keywords, product names in Latin capitals. AULA: the same, green keywords, English names in Latin capitals with the article joined (IPHONE-А).">Style</label>
@@ -166,73 +137,53 @@
       <label for="notes" class="field">Corrections and names (one per line)</label>
       <textarea id="notes" rows="3" placeholder="раф => рафт&#10;Джи Строй"></textarea>
       <div id="notesState" class="hint" hidden></div>
+      </div>
     </div>
-
-    <div class="card" id="secImport">
-      <div class="cardhead">
-        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></span>
-        <div class="title">Auto import</div>
-        <div class="btn more" data-more="aboutImport" data-tip="What Auto import does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
-      </div>
-      <p id="aboutImport" class="desc" hidden>Watches a folder and imports new files into the project, sorted by type.</p>
-      <div id="importStatus" class="muted">Off</div>
-      <div class="row buttons">
-        <div id="importToggle" class="btn small" data-tip="Turns watching Downloads for new files on or off.">Watch Downloads</div>
-        <div id="importFolder" class="btn small" data-tip="Picks another folder to watch instead of Downloads.">Other folder…</div>
-      </div>
+    <div class="feat" id="secCheck">
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><div class="fname" data-tip="Looks over the open sequence before you export: offline media, black gaps and flash frames, video and photo clips that do not fill the frame (under-scaled B-roll), text outside the safe area and overlapping caption lines, microphone clips peaking above -6 dBFS. It only reads: nothing is changed. Missing fonts cannot be checked by a script.">Before export</div><div id="checkExport" class="btn action" data-tip="Checks the whole open sequence (no selection needed). Read only.">Check export</div><span class="fghost"></span></div>
+    </div>
+    </div>
+    <div class="fgroup">Automatic</div>
+    <div class="list">
+    <div class="feat auto" id="secImport">
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></span><div class="fname2"><div class="fname" data-tip="Watches a folder and imports new files into the project, sorted by type.">Auto import</div><div id="importStatus" class="fstatus" data-tip="Off.">Off</div></div><div id="importToggle" class="btn small sw" data-tip="Turns watching the folder (Downloads unless you picked another) on or off."><span class="knob"></span></div><div class="btn more" data-more="optImport" data-tip="Options for Auto import."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div id="optImport" class="fopts" hidden>
+      <p id="aboutImport" class="desc">Watches a folder and imports new files into the project, sorted by type.</p>
+      <div class="row buttons"><div id="importFolder" class="btn small" data-tip="Picks another folder to watch instead of Downloads.">Other folder…</div></div>
       <div id="importRecent"></div>
-    </div>
-
-    <div class="card" id="secCheck">
-      <div class="cardhead">
-        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>
-        <div class="title">Before export</div>
-        <div class="btn more" data-more="aboutCheck" data-tip="What Check before export does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
       </div>
-      <p id="aboutCheck" class="desc" hidden>Looks over the open sequence before you export: offline media, black gaps and flash frames, video and photo clips that do not fill the frame (under-scaled B-roll), text outside the safe area and overlapping caption lines, microphone clips peaking above -6 dBFS. It only reads: nothing is changed. Missing fonts cannot be checked by a script.</p>
-      <div id="checkExport" class="btn small" data-tip="Checks the whole open sequence (no selection needed). Read only.">Check before export</div>
     </div>
-
-    <div class="card" id="secAfter">
-      <div class="cardhead">
-        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg></span>
-        <div class="title">After export</div>
-        <div class="btn more" data-more="aboutAfter" data-tip="What the after-export check does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
+    <div class="feat auto" id="secExports">
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></span><div class="fname2"><div class="fname" data-tip="When an export from the Export tab finishes, its file is shown selected in <span class=&quot;revealApp&quot;>Finder</span>. Asistent watches the folder Premiere exports to (it reads it from Premiere's settings) and folders you add; a queue shows only its last file. Previews and Asistent's own frames do not count.">Show exports</div><div id="exportsStatus" class="fstatus" data-tip="Off.">Off</div></div><div id="exportsToggle" class="btn small sw" data-tip="Turns showing finished exports on or off."><span class="knob"></span></div><div class="btn more" data-more="optExports" data-tip="Options for Show exports."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div id="optExports" class="fopts" hidden>
+      <p id="aboutExports" class="desc">When an export from the Export tab finishes, its file is shown selected in <span class="revealApp">Finder</span>. Asistent watches the folder Premiere exports to (it reads it from Premiere's settings) and folders you add; a queue shows only its last file. Previews and Asistent's own frames do not count.</p>
+      <div class="row buttons"><div id="exportsFolder" class="btn small" data-tip="Adds a folder you export into that is not the project's folder.">Add export folder…</div></div>
       </div>
-      <p id="aboutAfter" class="desc" hidden>When an export finishes, Asistent plays the exported file through FFmpeg in the background and reports what it measured: black bars, black and frozen picture, sound on one channel only or silent, true peak above -1 dBFS, full-scale (clipped) samples, silence at the start, and the size, frame rate and length against the sequence. Loudness is shown next to -14 LUFS, the usual platform level, as information only. It only reads the file: nothing is changed. It watches the same folders as Show exports.</p>
-      <div class="row options"><input type="checkbox" id="afterCheck" checked /><label for="afterCheck" class="muted" data-tip="Checks every finished export by itself. Works also when Show exports is off.">Check every exported file</label></div>
+    </div>
+    <div class="feat auto" id="secAfter">
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15l2 2 4-4"/></svg></span><div class="fname2"><div class="fname" data-tip="When an export finishes, Asistent plays the exported file through FFmpeg in the background and reports what it measured: black bars, black and frozen picture, sound on one channel only or silent, true peak above -1 dBFS, full-scale (clipped) samples, silence at the start, and the size, frame rate and length against the sequence. Loudness is shown next to -14 LUFS, the usual platform level, as information only. It only reads the file: nothing is changed. It watches the same folders as Show exports.">Export check</div><div id="afterStatus" class="fstatus">Checks every export</div></div><input type="checkbox" id="afterCheck" checked hidden /><div id="afterSwitch" class="btn small sw on" data-tip="Checks every finished export by itself. Works also when Show exports is off."><span class="knob"></span></div><div class="btn more" data-more="optAfter" data-tip="Options for Export check."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div id="optAfter" class="fopts" hidden>
+      <p id="aboutAfter" class="desc">When an export finishes, Asistent plays the exported file through FFmpeg in the background and reports what it measured: black bars, black and frozen picture, sound on one channel only or silent, true peak above -1 dBFS, full-scale (clipped) samples, silence at the start, and the size, frame rate and length against the sequence. Loudness is shown next to -14 LUFS, the usual platform level, as information only. It only reads the file: nothing is changed. It watches the same folders as Show exports.</p>
       <div id="afterReport" class="muted">No export checked yet.</div>
-    </div>
-
-    <div class="card" id="secExports">
-      <div class="cardhead">
-        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></span>
-        <div class="title">Show exports</div>
-        <div class="btn more" data-more="aboutExports" data-tip="What Show exports does."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></div>
-      </div>
-      <p id="aboutExports" class="desc" hidden>When an export from the Export tab finishes, its file is shown selected in <span class="revealApp">Finder</span>. Asistent watches the folder Premiere exports to (it reads it from Premiere's settings) and folders you add; a queue shows only its last file. Previews and Asistent's own frames do not count.</p>
-      <div id="exportsStatus" class="muted">Off</div>
-      <div class="row buttons">
-        <div id="exportsToggle" class="btn small" data-tip="Turns showing finished exports on or off.">Show in Finder</div>
-        <div id="exportsFolder" class="btn small" data-tip="Adds a folder you export into that is not the project's folder.">Add export folder…</div>
+      <div class="title spaced">Recent exports</div>
+      <div id="exportsList" class="muted">None yet.</div>
       </div>
     </div>
-
-    <!-- Tools for testing Asistent itself, closed by default: they are not part of the daily work. -->
-    <div class="card quiet" id="secDev">
-      <div class="cardhead">
-        <span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M10 2v7.31"/><path d="M14 9.3V2"/><path d="M8.5 2h7"/><path d="M14 9.3a6.5 6.5 0 1 1-4 0"/></svg></span>
-        <div class="title">Developer</div>
-        <div class="btn more" data-more="devTools" data-tip="Shows the tools for testing Asistent (test project only)."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div>
+    <div class="feat auto" id="secLearn">
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 2 9 2 12 0v-5"/></svg></span><div class="fname2"><div class="fname" data-tip="When an export ends, Asistent notes each clip's Lumetri next to what Auto color would have set, per client and camera, on this computer. It only reads: nothing in the project changes.">Learn from exports</div><div id="learnStatus" class="fstatus">Off</div></div><input type="checkbox" id="colorLearn" hidden /><div id="learnSwitch" class="btn small sw" data-tip="When an export ends, Asistent notes each clip's Lumetri next to what Auto color would have set, per client and camera, on this computer. It only reads: nothing in the project changes."><span class="knob"></span></div><div class="btn more" data-more="optLearn" data-tip="Options for Learn from exports."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div id="optLearn" class="fopts" hidden>
+      <p class="desc">When an export ends, Asistent notes each clip's Lumetri next to what Auto color would have set, per client and camera, on this computer. It only reads: nothing in the project changes.</p>
+      <div id="colorLearnReport" class="btn link" data-tip="Per camera of this project's client: how the editors' Lumetri differs from Auto color (the middle value), how often Asistent's correction was kept.">What the editors did</div>
       </div>
-      <div id="devTools" hidden>
-        <div class="row buttons">
-          <div id="probe" class="btn small" data-tip="Checks how Lumetri in this Premiere responds to the values. Test project only.">Lumetri probe (test project)</div>
-        </div>
-      </div>
+    </div>
     </div>
   </div>
 
+  <!-- Motion: one tab for the Keyframer and the Tracker, a switch between them -->
+  <div id="motionSwitch" class="row mswitch" hidden>
+    <div id="tabKeyframer" class="btn mside" data-tab="paneKeyframer" data-tip="Shape the motion between keyframes with a curve (Keyframer).">Keyframer</div>
+    <div id="tabTracker" class="btn mside" data-tab="paneTracker" data-tip="Make a text or logo follow a moving object, or lock the clip to it (Tracker).">Tracker</div>
+  </div>
   <div id="paneKeyframer" class="pane" hidden></div>
   <div id="paneTracker" class="pane" hidden></div>
 
@@ -242,8 +193,16 @@
     <div id="details"></div>
     <div class="title spaced">Earlier</div>
     <div id="history" class="muted">None yet.</div>
-    <div class="title spaced">Exports</div>
-    <div id="exportsList" class="muted">None yet.</div>
+  </div>
+
+  <div id="paneSettings" class="pane" hidden>
+    <div class="fgroup first">Developer</div>
+    <div class="list"><div class="fopts open">
+      <p class="desc">Tools for testing Asistent itself, in the test project only.</p>
+      <div id="devTools" class="row buttons">
+        <div id="probe" class="btn small" data-tip="Checks how Lumetri in this Premiere responds to the values. Test project only.">Lumetri probe (test project)</div>
+      </div>
+    </div></div>
   </div>
 
   <div id="paneCaptions" class="pane" hidden>

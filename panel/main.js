@@ -205,13 +205,25 @@ function bindTips(root) {
 const history = [];
 let trackerPage = null;                                   // the Tracker page (mounted below, 0.10.51)
 
+// 0.10.59: Keyframer and Tracker share the Motion tab (a switch between them, the last one used comes back); Log and
+// Settings are icons at the right of the tab row.
+const PANES = ["paneTools", "paneKeyframer", "paneTracker", "paneLog", "panePreview", "paneCaptions", "paneSettings"];
+const MOTION = ["paneKeyframer", "paneTracker"];
+let motionSide = "paneKeyframer";
+
 function openTab(pane) {
   hideTip();
+  if (pane === "motion") pane = motionSide;
+  const motion = MOTION.includes(pane);
+  if (motion) motionSide = pane;
+  for (const p of PANES) show(p, p === pane);
   for (const t of document.querySelectorAll(".btn.tab")) {
-    const on = t.getAttribute("data-tab") === pane;
-    t.className = on ? "btn tab on" : "btn tab";
-    show(t.getAttribute("data-tab"), on);
+    const tab = t.getAttribute("data-tab");
+    const on = tab === pane || (tab === "motion" && motion);
+    t.className = `btn tab${t.getAttribute("data-icon") ? " icon" : ""}${on ? " on" : ""}`;
   }
+  show("motionSwitch", motion);
+  for (const b of document.querySelectorAll(".btn.mside")) b.className = `btn mside${b.getAttribute("data-tab") === pane ? " on" : ""}`;
   if (pane === "paneTracker" && trackerPage) trackerPage.relayout();
   try {
     $("app").scrollTop = 0;
@@ -283,7 +295,8 @@ async function refreshHeader() {
   $("dot").className = `dot ${state.online ? "on" : "off"}`;
   // short, it shares the line with the project name; both versions only when they differ
   $("engine").textContent = !state.online ? `No engine · ${PANEL_VERSION}`
-    : st.version === PANEL_VERSION ? `Connected · ${PANEL_VERSION}` : `Connected · panel ${PANEL_VERSION} · engine ${st.version}`;
+    : st.version === PANEL_VERSION ? PANEL_VERSION : `panel ${PANEL_VERSION} · engine ${st.version}`;
+  $("engine").className = state.online ? "engine" : "engine off";
   // an old panel still loaded after an update (field report 2026-11-10: "Connected · 0.10.17" while colour misbehaved)
   const stale = state.online && st.version && st.version !== PANEL_VERSION;
   $("detail").textContent = !state.online ? `${st.error}. Check that the engine is running (README).`
@@ -1141,6 +1154,17 @@ async function onNameTracks(back) {
   }
 }
 
+// the Automatic rows' switches over their checkboxes (0.10.59): the look and the status line follow the checkbox
+function paintSwitches() {
+  for (const [cb, sw, st, on] of [["afterCheck", "afterSwitch", "afterStatus", "Checks every export"],
+    ["colorLearn", "learnSwitch", "learnStatus", "Learning the editors' colour"]]) {
+    const yes = $(cb).checked;
+    $(sw).className = yes ? "btn small sw on" : "btn small sw";
+    $(st).textContent = yes ? on : "Off";
+    $(st).className = yes ? "fstatus live" : "fstatus";
+  }
+}
+
 // ---------------------------------------------------------------- learning from exports: colour (TODO EL1, 0.10.36)
 
 const LEARN = "asistent.colorLearn";
@@ -1305,7 +1329,7 @@ async function onSubtitleDownload() {
     const r = await engine.downloadSubtitleModel();
     if (!r.done) await runJob(r.job);
     renderSubtitleModel(await engine.subtitlesModel());
-    finish("The model is downloaded. Press Subtitles (Bulgarian).", true);
+    finish("The model is downloaded. Press Make subtitles.", true);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `subtitle model: ${e && e.stack ? e.stack : e}`);
@@ -1328,7 +1352,7 @@ async function onTranslatorDownload() {
   try {
     const r = await engine.downloadTranslator();
     if (!r.done) await runJob(r.job);
-    finish("The translator is downloaded. Press Subtitles (Bulgarian) with English line on.", true);
+    finish("The translator is downloaded. Press Make subtitles with English line on.", true);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `translator: ${e && e.stack ? e.stack : e}`);
@@ -1707,10 +1731,13 @@ const short = (p) => (p || "").replace(/^.*[\\/](.*[\\/].*)$/, "…/$1");
 
 function renderImport(st, project) {
   imp.enabled = !!st.enabled;
-  $("importToggle").textContent = st.enabled ? "Stop watching" : "Watch Downloads";
-  $("importStatus").textContent = st.enabled
+  $("importToggle").className = st.enabled ? "btn small sw on" : "btn small sw";
+  const name = (st.folder || "").split(/[\\/]/).filter(Boolean).pop() || "Downloads";
+  $("importStatus").textContent = st.enabled ? `Watching ${name}` + (st.pending.length ? ` · ${st.pending.length} waiting` : "") : "Off";
+  $("importStatus").className = st.enabled ? "fstatus live" : "fstatus";
+  $("importStatus").setAttribute("data-tip", st.enabled
     ? `Watching ${short(st.folder)} → ${project.name}` + (st.pending.length ? ` · ${st.pending.length} waiting` : "")
-    : st.folder ? `Off (was ${short(st.folder)})` : "Off. New files in the folder will go into the project by themselves.";
+    : st.folder ? `Off (was ${short(st.folder)})` : "Off. New files in the folder will go into the project by themselves.");
   const box = $("importRecent");
   box.innerHTML = "";
   for (const r of (st.recent || []).slice(0, 5)) {
@@ -1777,7 +1804,7 @@ function renderExports(st) {
   exp.enabled = !!st.enabled;
   exp.app = st.app || exp.app;
   for (const n of document.querySelectorAll(".revealApp")) n.textContent = exp.app;
-  $("exportsToggle").textContent = st.enabled ? "Stop showing" : `Show in ${exp.app}`;
+  $("exportsToggle").className = st.enabled ? "btn small sw on" : "btn small sw";
   const folders = st.folders || [];
   const premiereFolder = folders.find((f) => f.why === "premiere");
   const extra = folders.filter((f) => f.why === "added" || f.why === "learned").length;
@@ -1789,6 +1816,11 @@ function renderExports(st) {
       : tree ? `On: a finished export in a new folder inside “${tree.path.split(/[\\/]/).pop()}” is shown in ${exp.app}.`
         : `On: export once from the Export tab (or add a folder) and Asistent knows where to look.`;
   if (treeText && (where || extra)) $("exportsStatus").textContent += treeText;
+  // the row shows a few words; the whole sentence is the tooltip (0.10.59)
+  $("exportsStatus").setAttribute("data-tip", $("exportsStatus").textContent);
+  $("exportsStatus").textContent = !st.enabled ? "Off" : `In ${exp.app}` + (premiereFolder ? " · Premiere's folder" : "") +
+    (extra ? ` + ${extra} ${extra === 1 ? "folder" : "folders"}` : "");
+  $("exportsStatus").className = st.enabled ? "fstatus live" : "fstatus";
 }
 
 // the after-export check's state in a few words (0.10.39)
@@ -1838,6 +1870,7 @@ function showAfterReport(it, toLog) {
 
 function renderAfter(items, st) {
   $("afterCheck").checked = st.check !== false;
+  paintSwitches();
   const it = items.find((x) => x.check);
   if (!it) {
     $("afterReport").textContent = st.check === false ? "Off: exported files are not checked." : "No export checked yet.";
@@ -1907,9 +1940,15 @@ exportEvents.listen(require("premierepro"), (kind, path, name, fields) => {
   .catch(() => {});
 
 onTap($("exportsToggle"), () => exportsChange({ enabled: !exp.enabled }));
-$("afterCheck").addEventListener("change", () => {
+function onAfterCheck() {
   exp.last = null;                                       // show the card's new state on the next look
+  paintSwitches();
   exportsChange({ check: $("afterCheck").checked });
+}
+$("afterCheck").addEventListener("change", onAfterCheck);
+onTap($("afterSwitch"), () => {
+  $("afterCheck").checked = !$("afterCheck").checked;
+  onAfterCheck();
 });
 onTap($("exportsFolder"), async () => {
   const folder = await premiereImport.pickFolder().catch(() => null);
@@ -1921,7 +1960,15 @@ onTap($("sync"), onSync);
 onTap($("labelsName"), () => onNameTracks(false));
 onTap($("checkExport"), onExportCheck);
 onTap($("colorLearnReport"), onLearnReport);
-$("colorLearn").addEventListener("change", () => store.setItem(LEARN, $("colorLearn").checked ? "1" : "0"));
+function onLearnCheck() {
+  store.setItem(LEARN, $("colorLearn").checked ? "1" : "0");
+  paintSwitches();
+}
+$("colorLearn").addEventListener("change", onLearnCheck);
+onTap($("learnSwitch"), () => {
+  $("colorLearn").checked = !$("colorLearn").checked;
+  onLearnCheck();
+});
 onTap($("labelsBack"), () => onNameTracks(true));
 for (const id of ["labelsAuto", "labelsColor1", "labelsColor2"]) $(id).addEventListener("change", saveLabelSettings);
 onTap($("audio"), () => onAudio(null));
@@ -1973,17 +2020,12 @@ onTap($("cancel"), () => {
   if (state.jobId) engine.cancel(state.jobId).catch(() => {});
 }, { repeat: true });
 
-for (const t of document.querySelectorAll(".btn.tab")) onTap(t, () => openTab(t.getAttribute("data-tab")));
+for (const t of document.querySelectorAll(".btn.tab, .btn.mside")) onTap(t, () => openTab(t.getAttribute("data-tab")));
 require("./keyframer.js").mount({ $, el, button, enable, bindTips, premiere });     // the Keyframer page (0.10.32)
 trackerPage = require("./tracker.js").mount({ $, el, button, enable, bindTips, premiere });   // the Tracker page (0.10.51)
 onTap($("openLog"), () => openTab("paneLog"));
 onTap($("openPreview"), () => openTab("panePreview"));
 onTap($("hideResult"), () => show("result", false));       // the full answer stays in Log
-onTap($("audioMore"), () => {
-  const open = $("audioManual").hidden;
-  show("audioManual", open);
-  $("audioMore").textContent = open ? "Manual ▾" : "Manual ▸";
-});
 // the English line and the style are remembered on this computer (store.js: in the engine's app folder, so an update keeps
 // them); applied at once from what the panel still has, and again when the engine's copy has loaded
 function applyRemembered() {
@@ -1997,6 +2039,7 @@ function applyRemembered() {
   try {
     fillLabelControls();
     $("colorLearn").checked = learnOn();
+    paintSwitches();
   } catch (e) {
     /* no storage: Keep and on */
   }
@@ -2018,28 +2061,28 @@ $("subtitleStyle").addEventListener("change", () => {
     /* no storage */
   }
 });
-// the ⓘ of each card (what the feature does) and the Developer tools: open or closed, remembered on this computer
-for (const t of document.querySelectorAll(".btn.more")) {
-  const id = t.getAttribute("data-more");
-  const key = `asistent.open.${id}`;
-  const set = (open) => {
-    show(id, open);
-    t.className = open ? "btn more open" : "btn more";
-    try {
-      store.setItem(key, open ? "1" : "0");
-    } catch (e) {
-      /* no storage: it simply starts closed next time */
-    }
-  };
-  let open = false;
-  try {
-    open = store.getItem(key) === "1";
-  } catch (e) {
-    /* no storage */
+// the ▾ of each Tools row (0.10.59): its options and what it does; one row open at a time, remembered on this computer
+const OPEN_ROW = "asistent.openRow";
+function openRow(id) {
+  for (const t of document.querySelectorAll(".btn.more")) {
+    const on = t.getAttribute("data-more") === id;
+    show(t.getAttribute("data-more"), on);
+    t.className = on ? "btn more open" : "btn more";
   }
-  show(id, open);
-  t.className = open ? "btn more open" : "btn more";
-  onTap(t, () => set($(id).hidden));
+  try {
+    store.setItem(OPEN_ROW, id || "");
+  } catch (e) {
+    /* no storage: it simply starts closed next time */
+  }
+}
+for (const t of document.querySelectorAll(".btn.more")) {
+  onTap(t, () => openRow($(t.getAttribute("data-more")).hidden ? t.getAttribute("data-more") : null));
+}
+try {
+  const id = store.getItem(OPEN_ROW);
+  openRow(id && $(id) ? id : null);
+} catch (e) {
+  openRow(null);
 }
 bindTips(document);
 $("toast").addEventListener("click", () => { $("toast").hidden = true; });

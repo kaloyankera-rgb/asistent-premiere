@@ -11,8 +11,8 @@ const html = fs.readFileSync(path.join(panel, "index.html"), "utf8");
 const main = fs.readFileSync(path.join(panel, "main.js"), "utf8");
 
 function audioBlock() {
-  const start = html.indexOf('<div class="card" id="secAudio">');
-  const end = html.indexOf('<div class="card"', start + 1);
+  const start = html.indexOf('<div class="feat" id="secAudio">');
+  const end = html.indexOf('<div class="feat"', start + 1);
   assert.ok(start > 0 && end > start, "section AUDIO not found");
   return html.slice(start, end);
 }
@@ -358,8 +358,8 @@ test("a colour press and Match POVs apply at once, with Before / after, no appro
 
 
 test("Show exports: off until switched on, the engine is told the project, and Show again sends only an id", () => {
-  const card = html.slice(html.indexOf('<div class="card" id="secExports">'), html.indexOf('<div class="card quiet" id="secDev">'));
-  assert.match(card, /id="exportsToggle" class="btn small"/);
+  const card = html.slice(html.indexOf('<div class="feat auto" id="secExports">'), html.indexOf('<div class="feat auto" id="secAfter">'));
+  assert.match(card, /id="exportsToggle" class="btn small sw"/);
   assert.match(card, /id="exportsFolder" class="btn small"/);
   const ex = main.slice(main.indexOf("// ---------------------------------------------------------------- show exports"), main.indexOf("exportsLoop();"));
   assert.match(ex, /const exp = \{ enabled: false,/);

@@ -31,19 +31,27 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   };
 
   root.innerHTML = "";
-  root.appendChild(brief("Shapes the motion between two keyframes.", "Shapes the motion between two keyframes. Select one clip with keyframes, press Read, tick the " +
+  // 0.10.59 (the user: "keep it minimal"): the sections sit in cards, as on the Tracker page; elements and order unchanged
+  const card = () => {
+    const c = el("div", "kf-card");
+    root.appendChild(c);
+    return c;
+  };
+  let host = card();
+  host.appendChild(brief("Shapes the motion between two keyframes.", "Shapes the motion between two keyframes. Select one clip with keyframes, press Read, tick the " +
     "properties, choose a curve and press Apply. Custom curves are written as one keyframe per frame between your keyframes " +
     "(yours stay as they are); Premiere's own curves only change how your keyframes move. One Cmd/Ctrl+Z takes a press back."));
   const top = el("div", "row buttons");
-  root.appendChild(top);
+  host.appendChild(top);
   const clipLine = el("div", "muted", "No clip read yet.");
-  root.appendChild(clipLine);
+  host.appendChild(clipLine);
   const list = el("div", "kf-props");
-  root.appendChild(list);
+  host.appendChild(list);
 
-  root.appendChild(el("div", "title spaced", "Motion"));
+  host = card();
+  host.appendChild(el("div", "title spaced", "Motion"));
   const kinds = el("div", "row wrap kf-presets");
-  root.appendChild(kinds);
+  host.appendChild(kinds);
   const box = el("div", "kf-editor");
   box.innerHTML = `<svg id="kfSvg" width="${SIZE}" height="${SIZE}">` +
     `<rect class="kf-frame" x="${PAD}" y="${PAD}" width="${SIZE - 2 * PAD}" height="${SIZE - 2 * PAD}"/>` +
@@ -51,11 +59,11 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     `<path id="kfPath" class="kf-curve"/>` +
     `<circle id="kfH1" class="kf-handle" r="7"/><circle id="kfH2" class="kf-handle" r="7"/>` +
     "</svg>";
-  root.appendChild(box);
+  host.appendChild(box);
   const curveName = el("div", "muted");
-  root.appendChild(curveName);
+  host.appendChild(curveName);
   const curveRows = el("div", "");                          // the bezier curves: presets, Premiere's own, saved
-  root.appendChild(curveRows);
+  host.appendChild(curveRows);
   const presets = el("div", "row wrap kf-presets");
   curveRows.appendChild(presets);
   curveRows.appendChild(el("div", "muted", "Premiere's own (no keyframes added):"));
@@ -64,7 +72,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   const mineRow = el("div", "row wrap kf-presets");
   curveRows.appendChild(mineRow);
   const springRows = el("div", "");                         // Elastic and Bounce: where, how many, how strong
-  root.appendChild(springRows);
+  host.appendChild(springRows);
   const dirRow = el("div", "row wrap kf-presets");
   springRows.appendChild(dirRow);
   const countRow = el("div", "row kf-step");
@@ -72,7 +80,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   const strengthRow = el("div", "row kf-step");
   springRows.appendChild(strengthRow);
   const afterRows = el("div", "");                          // Overshoot+ and Bounce Back: three settings each (0.10.45)
-  root.appendChild(afterRows);
+  host.appendChild(afterRows);
   afterRows.appendChild(el("div", "muted", "Make the move short and Linear (two keyframes a few frames apart): the motion happens after the last keyframe, from the speed it arrives with."));
   const afterSteps = [0, 1, 2].map(() => {
     const r = el("div", "row kf-step");
@@ -80,25 +88,27 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     return r;
   });
 
-  root.appendChild(el("div", "title spaced", "Repeat after the last keyframe"));
+  host = card();
+  host.appendChild(el("div", "title spaced", "Repeat after the last keyframe"));
   const repeatRow = el("div", "row wrap kf-presets");
-  root.appendChild(repeatRow);
+  host.appendChild(repeatRow);
   const timesRow = el("div", "row kf-step");
-  root.appendChild(timesRow);
+  host.appendChild(timesRow);
 
   const actions = el("div", "row buttons spaced kf-actions");
-  root.appendChild(actions);
+  host.appendChild(actions);
   const status = el("div", "kf-status");
-  root.appendChild(status);
+  host.appendChild(status);
 
   // Stash v1 (0.10.37): the ticked properties' animation saved as data, applied to any clip at the playhead
-  root.appendChild(el("div", "title spaced", "Stash"));
-  root.appendChild(brief("Save an animation or whole clips, then put them on any clip.", "Save the ticked properties' animation, then put it on any clip: select the clip, park the " +
+  host = card();
+  host.appendChild(el("div", "title spaced", "Stash"));
+  host.appendChild(brief("Save an animation or whole clips, then put them on any clip.", "Save the ticked properties' animation, then put it on any clip: select the clip, park the " +
     "playhead where it should start, press the stash. Same timing and easing; kept on this computer for every project. " +
     "Save selected clips keeps whole clips instead (a logo over its background, a title with its sound, every effect and " +
     "keyframe): park the playhead and press it to put them in, on free tracks, in any project."));
   const stashTop = el("div", "row buttons");
-  root.appendChild(stashTop);
+  host.appendChild(stashTop);
   const profileRow = el("div", "row options");
   const profileLabel = el("label", "muted kf-wide", "Show");
   profileLabel.setAttribute("for", "kfProfile");
@@ -106,11 +116,11 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   profile.id = "kfProfile";
   profileRow.appendChild(profileLabel);
   profileRow.appendChild(profile);
-  root.appendChild(profileRow);
+  host.appendChild(profileRow);
   const stashList = el("div", "kf-stash");
-  root.appendChild(stashList);
+  host.appendChild(stashList);
   const stashFoot = el("div", "muted");
-  root.appendChild(stashFoot);
+  host.appendChild(stashFoot);
   const PROFILE = "asistent.stash.profile";
   let armed = null;                                          // the stash whose × was pressed once (a second press deletes)
 

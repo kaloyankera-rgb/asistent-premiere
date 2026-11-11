@@ -19,6 +19,10 @@
   for (const n of [...doc.body.childNodes]) {
     if (n.nodeName !== "SCRIPT") document.body.insertBefore(document.importNode(n, true), document.currentScript);
   }
+  // the panel's own images (the glow, 0.10.59) are relative to panel/
+  for (const im of document.querySelectorAll("img[src]")) {
+    if (!/^(data:|https?:)/.test(im.getAttribute("src"))) im.setAttribute("src", PANEL + im.getAttribute("src"));
+  }
 
   // ------------------------------------------------------------ fakes
   const project = { name: "TEST.prproj", path: "/Users/editor/Projects/TEST.prproj", getActiveSequence: async () => null };
