@@ -6,7 +6,7 @@ import os
 import sys
 from logging.handlers import RotatingFileHandler
 
-VERSION = "0.10.38"
+VERSION = "0.10.39"
 HOST = "127.0.0.1"
 PORT = int(os.environ.get("ASISTENT_PORT", "47390"))   # Quick Search uses 47231-47234
 

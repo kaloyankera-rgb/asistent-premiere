@@ -149,6 +149,27 @@ window.PREVIEW_SCENARIOS = (function () {
         setTimeout(() => api.openTab("paneLog"), 400);
       },
     },
+    afterexport: {
+      engine: {
+        exports: { enabled: false, check: true, app: "Finder", folders: [{ path: "/Volumes/Production/Exported Videos/Екопак/Контент план 8", why: "premiere" }],
+          items: [
+            { id: "c", name: "Видео 7 - final.mp4", at: Date.now() / 1000 - 60, shown: false, check: { status: "look", summary: "3 things to look at", took: 9.8, lines: [
+              { level: "ok", text: "The file is complete: 0:58.4, 141.2 MB." },
+              { level: "info", text: "1080x1920, 29.97 fps, H264, 19.3 Mb/s, bt709" },
+              { level: "check", text: "Black bars top and bottom: 0:20.2-0:21.3 (or a very dark edge)." },
+              { level: "ok", text: "No black frames." },
+              { level: "check", text: "The picture stands still 0:51.0-0:52.6 (1.6 s): a still on purpose, or a frozen clip?" },
+              { level: "check", text: "True peak +0.3 dBFS: above -1 dBFS, the platforms' encoding may distort it." },
+              { level: "info", text: "Loudness -17.1 LUFS (-3.1 LU from -14, the usual platform level; information only)." },
+            ] } },
+            { id: "b", name: "Видео 6.mp4", at: Date.now() / 1000 - 3600, shown: false, check: { status: "fine", summary: "everything measured looks fine", lines: [] } },
+          ] },
+      },
+      run: (api) => {
+        document.querySelector('[data-more="aboutAfter"]').click();
+        setTimeout(() => document.getElementById("secAfter").scrollIntoView(), 600);
+      },
+    },
     open: {
       engine: {
         model: { backend: true, model: false, expected_bytes: 3.1e9, bytes: 0, dir: "~/Library/Application Support/Asistent/models/whisper" },

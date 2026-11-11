@@ -1,5 +1,9 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.39 (2026-11-11, branch feature/after-export-check, NOT installed: the user was editing in Premiere): After-export
+check of the exported file (TODO I14), automatic, After export card + Log. Engine and parsing verified on synthetic and 8 real
+exports; the panel's sequence read at the export event and the card in Premiere NOT verified. Tests: 713 pytest + 24 skipped, node 238.
+
 0.10.38 (2026-11-11, installed): Sync does Fix audio again on files that had Asistent's L / R copies, and leaves no gap
 between recordings. NOT verified in Premiere yet (user to try in 4a1a mobilefox › B-Roll). Tests: 700 pytest + 24 skipped, node 238.
 
