@@ -31,6 +31,16 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.54 - Tracker: Lock to it (the user 2026-11-11, a dribbled basketball: "track the ball's movement so it's locked in on it")
+- Tracker page, **Lock to it**: the TRACKED clip itself gets Position keys so the object stays where it is on the boxed frame
+  (**Centre it**: in the middle), as if the camera followed it; works through the clip's own Motion, also a keyframed punch-in.
+  **Smooth** follows a Gaussian-smoothed path (sigma 6 frames) like a camera operator instead of shaking with every bounce
+  (lost frames bridged); without it lost frames get no key. **Zoom** (on by default) scales the clip by the smallest factor
+  that keeps every frame covered (coverage.gap, as the pre-export check); not when the clip's Scale is keyframed (then the
+  panel says which Scale would hide the edges). One Undo step; refused over Position keys of the editor's own; Detach takes
+  the keys off. Verified in Premiere 26.5.2 on the synthetic 4K clip: the object on the same pixel in six full-size frames
+  across the clip while the clip moved and kept its keyframed zoom; the Scale keys were left alone. NOT tried by the user.
+
 ## 0.10.51-0.10.53 - Motion tracker (Cockpit plan A3, the user 2026-11-11: "track objects perfectly ... like it's in After Effects")
 - New **Tracker** page: Load frame (the selected clip at the playhead), drag a box around the object, Track (forwards and
   backwards over the whole clip, progress, Cancel, a green / yellow / red strip; a click moves the playhead there), then

@@ -1,5 +1,8 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.54 (2026-11-11, installed, verified through the bridge): Tracker "Lock to it" (the clip follows the object: the object
+stays on the same pixel; Smooth, Centre, Zoom to hide edges). NOT tried by the user.
+
 0.10.53 (2026-11-11, installed, tested through the bridge in Premiere 26.5.2, NEW TEST "Tracker test"): Motion tracker (Cockpit
 A3), page Tracker: box an object, track it, attach a text / logo with Position (Scale, Rotation) keys. Synthetic 4K clip: within
 0.5 px in Premiere's own full-size frames, scale and rotation right; Detach and the refusal over the editor's keys checked.

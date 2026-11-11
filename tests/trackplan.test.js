@@ -81,3 +81,48 @@ test("runs and boxFrom", () => {
   assert.deepStrictEqual(P.boxFrom(-50, -10, 100, 100, 200, 200), [0, 0, 0.5, 0.5]);
   assert.strictEqual(P.boxFrom(10, 10, 12, 50, 200, 200), null);
 });
+
+// ---------------------------------------------------------------- Lock to it (0.10.54)
+test("lock: the clip moves against the object so it stays where it was on the boxed frame", () => {
+  // a 1080x1920 file at 100 % in a 1080x1920 frame; the ball goes 0, +40, +80 px to the right
+  const fr = [0, 1, 2].map((i) => ({ t: i / 30, x: 540 + 40 * i, y: 960, s: 1, a: 0, state: "sure" }));
+  const r = P.lock({ frames: fr, width: 1080, height: 1920, k0: 0 }, {}, frame, {});
+  assert.deepStrictEqual(r.keys.map((k) => Math.round(k.x * 1080)), [540, 500, 460]);
+  // every frame puts the ball back at 540
+  for (let i = 0; i < 3; i++) {
+    const [sx] = P.screenPoint(fr[i].x, fr[i].y, { width: 1080, height: 1920 }, { x: r.keys[i].x, y: r.keys[i].y }, frame);
+    assert.ok(near(sx, 540));
+  }
+  // moving the clip shows the edge: 80 px of 1080 -> zoom about 1.15 hides it
+  assert.strictEqual(r.uncovered, 2);
+  assert.ok(r.need > 1.07 && r.need < 1.2, String(r.need));
+});
+
+test("lock with zoom: every frame covered, the ball still in its place; centre puts it in the middle", () => {
+  const fr = [0, 1, 2, 3].map((i) => ({ t: i / 30, x: 300 + 60 * i, y: 700 + 30 * i, s: 1, a: 0, state: i === 2 ? "lost" : "sure" }));
+  const tr = { frames: fr, width: 1080, height: 1920, k0: 1 };
+  const r = P.lock(tr, { sw: 100 }, frame, { zoom: true, centre: true });
+  assert.ok(r.zoom > 1 && r.uncovered === 0 && r.scale === Math.round(100 * r.zoom * 10) / 10);
+  assert.strictEqual(r.keys.length, 3);              // rigid: no key on the lost frame
+  const C = require("../panel/coverage.js");
+  for (const k of r.keys) {
+    const i = Math.round(k.t * 30);
+    const m = { sw: 100 * r.zoom, x: k.x, y: k.y };
+    const [sx, sy] = P.screenPoint(fr[i].x, fr[i].y, { width: 1080, height: 1920 }, m, frame);
+    assert.ok(near(sx, 540, 1e-6) && near(sy, 960, 1e-6));
+    assert.ok(C.gap({ width: 1080, height: 1920 }, m, frame).covered);
+  }
+});
+
+test("lock smooth: a bouncing ball gives a calm path that still follows it; lost frames are bridged", () => {
+  const fr = Array.from({ length: 90 }, (_, i) => ({ t: i / 30, x: 300 + 4 * i, y: 1200 + 150 * Math.abs(Math.sin(i / 3)), s: 1, a: 0, state: i === 40 ? "lost" : "sure" }));
+  const tr = { frames: fr, width: 1080, height: 1920, k0: 0 };
+  const rigid = P.lock(tr, {}, frame, {});
+  const soft = P.lock(tr, {}, frame, { smooth: 6 });
+  assert.strictEqual(soft.keys.length, 90);
+  assert.strictEqual(rigid.keys.length, 89);
+  const jump = (ks) => Math.max(...ks.slice(1).map((k, i) => Math.abs(k.y - ks[i].y) * 1920));
+  assert.ok(jump(soft.keys) < jump(rigid.keys) / 3);
+  // it still follows the sideways walk: the clip ends about 356 px further left
+  assert.ok(Math.abs((soft.keys[89].x - soft.keys[0].x) * 1080 + 356) < 40);
+});

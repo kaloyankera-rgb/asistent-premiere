@@ -61,6 +61,29 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   root.appendChild(stripLine);
   const attachRow = el("div", "row buttons spaced");
   root.appendChild(attachRow);
+  // Lock to it (0.10.54): the tracked clip itself moves so the object stays put (a camera locked on it)
+  root.appendChild(el("div", "title spaced", "Lock the clip to it"));
+  root.appendChild(el("p", "desc", "Instead of attaching something, the tracked clip moves so the object stays where it is on " +
+    "the boxed frame (or in the centre), as if the camera followed it. Smooth follows it like a camera operator instead of " +
+    "shaking with every bounce. Zoom scales the clip just enough that no frame shows an edge."));
+  const lockOpts = el("div", "row options");
+  for (const [k, label, tip, on] of [["centre", "Centre it", "Puts the object in the middle of the frame instead of where it is now.", false],
+    ["smooth", "Smooth", "Follows a calm path through the object's motion (good for a bouncing ball or a hand-held shot).", false],
+    ["zoom", "Zoom", "Scales the clip just enough that the moves never show an edge.", true]]) {
+    const c = document.createElement("input");
+    c.type = "checkbox";
+    c.id = `tr_${k}`;
+    c.checked = on;
+    checks[k] = c;
+    const l = el("label", "tr-opt", label);
+    l.setAttribute("for", c.id);
+    l.setAttribute("data-tip", tip);
+    lockOpts.appendChild(c);
+    lockOpts.appendChild(l);
+  }
+  root.appendChild(lockOpts);
+  const lockRow = el("div", "row buttons");
+  root.appendChild(lockRow);
   const status = el("div", "kf-status");
   root.appendChild(status);
 
@@ -71,7 +94,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
 
   function setBusy(b) {
     state.busy = b;
-    for (const x of [...top.children, ...actions.children, ...attachRow.children]) {
+    for (const x of [...top.children, ...actions.children, ...attachRow.children, ...lockRow.children]) {
       if (x.id === "trCancel") enable(x, b && !!state.job);
       else enable(x, !b);
     }
@@ -273,6 +296,13 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     const project = await premiere.activeProject();
     const r = await TR.detach(project);
     say(r.removed ? `Taken off ${r.clip}: ${r.removed} tracker keyframes.` : "The selected clip has no tracker keyframes.");
+  })));
+
+  lockRow.appendChild(button("action", "Lock to it", "Gives the tracked clip Position keys so the object stays put on screen (and zooms it when Zoom is ticked). One Undo step; Detach (with the clip selected) takes the keys off.", () => guarded(async () => {
+    if (!state.track) return say("Track the object first.", "warn");
+    const project = await premiere.activeProject();
+    const r = await TR.lockClip(project, state.source, state.track, { centre: !!checks.centre.checked, smooth: !!checks.smooth.checked, zoom: !!checks.zoom.checked });
+    say([`Done: ${r.clip} is locked to the object. Cmd/Ctrl+Z takes it back.`, ...r.lines]);
   })));
 
   setBusy(false);
