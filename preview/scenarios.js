@@ -11,7 +11,8 @@ function kfPress(labels) {
 }
 
 // the Tracker page with a drawn clip: a court, a ball bouncing across it (no footage)
-function trackerDemo(api, cur) {
+// variant "box": a frame with a box drawn, not yet tracked; "busy": the first track running (live frame, 40 % done)
+function trackerDemo(api, cur, variant) {
   const W = 1080, H = 1920, N = 120;
   const pos = (i) => [300 + 5 * i, 1150 + 420 * Math.abs(Math.sin(i / 7))];
   const pic = (i) => {
@@ -38,9 +39,21 @@ function trackerDemo(api, cur) {
     return { t: 2 + i / 30, x, y, s: 1, a: 0, c: state === "sure" ? 0.95 - 0.05 * Math.sin(i / 5) : state === "unsure" ? 0.62 : 0.2, state };
   });
   const p = api.tracker();
+  const source = { clip: { name: "C0412.MP4", path: "/x/C0412.MP4", track: 0, start: 10, inPt: 2, speed: 1 }, step: 1 / 30, t0: 2 + 20 / 30, from: 2, to: 6, at: 10.67 };
+  const preview = { jpeg: pic(20), width: W, height: H, w: 270, h: 480 };
+  const box = [(pos(20)[0] - 60) / W, (pos(20)[1] - 60) / H, 120 / W, 120 / H];
+  if (variant === "box") {
+    p.demo({ source, preview });
+    return p.setBox(box);
+  }
+  if (variant === "busy") {
+    const [x, y] = pos(68);
+    return p.demo({ source, preview, box: null, busy: true, job: "demo", progress: 0.4, liveLo: 20, liveHi: 68,
+      live: { k: 68, jpeg: pic(68), x, y, s: 1, a: 0, state: "sure" } });
+  }
   p.demo({
-    source: { clip: { name: "C0412.MP4", path: "/x/C0412.MP4", track: 0, start: 10, inPt: 2, speed: 1 }, step: 1 / 30, t0: 2, from: 2, to: 6, at: 10 },
-    preview: { jpeg: pic(20), width: W, height: H, w: 270, h: 480 },
+    source,
+    preview,
     track: { frames, width: W, height: H, k0: 20, id: "demo", box: [pos(20)[0] - 60, pos(20)[1] - 60, 120, 120] },
     thumbs: frames.map((_, i) => pic(i)), cur,
   });
@@ -135,6 +148,9 @@ window.PREVIEW_SCENARIOS = (function () {
     },
     // 0.10.55: the Tracker page with a made-up track of a bouncing ball (an unsure and a lost stretch), on frame 52
     tracker: { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 52); } },
+    "tracker-empty": { run: (api) => { api.openTab("paneTracker"); } },
+    "tracker-box": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 0, "box"); } },
+    "tracker-busy": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 0, "busy"); } },
     "tracker-lock": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 75); const b = [...document.querySelectorAll("#paneTracker .tr-mode")].pop(); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); } },
     "keyframer-bounce": { run: (api) => { api.openTab("paneKeyframer"); kfPress(["Bounce", "Both", "Loop", "+"]); } },
     review: {

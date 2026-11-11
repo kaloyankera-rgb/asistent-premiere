@@ -1,5 +1,9 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.57 (2026-11-11, installed, verified through the bridge): Tracker page restyled as a dark tracking workspace (violet accent
+on the next step, workspace card with viewer / transport / ruler timeline, Track and Apply cards, state chips); behaviour unchanged.
+NOT looked at by the user in Premiere.
+
 0.10.56 (2026-11-11, installed, verified through the bridge): Tracker page redesigned: live preview while tracking, viewer with
 box / path / readout, a scrubbable timeline with confidence, transport and problem jumps, Premiere's playhead following, Track
 from here / back from here to fix a stretch, Attach / Lock switch. NOT tried by the user.

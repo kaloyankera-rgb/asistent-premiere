@@ -64,7 +64,8 @@ first; brand profiles deferred.
   reframe 9:16 on a face (YuNet), corner pin (perspective), a thinner key set option.
 - [x] **A3b Tracker UI v2** (the user 2026-11-11: "add to the plan, better UI more advanced": a preview of what is tracked, a
   timeline to go through after tracking). 0.10.55-0.10.56: live preview, viewer, scrub timeline, transport, problem jumps,
-  fix a stretch. USER: try it on the basketball clip. Later if wanted: keyboard arrows on the timeline, zoom into the
+  fix a stretch. 0.10.57: restyled as a dark workspace (the user's "premium, professional" brief). USER: try it on the
+  basketball clip and say how the new look reads in Premiere. Later if wanted: keyboard arrows on the timeline, zoom into the
   viewer, a graph of x / y, several tracks per clip.
 - [ ] **A4 Brand profiles**: deferred (text colour cannot be set by script); a new `brand.py` if taken up.
 
