@@ -1,5 +1,8 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.38 (2026-11-11, installed): Sync does Fix audio again on files that had Asistent's L / R copies, and leaves no gap
+between recordings. NOT verified in Premiere yet (user to try in 4a1a mobilefox › B-Roll). Tests: 700 pytest + 24 skipped, node 238.
+
 0.10.37 (2026-11-11, installed): Stash v1 on the Keyframer page (Cockpit A2): save the ticked properties' animation, apply
 at the playhead with the same easing, client filter. VERIFIED through the bridge on NEW TEST (exact values, Undo last,
 overwrite guard, playhead check). NOT yet: a thumbnail, rename in the panel, tried by the user. Tests: 700 pytest + 24

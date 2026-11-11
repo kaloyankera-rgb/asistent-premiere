@@ -64,5 +64,5 @@ test("Fix audio's L / R copies and Fill effects: only the channel the clip plays
 test("a SYNC sequence's gaps between groups are not reported as black to fix", () => {
   const r = X.report({ items: [v(0, 2), v(4, 6)], end: 6, fps: 30, sequence: "SYNC – кам2", clips: [] });
   assert.strictEqual(r.find((s) => s.id === "black").status, "ok");
-  assert.match(r.find((s) => s.id === "black").lines[0], /on purpose/);
+  assert.match(r.find((s) => s.id === "black").lines[0], /working sequence/);
 });

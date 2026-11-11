@@ -133,3 +133,14 @@ test("two cameras whose files share one folder never overlap on one track (0.10.
   assert.deepStrictEqual(placements.filter((p) => p.group === 1).map((p) => p.track).sort(), [0, 1]);
   assert.ok(uncertain.some((u) => /shares a folder/.test(u.reason)));
 });
+
+test("the user's Credissimo case (2026-11-11): an iPhone clip on the second track, C0932 straight after C0930, no gap", () => {
+  const D = "/dl", I = "/dl/CREDISSIMO/5 Nov 2026";
+  const eng = { clips: [{ path: `${D}/C0930.MP4`, name: "C0930.MP4", duration: 393.12, has_video: true, rec_time: 1793879892.0 },
+    { path: `${D}/C0932.MP4`, name: "C0932.MP4", duration: 256.32, has_video: true, rec_time: 1793880465.0 },
+    { path: `${I}/IMG_0357.MOV`, name: "IMG_0357.MOV", duration: 95.755, has_video: true, rec_time: 1793879938.302695 }],
+  groups: [{ anchor: 0, members: [{ clip: 0, offset: 0 }, { clip: 2, offset: 46.302695 }] }], unsynced: [1] };
+  const r = syncLayout(eng, { [`${D}/C0930.MP4`]: 0, [`${D}/C0932.MP4`]: 393.12, [`${I}/IMG_0357.MOV`]: 46.3 });
+  const at = Object.fromEntries(r.placements.map((p) => [p.name, [p.track, +p.zero.toFixed(3)]]));
+  assert.deepStrictEqual(at, { "C0930.MP4": [0, 0], "IMG_0357.MOV": [1, 46.303], "C0932.MP4": [0, 393.12] });
+});
