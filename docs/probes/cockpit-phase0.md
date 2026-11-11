@@ -21,3 +21,29 @@ the same run. Note: this Mac now runs 26.5.2, like the PC, so the plan's "26.0.2
 
 Still open before the builds: P-A4 (one mask, optional), P-A2 on a sped-up clip, P-Q2/P-Q3 (placement and
 whether the layer's Transform comes along: Quick Search session), P-Q4 (WebView2 on the PC).
+
+## 2026-11-11: P-Q1 to P-Q3 answered (NEW TEST, Premiere 26.5.2, through the Asistent host's ExtendScript `eval`)
+- **P-Q1 YES, by a generated template.** No API creates an adjustment layer, but one can be imported: QE
+  `newBlackVideo(w, h, fps, 1, 1)` -> `createNewSequenceFromClips` -> `Sequence.exportAsProject` gives a small project; in its XML
+  the Black Video's `<MasterClip>` gets `<IsAdjustmentLayer>true</IsAdjustmentLayer>` BEFORE `<Name>` (the layout of a real
+  adjustment layer, read from a purchased editing pack's project) and the frame rate in ticks (29.97: 8475667200).
+  `Project.importFiles([that .prproj], true, bin)` imports it with no dialog (plus its holder sequence).
+  Proof by numbers on an exported frame (fx31028 under it): with the layer on V2 the picture is unchanged (saturation 34.3,
+  luma 163.1; a plain Black Video would have covered it); Black & White on the layer only -> saturation 0.0. A Transparent
+  Video with the same flag (first try, flag after `<Name>`) did NOT work: saturation unchanged.
+- **P-Q2 YES:** `videoTracks[n].overwriteClip(item, seconds)` places it; its length is the item's In / Out.
+- **P-Q3 not needed:** effects go on the placed track item (QE `addVideoEffect` by name, as Quick Search already does).
+- Left in NEW TEST: bin "Quick Search test" (layers, holder sequences), sequences "QS AL test" and "QS AL test 2".
+
+## 2026-11-11: P-A5 Stash of clips answered (bridge `clone_probe`, temporary)
+- **Clips can cross sequences, effects included:** UXP `SequenceEditor.getEditor(target).createCloneTrackItemAction(item from
+  another sequence, offset, videoTrackOffset, 0, true, false)` placed both adjustment-layer clips of "QS AL cmd test" V2 into
+  "QS AL test 2" at the same times, with Opacity, Motion, Black & White, Transform in the source's order (overwrite: it replaced
+  what was under it). Keyframes not checked yet.
+- With `Sequence.exportAsProject` (seen in the Quick Search probe) a selection can be saved exactly and brought back:
+  Save = clone the selected clips into a temporary sequence -> exportAsProject into `<app>/stash/clips/`; Apply = importFiles of
+  that project into a bin -> clone its clips into the active sequence at the playhead (flat clips, not a nest).
+- Open decision for the user: the temporary sequence (on Save) and the imported one (on Apply) are Asistent's own, but the
+  permanent rule says the host removes nothing without the user's approval of that specific deletion. Delete them, or keep
+  them in a bin "Asistent stash"?
+
