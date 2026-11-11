@@ -31,6 +31,13 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.48 - Auto color looks through a LUT-only layer in Premiere 27.0 too (the user, 2026-11-11)
+- The user's Pulse Fitness Video 6 in Premiere 27.0: an adjustment layer with only an S-Log3 LUT was taken for a layer that
+  covers the clip ("its Lumetri has more than a LUT (Color Wheels: false, untouched false)"), so Auto color measured the flat
+  file and applied nothing (+1.5 stops measured). The untouched Lumetri was learnt in 26.5.2 and 27.0 names a parameter
+  differently. `colorplans.lutOnlyDiff` (pure, tested) now compares each parameter by its value; a heading's open / closed
+  switch counts as nothing under either name. NOT verified in 27.0 by the user yet.
+
 ## 0.10.45-0.10.47 - The user's seven reminders (2026-11-11), tested in NEW TEST in Premiere 26.5.2 while the user edited in 27.0
 - **Rough cut from clones (reminders 2 and 6):** the XML import made NEW master clips; Premiere 26.5.2 switched off their
   rotation flag (`IsOverridenImageOrientationType`, the FX3's vertical shots came in sideways) and dropped S-Log3, and Fix
