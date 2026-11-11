@@ -28,6 +28,32 @@
   --tip-bg: #111;
   --tip-text: #eee;
   --tip-line: #444;
+  /* the Tracker page (0.10.57): a darker workspace with a violet accent, its own set so no other page changes */
+  --tr-bg: #141518;
+  --tr-panel: #1c1d22;
+  --tr-raise: #26282f;
+  --tr-press: #2e3038;
+  --tr-stage: #0b0c0e;
+  --tr-line: #303239;
+  --tr-line-2: #3a3d45;
+  --tr-text: #e7e8ec;
+  --tr-text-2: #9a9ca6;
+  --tr-text-3: #686b75;
+  --tr-accent: #705cf6;
+  --tr-accent-hover: #8270f8;
+  --tr-accent-dim: #4a3f9e;
+  --tr-accent-text: #b4a9ff;
+  --tr-sure: #3fb950;
+  --tr-unsure: #e3b341;
+  --tr-lost-text: #ff9a94;
+  --tr-chip: rgba(11, 12, 14, 0.72);
+  --tr-veil: rgba(11, 12, 14, 0.6);
+  --tr-ok-line: rgba(63, 185, 80, 0.4);
+  --tr-ok-bg: rgba(63, 185, 80, 0.07);
+  --tr-warn-line: rgba(227, 179, 65, 0.4);
+  --tr-warn-bg: rgba(227, 179, 65, 0.07);
+  --tr-err-line: rgba(229, 83, 75, 0.45);
+  --tr-err-bg: rgba(229, 83, 75, 0.08);
 }
 
 /* Only CSS the panel already proved in Premiere's UXP is used here: flexbox, margins and padding (no `gap`), borders,
@@ -228,28 +254,117 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .kf-label { width: 72px; color: var(--text-2); }
 .options > label.kf-wide { width: 84px; }
 .kf-stash { margin-top: 4px; }
-/* Tracker page (0.10.51, redesigned 0.10.55) */
-.tr-steps { margin-top: 4px; margin-bottom: 4px; }
-.tr-step { margin-right: 10px; color: var(--text-2); font-size: 11px; }
-.tr-step.done { color: var(--ok); }
-.tr-step.on { color: var(--text); font-weight: bold; }
-.tr-view { position: relative; margin-top: 6px; overflow: hidden; background-color: #000; }
+/* Tracker page (0.10.51, redesigned 0.10.55, restyled 0.10.57 as a dark tracking workspace with its own --tr-* tokens; only
+   CSS proved in UXP: flex with margins (no gap), absolute position, transform, width media queries, SVG styled by CSS) */
+#paneTracker { margin: -10px -12px -12px -12px; padding: 8px 12px 16px 12px; min-height: calc(100% + 22px); box-sizing: border-box;
+  background-color: var(--tr-bg); color: var(--tr-text); }
+#paneTracker .spacer { flex: 1; }
+.tr-steps { margin: 0 0 8px 0; cursor: default; }
+.tr-step { flex: 1; min-width: 0; margin-right: 4px; }
+.tr-step:last-child { margin-right: 0; }
+.tr-step-bar { height: 2px; border-radius: 1px; background-color: var(--tr-line); }
+.tr-step-l { margin-top: 4px; font-size: 10px; line-height: 12px; color: var(--tr-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-step.done .tr-step-bar { background-color: var(--tr-accent-dim); }
+.tr-step.done .tr-step-l { color: var(--tr-text-2); }
+.tr-step.on .tr-step-bar { background-color: var(--tr-accent); }
+.tr-step.on .tr-step-l { color: var(--tr-text); font-weight: bold; }
+
+.tr-clipbar { margin-bottom: 8px; }
+.tr-cliptext { flex: 1; min-width: 0; margin-right: 8px; }
+.tr-clipname { font-size: 12px; font-weight: bold; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-clipmeta { font-size: 10px; line-height: 14px; color: var(--tr-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-clipact { flex: none; }
+
+/* cards */
+.tr-card { margin-top: 8px; padding: 8px; border-radius: 6px; background-color: var(--tr-panel); border: 1px solid var(--tr-line); }
+.tr-card.tr-work { margin-top: 0; padding: 0; overflow: hidden; }
+.tr-card.tr-off .tr-modes, .tr-card.tr-off .tr-opts, .tr-card.tr-off .tr-mode-d { opacity: 0.55; }
+.tr-card-h { margin-bottom: 8px; }
+.tr-card-t { flex: 1; font-size: 11px; font-weight: bold; color: var(--tr-text); }
+.tr-card-m { font-size: 10px; color: var(--tr-text-2); }
+.tr-hint { margin-top: 6px; font-size: 10px; line-height: 14px; color: var(--tr-text-2); }
+.tr-hint:empty, .tr-clipmeta:empty { display: none; }
+
+/* buttons on this page: quiet by default, the next step's one in the accent */
+#paneTracker .btn { font-size: 11px; line-height: 14px; padding: 5px 10px; font-weight: normal; border-radius: 5px;
+  background-color: var(--tr-raise); border-color: var(--tr-line-2); color: var(--tr-text); }
+#paneTracker .btn:hover { border-color: var(--tr-text-3); }
+#paneTracker .btn:active { background-color: var(--tr-press); }
+#paneTracker .btn[disabled] { opacity: 0.4; }
+#paneTracker .btn[disabled]:hover { border-color: var(--tr-line-2); }
+#paneTracker .btn.tr-hot { background-color: var(--tr-accent); border-color: var(--tr-accent); color: #ffffff; font-weight: bold; }
+#paneTracker .btn.tr-hot:hover { background-color: var(--tr-accent-hover); border-color: var(--tr-accent-hover); }
+#paneTracker .btn.tr-loading { border-color: var(--tr-accent); color: var(--tr-accent-text); cursor: progress; opacity: 1; }
+.tr-btns { flex-wrap: wrap; margin-bottom: -6px; }
+.tr-btns .btn { margin: 0 6px 6px 0; }
+
+/* the viewer: the picture centred on black, its overlay on top in the same pixels */
+.tr-stage { position: relative; justify-content: center; align-items: center; background-color: var(--tr-stage); }
+.tr-empty { padding: 36px 16px; text-align: center; }
+.tr-empty-t { font-size: 12px; font-weight: bold; color: var(--tr-text-2); }
+.tr-empty-d { margin-top: 4px; font-size: 10px; line-height: 14px; color: var(--tr-text-3); }
+.tr-view { position: relative; flex: none; overflow: hidden; cursor: crosshair; }
 .tr-img { position: absolute; left: 0; top: 0; }
 .tr-svg { position: absolute; left: 0; top: 0; }
-.tr-hud { position: absolute; left: 4px; top: 4px; padding: 2px 6px; font-size: 11px; color: #fff; background-color: rgba(0, 0, 0, 0.6); }
-.tr-opt { margin-right: 12px; margin-left: 4px; }
-.tr-transport { margin-top: 6px; }
-.tr-transport .btn.tr-icon { margin-right: 4px; margin-bottom: 0; min-width: 28px; padding-left: 6px; padding-right: 6px; }
-.tr-time { position: relative; height: 36px; margin-top: 6px; background-color: var(--surface); cursor: pointer; }
-.tr-seg { position: absolute; top: 0; height: 22px; opacity: 0.85; }
-.tr-curve { position: absolute; left: 0; top: 0; }
-.tr-tick { position: absolute; top: 23px; font-size: 9px; color: var(--text-2); border-left: 1px solid var(--line-strong); padding-left: 2px; height: 12px; }
-.tr-k0 { position: absolute; top: -3px; width: 8px; height: 8px; background-color: #ffffff; transform: rotate(45deg); }
-.tr-ph { position: absolute; top: -2px; width: 2px; height: 40px; background-color: #ffffff; }
-.tr-prog { height: 4px; margin-top: 6px; background-color: var(--surface); }
-.tr-bar { height: 4px; width: 0; background-color: var(--accent); }
-.tr-modes .btn.tr-mode { margin-right: 4px; }
-.tr-modes .btn.tr-mode.on { background-color: var(--accent); color: var(--on-accent); }
+.tr-chip { position: absolute; top: 6px; padding: 2px 6px; border-radius: 4px; font-size: 10px; line-height: 13px; color: #ffffff;
+  background-color: var(--tr-chip); white-space: nowrap; }
+.tr-hud { left: 6px; align-items: center; }
+.tr-frame { right: 6px; color: var(--tr-text-2); }
+.tr-dot { flex: none; width: 6px; height: 6px; border-radius: 3px; margin-right: 5px; }
+.tr-veil { position: absolute; left: 0; top: 0; right: 0; bottom: 0; padding-top: 45%; text-align: center; font-size: 11px;
+  color: var(--tr-text); background-color: var(--tr-veil); }
+.tr-sbar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background-color: var(--tr-chip); }
+.tr-sfill { height: 2px; width: 0; background-color: var(--tr-accent); }
+
+/* transport, timeline and the line under it */
+.tr-timearea { padding: 6px 8px 8px 8px; border-top: 1px solid var(--tr-line); }
+.tr-transport { margin-bottom: 6px; }
+#paneTracker .btn.tr-icon { width: 26px; height: 24px; padding: 4px 5px; margin: 0 2px 0 0; border-color: transparent; background-color: transparent; }
+#paneTracker .btn.tr-icon:hover { border-color: var(--tr-line-2); background-color: var(--tr-raise); }
+#paneTracker .btn.tr-icon.tr-play { margin: 0 6px 0 4px; border-color: var(--tr-line-2); background-color: var(--tr-raise); }
+#paneTracker .btn.tr-icon.tr-prob { margin: 0 0 0 2px; }
+svg.tr-ico path { fill: var(--tr-text-2); }
+.btn.tr-icon:hover svg.tr-ico path, .btn.tr-play svg.tr-ico path { fill: var(--tr-text); }
+.btn.tr-prob svg.tr-ico path { fill: var(--tr-text-3); }
+.btn.tr-prob:hover svg.tr-ico path { fill: var(--tr-unsure); }
+.tr-time { position: relative; height: 44px; cursor: ew-resize; }
+.tr-tl { position: absolute; left: 0; top: 0; }
+.tr-tick { position: absolute; top: 0; font-size: 9px; line-height: 10px; color: var(--tr-text-3); }
+.tr-foot { margin-top: 6px; flex-wrap: wrap; }
+.tr-tc { margin-right: 10px; font-size: 10px; color: var(--tr-text); }
+.tr-legend { margin-right: 8px; }
+.tr-leg { margin-right: 8px; align-items: center; font-size: 10px; color: var(--tr-text-2); }
+.tr-leg.none { opacity: 0.4; }
+.tr-sync { align-items: center; }
+.tr-sync label { font-size: 10px; color: var(--tr-text-2); }
+#paneTracker input[type="checkbox"] { margin: 0 5px 0 0; }
+
+/* Apply: a two-way switch, the options of the mode chosen */
+.tr-modes { margin-bottom: 2px; padding: 2px; border-radius: 6px; background-color: var(--tr-bg); border: 1px solid var(--tr-line); }
+#paneTracker .btn.tr-mode { flex: 1; margin: 0; padding: 4px 8px; border-color: transparent; background-color: transparent; color: var(--tr-text-2); }
+#paneTracker .btn.tr-mode:hover { color: var(--tr-text); border-color: transparent; }
+#paneTracker .btn.tr-mode.on { background-color: var(--tr-raise); border-color: var(--tr-line-2); color: var(--tr-text); font-weight: bold; }
+.tr-mode-d { margin: 6px 0 0 0; }
+.tr-opts { flex-wrap: wrap; margin: 8px 0 8px 0; }
+.tr-optw { align-items: center; margin: 0 12px 4px 0; }
+.tr-opt { font-size: 11px; color: var(--tr-text); }
+
+/* the answer of the last press */
+.tr-msg { margin-top: 8px; padding: 6px 8px; border-radius: 5px; font-size: 11px; line-height: 15px; color: var(--tr-text-2);
+  background-color: var(--tr-panel); border: 1px solid var(--tr-line); }
+.tr-msg-l.first { color: var(--tr-text); }
+.tr-msg.ok { border-color: var(--tr-ok-line); background-color: var(--tr-ok-bg); }
+.tr-msg.warn { border-color: var(--tr-warn-line); background-color: var(--tr-warn-bg); }
+.tr-msg.warn .tr-msg-l.first { color: var(--tr-unsure); }
+.tr-msg.err { border-color: var(--tr-err-line); background-color: var(--tr-err-bg); }
+.tr-msg.err .tr-msg-l.first { color: var(--tr-lost-text); }
+
+/* a wide panel: Track and Apply side by side */
+@media (min-width: 600px) {
+  .tr-cols { display: flex; flex-direction: row; align-items: flex-start; }
+  .tr-cols > .tr-card { flex: 1; min-width: 0; }
+  .tr-cols > .tr-card:first-child { margin-right: 8px; }
+}
 .kf-stash-row .btn.small { margin-right: 6px; }
 .kf-value { min-width: 34px; margin-right: 4px; text-align: center; }
 /* 0.10.45: a check line with a time is a link (the playhead goes there) */

@@ -31,6 +31,32 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.57 - Tracker page restyled as a dark tracking workspace (the user 2026-11-11: "a premium, professional tracking tool"; nothing in the tracking changed)
+- **Look**: the Tracker page has its own darker palette (`--tr-*` tokens in `style.css`: #141518 / #1c1d22, lines #303239, violet
+  accent #705cf6); no other page changed. One button in the accent at a time, the next step's (Load frame, Track, Track from
+  here when a fix box is drawn, Attach selected / Lock to it); the others are quiet. A running button gets an accent outline.
+- **Layout**: a 4-part step bar (Load, Box, Track, Apply); the clip line (name, time, track, speed, frame size) with Load frame;
+  one workspace card with the viewer, transport and timeline; then a Track card and an Apply card (Attach / Lock as a two-way
+  switch, the mode's options, the action and Detach). The cards sit side by side from 600 px. The long paragraphs became one
+  line each, the full text is in the tooltips.
+- **Viewer**: the picture centred on black at its own aspect, up to about half the panel's height; an empty state before a
+  frame is loaded and "Loading frame" while it loads; the box with a dark edge under it and corner handles; a crosshair with a
+  gap at the point; chips for the frame's state (sure / unsure with %, lost, fixed) and the frame number; while tracking, a
+  "Tracking n %" chip, the live frame and box, and a thin progress line. Redrawn when the panel is resized (window resize, or
+  when the mouse comes back to the page); the box and the picture share one pixel size, so the overlay stays on the object.
+- **Timeline**: a ruler with frame marks and seconds, each run in its state colour with the confidence as the colour's
+  height, the boxed frame as a violet mark, a playhead with a head; during the first track the part done so far and where
+  the tracker is; while a stretch is tracked again, that part highlighted. Under it: the frame's time, how many frames are
+  sure / unsure / lost, and "Sync Premiere" (the old "Move Premiere's playhead along", same checkbox).
+- SVG shapes take their colours from a `style` (UXP ignores the stroke attribute, CHANGELOG 0.9.71). No CSS beyond what
+  `css_probe` proved (no gap, grid or transitions). Labels, ids and bridge hooks unchanged; `info()` also reports the frame
+  chip and the viewer / timeline sizes. Browser preview: new states tracker-empty, tracker-box, tracker-busy.
+- Verified in Premiere 26.5.2 (NEW TEST, "Tracker test", through the bridge): Load frame (2160x3840 shown at 172x306 in a
+  691 px stage), box, Track (live chip 28 / 58 / 100 %, 180/180 sure, 180 thumbnails), goto 30 moved Premiere to 1.0015 s,
+  Track from here (30 frames) and back from here (41), Cancel mid-track (track kept), Attach with Scale + Rotation (180 keys
+  each, a second press replaces its own), Detach (540 keys), Lock with Smooth + Centre (180 keys), Detach (180). Not checked:
+  a real panel resize in Premiere and how it looks to the eye in UXP (the user's look).
+
 ## 0.10.55-0.10.56 - Tracker page redesigned (the user 2026-11-11: "a preview of what's being tracked, a better timeline that we can go through easily after the thing is tracked, a better UI overall")
 - **Live preview**: while tracking, the viewer shows the frame being tracked with the box moving on it, and a progress bar.
 - **Viewer**: the frame with the tracked box (grown and turned with the object), the whole path coloured by how sure each

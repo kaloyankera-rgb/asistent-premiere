@@ -29,7 +29,9 @@ like it's in After Effects". Panel page **Tracker**; engine `tracker.py`; maths 
 6. **The page (0.10.55)**: live preview while tracking; afterwards a viewer (box, path coloured by state, readout) and a
    timeline (scrub, states, confidence curve, seconds, boxed frame, playhead) with transport and problem jumps, Premiere's
    playhead following. A bad stretch: draw a new box on one of its frames, Track from here / back from here replaces only
-   that part (scale and angle continue from the nearest sure frame).
+   that part (scale and angle continue from the nearest sure frame). 0.10.57 restyled it as a dark workspace (own `--tr-*`
+   tokens, violet accent on the next step's button, Track and Apply cards, state chips on the viewer, a ruler and
+   confidence-height runs on the timeline); behaviour unchanged.
 
 ## Accuracy (scripts/bench_tracker.py, synthetic, error against the known path)
 | Scene | Median | Max | Notes |
