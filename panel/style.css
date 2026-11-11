@@ -1,59 +1,49 @@
-/* Design tokens (2026-11-03, redesign step 1): every colour the panel uses, by role. The values are the colours the
-   panel always had; Premiere's own theme variables win where the panel already used them. */
+/* Design tokens: every colour the panel uses, by role. 0.10.58 (the user 2026-11-11: "put the same UI on the overall tool"):
+   the dark workspace made for the Tracker page (0.10.57) is the whole panel's look now: charcoal grounds, quiet lines, one
+   violet accent. Plain values: Premiere's --uxp-host-* variables are not defined in this UXP (css_probe 0.9.71), so the panel
+   always ran on its own colours anyway. */
 :root {
-  --text: var(--uxp-host-text-color, #ddd);
-  --text-2: var(--uxp-host-text-color-secondary, #999);
-  --text-2-soft: var(--uxp-host-text-color-secondary, #aaa);
-  --bg: var(--uxp-host-background-color, #232323);
-  --line: var(--uxp-host-border-color, #3a3a3a);
-  --line-strong: var(--uxp-host-border-color, #4a4a4a);
-  --line-faint: var(--uxp-host-border-color, #333);
-  --surface: #2a2a2a;
-  --control: #3a3a3a;
-  --accent: #2d5fa8;
-  --on-accent: #fff;
-  --link: #7aa7e6;
+  --text: #e7e8ec;
+  --text-2: #9a9ca6;
+  --text-2-soft: #b0b2bb;
+  --text-3: #686b75;
+  --bg: #141518;
+  --surface: #1c1d22;
+  --control: #26282f;
+  --control-press: #2e3038;
+  --stage: #0b0c0e;
+  --line: #303239;
+  --line-strong: #3a3d45;
+  --line-faint: #24262c;
+  --accent: #705cf6;
+  --accent-hover: #8270f8;
+  --accent-dim: #4a3f9e;
+  --accent-text: #b4a9ff;
+  --on-accent: #ffffff;
+  --link: #a99dff;
   --ok-dot: #3fb950;
-  --err-dot: #d9534f;
+  --err-dot: #e5534b;
   --warn: #e3b341;
   --flag: #b08800;
-  --ok: #9be9a8;
-  --ok-bg: #23502f;
+  --ok: #8ddb9a;
+  --ok-bg: #1b3323;
   --mid: #f2cc60;
-  --mid-bg: #574a1a;
-  --err: #ffaba8;
-  --err-bg: #5a2323;
-  --ref: #a5c8ff;
-  --ref-bg: #2b3a52;
-  --tip-bg: #111;
-  --tip-text: #eee;
-  --tip-line: #444;
-  /* the Tracker page (0.10.57): a darker workspace with a violet accent, its own set so no other page changes */
-  --tr-bg: #141518;
-  --tr-panel: #1c1d22;
-  --tr-raise: #26282f;
-  --tr-press: #2e3038;
-  --tr-stage: #0b0c0e;
-  --tr-line: #303239;
-  --tr-line-2: #3a3d45;
-  --tr-text: #e7e8ec;
-  --tr-text-2: #9a9ca6;
-  --tr-text-3: #686b75;
-  --tr-accent: #705cf6;
-  --tr-accent-hover: #8270f8;
-  --tr-accent-dim: #4a3f9e;
-  --tr-accent-text: #b4a9ff;
-  --tr-sure: #3fb950;
-  --tr-unsure: #e3b341;
-  --tr-lost-text: #ff9a94;
-  --tr-chip: rgba(11, 12, 14, 0.72);
-  --tr-veil: rgba(11, 12, 14, 0.6);
-  --tr-ok-line: rgba(63, 185, 80, 0.4);
-  --tr-ok-bg: rgba(63, 185, 80, 0.07);
-  --tr-warn-line: rgba(227, 179, 65, 0.4);
-  --tr-warn-bg: rgba(227, 179, 65, 0.07);
-  --tr-err-line: rgba(229, 83, 75, 0.45);
-  --tr-err-bg: rgba(229, 83, 75, 0.08);
+  --mid-bg: #3d3418;
+  --err: #ff9a94;
+  --err-bg: #44201f;
+  --ref: #b4a9ff;
+  --ref-bg: #2a2547;
+  --tip-bg: #0b0c0e;
+  --tip-text: #e7e8ec;
+  --tip-line: #3a3d45;
+  --chip: rgba(11, 12, 14, 0.72);
+  --veil: rgba(11, 12, 14, 0.6);
+  --ok-line: rgba(63, 185, 80, 0.4);
+  --ok-tint: rgba(63, 185, 80, 0.07);
+  --warn-line: rgba(227, 179, 65, 0.4);
+  --warn-tint: rgba(227, 179, 65, 0.07);
+  --err-line: rgba(229, 83, 75, 0.45);
+  --err-tint: rgba(229, 83, 75, 0.08);
 }
 
 /* Only CSS the panel already proved in Premiere's UXP is used here: flexbox, margins and padding (no `gap`), borders,
@@ -125,20 +115,21 @@ body {
   font-size: 12px;
   line-height: 16px;
   padding: 4px 10px;
-  border-radius: 4px;
+  border-radius: 5px;
   border: 1px solid var(--line-strong);
   color: var(--text);
   background-color: var(--control);
   text-align: center;
   cursor: pointer;
 }
-.btn:hover { border-color: var(--text-2); }
-.btn:active { opacity: 0.8; }
-.btn[disabled] { opacity: 0.5; cursor: default; }
+.btn:hover { border-color: var(--text-3); }
+.btn:active { background-color: var(--control-press); }
+.btn[disabled] { opacity: 0.4; cursor: default; }
 .btn[disabled]:hover { border-color: var(--line-strong); }
 .btn.action { padding: 7px 10px; font-weight: bold; background-color: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.btn.action:hover { border-color: var(--accent); opacity: 0.9; }
-.btn.action[disabled]:hover { border-color: var(--accent); opacity: 0.5; }
+.btn.action:hover { background-color: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.action:active { background-color: var(--accent); }
+.btn.action[disabled]:hover { background-color: var(--accent); border-color: var(--accent); }
 .btn.small { font-size: 11px; line-height: 14px; padding: 4px 8px; margin: 0 4px 4px 0; }
 .btn.link { background-color: transparent; border-color: transparent; padding: 2px 0; margin-right: 12px; font-size: 11px;
   text-align: left; color: var(--link); }
@@ -164,6 +155,8 @@ svg.i path, svg.i circle, svg.i rect { fill: none; stroke: var(--text-2); stroke
 .btn.more:hover { border-color: var(--line-strong); }
 .btn.more.open { border-color: var(--line-strong); background-color: var(--control); }
 .desc { margin: 0 0 8px 0; font-size: 11px; line-height: 15px; color: var(--text-2-soft); }
+/* one line; the whole explanation is its tooltip (the help cursor says there is more) */
+.desc.brief { color: var(--text-2); cursor: help; }
 .options { margin-top: 6px; }
 .options label { margin-top: 0; margin-right: 6px; }
 .options > label:first-child { width: 48px; }
@@ -233,10 +226,10 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
    coloured edge says done or failed. Click hides it. Positioned like .tip (absolute, top set by main.js). */
 /* 0.9.92: a coloured face, so it reads as a message and not as part of the panel (in Premiere 26.0.2 the one-sided coloured
    border of 0.9.90 did not show: a plain black bar, the user did not see it). */
-.toast { position: absolute; left: 8px; right: 8px; padding: 6px 10px; border-radius: 4px; font-size: 12px; font-weight: bold;
+.toast { position: absolute; left: 8px; right: 8px; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: bold;
   line-height: 16px; max-height: 34px; overflow: hidden; background-color: var(--ok-bg); color: var(--ok);
-  border: 1px solid var(--ok); }
-.toast.err { background-color: var(--err-bg); color: var(--err); border-color: var(--err); }
+  border: 1px solid var(--ok-line); }
+.toast.err { background-color: var(--err-bg); color: var(--err); border-color: var(--err-line); }
 .tip { position: absolute; max-width: 240px; padding: 5px 7px; border-radius: 4px; font-size: 11px; line-height: 15px;
   background-color: var(--tip-bg); color: var(--tip-text); border: 1px solid var(--tip-line); }
 
@@ -245,6 +238,12 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .btn.small.on { border-color: var(--accent); color: var(--text); background-color: var(--ref-bg); }
 .kf-props { margin-top: 6px; }
 .kf-editor { margin-top: 6px; }
+/* the curve graph (0.10.58): colours from CSS, as UXP ignores SVG stroke / fill attributes (css_probe 0.9.71) */
+svg .kf-frame { fill: var(--stage); stroke: var(--line-strong); stroke-width: 1px; }
+svg .kf-arm { stroke: var(--accent-text); stroke-width: 1px; }
+svg .kf-arm.off { stroke-width: 0; }
+svg .kf-curve { fill: none; stroke: var(--text); stroke-width: 2px; }
+svg .kf-handle { fill: var(--accent); stroke: var(--on-accent); stroke-width: 1px; }
 .kf-presets { margin-top: 4px; }
 .buttons.spaced { margin-top: 12px; }
 .kf-status { margin-top: 6px; }
@@ -254,110 +253,105 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .kf-label { width: 72px; color: var(--text-2); }
 .options > label.kf-wide { width: 84px; }
 .kf-stash { margin-top: 4px; }
-/* Tracker page (0.10.51, redesigned 0.10.55, restyled 0.10.57 as a dark tracking workspace with its own --tr-* tokens; only
+/* Tracker page (0.10.51, redesigned 0.10.55, restyled 0.10.57 as a dark tracking workspace, the look of the whole panel since 0.10.58; only
    CSS proved in UXP: flex with margins (no gap), absolute position, transform, width media queries, SVG styled by CSS) */
-#paneTracker { margin: -10px -12px -12px -12px; padding: 8px 12px 16px 12px; min-height: calc(100% + 22px); box-sizing: border-box;
-  background-color: var(--tr-bg); color: var(--tr-text); }
+#paneTracker { padding-bottom: 4px; }
 #paneTracker .spacer { flex: 1; }
 .tr-steps { margin: 0 0 8px 0; cursor: default; }
 .tr-step { flex: 1; min-width: 0; margin-right: 4px; }
 .tr-step:last-child { margin-right: 0; }
-.tr-step-bar { height: 2px; border-radius: 1px; background-color: var(--tr-line); }
-.tr-step-l { margin-top: 4px; font-size: 10px; line-height: 12px; color: var(--tr-text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tr-step.done .tr-step-bar { background-color: var(--tr-accent-dim); }
-.tr-step.done .tr-step-l { color: var(--tr-text-2); }
-.tr-step.on .tr-step-bar { background-color: var(--tr-accent); }
-.tr-step.on .tr-step-l { color: var(--tr-text); font-weight: bold; }
+.tr-step-bar { height: 2px; border-radius: 1px; background-color: var(--line); }
+.tr-step-l { margin-top: 4px; font-size: 10px; line-height: 12px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-step.done .tr-step-bar { background-color: var(--accent-dim); }
+.tr-step.done .tr-step-l { color: var(--text-2); }
+.tr-step.on .tr-step-bar { background-color: var(--accent); }
+.tr-step.on .tr-step-l { color: var(--text); font-weight: bold; }
 
 .tr-clipbar { margin-bottom: 8px; }
 .tr-cliptext { flex: 1; min-width: 0; margin-right: 8px; }
 .tr-clipname { font-size: 12px; font-weight: bold; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tr-clipmeta { font-size: 10px; line-height: 14px; color: var(--tr-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-clipmeta { font-size: 10px; line-height: 14px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tr-clipact { flex: none; }
 
 /* cards */
-.tr-card { margin-top: 8px; padding: 8px; border-radius: 6px; background-color: var(--tr-panel); border: 1px solid var(--tr-line); }
+.tr-card { margin-top: 8px; padding: 8px; border-radius: 6px; background-color: var(--surface); border: 1px solid var(--line); }
 .tr-card.tr-work { margin-top: 0; padding: 0; overflow: hidden; }
 .tr-card.tr-off .tr-modes, .tr-card.tr-off .tr-opts, .tr-card.tr-off .tr-mode-d { opacity: 0.55; }
 .tr-card-h { margin-bottom: 8px; }
-.tr-card-t { flex: 1; font-size: 11px; font-weight: bold; color: var(--tr-text); }
-.tr-card-m { font-size: 10px; color: var(--tr-text-2); }
-.tr-hint { margin-top: 6px; font-size: 10px; line-height: 14px; color: var(--tr-text-2); }
+.tr-card-t { flex: 1; font-size: 11px; font-weight: bold; color: var(--text); }
+.tr-card-m { font-size: 10px; color: var(--text-2); }
+.tr-hint { margin-top: 6px; font-size: 10px; line-height: 14px; color: var(--text-2); }
 .tr-hint:empty, .tr-clipmeta:empty { display: none; }
 
 /* buttons on this page: quiet by default, the next step's one in the accent */
-#paneTracker .btn { font-size: 11px; line-height: 14px; padding: 5px 10px; font-weight: normal; border-radius: 5px;
-  background-color: var(--tr-raise); border-color: var(--tr-line-2); color: var(--tr-text); }
-#paneTracker .btn:hover { border-color: var(--tr-text-3); }
-#paneTracker .btn:active { background-color: var(--tr-press); }
-#paneTracker .btn[disabled] { opacity: 0.4; }
-#paneTracker .btn[disabled]:hover { border-color: var(--tr-line-2); }
-#paneTracker .btn.tr-hot { background-color: var(--tr-accent); border-color: var(--tr-accent); color: #ffffff; font-weight: bold; }
-#paneTracker .btn.tr-hot:hover { background-color: var(--tr-accent-hover); border-color: var(--tr-accent-hover); }
-#paneTracker .btn.tr-loading { border-color: var(--tr-accent); color: var(--tr-accent-text); cursor: progress; opacity: 1; }
+#paneTracker .btn { font-size: 11px; line-height: 14px; padding: 5px 10px; font-weight: normal;
+  background-color: var(--control); border-color: var(--line-strong); color: var(--text); }
+#paneTracker .btn.tr-hot { background-color: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: bold; }
+#paneTracker .btn.tr-hot:hover { background-color: var(--accent-hover); border-color: var(--accent-hover); }
+#paneTracker .btn.tr-loading { border-color: var(--accent); color: var(--accent-text); cursor: progress; opacity: 1; }
 .tr-btns { flex-wrap: wrap; margin-bottom: -6px; }
 .tr-btns .btn { margin: 0 6px 6px 0; }
 
 /* the viewer: the picture centred on black, its overlay on top in the same pixels */
-.tr-stage { position: relative; justify-content: center; align-items: center; background-color: var(--tr-stage); }
+.tr-stage { position: relative; justify-content: center; align-items: center; background-color: var(--stage); }
 .tr-empty { padding: 36px 16px; text-align: center; }
-.tr-empty-t { font-size: 12px; font-weight: bold; color: var(--tr-text-2); }
-.tr-empty-d { margin-top: 4px; font-size: 10px; line-height: 14px; color: var(--tr-text-3); }
+.tr-empty-t { font-size: 12px; font-weight: bold; color: var(--text-2); }
+.tr-empty-d { margin-top: 4px; font-size: 10px; line-height: 14px; color: var(--text-3); }
 .tr-view { position: relative; flex: none; overflow: hidden; cursor: crosshair; }
 .tr-img { position: absolute; left: 0; top: 0; }
 .tr-svg { position: absolute; left: 0; top: 0; }
-.tr-chip { position: absolute; top: 6px; padding: 2px 6px; border-radius: 4px; font-size: 10px; line-height: 13px; color: #ffffff;
-  background-color: var(--tr-chip); white-space: nowrap; }
+.tr-chip { position: absolute; top: 6px; padding: 2px 6px; border-radius: 4px; font-size: 10px; line-height: 13px; color: var(--text);
+  background-color: var(--chip); white-space: nowrap; }
 .tr-hud { left: 6px; align-items: center; }
-.tr-frame { right: 6px; color: var(--tr-text-2); }
+.tr-frame { right: 6px; color: var(--text-2); }
 .tr-dot { flex: none; width: 6px; height: 6px; border-radius: 3px; margin-right: 5px; }
 .tr-veil { position: absolute; left: 0; top: 0; right: 0; bottom: 0; padding-top: 45%; text-align: center; font-size: 11px;
-  color: var(--tr-text); background-color: var(--tr-veil); }
-.tr-sbar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background-color: var(--tr-chip); }
-.tr-sfill { height: 2px; width: 0; background-color: var(--tr-accent); }
+  color: var(--text); background-color: var(--veil); }
+.tr-sbar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background-color: var(--chip); }
+.tr-sfill { height: 2px; width: 0; background-color: var(--accent); }
 
 /* transport, timeline and the line under it */
-.tr-timearea { padding: 6px 8px 8px 8px; border-top: 1px solid var(--tr-line); }
+.tr-timearea { padding: 6px 8px 8px 8px; border-top: 1px solid var(--line); }
 .tr-transport { margin-bottom: 6px; }
 #paneTracker .btn.tr-icon { width: 26px; height: 24px; padding: 4px 5px; margin: 0 2px 0 0; border-color: transparent; background-color: transparent; }
-#paneTracker .btn.tr-icon:hover { border-color: var(--tr-line-2); background-color: var(--tr-raise); }
-#paneTracker .btn.tr-icon.tr-play { margin: 0 6px 0 4px; border-color: var(--tr-line-2); background-color: var(--tr-raise); }
+#paneTracker .btn.tr-icon:hover { border-color: var(--line-strong); background-color: var(--control); }
+#paneTracker .btn.tr-icon.tr-play { margin: 0 6px 0 4px; border-color: var(--line-strong); background-color: var(--control); }
 #paneTracker .btn.tr-icon.tr-prob { margin: 0 0 0 2px; }
-svg.tr-ico path { fill: var(--tr-text-2); }
-.btn.tr-icon:hover svg.tr-ico path, .btn.tr-play svg.tr-ico path { fill: var(--tr-text); }
-.btn.tr-prob svg.tr-ico path { fill: var(--tr-text-3); }
-.btn.tr-prob:hover svg.tr-ico path { fill: var(--tr-unsure); }
+svg.tr-ico path { fill: var(--text-2); }
+.btn.tr-icon:hover svg.tr-ico path, .btn.tr-play svg.tr-ico path { fill: var(--text); }
+.btn.tr-prob svg.tr-ico path { fill: var(--text-3); }
+.btn.tr-prob:hover svg.tr-ico path { fill: var(--warn); }
 .tr-time { position: relative; height: 44px; cursor: ew-resize; }
 .tr-tl { position: absolute; left: 0; top: 0; }
-.tr-tick { position: absolute; top: 0; font-size: 9px; line-height: 10px; color: var(--tr-text-3); }
+.tr-tick { position: absolute; top: 0; font-size: 9px; line-height: 10px; color: var(--text-3); }
 .tr-foot { margin-top: 6px; flex-wrap: wrap; }
-.tr-tc { margin-right: 10px; font-size: 10px; color: var(--tr-text); }
+.tr-tc { margin-right: 10px; font-size: 10px; color: var(--text); }
 .tr-legend { margin-right: 8px; }
-.tr-leg { margin-right: 8px; align-items: center; font-size: 10px; color: var(--tr-text-2); }
+.tr-leg { margin-right: 8px; align-items: center; font-size: 10px; color: var(--text-2); }
 .tr-leg.none { opacity: 0.4; }
 .tr-sync { align-items: center; }
-.tr-sync label { font-size: 10px; color: var(--tr-text-2); }
+.tr-sync label { font-size: 10px; color: var(--text-2); }
 #paneTracker input[type="checkbox"] { margin: 0 5px 0 0; }
 
 /* Apply: a two-way switch, the options of the mode chosen */
-.tr-modes { margin-bottom: 2px; padding: 2px; border-radius: 6px; background-color: var(--tr-bg); border: 1px solid var(--tr-line); }
-#paneTracker .btn.tr-mode { flex: 1; margin: 0; padding: 4px 8px; border-color: transparent; background-color: transparent; color: var(--tr-text-2); }
-#paneTracker .btn.tr-mode:hover { color: var(--tr-text); border-color: transparent; }
-#paneTracker .btn.tr-mode.on { background-color: var(--tr-raise); border-color: var(--tr-line-2); color: var(--tr-text); font-weight: bold; }
+.tr-modes { margin-bottom: 2px; padding: 2px; border-radius: 6px; background-color: var(--bg); border: 1px solid var(--line); }
+#paneTracker .btn.tr-mode { flex: 1; margin: 0; padding: 4px 8px; border-color: transparent; background-color: transparent; color: var(--text-2); }
+#paneTracker .btn.tr-mode:hover { color: var(--text); border-color: transparent; }
+#paneTracker .btn.tr-mode.on { background-color: var(--control); border-color: var(--line-strong); color: var(--text); font-weight: bold; }
 .tr-mode-d { margin: 6px 0 0 0; }
 .tr-opts { flex-wrap: wrap; margin: 8px 0 8px 0; }
 .tr-optw { align-items: center; margin: 0 12px 4px 0; }
-.tr-opt { font-size: 11px; color: var(--tr-text); }
+.tr-opt { font-size: 11px; color: var(--text); }
 
 /* the answer of the last press */
-.tr-msg { margin-top: 8px; padding: 6px 8px; border-radius: 5px; font-size: 11px; line-height: 15px; color: var(--tr-text-2);
-  background-color: var(--tr-panel); border: 1px solid var(--tr-line); }
-.tr-msg-l.first { color: var(--tr-text); }
-.tr-msg.ok { border-color: var(--tr-ok-line); background-color: var(--tr-ok-bg); }
-.tr-msg.warn { border-color: var(--tr-warn-line); background-color: var(--tr-warn-bg); }
-.tr-msg.warn .tr-msg-l.first { color: var(--tr-unsure); }
-.tr-msg.err { border-color: var(--tr-err-line); background-color: var(--tr-err-bg); }
-.tr-msg.err .tr-msg-l.first { color: var(--tr-lost-text); }
+.tr-msg { margin-top: 8px; padding: 6px 8px; border-radius: 5px; font-size: 11px; line-height: 15px; color: var(--text-2);
+  background-color: var(--surface); border: 1px solid var(--line); }
+.tr-msg-l.first { color: var(--text); }
+.tr-msg.ok { border-color: var(--ok-line); background-color: var(--ok-tint); }
+.tr-msg.warn { border-color: var(--warn-line); background-color: var(--warn-tint); }
+.tr-msg.warn .tr-msg-l.first { color: var(--warn); }
+.tr-msg.err { border-color: var(--err-line); background-color: var(--err-tint); }
+.tr-msg.err .tr-msg-l.first { color: var(--err); }
 
 /* a wide panel: Track and Apply side by side */
 @media (min-width: 600px) {

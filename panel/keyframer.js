@@ -15,6 +15,12 @@ const MINE = "asistent.keyframer.curves";
 
 function mount({ $, el, button, enable, bindTips, premiere }) {
   const root = $("paneKeyframer");
+  // a page's explanation: one short line, the whole text in its tooltip (0.10.58, the Tracker page's rule for every page)
+  const brief = (line, full) => {
+    const p = el("p", "desc brief", line);
+    p.setAttribute("data-tip", full);
+    return p;
+  };
   const state = {
     curve: { id: "easeInOut", p: K.PRESETS[0].p.slice() }, sel: null, ticked: new Set(), busy: false,
     kind: "curve",                                            // curve | elastic | bounce | overshoot | bounceBack
@@ -25,7 +31,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   };
 
   root.innerHTML = "";
-  root.appendChild(el("p", "desc", "Shapes the motion between two keyframes. Select one clip with keyframes, press Read, tick the " +
+  root.appendChild(brief("Shapes the motion between two keyframes.", "Shapes the motion between two keyframes. Select one clip with keyframes, press Read, tick the " +
     "properties, choose a curve and press Apply. Custom curves are written as one keyframe per frame between your keyframes " +
     "(yours stay as they are); Premiere's own curves only change how your keyframes move. One Cmd/Ctrl+Z takes a press back."));
   const top = el("div", "row buttons");
@@ -40,10 +46,10 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   root.appendChild(kinds);
   const box = el("div", "kf-editor");
   box.innerHTML = `<svg id="kfSvg" width="${SIZE}" height="${SIZE}">` +
-    `<rect x="${PAD}" y="${PAD}" width="${SIZE - 2 * PAD}" height="${SIZE - 2 * PAD}" fill="none" stroke="#4a4a4a" stroke-width="1"/>` +
-    `<line id="kfL1" stroke="#7aa7e6" stroke-width="1"/><line id="kfL2" stroke="#7aa7e6" stroke-width="1"/>` +
-    `<path id="kfPath" fill="none" stroke="#dddddd" stroke-width="2"/>` +
-    `<circle id="kfH1" r="7" fill="#2d5fa8" stroke="#ffffff" stroke-width="1"/><circle id="kfH2" r="7" fill="#2d5fa8" stroke="#ffffff" stroke-width="1"/>` +
+    `<rect class="kf-frame" x="${PAD}" y="${PAD}" width="${SIZE - 2 * PAD}" height="${SIZE - 2 * PAD}"/>` +
+    `<line id="kfL1" class="kf-arm"/><line id="kfL2" class="kf-arm"/>` +
+    `<path id="kfPath" class="kf-curve"/>` +
+    `<circle id="kfH1" class="kf-handle" r="7"/><circle id="kfH2" class="kf-handle" r="7"/>` +
     "</svg>";
   root.appendChild(box);
   const curveName = el("div", "muted");
@@ -87,7 +93,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
 
   // Stash v1 (0.10.37): the ticked properties' animation saved as data, applied to any clip at the playhead
   root.appendChild(el("div", "title spaced", "Stash"));
-  root.appendChild(el("p", "desc", "Save the ticked properties' animation, then put it on any clip: select the clip, park the " +
+  root.appendChild(brief("Save an animation or whole clips, then put them on any clip.", "Save the ticked properties' animation, then put it on any clip: select the clip, park the " +
     "playhead where it should start, press the stash. Same timing and easing; kept on this computer for every project. " +
     "Save selected clips keeps whole clips instead (a logo over its background, a title with its sound, every effect and " +
     "keyframe): park the playhead and press it to put them in, on free tracks, in any project."));
@@ -207,7 +213,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     for (const r of [countRow, strengthRow, timesRow]) if (r.refresh) r.refresh();
     const handles = state.kind === "curve";
     for (const id of ["#kfH1", "#kfH2"]) box.querySelector(id).setAttribute("r", handles ? "7" : "0");
-    for (const id of ["#kfL1", "#kfL2"]) box.querySelector(id).setAttribute("stroke-width", handles ? "1" : "0");
+    for (const id of ["#kfL1", "#kfL2"]) box.querySelector(id).setAttribute("class", handles ? "kf-arm" : "kf-arm off");   // colours in style.css
     if (!handles) {
       svg.style.opacity = "1";
       const c = chosen();

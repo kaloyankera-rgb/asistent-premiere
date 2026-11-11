@@ -1,5 +1,8 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.58 (2026-11-11, installed, checked through the bridge): the whole panel has the Tracker's dark look (tokens, one button
+system, one-line explanations with tooltips, the Keyframer graph coloured from CSS). NOT looked at by the user in Premiere.
+
 0.10.57 (2026-11-11, installed, verified through the bridge): Tracker page restyled as a dark tracking workspace (violet accent
 on the next step, workspace card with viewer / transport / ruler timeline, Track and Apply cards, state chips); behaviour unchanged.
 NOT looked at by the user in Premiere.

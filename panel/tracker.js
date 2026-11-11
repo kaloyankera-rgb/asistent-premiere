@@ -11,8 +11,8 @@ const TP = require("./trackplan.js");
 const TR = require("./premiere-tracker.js");
 const engine = require("./engine.js");
 
-const COLORS = { sure: "#3fb950", unsure: "#e3b341", lost: "#e5534b" };   // the --tr-sure / --tr-unsure / --tr-lost tokens
-const ACCENT = "#705cf6";                                                  // --tr-accent
+const COLORS = { sure: "#3fb950", unsure: "#e3b341", lost: "#e5534b" };   // the --ok-dot / --warn / --err-dot tokens
+const ACCENT = "#705cf6";                                                  // --accent
 const NS = "http://www.w3.org/2000/svg";
 const TL_H = 44;                                     // timeline: ruler 0-14, lane 17-41
 const LANE = [17, 41];
