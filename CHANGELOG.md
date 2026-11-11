@@ -31,6 +31,26 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.58 - The whole panel takes the Tracker's look (the user 2026-11-11: "put the same UI on the overall tool while following the rules for UI design we have")
+- **Palette**: the `:root` tokens are the Tracker's: grounds #141518 / #1c1d22, controls #26282f, lines #303239 / #3a3d45,
+  text #e7e8ec / #9a9ca6 / #686b75, violet accent #705cf6 (hover #8270f8), links #a99dff; status colours re-tinted for the
+  dark ground. Plain values: Premiere's `--uxp-host-*` variables are not defined in this UXP (css_probe), so nothing followed
+  Premiere's theme before either. The Tracker's own `--tr-*` set is gone: it uses the shared tokens.
+- **Buttons**: one system for every page: quiet controls (hover lightens the edge, press darkens), the main button of each
+  card or page in solid violet (hover lighter), disabled at 40 %. Radius 5 px. On the Tracker page only the next step's
+  button is violet, as before.
+- **Long explanations**: the Keyframer's two paragraphs and the Captions page's became one line each with the whole text in
+  the tooltip (`.desc.brief`, help cursor), as on the Tracker page. The Tools cards keep theirs behind the ⓘ.
+- **Keyframer graph**: its frame, curve, arms and handles take their colours from CSS classes (`kf-frame`, `kf-curve`,
+  `kf-arm`, `kf-handle`); they were SVG attributes, which UXP ignores (CHANGELOG 0.9.71), so in Premiere the outlines may
+  not have shown. The springs' hidden arms use `kf-arm off`.
+- **Toast**: a softer edge (the status colour at 40 %) on the same solid face.
+- Nothing else changed: labels, ids, layout, every handler. Browser preview: all 78 states at 240 / 300 / 420 px looked at.
+  Premiere 26.5.2 (NEW TEST, bridge): the panel loads as 0.10.58, Tools / Log / Keyframer / Tracker open, Keyframer read the
+  test clip (every preset live), Tracker loaded its frame (2160x3840 at 172x306); no panel errors. Not checked: how it looks
+  to the eye in UXP (the user's look). Known and older: with five tabs (Captions or Before / after) the tab row runs out of
+  room at 300 px.
+
 ## 0.10.57 - Tracker page restyled as a dark tracking workspace (the user 2026-11-11: "a premium, professional tracking tool"; nothing in the tracking changed)
 - **Look**: the Tracker page has its own darker palette (`--tr-*` tokens in `style.css`: #141518 / #1c1d22, lines #303239, violet
   accent #705cf6); no other page changed. One button in the accent at a time, the next step's (Load frame, Track, Track from

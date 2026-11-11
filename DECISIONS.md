@@ -274,6 +274,15 @@ The user pressed Внимателно on three takes of one line and expected tw
 ## 2026-11-03: the tool is in English
 The user asked for the whole tool in English, replacing Bulgarian (no language switch), with English names for what Asistent creates in Premiere. The rule "panel texts in Bulgarian" in CLAUDE.md is replaced. Bulgarian stays only where it is data about Bulgarian speech or folder names, not text for the user to read.
 
+## 2026-11-11: the whole panel takes the Tracker page's dark look (0.10.58)
+The user asked for the Tracker's look (0.10.57: charcoal grounds, quiet lines, a violet accent, short explanations with the
+rest in tooltips) on the whole tool, within the existing UI rules. Done by changing the `:root` tokens only, so every page
+follows, plus one shared button system. Two choices: each Tools card keeps its main button in solid violet (each card is
+its own task, so one accent per card; the Tracker keeps one accent for the whole page because its steps are one workflow);
+the Tools cards keep their ⓘ for the explanation, the other pages get a one-line `.desc.brief` with the full text as its
+tooltip. The rules stay: colours only through the tokens, only CSS `css_probe` proved (no gap, grid, transitions),
+`div.btn` through `button()` / `enable()`, SVG colours from CSS.
+
 ## 2026-11-03: the panel's new look stays plain HTML/CSS/JS, no UI library
 The user asked for a premium, compact look and named shadcn/ui, Spectrum Web Components, Magic UI, React Bits, Adobe's Premiere samples and Playwright. Checked: shadcn, Magic UI and React Bits need React, Tailwind, Radix or framer-motion/WebGL, none of which runs in UXP; they are design references only. Spectrum Web Components run in UXP only with `enableSWCSupport`, the `@swc-uxp-wrappers` packages and a bundler, a developer reported them not rendering in Premiere 25.6.4, and swapping `<button>` for `<sp-button>` would change what `onTap`, `setBusy`, the test bridge and the wiring tests depend on. So the look is made with design tokens over the existing native elements, Spectrum's sizes as the reference, and Playwright only as a development tool for screenshots of a browser preview (Chrome is not UXP: Premiere stays the final check). CSS is limited to what the panel already proved in Premiere until `css_probe` measures more.
 
