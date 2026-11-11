@@ -1701,6 +1701,14 @@ function renderExports(st) {
   if (treeText && (where || extra)) $("exportsStatus").textContent += treeText;
 }
 
+// the after-export check's state in a few words (0.10.39)
+function checkWords(c) {
+  if (!c) return "";
+  if (c.status === "waiting") return "check waiting";
+  if (c.status === "running") return "being checked…";
+  return c.summary || "";
+}
+
 function renderExportList(items) {
   if (!items.length) {
     $("exportsList").textContent = "None yet.";
@@ -1708,11 +1716,44 @@ function renderExportList(items) {
   }
   fillWith("exportsList", items.slice(0, 10).map((it) => {
     const t = new Date(it.at * 1000);
+    const words = [it.note, checkWords(it.check)].filter(Boolean).join(", ");
     const row = el("div", "history-item", `${t.getHours()}:${String(t.getMinutes()).padStart(2, "0")}  Exported ${it.name}` +
-      (it.note ? `, ${it.note}` : ""));
+      (words ? `, ${words}` : ""));
     row.appendChild(button("link", "Show again", `Shows ${it.name} in ${exp.app} again.`, () => exportShowAgain(it.id)));
+    if (it.check && it.check.lines) {
+      row.appendChild(button("link", "Report", `The after-export check of ${it.name}.`, () => showAfterReport(it, true)));
+    }
     return row;
   }));
+}
+
+// After export card: the newest export's check, line by line (✓ measured fine, ! to look at, plain: a number to know)
+function afterBlocks(it) {
+  const box = el("div", "group");
+  box.appendChild(el("div", "name", `${it.name}: ${checkWords(it.check)}`));
+  for (const l of (it.check && it.check.lines) || []) {
+    box.appendChild(el("div", l.level === "check" ? "warn" : l.level === "ok" ? "line" : "muted",
+      `${l.level === "check" ? "! " : l.level === "ok" ? "✓ " : ""}${l.text}`));
+  }
+  return box;
+}
+
+function showAfterReport(it, toLog) {
+  if (toLog) {
+    finish(`After-export check: ${it.name}, ${checkWords(it.check)}`, it.check.status !== "look", [afterBlocks(it)]);
+    return;
+  }
+  fillWith("afterReport", [afterBlocks(it)]);
+}
+
+function renderAfter(items, st) {
+  $("afterCheck").checked = st.check !== false;
+  const it = items.find((x) => x.check);
+  if (!it) {
+    $("afterReport").textContent = st.check === false ? "Off: exported files are not checked." : "No export checked yet.";
+    return;
+  }
+  showAfterReport(it, false);
 }
 
 async function exportShowAgain(id) {
@@ -1735,10 +1776,12 @@ async function exportsLoop() {
         exp.project = project.path;
         renderExports(st);
         const { items } = await engine.exportsRecent();
-        const newest = items.length ? items[0].id : null;
+        // the list changes with a new export and with each step of its after-export check
+        const newest = items.slice(0, 10).map((x) => `${x.id}:${(x.check && x.check.status) || ""}`).join("|");
         if (newest !== exp.last) {
           exp.last = newest;
           renderExportList(items);
+          renderAfter(items, st);
         }
       }
     } catch (e) {
@@ -1765,12 +1808,19 @@ exportEvents.listen(require("premierepro"), (kind, path, name, fields) => {
   const now = Date.now();
   if (!path && now - lastExportEvent < 1000) return;
   lastExportEvent = now;
-  engine.exportDone(path, kind, `panel:${name}`).catch(() => {});
+  // the exported sequence's size, frame rate and length go with the event: the after-export check compares the file with it
+  (kind === "complete" ? premiere.activeProject().then((p) => premiereCheck.exportedSequence(p)).catch(() => null)
+    : Promise.resolve(null))
+    .then((sequence) => engine.exportDone(path, kind, `panel:${name}`, sequence)).catch(() => {});
   if (kind === "complete") learnFromExport();
 }, (msg) => engine.log("info", msg)).then((attached) => engine.log("info", `exports: listening to ${attached.join(", ") || "no export events"}`))
   .catch(() => {});
 
 onTap($("exportsToggle"), () => exportsChange({ enabled: !exp.enabled }));
+$("afterCheck").addEventListener("change", () => {
+  exp.last = null;                                       // show the card's new state on the next look
+  exportsChange({ check: $("afterCheck").checked });
+});
 onTap($("exportsFolder"), async () => {
   const folder = await premiereImport.pickFolder().catch(() => null);
   if (folder) exportsChange({ add: folder });

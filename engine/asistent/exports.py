@@ -3,7 +3,9 @@
 Which folders: the folder Export mode last wrote to (Premiere keeps it in its preferences, read again whenever they
 change; only the files directly in it), folders the editor added for the open project, and folders an export event showed
 (learned). Not the project's own folder (0.10.5): sound effects downloaded into Assets were shown as exports, and the
-office never exports there. Off by default; while it is off nothing is watched at all.
+office never exports there. Showing is off by default. Since 0.10.39 every finished export is also checked
+(filecheck.py: black bars, frozen picture, peaks, loudness), on by default (the user, 2026-11-11: automatic), so the folders
+are watched while showing OR checking is on; with both off nothing is watched at all.
 
 Exports go to a folder of their own (the office: Production/Exported Videos/<client>/<plan>), not next to the project,
 so the preferences are the main source. They also name the export's file. Premiere wrote them when an export STARTED (2026-11-05: preferences 13:53:40, file created
@@ -26,6 +28,7 @@ import html
 import json
 import logging
 import os
+import queue
 import re
 import struct
 import sys
@@ -34,7 +37,7 @@ import time
 import unicodedata
 import uuid
 
-from . import config, reveal
+from . import config, filecheck, reveal
 from .importer import AUDIO, VIDEO
 from .settle import Settle, is_temp, opens, probe
 
@@ -184,7 +187,9 @@ class Settings:
     def __init__(self, path: str | None = None):
         self.path = path or os.path.join(config.app_dir(), "exports.json")
         self.lock = threading.RLock()
-        self.data = {"enabled": False, "project": "", "projects": {}, "recent": [], "roots": []}
+        # "check" (0.10.39, TODO I14): every finished export is checked (black bars, frozen picture, peaks, loudness). On by
+        # default, the user's choice 2026-11-11 ("automatic"); it keeps the watching running even with showing switched off.
+        self.data = {"enabled": False, "check": True, "project": "", "projects": {}, "recent": [], "roots": []}
         if os.path.isfile(self.path):
             try:
                 with open(self.path, encoding="utf-8") as f:
@@ -243,6 +248,15 @@ class Settings:
             self.data["recent"] = ([item] + [i for i in self.data["recent"] if i["id"] != item["id"]])[:RECENT]
             self.save()
 
+    def update(self, item_id: str, **fields) -> bool:
+        with self.lock:
+            it = self.item(item_id)
+            if not it:
+                return False
+            it.update(fields)
+            self.save()
+            return True
+
     def item(self, item_id: str) -> dict | None:
         return next((i for i in self.data["recent"] if i["id"] == item_id), None)
 
@@ -295,20 +309,30 @@ class ExportWatcher:
         self.later: dict[str, tuple[float, float]] = {}   # path -> (its mtime when the preferences named it, when to decide)
         self.hint_at = 0.0                          # when Premiere last said an export ended (0: never)
         self.last_follow = 0.0
+        self.expect: tuple[float, dict] | None = None   # (when, the exported sequence's size / fps / length from the panel)
+        self.checks: queue.Queue = queue.Queue()      # finished exports waiting for the after-export check
+        self.checker: threading.Thread | None = None
         self.lock = threading.RLock()
         self.observer = None
         self.watched: dict[str, object] = {}
         self._stop: threading.Event | None = None
 
     # -- settings from the panel
+    def on(self) -> bool:
+        """Watching runs while showing OR checking is on."""
+        d = self.settings.data
+        return bool(d["enabled"]) or bool(d.get("check", True))
+
     def configure(self, project: str | None = None, enabled: bool | None = None, add: str | None = None,
-                  remove: str | None = None) -> dict:
+                  remove: str | None = None, check: bool | None = None) -> dict:
         s = self.settings
         with s.lock:
             if project:
                 s.data["project"] = project
             if enabled is not None:
                 s.data["enabled"] = bool(enabled)
+            if check is not None:
+                s.data["check"] = bool(check)
             if add:
                 if not s.data["project"]:
                     raise ValueError("No project open.")
@@ -330,7 +354,8 @@ class ExportWatcher:
 
     def status(self) -> dict:
         d = self.settings.data
-        return {"enabled": bool(d["enabled"]), "project": d["project"], "folders": self.folders(),
+        return {"enabled": bool(d["enabled"]), "check": bool(d.get("check", True)), "project": d["project"],
+                "folders": self.folders(),
                 "app": app_name(), "watching": sorted(self.watched) if self.observer else []}
 
     def recent(self) -> list[dict]:
@@ -342,7 +367,7 @@ class ExportWatcher:
         on the checker keeps running even with no folder to watch: the office drive is mounted after the engine starts at
         login (0.10.7: nothing was watched until the editor switched projects), and it comes and goes with sleep."""
         with self.lock:
-            if not self.settings.data["enabled"]:
+            if not self.on():
                 self._halt()
                 return
             if self.observer is None:
@@ -493,7 +518,7 @@ class ExportWatcher:
     def from_prefs(self, now: float | None = None):
         """Premiere rewrote its preferences: watch the export folder they name now, and check the file they name when it
         was written after watching started (an export into a folder nobody watched yet)."""
-        if not self.settings.data["enabled"]:
+        if not self.on():
             return
         now = now or time.time()
         hinted = self._hinted(now)
@@ -575,9 +600,12 @@ class ExportWatcher:
         self.fails.pop(path, None)
         self.confirmed.discard(path)
         self.known.add(key)
-        self.batch.append({"id": uuid.uuid4().hex[:12], "path": path, "name": os.path.basename(path),
-                           "folder": os.path.dirname(path), "at": now, "how": how, "shown": False,
-                           "project": self.settings.data["project"]})
+        item = {"id": uuid.uuid4().hex[:12], "path": path, "name": os.path.basename(path),
+                "folder": os.path.dirname(path), "at": now, "how": how, "shown": False,
+                "project": self.settings.data["project"]}
+        if self.expect and now - self.expect[0] < FRESH + HINT:     # the sequence the panel saw when the export ended
+            item["expect"] = self.expect[1]
+        self.batch.append(item)
         # Premiere said this export ended: show it now (QUIET only waits for the rest of a queue, and busy() still does)
         self.last_done = now - QUIET if how == "event" and self._hinted(now) else now
         log.info("exports: finished %s (%s)", os.path.basename(path), how)
@@ -591,30 +619,71 @@ class ExportWatcher:
             return
         batch, self.batch = self.batch, []
         last = batch[-1]
-        for it in batch[:-1]:
-            it["note"] = "in a queue: the last export was shown"
-            self.settings.remember(it)
-        try:
-            self.show(last["path"])
-            last["shown"] = True
-            last["note"] = f"shown in {app_name()}"
-        except Exception as e:                          # gone already, or no Finder: the Log still lists it
-            last["note"] = f"could not be shown: {e}"
-            log.warning("exports: reveal %s failed: %s", last["path"], e)
-        self.settings.remember(last)
+        checking = bool(self.settings.data.get("check", True))
+        for it in batch:
+            if checking:
+                it["check"] = {"status": "waiting"}
+        if self.settings.data["enabled"]:
+            for it in batch[:-1]:
+                it["note"] = "in a queue: the last export was shown"
+                self.settings.remember(it)
+            try:
+                self.show(last["path"])
+                last["shown"] = True
+                last["note"] = f"shown in {app_name()}"
+            except Exception as e:                          # gone already, or no Finder: the Log still lists it
+                last["note"] = f"could not be shown: {e}"
+                log.warning("exports: reveal %s failed: %s", last["path"], e)
+            self.settings.remember(last)
+        else:
+            for it in batch:
+                self.settings.remember(it)
+        if checking:
+            for it in batch:
+                self.queue_check(it)
         if self.settings.learn_roots():
             self.refresh()
 
-    def done(self, path: str | None = None, kind: str = "complete", source: str = "") -> dict:
+    # -- the after-export check (filecheck.py), one file at a time in its own thread
+    def queue_check(self, item: dict):
+        self.checks.put(item["id"])
+        if self.checker is None or not self.checker.is_alive():
+            self.checker = threading.Thread(target=self._check_loop, name="exports-filecheck", daemon=True)
+            self.checker.start()
+
+    def _check_loop(self):
+        while True:
+            try:
+                item_id = self.checks.get(timeout=30)
+            except queue.Empty:
+                return
+            it = self.settings.item(item_id)
+            if not it:
+                continue
+            self.settings.update(item_id, check={"status": "running"})
+            started = time.time()
+            try:
+                res = filecheck.run(it["path"], it.get("expect"))
+            except Exception as e:
+                log.exception("after-export check of %s failed", it["name"])
+                res = {"status": "look", "summary": "the check failed", "lines": [{"level": "check", "text": str(e)}]}
+            res["took"] = round(time.time() - started, 1)
+            self.settings.update(item_id, check=res)
+            log.info("exports: checked %s in %.1f s: %s", it["name"], res["took"], res["summary"])
+
+    def done(self, path: str | None = None, kind: str = "complete", source: str = "",
+             expect: dict | None = None) -> dict:
         """An export event from the panel or the host: Premiere says an export ended. With a path, that file is checked at
         once (it must exist and be finished) and its folder is learned for the project. Without one (Premiere's events
         may not carry it) the preferences are read again and the file they name counts at once when it was written just
         before the event; the watched folders are looked at again too."""
         log.info("exports: event %s from %s: %s", kind, source or "?", path or "(no path)")
-        if kind != "complete" or not self.settings.data["enabled"]:
+        if kind != "complete" or not self.on():
             return {"ok": True, "counted": False}
         now = time.time()
         with self.lock:
+            if isinstance(expect, dict):
+                self.expect = (now, {k: expect.get(k) for k in ("name", "width", "height", "fps", "duration", "range")})
             self.hint_at = now
             self.last_scan = 0.0                          # read the preferences and look in the folders on the next check
             for p, (mtime, _) in list(self.later.items()):
