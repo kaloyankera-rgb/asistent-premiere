@@ -180,7 +180,8 @@ def parse(text: str, duration: float, work: tuple[int, int] | None) -> dict:
 
 
 def bars(text: str, work: tuple[int, int], black: list[list[float]]) -> list[dict]:
-    """Runs of frames whose picture is smaller than the frame: [{start, end, sides: top/bottom|left/right|all}]."""
+    """Runs of frames whose picture is smaller than the frame: [{start, end, sides}], sides the edges with a bar in the order
+    top, bottom, left, right joined by "/" ("top/bottom", "right", "bottom/right") or "all"."""
     W, H = work
     frames = []
     for m in re.finditer(r"x1:(-?\d+) x2:(-?\d+) y1:(-?\d+) y2:(-?\d+) w:(-?\d+) h:(-?\d+).*?t:([\d.]+)", text):
@@ -190,9 +191,10 @@ def bars(text: str, work: tuple[int, int], black: list[list[float]]) -> list[dic
             frames.append((t, None))                  # a black frame: no picture to measure, it is reported as black
             continue
         top, bottom, left, right = y1 / H, (H - 1 - y2) / H, x1 / W, (W - 1 - x2) / W
-        tb = top >= BAR or bottom >= BAR
-        lr = left >= BAR or right >= BAR
-        frames.append((t, "all" if tb and lr else "top/bottom" if tb else "left/right" if lr else ""))
+        # the sides that really show a bar: a shifted picture (a moved Anchor Point, a tracked or keyed Position) leaves one
+        # or two sides, not a pair (2026-11-12: a tracked test clip was reported "on all sides" with bars right and bottom)
+        found = [name for name, v in (("top", top), ("bottom", bottom), ("left", left), ("right", right)) if v >= BAR]
+        frames.append((t, "all" if len(found) == 4 else "/".join(found)))
     runs, cur = [], None
     step = (frames[1][0] - frames[0][0]) if len(frames) > 1 else 1 / 30
     for t, side in frames:
@@ -209,6 +211,18 @@ def bars(text: str, work: tuple[int, int], black: list[list[float]]) -> list[dic
 
 
 # ---------------------------------------------------------------- the report (pure)
+
+def bar_sides(sides: str) -> str:
+    """"top/bottom" -> "Black bars top and bottom", "right" -> "Black bar on the right", "bottom/right" -> "Black bars at the
+    bottom and on the right", "all" -> "Black bars on all sides"."""
+    if sides == "all":
+        return "Black bars on all sides"
+    parts = sides.split("/")
+    if parts in (["top", "bottom"], ["left", "right"]):
+        return f"Black bars {parts[0]} and {parts[1]}"
+    named = [("at the " if p in ("top", "bottom") else "on the ") + p for p in parts]
+    text = named[0] if len(named) == 1 else ", ".join(named[:-1]) + " and " + named[-1]
+    return ("Black bar " if len(parts) == 1 else "Black bars ") + text
 
 def fps_text(fps) -> str:
     return f"{fps:.2f}".rstrip("0").rstrip(".") if fps else "?"
@@ -264,9 +278,7 @@ def report(f: dict, m: dict | None, expect: dict | None = None) -> dict:
             if m["bars"]:
                 for b in m["bars"][:4]:
                     where = "the whole video" if b["start"] <= 0.2 and b["end"] >= dur - 0.2 else span(b["start"], b["end"])
-                    sides = "on all sides" if b["sides"] == "all" else ("top and bottom" if b["sides"] == "top/bottom"
-                                                                          else "left and right")
-                    add("check", f"Black bars {sides}: {where} (or a very dark edge).")
+                    add("check", f"{bar_sides(b['sides'])}: {where} (or a very dark edge).")
                 if len(m["bars"]) > 4:
                     add("check", f"… and {len(m['bars']) - 4} more places with bars.")
             else:

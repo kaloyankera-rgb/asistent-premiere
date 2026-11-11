@@ -1,5 +1,9 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.62 (2026-11-12, installed): After-export check tried in Premiere 26.5.2 through the bridge (a scripted export of a
+synthetic sequence: the watcher found it, the check right on every line); bar sides named as they are. NOT verified:
+Premiere's export event and the comparison with the sequence (a scripted export fires no event: a real Export needed).
+
 0.10.44 Picture fills the frame (Check export): VERIFIED through the bridge in Premiere 26.5.2 on 2026-11-12 (scale, anchor,
 crop, rotation, scale keys; strips measured on Premiere's own frames within a pixel). NOT tried by the user on own B-roll.
 

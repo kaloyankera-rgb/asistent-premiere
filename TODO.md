@@ -53,6 +53,8 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] The report names one moment per clip (its first problem): at 88 % it said "black shows" at the clip's start (V1 had a gap
   there) and not that fx31034 shows through after it; enough to find the clip, maybe name both.
 - [ ] After export: thin edge strips of any colour (uniform rows unlike the picture next to them), from about 0.3 % of the frame.
+- [ ] USER: one real export from the Export tab (any project): the After export card should also compare the file with the
+  sequence (shape, frame rate, length); a scripted export fires no event (0.10.62).
 
 ## CP. Cockpit plan (`../COCKPIT_PLAN.md`, the user's go 2026-11-10: commit, then Phase 0, the rest here)
 Additive only: new files and pages, the existing tabs, sync, Fix audio, colour, subtitles, rough cut, import, updater frozen;
