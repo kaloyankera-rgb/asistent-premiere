@@ -26,6 +26,11 @@ like it's in After Effects". Panel page **Tracker**; engine `tracker.py`; maths 
    object's place on the boxed frame (or the centre). Smooth: a Gaussian path (sigma 6 frames). Zoom: the smallest Scale
    factor (steps of 0.5 %, up to 4x) that leaves no frame uncovered. Verified: the object on the same pixel in full-size frames.
 
+6. **The page (0.10.55)**: live preview while tracking; afterwards a viewer (box, path coloured by state, readout) and a
+   timeline (scrub, states, confidence curve, seconds, boxed frame, playhead) with transport and problem jumps, Premiere's
+   playhead following. A bad stretch: draw a new box on one of its frames, Track from here / back from here replaces only
+   that part (scale and angle continue from the nearest sure frame).
+
 ## Accuracy (scripts/bench_tracker.py, synthetic, error against the known path)
 | Scene | Median | Max | Notes |
 |---|---|---|---|

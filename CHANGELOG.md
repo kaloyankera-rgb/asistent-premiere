@@ -31,6 +31,24 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.55-0.10.56 - Tracker page redesigned (the user 2026-11-11: "a preview of what's being tracked, a better timeline that we can go through easily after the thing is tracked, a better UI overall")
+- **Live preview**: while tracking, the viewer shows the frame being tracked with the box moving on it, and a progress bar.
+- **Viewer**: the frame with the tracked box (grown and turned with the object), the whole path coloured by how sure each
+  frame is, a readout (frame, time, sure / unsure / lost and the score, "fixed").
+- **Timeline**: drag to scrub, the coloured states, a confidence curve, second marks, the boxed frame (diamond) and a
+  playhead; **transport** first / back / play / on / last and jump to the previous / next unsure or lost stretch; "Move
+  Premiere's playhead along" (on by default).
+- **Fixing a stretch**: draw a new box on a bad frame, then **Track from here** (to the end) or **Track back from here** (to
+  the start): only that part is replaced; scale and angle continue from the nearest sure frame (0.10.56: not from the new
+  box's size, so a tighter box does not make an attached text jump).
+- Steps line (1 Load frame, 2 Draw a box, 3 Track, 4 Use), an **Attach / Lock** switch showing only that mode's options.
+- Engine: one colour decode serves the tracking (its brightness) and a 480 px JPEG of every frame (about 25 KB each, the last
+  4 tracks kept in memory: `GET /tracker/thumbs`); the job's `extra.live` is the frame being tracked; `/tracker/track` takes
+  `into: {id, offset}` for a part. Tracking speed unchanged (4K clip, 180 frames, 4.7 s).
+- Verified through the bridge in Premiere 26.5.2 ("Tracker test"): live frames during the track, 180 frames to scrub, a jump
+  to frame 151 moved Premiere's playhead to 5.0055 s (5.005 expected), Track from here (30 frames) and back from here
+  (31 frames) replaced only their part. Layout checked in the browser preview at 240 / 300 / 420 px. NOT tried by the user.
+
 ## 0.10.54 - Tracker: Lock to it (the user 2026-11-11, a dribbled basketball: "track the ball's movement so it's locked in on it")
 - Tracker page, **Lock to it**: the TRACKED clip itself gets Position keys so the object stays where it is on the boxed frame
   (**Centre it**: in the middle), as if the camera followed it; works through the clip's own Motion, also a keyframed punch-in.

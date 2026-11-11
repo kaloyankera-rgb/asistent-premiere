@@ -1,5 +1,9 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.56 (2026-11-11, installed, verified through the bridge): Tracker page redesigned: live preview while tracking, viewer with
+box / path / readout, a scrubbable timeline with confidence, transport and problem jumps, Premiere's playhead following, Track
+from here / back from here to fix a stretch, Attach / Lock switch. NOT tried by the user.
+
 0.10.54 (2026-11-11, installed, verified through the bridge): Tracker "Lock to it" (the clip follows the object: the object
 stays on the same pixel; Smooth, Centre, Zoom to hide edges). NOT tried by the user.
 

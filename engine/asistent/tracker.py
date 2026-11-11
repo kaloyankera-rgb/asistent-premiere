@@ -59,21 +59,22 @@ def work_size(w: int, h: int, work: int = WORK) -> tuple[int, int, float]:
     return ww, hh, ww / w
 
 
-def decode(path: str, start: float, step: float, count: int, size: tuple[int, int], cancelled=None):
+def decode(path: str, start: float, step: float, count: int, size: tuple[int, int], cancelled=None, colour: bool = False):
     """`count` grey frames at media times start + i*step (the frame Premiere shows there), at `size` (w, h), upright.
-    A generator: frames are read from FFmpeg as they come (memory stays small)."""
+    A generator: frames are read from FFmpeg as they come (memory stays small). colour (0.10.55): (grey, I420 bytes) pairs
+    instead, from one decode (the panel's colour pictures of every tracked frame come from the same frames)."""
     w, h = size
     info = probe(path)
     rate = info.fps if getattr(info, "fps", None) else None
     # half a source frame early, so the frame AT `start` is the first one kept even when its time stamp rounds below it
     lead = 0.5 / rate if rate else 0.004
     ss = max(0.0, start - lead)
-    vf = f"fps=fps={1.0 / step:.6f}:start_time={start - ss:.6f}:round=near,scale={w}:{h}:flags=bicubic,format=gray"
+    vf = f"fps=fps={1.0 / step:.6f}:start_time={start - ss:.6f}:round=near,scale={w}:{h}:flags=bicubic,format={'yuv420p' if colour else 'gray'}"
     cmd = [_tool("ffmpeg"), "-v", "error", "-nostdin", "-ss", f"{ss:.6f}", "-i", path, "-an", "-sn", "-vf", vf,
            "-frames:v", str(count), "-f", "rawvideo", "-"]
     flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, creationflags=flags)
-    n = w * h
+    n = w * h * 3 // 2 if colour else w * h
     got = 0
     try:
         while got < count:
@@ -83,7 +84,11 @@ def decode(path: str, start: float, step: float, count: int, size: tuple[int, in
             if not buf or len(buf) < n:
                 break
             got += 1
-            yield np.frombuffer(buf, dtype=np.uint8).reshape(h, w)
+            arr = np.frombuffer(buf, dtype=np.uint8)
+            if colour:
+                yield arr[: w * h].reshape(h, w), arr
+            else:
+                yield arr.reshape(h, w)
     finally:
         p.kill()
         p.communicate()
@@ -333,8 +338,9 @@ class RegionTracker:
 
 # ---------------------------------------------------------------- the whole track
 
-def track_frames(frames_fwd, frames_back, box, k0: int, total: int, progress=None, cancelled=None) -> list[dict | None]:
-    """frames_fwd: frames k0, k0+1, ... ; frames_back: frames k0, k0-1, ... (both start with the boxed frame).
+def track_frames(frames_fwd, frames_back, box, k0: int, total: int, progress=None, cancelled=None, hook=None) -> list[dict | None]:
+    """frames_fwd: frames k0, k0+1, ... ; frames_back: frames k0, k0-1, ... (both start with the boxed frame). A frame may be
+    a (grey, extra) pair: hook(k, extra, result) is then called for it (the panel's pictures, 0.10.55).
     -> one entry per frame index 0..total-1 (None where no frame came)."""
     out: list[dict | None] = [None] * total
     done = 0
@@ -348,11 +354,16 @@ def track_frames(frames_fwd, frames_back, box, k0: int, total: int, progress=Non
             k = k0 + sign * i
             if k < 0 or k >= total:
                 break
+            extra = None
+            if isinstance(f, tuple):
+                f, extra = f
             if tr is None:
                 tr = RegionTracker(f, box)
                 out[k] = {"x": tr.cx, "y": tr.cy, "s": 1.0, "a": 0.0, "c": 1.0, "state": "sure"}
             else:
                 out[k] = tr.step(f)
+            if hook and extra is not None:
+                hook(k, extra, out[k])
             done += 1
             if progress and done % 5 == 0:
                 progress(done / max(1, total))
@@ -363,18 +374,69 @@ def track_frames(frames_fwd, frames_back, box, k0: int, total: int, progress=Non
     return out
 
 
-def _backwards(path, t_from, step, k0, size, cancelled):
+def _backwards(path, t_from, step, k0, size, cancelled, colour=False):
     """Frames k0, k0-1, ..., 0 (decoded forwards in chunks, handed out in reverse)."""
     end = k0
     while end >= 0:
         start = max(0, end - CHUNK + 1)
-        chunk = list(decode(path, t_from + start * step, step, end - start + 1, size, cancelled))
+        chunk = list(decode(path, t_from + start * step, step, end - start + 1, size, cancelled, colour))
         for f in reversed(chunk):
             yield f
         end = start - 1
 
 
-def track(path: str, t_from: float, t_to: float, step: float, t0: float, box: list, progress=None, cancelled=None) -> dict:
+# ---------------------------------------------------------------- pictures for the panel (0.10.55)
+# Every tracked frame as a small colour JPEG, so the panel can scrub, step and play the track with the box drawn on it, and
+# show the frame being tracked live. Kept in memory for the last few tracks (a 300-frame clip is about 5 MB).
+THUMB = 480                     # long side
+KEEP_TRACKS = 4
+_TRACKS: dict = {}
+
+
+def _thumb(i420: np.ndarray, size: tuple[int, int], out: tuple[int, int]) -> bytes:
+    cv2 = _cv()
+    w, h = size
+    tw, th = out
+    y = i420[: w * h].reshape(h, w)
+    u = i420[w * h: w * h + (w // 2) * (h // 2)].reshape(h // 2, w // 2)
+    v = i420[w * h + (w // 2) * (h // 2):].reshape(h // 2, w // 2)
+    ys = cv2.resize(y, (tw, th), interpolation=cv2.INTER_AREA)
+    us = cv2.resize(u, (tw // 2, th // 2), interpolation=cv2.INTER_AREA)
+    vs = cv2.resize(v, (tw // 2, th // 2), interpolation=cv2.INTER_AREA)
+    bgr = cv2.cvtColor(np.concatenate([ys.reshape(-1), us.reshape(-1), vs.reshape(-1)]).reshape(th * 3 // 2, tw), cv2.COLOR_YUV2BGR_I420)
+    ok, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 72])
+    return jpg.tobytes() if ok else b""
+
+
+def _store(tid: str, total: int, size: tuple[int, int]) -> dict:
+    import uuid
+    if tid and tid in _TRACKS:
+        return _TRACKS[tid]
+    tid = tid or uuid.uuid4().hex[:12]
+    w, h = size
+    k = THUMB / max(w, h)
+    entry = {"id": tid, "thumbs": [None] * total, "size": (max(2, int(round(w * k / 2)) * 2), max(2, int(round(h * k / 2)) * 2)),
+             "used": time.time()}
+    _TRACKS[tid] = entry
+    for old in sorted(_TRACKS.values(), key=lambda e: e["used"])[:-KEEP_TRACKS]:
+        _TRACKS.pop(old["id"], None)
+    return entry
+
+
+def thumbs(tid: str, first: int, count: int) -> dict:
+    """Pictures `first`.. of a track (base64 JPEG, null where none). -> {items, from, size}"""
+    import base64
+    e = _TRACKS.get(tid or "")
+    if not e:
+        raise ValueError("That track's pictures are gone (the engine restarted): track again.")
+    e["used"] = time.time()
+    first = max(0, int(first))
+    items = [base64.b64encode(b).decode("ascii") if b else None for b in e["thumbs"][first:first + max(1, min(int(count), 120))]]
+    return {"items": items, "from": first, "size": list(e["size"]), "total": len(e["thumbs"])}
+
+
+def track(path: str, t_from: float, t_to: float, step: float, t0: float, box: list, progress=None, cancelled=None,
+          live=None, into: dict | None = None) -> dict:
     """Track the region `box` [x, y, w, h] (fractions of the upright picture) boxed at media time t0, over the media range
     [t_from, t_to) in steps of `step` (one timeline frame). -> {frames: [{t, x, y, s, a, c, state}], width, height, k0}
     x, y in file pixels (upright)."""
@@ -404,9 +466,27 @@ def track(path: str, t_from: float, t_to: float, step: float, t0: float, box: li
         raise ValueError("Draw the box on the picture.")
     wbox = (bx * ww, by * wh, bw * ww, bh * wh)
     t_start = time.time()
-    fwd = decode(path, t_from + k0 * step, step, total - k0, (ww, wh), cancelled)
-    back = _backwards(path, t_from, step, k0, (ww, wh), cancelled) if k0 > 0 else iter(())
-    raw = track_frames(fwd, back, wbox, k0, total, progress, cancelled)
+    # pictures go into this track's store, or (a re-track of a part) into an earlier track's at an offset
+    offset = int(into["offset"]) if into and into.get("id") in _TRACKS else 0
+    store = _TRACKS[into["id"]] if offset or (into and into.get("id") in _TRACKS) else _store("", total, (ww, wh))
+    store["used"] = time.time()
+    tsize = store["size"]
+    last_live = [0.0]
+
+    def hook(k, i420, r):
+        j = k + offset
+        if 0 <= j < len(store["thumbs"]):
+            store["thumbs"][j] = _thumb(i420, (ww, wh), tsize)
+            if live and time.time() - last_live[0] > 0.2:
+                import base64
+                last_live[0] = time.time()
+                live({"k": j, "jpeg": base64.b64encode(store["thumbs"][j]).decode("ascii"),
+                      "x": round(r["x"] / k_, 2), "y": round(r["y"] / k_, 2), "s": r["s"], "a": r["a"], "state": r["state"]})
+
+    k_ = k
+    fwd = decode(path, t_from + k0 * step, step, total - k0, (ww, wh), cancelled, colour=True)
+    back = _backwards(path, t_from, step, k0, (ww, wh), cancelled, colour=True) if k0 > 0 else iter(())
+    raw = track_frames(fwd, back, wbox, k0, total, progress, cancelled, hook)
     frames = []
     for i, r in enumerate(raw):
         if r is None:
@@ -417,4 +497,6 @@ def track(path: str, t_from: float, t_to: float, step: float, t0: float, box: li
     log.info("tracker %s: %d frames (%d sure, %d unsure, %d lost) of %d, box %s at %.3f, work %dx%d, %.1f s",
              os.path.basename(path), len(frames), states.count("sure"), states.count("unsure"), states.count("lost"), total,
              [round(v, 3) for v in box], t0, ww, wh, time.time() - t_start)
-    return {"frames": frames, "width": dw, "height": dh, "k0": k0, "total": total, "step": step, "t0": t0}
+    return {"frames": frames, "width": dw, "height": dh, "k0": k0, "total": total, "step": step, "t0": t0, "id": store["id"],
+            "offset": offset, "box": [round(bx * dw, 2), round(by * dh, 2), round(bw * dw, 2), round(bh * dh, 2)],
+            "thumb": list(tsize)}

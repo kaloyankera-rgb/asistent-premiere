@@ -228,15 +228,28 @@ textarea { width: 100%; box-sizing: border-box; font-size: 11px; margin-top: 4px
 .kf-label { width: 72px; color: var(--text-2); }
 .options > label.kf-wide { width: 84px; }
 .kf-stash { margin-top: 4px; }
-/* Tracker page (0.10.51) */
+/* Tracker page (0.10.51, redesigned 0.10.55) */
+.tr-steps { margin-top: 4px; margin-bottom: 4px; }
+.tr-step { margin-right: 10px; color: var(--text-2); font-size: 11px; }
+.tr-step.done { color: var(--ok); }
+.tr-step.on { color: var(--text); font-weight: bold; }
 .tr-view { position: relative; margin-top: 6px; overflow: hidden; background-color: #000; }
 .tr-img { position: absolute; left: 0; top: 0; }
-.tr-box { position: absolute; border: 2px solid var(--ok-dot); }
-.tr-dot { position: absolute; width: 6px; height: 6px; background-color: var(--ok-dot); border: 1px solid #fff; }
+.tr-svg { position: absolute; left: 0; top: 0; }
+.tr-hud { position: absolute; left: 4px; top: 4px; padding: 2px 6px; font-size: 11px; color: #fff; background-color: rgba(0, 0, 0, 0.6); }
 .tr-opt { margin-right: 12px; margin-left: 4px; }
-.tr-strip { position: relative; height: 14px; margin-top: 8px; background-color: var(--surface); }
-.tr-seg { position: absolute; top: 0; height: 14px; }
-.tr-mark { position: absolute; top: -3px; width: 2px; height: 20px; background-color: var(--text); }
+.tr-transport { margin-top: 6px; }
+.tr-transport .btn.tr-icon { margin-right: 4px; margin-bottom: 0; min-width: 28px; padding-left: 6px; padding-right: 6px; }
+.tr-time { position: relative; height: 36px; margin-top: 6px; background-color: var(--surface); cursor: pointer; }
+.tr-seg { position: absolute; top: 0; height: 22px; opacity: 0.85; }
+.tr-curve { position: absolute; left: 0; top: 0; }
+.tr-tick { position: absolute; top: 23px; font-size: 9px; color: var(--text-2); border-left: 1px solid var(--line-strong); padding-left: 2px; height: 12px; }
+.tr-k0 { position: absolute; top: -3px; width: 8px; height: 8px; background-color: #ffffff; transform: rotate(45deg); }
+.tr-ph { position: absolute; top: -2px; width: 2px; height: 40px; background-color: #ffffff; }
+.tr-prog { height: 4px; margin-top: 6px; background-color: var(--surface); }
+.tr-bar { height: 4px; width: 0; background-color: var(--accent); }
+.tr-modes .btn.tr-mode { margin-right: 4px; }
+.tr-modes .btn.tr-mode.on { background-color: var(--accent); color: var(--on-accent); }
 .kf-stash-row .btn.small { margin-right: 6px; }
 .kf-value { min-width: 34px; margin-right: 4px; text-align: center; }
 /* 0.10.45: a check line with a time is a link (the playhead goes there) */
