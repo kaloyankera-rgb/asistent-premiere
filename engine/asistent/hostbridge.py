@@ -11,12 +11,22 @@ while the developer's `devbridge.enabled` flag exists, and host.jsx refuses it o
 from __future__ import annotations
 
 import os
+import threading
 import time
 
 from . import config, devbridge
 
 HOST = devbridge.Bridge()
-COMMANDS = ("ping", "probe", "captions", "graphics", "audio_route", "eval", "play", "play_stop")   # play: Captions tab ▶ (0.10.11)
+_lane = threading.local()         # the lane of the request being handled (server.py sets it per request; 0.10.45)
+
+
+def set_lane(lane: str | None) -> None:
+    _lane.value = (lane or "").strip()[:20]
+
+
+def lane() -> str:
+    return getattr(_lane, "value", "")
+COMMANDS = ("ping", "probe", "captions", "graphics", "audio_route", "link", "eval", "play", "play_stop")   # play: Captions tab ▶ (0.10.11)
 SEEN_WITHIN = 45.0             # the host polls every <= 20 s; older than this it is not running
 _state = {"seen": 0.0, "version": None}
 
@@ -45,7 +55,7 @@ def run(name: str, args: dict | None = None, wait: float = 60.0) -> dict:
         raise ValueError("The test bridge is off.")
     if not status()["connected"]:
         raise ValueError(NOT_RUNNING)
-    cid = HOST.submit(name, args or {}, deadline=time.time() + wait)
+    cid = HOST.submit(name, args or {}, deadline=time.time() + wait, lane=lane())
     res = HOST.wait_result(cid, wait)
     if res is None:
         # 0.10.6 (ARCH-001): a command left in the queue used to run later, after the editor's retry
@@ -128,7 +138,11 @@ def route_audio(items: list, sequence: str, project: str | None, guid: str | Non
     for it in items if isinstance(items, list) else []:
         if not isinstance(it, dict) or it.get("route") not in ROUTES:
             raise ValueError("Unclear what to do with the clip.")
-        clean.append({"track": int(it["track"]), "start": float(it["start"]), "end": float(it["end"]), "route": it["route"]})
+        one = {"track": int(it["track"]), "start": float(it["start"]), "end": float(it["end"]), "route": it["route"]}
+        # 0.10.45: the second side's track, one per source track (audioplan.lowerTracks); the host may add it
+        if isinstance(it.get("lower"), int) and int(it["track"]) < it["lower"] <= 64:
+            one["lower"] = it["lower"]
+        clean.append(one)
     if not clean:
         raise ValueError("No clips to split.")
     return run("audio_route", {"items": clean, "sequence": sequence, "project": project, "guid": guid}, wait=120.0)

@@ -181,12 +181,17 @@ async function gather(project) {
   const peakItems = [];
   for (const x of items) {
     if (x.kind !== "audio" || x.unused || x.offline) continue;
-    const clip = { track: x.track, name: x.name, start: x.start, speech: speech.has(x.track), ...(await volumeDb(x.ti)), peakDb: null };
+    const clip = { track: x.track, name: x.name, start: x.start, end: x.end, speech: speech.has(x.track), ...(await volumeDb(x.ti)), peakDb: null };
     clips.push(clip);
     peakItems.push(x.path ? { path: x.path, start: x.inPt || 0, end: Number.isFinite(x.outPt) ? x.outPt : null } : null);
   }
+  // the In / Out when the editor set one (an export of In to Out covers only that: 0.10.45)
+  const inPt = P.secs(await maybe(sequence, "getInPoint"));
+  const outPt = P.secs(await maybe(sequence, "getOutPoint"));
+  const range = Number.isFinite(inPt) && Number.isFinite(outPt) && outPt > inPt + 0.01 &&
+    (inPt > 0.001 || outPt < end - 0.001) ? { from: inPt, to: outPt } : null;
   return {
-    input: { items, end, fps: t.fps, frame: await frameSize(sequence), captions, graphics, clips, sequence: sequence.name,
+    input: { items, end, range, fps: t.fps, frame: await frameSize(sequence), captions, graphics, clips, sequence: sequence.name,
       pictures: await pictures(items, t.fps) },
     peakItems, clips,
   };
@@ -211,4 +216,48 @@ async function exportedSequence(project) {
   };
 }
 
-module.exports = { gather, textCentre, volumeDb, exportedSequence };
+// ---------------------------------------------------------------- 0.10.45: go to a problem, mark the problems
+const ppro = require("premierepro");
+
+/** The playhead to `at` (sequence seconds) in the active sequence. -> true when Premiere took it */
+async function seek(project, at) {
+  const seq = await maybe(project, "getActiveSequence");
+  if (!seq || !P.has(seq, "setPlayerPosition")) return false;
+  await seq.setPlayerPosition(ppro.TickTime.createWithSeconds(Math.max(0, at)));
+  return true;
+}
+
+/** The sequence's markers as [{name, at}] (empty when this Premiere has no marker API). */
+async function readMarkers(seq) {
+  const M = ppro.Markers;
+  if (!M || typeof M.getMarkers !== "function") return { markers: null, list: [] };
+  const markers = await M.getMarkers(seq);
+  const list = [];
+  for (const m of (await maybe(markers, "getMarkers")) || []) {
+    const name = (await maybe(m, "getName")) || m.name || "";
+    const at = P.secs((await maybe(m, "getStart")) || m.start);
+    if (Number.isFinite(at)) list.push({ name, at });
+  }
+  return { markers, list };
+}
+
+/** Adds the check's markers (exportcheck.markers) to the active sequence in ONE Undo step. -> {added, skipped} */
+async function addMarkers(project, parts, fps) {
+  const seq = await maybe(project, "getActiveSequence");
+  if (!seq) throw new P.UserError("Open the sequence first.");
+  const { markers, list } = await readMarkers(seq);
+  if (!markers || !P.has(markers, "createAddMarkerAction")) throw new P.UserError("This Premiere version cannot add markers from a script.");
+  const want = require("./exportcheck.js").markers(parts, list, fps);
+  if (want.length) {
+    P.transaction(project, "Asistent: Check markers", (c) => {
+      for (const m of want) {
+        c.addAction(markers.createAddMarkerAction(m.name, "Comment", ppro.TickTime.createWithSeconds(m.at),
+          ppro.TickTime.createWithSeconds(0), m.comment));
+      }
+    });
+  }
+  P.debug(`check markers: ${want.length} added, ${list.length} were there`);
+  return { added: want.length };
+}
+
+module.exports = { gather, textCentre, volumeDb, exportedSequence, seek, addMarkers };

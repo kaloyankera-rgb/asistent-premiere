@@ -396,6 +396,13 @@ function describe(result, timeline, lay) {
     notes.push(`Possible but uncertain (not applied): ${name(s.a)} and ${name(s.b)} ${signed(s.offset)}.` +
       `${why ? ` Reason: ${why}` : ""} Check it by hand.`);
   }
+  // 0.10.45: the learnt clocks put these side by side, but the sound was too short or quiet to confirm the offset
+  const suggested = new Set((result.suggestions || []).map((s) => `${s.a}|${s.b}`));
+  const together = (result.clock_overlaps || []).filter((x) => !suggested.has(`${x.a}|${x.b}`));
+  if (together.length) {
+    notes.push(`Recorded at the same time by the camera clocks, but the sound could not confirm the exact offset (sync them by hand): ` +
+      together.map((x) => `${name(x.a)} and ${name(x.b)} (about ${signed(x.offset)})`).join("; ") + ".");
+  }
   for (const s of timeline.skipped) notes.push(`Skipped: ${s}.`);
   for (const n of notes) blocks.push(el("div", "warn", n));
   return blocks;
@@ -435,6 +442,18 @@ async function onSync() {
     const order = Object.fromEntries(timeline.clips.map((c) => [c.path, c.start]));
     const lay = layout.syncLayout(result, order);
     const blocks = describe(result, timeline, lay);
+    // 0.10.45: the cameras' colours go on the files first, so the clips Sync places come out in them (a placed clip keeps the
+    // colour its file had at that moment)
+    let painted = [];
+    const ls = labelSettings();
+    if (ls.auto && Object.keys(ls.colors || {}).length) {
+      try {
+        const itemOf = Object.fromEntries(timeline.clips.map((c) => [c.path, c.projectItem]));
+        painted = await premiereLabels.colorFiles(project, lay.placements.map((p) => ({ path: p.path, projectItem: itemOf[p.path], pov: p.track + 1 })), ls.colors);
+      } catch (e) {
+        engine.log("warning", `sync: camera colours: ${e && e.stack ? e.stack : e}`);
+      }
+    }
     const done = await premiere.buildSyncSequence(project, timeline, lay);
     const secsTaken = ((Date.now() - t0) / 1000).toFixed(0);
     if (done.bad.length) {
@@ -459,9 +478,10 @@ async function onSync() {
         engine.log("warning", `sync: fix audio again: ${e && e.stack ? e.stack : e}`);
       }
     }
-    const named = await autoLabels(project);
+    const named = await autoLabels(project, painted);
+    const colours = painted.length ? ` ${painted.length} camera files coloured POV by POV (its own Cmd/Ctrl+Z, before the sequence's).` : "";
     finish(`Done in ${secsTaken} s: ${done.name}, ${synced} clips in ${result.groups.length} groups. ` +
-      `Checked (off by at most ${done.worstMs.toFixed(1)} ms from the frames). Your sequence was not touched.${again}${named}`, againOk, blocks);
+      `Checked (off by at most ${done.worstMs.toFixed(1)} ms from the frames). Your sequence was not touched.${again}${named}${colours}`, againOk, blocks);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `sync: ${e && e.stack ? e.stack : e}`);
@@ -495,9 +515,14 @@ async function fixAudio(project, sel, force) {
   const relabel = plans.filter((p) => p.it.side).map((p) => ({ track: p.it.track, start: p.it.start, end: p.it.end, route: "label" }));
   if (todo.length || relabel.length) {
     if (todo.length) progress(0.9, `Splitting the channels: ${todo.length} ${todo.length === 1 ? "clip" : "clips"}…`);
+    // one second-side track per source track, in order (audioplan.lowerTracks)
+    const splits = todo.filter((x) => x.route === "split" || x.route === "split_rl").map((x) => x.p.it);
+    const allAudio = sel.timeline.items.filter((x) => x.kind === "audio");
+    const lower = audioplan.lowerTracks(splits, allAudio, sel.timeline.counts ? sel.timeline.counts.audio : 1 + Math.max(0, ...allAudio.map((x) => x.track)));
     const answer = await engine.routeAudio({ sequence: sel.timeline.sequence.name,
       guid: premiereCaptions.seqGuid(sel.timeline.sequence), project: project.path,
-      items: [...todo.map((x) => ({ track: x.p.it.track, start: x.p.it.start, end: x.p.it.end, route: x.route })), ...relabel] });
+      items: [...todo.map((x) => ({ track: x.p.it.track, start: x.p.it.start, end: x.p.it.end, route: x.route,
+        lower: lower[x.p.it.track] })), ...relabel] });
     if (!answer.ok) throw new premiere.UserError(answer.msg || "Premiere did not split the channels.");
     todo.forEach((x, i) => { x.p.routed = answer.items[i] || { ok: false, msg: "no answer" }; });
     engine.log("info", `audio route: ${JSON.stringify(answer.items)}`);
@@ -556,7 +581,10 @@ async function onAudio(force) {
     const sel = await premiereAudio.readAudioSelection(project);
     if (!sel.items.length) throw new premiere.UserError("Select at least one clip with sound in the timeline (its video or its audio).");
     const out = await fixAudio(project, sel, force);
-    finish(out.text, out.ok, out.blocks);
+    // 0.10.45: the second sides' tracks get their names at once ("POV 1 audio 2"), when Track names runs after Sync
+    const split = /Split: [1-9]/.test(out.text);
+    const named = split ? await autoLabels(project) : "";
+    finish(out.text + named, out.ok, out.blocks);
   } catch (e) {
     finish(e.message || String(e), false);
     if (!(e instanceof premiere.UserError)) engine.log("error", `audio: ${e && e.stack ? e.stack : e}`);
@@ -1077,10 +1105,10 @@ function fillLabelControls() {
 }
 
 // after Sync / rough cut: never lets a naming problem spoil the sequence that was just made
-async function autoLabels(project) {
+async function autoLabels(project, painted = []) {
   if (!labelSettings().auto) return "";
   try {
-    const r = await premiereLabels.nameTracks(project, labelSettings().colors);
+    const r = await premiereLabels.nameTracks(project, labelSettings().colors, painted);
     return r.renamed ? ` Tracks named (${r.renamed}).` : "";
   } catch (e) {
     engine.log("warning", `labels after a new sequence: ${e && e.stack ? e.stack : e}`);
@@ -1186,9 +1214,34 @@ async function onExportCheck() {
     const blocks = parts.map((p) => {
       const box = el("div", "group");
       box.appendChild(el("div", "name", `${mark[p.status]} ${p.title}`));
-      for (const l of p.lines) box.appendChild(el("div", p.status === "warn" ? "warn" : "line", l));
+      p.lines.forEach((l, i) => {
+        const at = p.times && p.times[i];
+        const row = el("div", p.status === "warn" ? "warn" : "line", l);
+        // 0.10.45 (the user: "I need time stamps"): a problem with a time is a link: the playhead goes there
+        if (Number.isFinite(at)) {
+          row.className += " jump";
+          row.setAttribute("data-tip", "Click: the playhead goes here");
+          onTap(row, () => premiereCheck.seek(project, at).catch((e) => engine.log("warning", `check seek: ${e && e.message ? e.message : e}`)));
+        }
+        box.appendChild(row);
+      });
       return box;
     });
+    if (parts[0] && parts[0].note) blocks.unshift(el("div", "hint", parts[0].note));
+    const timed = warn.reduce((n, p) => n + (p.times || []).filter(Number.isFinite).length, 0);
+    if (timed) {
+      blocks.unshift(button("small", `Put ${timed} ${timed === 1 ? "marker" : "markers"} on the timeline`,
+        "One marker per problem (named Check: …, the problem as its comment), in one Cmd/Ctrl+Z. Pressed again, it adds only the missing ones.",
+        async () => {
+          try {
+            const r = await premiereCheck.addMarkers(project, parts, g.input.fps);
+            toast(r.added ? `${r.added} markers added. One Cmd/Ctrl+Z takes them back.` : "The markers are already there.", true);
+          } catch (e) {
+            toast(e.message || String(e), false);
+            if (!(e instanceof premiere.UserError)) engine.log("error", `check markers: ${e && e.stack ? e.stack : e}`);
+          }
+        }));
+    }
     engine.log("info", `export check ${g.input.sequence}: ${parts.map((p) => `${p.id} ${p.status}`).join(", ")}`);
     finish(warn.length ? `${g.input.sequence}: ${warn.length} to look at before export (${warn.map((p) => p.title.toLowerCase()).join(", ")}).`
       : `${g.input.sequence}: nothing found (missing fonts cannot be checked).`, !warn.length, blocks);
@@ -1218,11 +1271,12 @@ async function onRoughCut() {
     const project = await premiere.activeProject();
     const opts = { mode: $("roughMode").value, tempo: $("roughTempo").value, markers: $("roughMarkers").checked,
       fast: !$("roughFastRow").hidden && $("roughFast").checked };
-    const { payload, meta } = await premiereRough.readInput(project, opts);
+    const input = await premiereRough.readInput(project, opts);
+    const { payload, meta } = input;
     const { job } = await engine.startRoughcut(payload);
     const result = await runJob(job);
     progress(0.92, "Importing the new sequence…");
-    const placed = await premiereRough.place(project, result, meta);
+    const placed = await premiereRough.place(project, result, meta, input);
     const out = roughcutplan.describeResult(result, placed);
     const named = placed.problems.length ? "" : await autoLabels(project);
     finish(out.text + named, !placed.problems.length, out.lines.map((l) => el("div", l.cls, l.text)));

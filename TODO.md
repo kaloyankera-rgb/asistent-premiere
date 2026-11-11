@@ -24,13 +24,15 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
   C0930, C0932 straight after C0930, both with their L / R copies and levels.
 
 ## R. Reminders (the user, 2026-11-11: "add these as a reminder when I ask"; not to start unasked)
-- [ ] Timing fix on the before export black bars thing
-- [ ] Rough cut bugs
-- [ ] Recording on how to do the keyframes
-- [ ] Cancelling doesn't work or takes a long time
-- [ ] After the sync detects double POV's it needs to not only rename the audio/video tracks it needs to label with color POV 1/2
-- [ ] After rough cut, when I've used "Fix audio" it resets it after the rough cut
-- [ ] Sync missed again some POV's
+- [x] Timing fix on the before export black bars thing (0.10.45-0.10.47)
+- [x] Rough cut bugs (0.10.45-0.10.47)
+- [x] Recording on how to do the keyframes (0.10.45-0.10.47)
+- [x] Cancelling doesn't work or takes a long time (0.10.45-0.10.47)
+- [x] After the sync detects double POV's it needs to not only rename the audio/video tracks it needs to label with color POV 1/2 (0.10.45-0.10.47)
+- [x] After rough cut, when I've used "Fix audio" it resets it after the rough cut (0.10.45-0.10.47)
+- [x] Sync missed again some POV's (0.10.45-0.10.47)
+
+- [ ] The user to look: are the SYNC clips in the POV colours on the timeline (scripts cannot read a clip's colour)?
 
 ## FILL. Picture fills the frame (0.10.44, the user 2026-11-11)
 - [ ] Verify in NEW TEST: a 4K clip at 88 % on V2 over V1 (expect "10 px at the top and bottom ... V1 shows through"), Anchor

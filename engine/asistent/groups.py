@@ -20,6 +20,14 @@ from .sync import Cancelled, Clip, ProgressFn, analyze_pair, load_clip
 LOOP_TOL = 0.010
 CLOCK_VETO = 10.0      # s: recording times (1 s steps, a moment of start-up) further apart than this are another take
 CLOCK_CONFIRM = 2.0    # s: recording times this close to the audio's offset confirm an uncertain pair
+# Short takes (Pulse Fitness, 2026-11-11: 10 pairs of 4-12 s clips missed, the user synced them by hand). Two stretches
+# give the same offset, too few for High on sound alone; the clocks LEARNT from the sure pairs (never raw clocks) must
+# then agree within CLOCK_SHORT. Measured there: all 9 such pairs agree within 0.65 s (the cameras write whole seconds).
+SHORT_MIN_WINDOWS = 2
+SHORT_RATIO = 1.25     # median peak / second peak of the two stretches (measured 1.27-2.32 on the real pairs)
+CLOCK_SHORT = 1.5      # s
+CLOCK_PRECISE = 1.0    # s: a learnt camera clock this consistent (spread) may decide a short or a two-offset pair
+OVERLAP_HINT = 1.0     # s: clips the clocks put together for this long are named when the sound could not confirm them
 # FFmpeg decoding and NumPy/SciPy FFTs release the GIL, so threads use several cores
 WORKERS = max(2, min(8, (os.cpu_count() or 4) - 2))
 
@@ -69,10 +77,14 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
             ref, oth = (i, j) if clips[i].length >= clips[j].length else (j, i)
             r = analyze_pair(clips[ref], clips[oth], check, quick=True)
             tick(0.65, 0.3, len(pairs), "Comparing {} of {}")
-            if r["confidence"] in ("high", "medium") and r.get("offset") is not None:
+            # a Low pair is kept only when two stretches agree: the clocks may confirm it (short takes, 0.10.45)
+            keep = r["confidence"] in ("high", "medium") or (r.get("windows_agree") or 0) >= SHORT_MIN_WINDOWS
+            if keep and r.get("offset") is not None:
                 return {"a": ref, "b": oth, "offset": r["offset"], "confidence": r["confidence"],
                         "agree": f'{r.get("windows_agree")}/{r.get("windows_total")}', "loose": bool(r.get("loose")),
                         "ambiguous": bool(r.get("ambiguous")), "drifting": bool(r.get("drifting")),
+                        "n_agree": r.get("windows_agree") or 0, "n_info": r.get("windows_informative") or 0,
+                        "peak_ratio": r.get("peak_ratio") or 0.0, "runner_offset": r.get("runner_offset"),
                         "reasons": r["reasons"], "warnings": r["warnings"]}
             return None
 
@@ -88,6 +100,7 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
     grouped = {m["clip"] for g in groups for m in g["members"]}
     # when each clip was recorded, on one clock for all cameras (the layout puts everything in that order)
     when = chrono.chronology(rec, src, folders, groups)
+    together = _clock_overlaps(clips, folders, groups, when)
     progress(1.0, "Done")
     return {
         "clips": [{"path": c.info.path, "name": c.name, "duration": round(c.info.duration, 3),
@@ -105,7 +118,33 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
                            for e in edges if e["confidence"] == "high" and (e.get("loose") or e.get("clock_confirmed"))
                            and {e["a"], e["b"]} <= grouped],
         "pairs_checked": len(pairs),
+        # not synced, but the learnt clocks say these were recording at the same time: the editor syncs them by hand
+        "clock_overlaps": together,
     }
+
+
+def _clock_overlaps(clips: list[Clip], folders: list[str], groups: list[dict], when: dict) -> list[dict]:
+    """Pairs of clips from different cameras that the learnt clocks put side by side for OVERLAP_HINT or more, but that
+    are not in one group (the sound was too short or too quiet to confirm). Only cameras whose clock was learnt from
+    synced pairs (or the reference camera) count: a raw clock may simply be wrong."""
+    precise = {c["camera"] for c in when["cameras"] if c["camera"] == when["reference"]
+               or (c["pairs"] > 0 and c["spread"] <= CLOCK_PRECISE)}
+    group_of = {m["clip"]: k for k, g in enumerate(groups) for m in g["members"]}
+    out = []
+    t = when["time"]
+    for i in range(len(clips)):
+        for j in range(i + 1, len(clips)):
+            if folders[i] == folders[j] or folders[i] not in precise or folders[j] not in precise:
+                continue
+            if t[i] is None or t[j] is None or when["note"][i] or when["note"][j]:
+                continue
+            if i in group_of and group_of.get(j) == group_of[i]:
+                continue
+            shared = min(t[i] + clips[i].info.duration, t[j] + clips[j].info.duration) - max(t[i], t[j])
+            if shared >= OVERLAP_HINT:
+                a, b = (i, j) if clips[i].info.duration >= clips[j].info.duration else (j, i)
+                out.append({"a": a, "b": b, "offset": round(t[b] - t[a], 1)})
+    return out
 
 
 def _clock_check(clips: list[Clip], folders: list[str], split_by_folder: bool, edges: list[dict],
@@ -123,7 +162,12 @@ def _clock_check(clips: list[Clip], folders: list[str], split_by_folder: bool, e
     Masterhaus (2026-11-03): all 9 audio pairs agree with the learnt clocks within 0.8 s."""
     loose = [e for e in edges if e["confidence"] == "high" and e.get("loose")]
     medium = [e for e in edges if e["confidence"] == "medium" and not e.get("ambiguous") and not e.get("drifting")]
-    if not loose and not medium:
+    short = [e for e in edges if e["confidence"] == "low" and not e.get("ambiguous") and not e.get("drifting")
+             and e.get("n_agree", 0) >= SHORT_MIN_WINDOWS and e["n_agree"] >= 0.5 * e.get("n_info", 0)
+             and e.get("peak_ratio", 0.0) >= SHORT_RATIO]
+    two = [e for e in edges if e["confidence"] == "medium" and e.get("ambiguous") and not e.get("drifting")
+           and e.get("runner_offset") is not None]
+    if not loose and not medium and not short and not two:
         return
     strict = [e for e in edges if e["confidence"] == "high" and not e.get("loose")]
     base, _ = _build_groups(clips, folders if split_by_folder else None, strict)
@@ -154,11 +198,30 @@ def _clock_check(clips: list[Clip], folders: list[str], split_by_folder: bool, e
             e["reasons"].append("The camera clocks confirm it.")
     for e in medium:
         s = said(e, raw=True, precision=CLOCK_CONFIRM)
+        sure = said(e, raw=False, precision=CLOCK_PRECISE)
+        if sure is not None and abs(sure - e["offset"]) > CLOCK_VETO:
+            e["reasons"].append(f"The camera clocks say they were not recorded together ({sure - e['offset']:+.0f} s apart).")
+            continue
         if s is not None and abs(s - e["offset"]) <= CLOCK_CONFIRM:
             e["confidence"] = "high"
             e["clock_confirmed"] = True
             e["reasons"].append(f"The sound alone was not enough ({e['agree']} stretches), but the camera clocks give "
                                 f"the same offset ({s:+.1f} s against {e['offset']:+.3f} s from the sound).")
+    for e in short:
+        s = said(e, raw=False, precision=CLOCK_PRECISE)
+        if s is not None and abs(s - e["offset"]) <= CLOCK_SHORT:
+            e["confidence"] = "high"
+            e["clock_confirmed"] = True
+            e["reasons"] = [f"A short take: {e['n_agree']} stretches of sound give the same offset, and the camera clocks "
+                            f"agree ({s:+.1f} s against {e['offset']:+.3f} s from the sound)."]
+    for e in two:
+        # two possible offsets (repeating sound): the clocks take the one they agree with, only when the other is far off
+        s = said(e, raw=False, precision=CLOCK_PRECISE)
+        if s is not None and abs(s - e["offset"]) <= CLOCK_SHORT and abs(s - e["runner_offset"]) > CLOCK_VETO / 2:
+            e["confidence"] = "high"
+            e["clock_confirmed"] = True
+            e["reasons"] = [f"The sound allows two offsets ({e['offset']:+.3f} s and {e['runner_offset']:+.3f} s); the camera "
+                            f"clocks say {s:+.1f} s, so the first."]
 
 
 def _build_groups(clips: list[Clip], folders: list[str] | None, edges: list[dict]):

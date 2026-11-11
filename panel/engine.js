@@ -1,10 +1,19 @@
 // HTTP client for the local Asistent engine (127.0.0.1 only).
 const BASE = "http://127.0.0.1:47390";
+// 0.10.45: the Premiere this panel runs in (major version), so the engine sends its host commands back to this Premiere
+// when two versions run side by side (devbridge.Bridge.submit)
+const LANE = (() => {
+  try {
+    return String(require("uxp").host.version || "").split(".")[0];
+  } catch (e) {
+    return "";
+  }
+})();
 
 async function call(method, path, body) {
   const res = await fetch(BASE + path, {
     method,
-    headers: { "X-Asistent": "1", "Content-Type": "application/json" },
+    headers: { "X-Asistent": "1", "X-Asistent-Lane": LANE, "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   let data = {};
@@ -203,6 +212,10 @@ function placeGraphics(payload) {
 }
 
 // L/L and R/R through the clips' own channels, done by the host (ExtendScript): can take a few seconds per clip
+function roughLink(payload) {
+  return call("POST", "/roughcut/link", payload);
+}
+
 function routeAudio(payload) {
   return call("POST", "/audio/route", payload);
 }
@@ -273,4 +286,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, stashList, stashGet, stashSave, stashDelete, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, stashList, stashGet, stashSave, stashDelete, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };

@@ -45,7 +45,8 @@ test("the report: each part ok, warn or unknown; fonts are never claimed as chec
     frame: { width: 1080, height: 1920 }, captions: [{ index: 0, name: "Subtitles BG", lines: [{ start: 0, end: 2 }, { start: 1.5, end: 3 }] }],
     graphics: [], clips: [{ track: 0, name: "Z.WAV", start: 1, peakDb: [-10], gainDb: 0, speech: true }] });
   assert.deepStrictEqual(r.map((s) => [s.id, s.status]), [["offline", "warn"], ["black", "ok"], ["captions", "warn"], ["audio", "ok"], ["fonts", "unknown"]]);
-  assert.match(r[0].lines[0], /A1 Z.WAV at 0:01.0/);
+  assert.match(r[0].lines[0], /A1 Z.WAV at 00:00:01:00/);
+  assert.deepStrictEqual(r[0].times, [1]);
   assert.match(r[2].lines.join(" "), /overlap/);
   assert.match(r[2].lines.join(" "), /does not tell a script where they sit/);
 });
@@ -80,7 +81,47 @@ test("0.10.44: the report has a 'Picture fills the frame' part when the clips' f
   const parts = report({ items, end: 20, fps: 30, frame: { width: 1080, height: 1920 }, pictures, files });
   const fill = parts.find((p) => p.id === "fill");
   assert.equal(fill.status, "warn");
-  assert.match(fill.lines[0], /^V2 broll\.mp4 at 0:05\.0: 10 px at the top and bottom uncovered \(scale 88 %\); V1 talk\.mp4 shows through$/);
+  assert.match(fill.lines[0], /^V2 broll\.mp4 at 00:00:05:00: 10 px at the top and bottom uncovered \(scale 88 %\); V1 talk\.mp4 shows through$/);
   assert.ok(fill.lines.some((l) => /1 logo, graphic or transparent file was not checked/.test(l)));
   assert.equal(report({ items, end: 20, fps: 30, frame: { width: 1080, height: 1920 } }).some((p) => p.id === "fill"), false);
+});
+
+
+// ---- 0.10.45: the user's ReShape check ("0:58.1–2:23.9: 85.9 s of black"; "I need time stamps maybe added markers")
+
+test("timecode as Premiere shows it: drop frame at 59.94 / 29.97, plain at whole rates", () => {
+  assert.strictEqual(X.timecode(1748 / 59.94005994005994, 59.94005994005994), "00;00;29;08");
+  assert.strictEqual(X.timecode(5, 30), "00:00:05:00");
+  assert.strictEqual(X.timecode(1800 / 29.97002997, 29.97002997), "00;01;00;02");          // frame numbers 00 and 01 are skipped at a minute
+  assert.strictEqual(X.timecode(17982 / 29.97002997, 29.97002997), "00;10;00;00");         // but not at every tenth minute
+  assert.strictEqual(X.timecode(3.25, 0), "0:03.3");
+});
+
+test("music running on after the picture is not black inside the export: it is said as a sound-only tail", () => {
+  const items = [v(0, 58.1), { kind: "audio", track: 3, name: "music.mp3", start: 0, end: 143.9 }];
+  const r = X.report({ items, end: 143.9, fps: 30, clips: [] });
+  const black = r.find((s) => s.id === "black");
+  assert.strictEqual(black.lines.length, 1);
+  assert.match(black.lines[0], /only sound after the last picture/);
+  assert.match(black.lines[0], /set an Out point at 00:00:58:03/);
+  assert.strictEqual(black.times[0], 58.1);
+  // with an Out point at the end of the picture there is nothing to say
+  const ranged = X.report({ items, end: 143.9, fps: 30, clips: [], range: { from: 0, to: 58.1 } });
+  assert.strictEqual(ranged.find((s) => s.id === "black").status, "ok");
+  assert.match(ranged[0].note, /Out \(00:00:58:03\)/);
+});
+
+test("a gap inside the In / Out is found; one outside it is not", () => {
+  const items = [v(0, 10), v(12, 30), v(40, 50)];
+  const r = X.report({ items, end: 50, fps: 30, clips: [], range: { from: 0, to: 30 } });
+  const black = r.find((s) => s.id === "black");
+  assert.deepStrictEqual(black.times, [10]);
+});
+
+test("markers: one per timed problem, never twice at the same place", () => {
+  const items = [v(0, 10), v(12, 20), { kind: "audio", track: 0, name: "Z.WAV", start: 1, end: 9, offline: true }];
+  const parts = X.report({ items, end: 20, fps: 30, clips: [] });
+  const m = X.markers(parts, [], 30);
+  assert.deepStrictEqual(m.map((x) => [x.name, x.at]), [["Check: Offline media", 1], ["Check: Black gaps", 10]]);
+  assert.deepStrictEqual(X.markers(parts, [{ name: "Check: Black gaps", at: 10.001 }], 30).map((x) => x.at), [1]);
 });

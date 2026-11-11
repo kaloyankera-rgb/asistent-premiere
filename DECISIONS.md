@@ -1,5 +1,18 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-11: the rough cut is built from clones, the XML only makes the sequence (0.10.45)
+An imported XML makes new master clips, and Premiere re-interprets them (26.5.2: rotation flag off, S-Log3 gone, L/R copies
+plain stereo). Clones of the editor's own track items keep everything. The clones' trims and moves touch only the copies in
+the new sequence; the source sequence is still only read; nothing is removed.
+
+## 2026-11-11: a short take may sync on two stretches when the learnt clocks agree (0.10.45)
+Three stretches cannot exist in a 4-12 s clip. Two agreeing stretches plus the cameras' clocks learnt from the sure pairs (never
+raw clocks) within 1.5 s is two independent witnesses; every other pair keeps the old rule.
+
+## 2026-11-11: the rough cut reads with a compression-ratio limit of 3.0 (0.10.45)
+A retake is repeated text; at 2.4 Whisper took it for a loop and re-read the stretch up to six times. Only the rough cut, under
+its own cache keys; the subtitles keep faster-whisper's defaults.
+
 ## 2026-11-10: every client style joins the article (0.10.23, replaces the next entry)
 The user said yes to the question in 0.10.22: all five client styles (one Submagic template) write „IPHONE-А“. ReShape, short and
 standard keep their output. The client's own brand takes no article at all (the user: "Its not GStroy-A its GStroy",

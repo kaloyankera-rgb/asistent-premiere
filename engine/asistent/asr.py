@@ -129,6 +129,15 @@ def workers() -> int:
     return _parallelism(_device()[0])[0]
 
 
+CANCEL_POLL = 0.2          # s: how often a waiting reading looks at the Cancel request
+# The rough cut's compression-ratio limit (0.10.45). Whisper takes a stretch whose text compresses more than 2.4 for a
+# hallucination loop and reads it again at rising temperatures, up to six times. A repeated take IS repeated text: on the
+# Pulse Fitness takes (2026-11-11) the limit fired on every clip with a retake (ratio 2.5-2.7) and the stretch was read six
+# times, ending with the most random reading (95 -> 31 s, 51 -> 19 s for one 60 s clip; the same words or better). Real
+# loops ("Благодаря. Благодаря. ...") compress far above 3.
+ROUGH_COMPRESSION = 3.0
+
+
 def _load(kind: str = LARGE):
     if not backend_installed():
         raise ASRError("The speech recognition packages (faster-whisper) are missing. They are installed from the panel or with "
@@ -174,9 +183,11 @@ def _schedule_free(kind: str = LARGE) -> None:
 
 def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[[float, str], None] | None = None,
                cancelled: Callable[[], bool] | None = None, language: str = LANGUAGE, beam: int = 5,
-               model: str = LARGE) -> list[dict]:
+               model: str = LARGE, compression: float | None = None) -> list[dict]:
     """Words with times (seconds from the start of `audio`) and Whisper's probability. Callers may run in parallel up to
-    `workers()`; more wait their turn inside the model. `model`: LARGE (subtitles, the default) or TURBO (rough cut only)."""
+    `workers()`; more wait their turn inside the model. `model`: LARGE (subtitles, the default) or TURBO (rough cut only).
+    `compression`: Whisper's compression-ratio limit (None = faster-whisper's 2.4, the subtitles' setting); the rough cut
+    passes ROUGH_COMPRESSION (0.10.45)."""
     kind = model
     progress = progress or (lambda f, m: None)
     cancelled = cancelled or (lambda: False)
@@ -185,20 +196,41 @@ def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[
     model = _load() if kind == LARGE else _load(kind)      # large-v3: the call exactly as before 0.10.40
     if cancelled():
         raise Cancelled()
-    segments, _ = model.transcribe(audio, language=language, word_timestamps=True, vad_filter=False, beam_size=beam,
-                                   initial_prompt=prompt or None)
-    words: list[dict] = []
-    for seg in segments:                                   # a generator: the work happens here, segment by segment
-        if cancelled():
+    extra = {} if compression is None else {"compression_ratio_threshold": compression}
+    box: dict = {}
+
+    def read():
+        try:
+            segments, _ = model.transcribe(audio, language=language, word_timestamps=True, vad_filter=False, beam_size=beam,
+                                           initial_prompt=prompt or None, **extra)
+            words: list[dict] = []
+            for seg in segments:                           # a generator: the work happens here, segment by segment
+                if cancelled():
+                    raise Cancelled()
+                for w in seg.words or []:
+                    if w.word.strip():
+                        words.append({"word": w.word.strip(), "start": round(float(w.start), 3), "end": round(float(w.end), 3),
+                                      "p": round(float(w.probability), 2)})
+                progress(min(seg.end / duration, 1.0), "Recognising the speech…")
+            box["words"] = words
+        except BaseException as e:                         # noqa: BLE001 - handed to the caller as it is
+            box["error"] = e
+        finally:
+            _states[kind]["last"] = time.time()
+            _schedule_free(kind)
+
+    # 0.10.45 (the user: "Cancelling doesn't work or is super slow"): one 30 s stretch of Whisper cannot be interrupted, and
+    # with its temperature retries it took up to 132 s (Pulse Fitness). The reading runs in its own thread and the caller
+    # waits in short steps: Cancel returns at once, and the reading stops by itself at its next stretch.
+    t = threading.Thread(target=read, name="asr-read", daemon=True)
+    t.start()
+    while t.is_alive():
+        t.join(CANCEL_POLL)
+        if t.is_alive() and cancelled():
             raise Cancelled()
-        for w in seg.words or []:
-            if w.word.strip():
-                words.append({"word": w.word.strip(), "start": round(float(w.start), 3), "end": round(float(w.end), 3),
-                              "p": round(float(w.probability), 2)})
-        progress(min(seg.end / duration, 1.0), "Recognising the speech…")
-    _states[kind]["last"] = time.time()
-    _schedule_free(kind)
-    return words
+    if "error" in box:
+        raise box["error"]
+    return box["words"]
 
 
 def score_texts(audio: np.ndarray, texts: list[str], language: str = LANGUAGE) -> list[float]:

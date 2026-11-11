@@ -105,7 +105,7 @@ function below(clip, all, at) {
  * m as in gap()), files: {path: {width, height, rotation, alpha, error}}, frame, all: every video item (for what shows
  * through) -> {bad: [{clip, at, g, text}], looked: n, skipped: n, unknownFit: n}
  */
-function check(clips, files, frame, all = clips) {
+function check(clips, files, frame, all = clips, fmt = clock) {
   const bad = [];
   let looked = 0;
   let skipped = 0;
@@ -129,7 +129,7 @@ function check(clips, files, frame, all = clips) {
       const sc = worst.m.sw === undefined ? null : worst.m.sh !== undefined && worst.m.sh !== worst.m.sw
         ? `scale ${+worst.m.sw.toFixed(1)} / ${+worst.m.sh.toFixed(1)} %` : `scale ${+worst.m.sw.toFixed(1)} %`;
       bad.push({ clip: c, at: worst.at, g: worst.g,
-        text: `V${c.track + 1} ${c.name} at ${clock(worst.at)}: ${sides(worst.g)}${sc ? ` (${sc})` : ""}; ${below(c, all, worst.at)}` });
+        text: `V${c.track + 1} ${c.name} at ${fmt(worst.at)}: ${sides(worst.g)}${sc ? ` (${sc})` : ""}; ${below(c, all, worst.at)}` });
     }
   }
   return { bad, looked, skipped, unknownFit };

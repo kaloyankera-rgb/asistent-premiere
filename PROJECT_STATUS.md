@@ -1,5 +1,13 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.47 (2026-11-11, installed, tested through the bridge in NEW TEST on Premiere 26.5.2 while the user edited in 27.0):
+the user's seven reminders. VERIFIED: rough cut from clones (rotation, colour space, effects, Fix audio L/R kept, linked),
+Cancel during recognition (0.06 s), Fix audio track order (A1+A2 / A3+A4, A4 added, named), check before export timecodes,
+click-to-playhead and markers, Overshoot+, Sync's every-other-track layout and files coloured before placing. Sync short
+takes verified offline on the Pulse Fitness footage (7 more pairs). NOT verified: the clips' colour on the timeline (scripts
+cannot read it: the user to look), Bounce Back in Premiere, the rough cut on rotated footage (logic: clones keep the item).
+Tests: 729 pytest + 24 skipped, node 258.
+
 0.10.44 (2026-11-11, branch feature/coverage-check, NOT installed: the user was in a client project): Check before export
 reports clips whose picture does not fill the frame (under-scaled B-roll). Tests pass; Premiere parts NOT verified.
 

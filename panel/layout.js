@@ -120,6 +120,10 @@ function syncLayout(engine, order) {
     p.track = t;
     (busy[t] = busy[t] || []).push([p.zero, p.zero + p.duration]);
   }
+  // 0.10.45 (the user: after Fix audio "A1 A2 for POV 1 and A3 A4 for POV 2"): with two or more tracks every camera's sound
+  // goes on every other audio track (A1, A3, A5…), so Fix audio's second side of each camera lands right under it
+  const spaced = new Set(placements.map((p) => p.track)).size > 1;
+  for (const p of placements) p.audioTrack = spaced ? 2 * p.track : p.track;
   return { placements, cameras, seed, uncertain };
 }
 

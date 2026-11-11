@@ -264,11 +264,12 @@ async function buildSyncSequence(project, timeline, lay) {
   const others = lay.placements.filter((p) => p !== seed).sort((a, b) => a.zero - b.zero);
   // the API of 26.0 is not documented: try the documented insert first, then the alternatives, and
   // remember the first one that works
+  const audioOf = (p) => (Number.isInteger(p.audioTrack) ? p.audioTrack : p.track);    // layout.js: every other track (0.10.45)
   const ways = [
-    ["insert", (p, t) => editor.createInsertProjectItemAction(p.projectItem, t, p.track, p.track, true)],
-    ["overwrite", (p, t) => editor.createOverwriteItemAction(p.projectItem, t, p.track, p.track)],
-    ["insert(clip)", (p, t) => editor.createInsertProjectItemAction(p.item, t, p.track, p.track, true)],
-    ["overwrite(clip)", (p, t) => editor.createOverwriteItemAction(p.item, t, p.track, p.track)],
+    ["insert", (p, t) => editor.createInsertProjectItemAction(p.projectItem, t, p.track, audioOf(p), true)],
+    ["overwrite", (p, t) => editor.createOverwriteItemAction(p.projectItem, t, p.track, audioOf(p))],
+    ["insert(clip)", (p, t) => editor.createInsertProjectItemAction(p.item, t, p.track, audioOf(p), true)],
+    ["overwrite(clip)", (p, t) => editor.createOverwriteItemAction(p.item, t, p.track, audioOf(p))],
   ];
   let way = null;
   // first choice: every clip in ONE transaction, so one Undo removes it all (no markers: layout.js)
@@ -315,7 +316,7 @@ async function buildSyncSequence(project, timeline, lay) {
   let worst = 0;
   for (const p of lay.placements) {
     const kind = p.hasVideo ? "video" : "audio";
-    const hit = items.find((x) => x.kind === kind && x.track === p.track && x.path === p.path &&
+    const hit = items.find((x) => x.kind === kind && x.track === (p.hasVideo ? p.track : audioOf(p)) && x.path === p.path &&
       Math.abs((x.start - x.inPt) - p.zero) < tol);
     if (!hit) bad.push(p.name);
     else worst = Math.max(worst, Math.abs((hit.start - hit.inPt) - p.zero));

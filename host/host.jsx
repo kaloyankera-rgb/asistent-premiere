@@ -346,6 +346,19 @@ function as_where(c) {
     return { track: c.parentTrackIndex, start: c.start.seconds, end: c.end.seconds, name: String(c.name) };
 }
 
+// One more audio track after the last (0.10.45). Only QE can add one; it works on the ACTIVE sequence, so only for that.
+// QE addTracks(video, after, audio, audioType, after): type 1 = a standard (stereo) track [probe in NEW TEST].
+// -> true when the sequence really has one more track afterwards
+function as_add_audio_track(seq) {
+    var before = seq.audioTracks.numTracks;
+    try {
+        if (!app.project.activeSequence || app.project.activeSequence.sequenceID !== seq.sequenceID) return false;
+        app.enableQE();
+        qe.project.getActiveSequence().addTracks(0, 0, 1, 1, before);
+    } catch (e) { return false; }
+    return seq.audioTracks.numTracks > before;
+}
+
 // one clip: {track, start, end, route: "split" | "split_rl" | "use_left" | "use_right" | "label"}; "label" only gives an
 // earlier L/R copy the clip's own label and never splits anything
 function as_route_one(seq, bin, a) {
@@ -376,7 +389,13 @@ function as_route_one(seq, bin, a) {
     var upperSide = a.route === "use_right" || a.route === "split_rl" ? "R" : "L";
     var lowerSide = upperSide === "L" ? "R" : "L";
     var below = -1;
-    if (split) {
+    if (split && typeof a.lower === "number" && a.lower > a.track) {
+        // 0.10.45: the panel chose one second-side track per source track (audioplan.lowerTracks); it may be a new one
+        while (seq.audioTracks.numTracks <= a.lower && as_add_audio_track(seq)) { /* one more */ }
+        var want = seq.audioTracks[a.lower];
+        if (want && !want.isLocked() && !as_busy(want, a.start, a.end)) below = a.lower;
+    }
+    if (split && below < 0) {
         for (var t = a.track + 1; t < seq.audioTracks.numTracks; t++) {
             var tr = seq.audioTracks[t];
             if (!tr.isLocked() && !as_busy(tr, a.start, a.end)) { below = t; break; }
@@ -423,6 +442,32 @@ function as_route_one(seq, bin, a) {
     } catch (e) { linked = false; }
     return { ok: true, status: "done", upperSide: upperSide, upper: as_where(u), lower: l ? as_where(l) : null,
         lowerSide: l ? lowerSide : null, linked: linked, relinked: keep.length, label: label };
+}
+
+// Rough cut by clones (0.10.45): clones arrive unlinked (UXP clones one track item at a time), so the video and audio
+// pieces of one moment of one clip are linked again, as Fix audio relinks its copies. args: {project, sequence, guid,
+// groups: [[{kind, track, start, end}]]} -> {ok, linked, missing}. One Premiere step per group (ExtendScript).
+function as_link(a) {
+    var tg = as_target(a);
+    if (tg.error) return as_result(false, tg.error);
+    var seq = tg.seq, linked = 0, missing = 0, groups = a.groups || [];
+    for (var g = 0; g < groups.length; g++) {
+        var parts = [];
+        for (var k = 0; k < groups[g].length; k++) {
+            var x = groups[g][k];
+            var tracks = x.kind === "video" ? seq.videoTracks : seq.audioTracks;
+            var c = tracks[x.track] ? as_tracks_clip(tracks[x.track], x.start, x.end) : null;
+            if (c) parts.push(c); else missing++;
+        }
+        if (parts.length < 2) continue;
+        try {
+            as_deselect_all(seq);
+            for (var p = 0; p < parts.length; p++) parts[p].setSelected(true, p === parts.length - 1);
+            if (seq.linkSelection()) linked++;
+        } catch (e) { /* counted as not linked */ }
+    }
+    try { as_deselect_all(seq); } catch (e2) { /* nothing selected */ }
+    return as_result(true, "ok", { linked: linked, groups: groups.length, missing: missing });
 }
 
 // args: {project, sequence, items: [...]} -> {ok, items: [result per item, in order]}
@@ -481,6 +526,7 @@ function as_run(name, args) {
         if (name === "captions") return as_captions(args || {});
         if (name === "graphics") return as_graphics(args || {});
         if (name === "audio_route") return as_audio_route(args || {});
+        if (name === "link") return as_link(args || {});
         if (name === "eval") return as_eval(args || {});
         if (name === "play") return as_play(args || {});
         if (name === "play_stop") return as_play_stop(args || {});

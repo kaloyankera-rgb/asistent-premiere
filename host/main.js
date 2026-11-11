@@ -6,7 +6,10 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const VERSION = "0.9.45";
+const VERSION = "0.10.45";
+// 0.10.45: this Premiere's major version, said with every poll: the engine gives this host only the commands of panels in
+// the same Premiere (two versions may run side by side). Read once at start (loop below).
+let LANE = "";
 const ENGINE = { host: "127.0.0.1", port: 47390 };
 const LOG = path.join(os.homedir(), process.platform === "darwin" ? "Library/Application Support/Asistent" : "AppData/Local/Asistent", "logs", "host.log");
 
@@ -27,7 +30,7 @@ function call(method, url, body, timeout) {
   return new Promise((resolve, reject) => {
     const data = body === undefined ? null : Buffer.from(JSON.stringify(body), "utf8");
     const req = http.request({ ...ENGINE, method, path: url, timeout: timeout || 30000,
-      headers: Object.assign({ "X-Asistent": "1", "X-Asistent-Host": VERSION }, data ? { "Content-Type": "application/json", "Content-Length": data.length } : {}) }, (res) => {
+      headers: Object.assign({ "X-Asistent": "1", "X-Asistent-Host": VERSION, "X-Asistent-Lane": LANE }, data ? { "Content-Type": "application/json", "Content-Length": data.length } : {}) }, (res) => {
       const chunks = [];
       res.on("data", (c) => chunks.push(c));
       res.on("end", () => {
@@ -63,7 +66,8 @@ async function run(cmd) {
 }
 
 async function loop() {
-  log("host " + VERSION + " started");
+  try { LANE = String(await evalHost("app.version") || "").split(".")[0].replace(/[^0-9]/g, ""); } catch (e) { LANE = ""; }
+  log("host " + VERSION + " started (lane " + (LANE || "none") + ")");
   for (;;) {
     let pause = 0;
     try {

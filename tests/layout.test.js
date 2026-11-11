@@ -144,3 +144,13 @@ test("the user's Credissimo case (2026-11-11): an iPhone clip on the second trac
   const at = Object.fromEntries(r.placements.map((p) => [p.name, [p.track, +p.zero.toFixed(3)]]));
   assert.deepStrictEqual(at, { "C0930.MP4": [0, 0], "IMG_0357.MOV": [1, 46.303], "C0932.MP4": [0, 393.12] });
 });
+
+test("0.10.45: two cameras put their sound on every other audio track; one camera stays on A1", () => {
+  const two = syncLayout({ clips: [{ path: "/a/1.mp4", name: "1", duration: 10, has_video: true },
+    { path: "/b/2.mp4", name: "2", duration: 10, has_video: true }],
+  groups: [{ anchor: 0, members: [{ clip: 0, offset: 0 }, { clip: 1, offset: 1 }] }], unsynced: [] }, null);
+  assert.deepStrictEqual(two.placements.map((p) => [p.track, p.audioTrack]).sort(), [[0, 0], [1, 2]]);
+  const one = syncLayout({ clips: [{ path: "/a/1.mp4", name: "1", duration: 10, has_video: true },
+    { path: "/a/2.mp4", name: "2", duration: 10, has_video: true }], groups: [], unsynced: [0, 1] }, null);
+  assert.ok(one.placements.every((p) => p.audioTrack === p.track));
+});

@@ -17,8 +17,10 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   const root = $("paneKeyframer");
   const state = {
     curve: { id: "easeInOut", p: K.PRESETS[0].p.slice() }, sel: null, ticked: new Set(), busy: false,
-    kind: "curve",                                            // curve | elastic | bounce
+    kind: "curve",                                            // curve | elastic | bounce | overshoot | bounceBack
     spring: { dir: "end", elastic: { n: 2, over: 20 }, bounce: { n: 3, h: 50 } },
+    // 0.10.45: the user's reference (BOUNCr in After Effects), its settings as defaults
+    after: { overshoot: { amp: 50, freq: 2, decay: 4 }, bounceBack: { elast: 50, grav: 50, max: 10 } },
     repeat: { mode: "off", times: 0 },                        // times 0 = until the clip ends
   };
 
@@ -63,6 +65,14 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   springRows.appendChild(countRow);
   const strengthRow = el("div", "row kf-step");
   springRows.appendChild(strengthRow);
+  const afterRows = el("div", "");                          // Overshoot+ and Bounce Back: three settings each (0.10.45)
+  root.appendChild(afterRows);
+  afterRows.appendChild(el("div", "muted", "Make the move short and Linear (two keyframes a few frames apart): the motion happens after the last keyframe, from the speed it arrives with."));
+  const afterSteps = [0, 1, 2].map(() => {
+    const r = el("div", "row kf-step");
+    afterRows.appendChild(r);
+    return r;
+  });
 
   root.appendChild(el("div", "title spaced", "Repeat after the last keyframe"));
   const repeatRow = el("div", "row wrap kf-presets");
@@ -166,6 +176,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   function chosen() {
     if (state.kind === "elastic") return { kind: "elastic", dir: state.spring.dir, n: state.spring.elastic.n, over: state.spring.elastic.over / 100 };
     if (state.kind === "bounce") return { kind: "bounce", dir: state.spring.dir, n: state.spring.bounce.n, h: state.spring.bounce.h / 100 };
+    if (state.kind === "overshoot") return { kind: "overshoot", ...state.after.overshoot };
+    if (state.kind === "bounceBack") return { kind: "bounceBack", ...state.after.bounceBack };
     const nat = K.NATIVE.find((n) => n.id === state.curve.id);
     return nat ? { mode: nat.mode } : { p: state.curve.p };
   }
@@ -175,8 +187,11 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     mark(kinds, state.kind);
     mark(dirRow, state.spring.dir);
     mark(repeatRow, state.repeat.mode);
+    const after = state.kind === "overshoot" || state.kind === "bounceBack";
     curveRows.hidden = state.kind !== "curve";
-    springRows.hidden = state.kind === "curve";
+    springRows.hidden = state.kind === "curve" || after;
+    afterRows.hidden = !after;
+    for (const r of afterSteps) if (r.refresh) r.refresh();
     timesRow.hidden = state.repeat.mode === "off";
     for (const r of [countRow, strengthRow, timesRow]) if (r.refresh) r.refresh();
     const handles = state.kind === "curve";
@@ -186,6 +201,12 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       svg.style.opacity = "1";
       const c = chosen();
       box.querySelector("#kfPath").setAttribute("d", K.samplePath(c, SIZE, PAD));
+      if (after) {
+        curveName.textContent = c.kind === "overshoot"
+          ? `Overshoot+: amplitude ${c.amp}, frequency ${c.freq}, decay ${c.decay} (after the last keyframe)`
+          : `Bounce Back: elasticity ${c.elast}, gravity ${c.grav}, at most ${c.max} bounces (after the last keyframe)`;
+        return;
+      }
       curveName.textContent = c.kind === "elastic"
         ? `Elastic: ${c.n} ${c.n === 1 ? "wobble" : "wobbles"}, first overshoot ${state.spring.elastic.over} %, ${WHERE[c.dir]}`
         : `Bounce: ${c.n} ${c.n === 1 ? "hop" : "hops"}, each ${state.spring.bounce.h} % as high as the one before, ${WHERE[c.dir]}`;
@@ -308,6 +329,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       ["curve", "Curve", "A smooth curve between your keyframes: the presets, your own drag, or Premiere's own interpolation."],
       ["elastic", "Elastic", "Overshoots the target and wobbles into place, like a spring. For titles and logos popping in."],
       ["bounce", "Bounce", "Drops onto the target and bounces back in smaller and smaller hops, never past it."],
+      ["overshoot", "Overshoot+", "As BOUNCr's Overshoot+: the move arrives at full speed, swings past the target and settles. The motion is added after your last keyframe."],
+      ["bounceBack", "Bounce Back", "As BOUNCr's Bounce Back: the move hits the target and bounces back toward where it came from, smaller each time, never past it."],
     ]) {
       const b = button("small", name, help, () => { state.kind = id; draw(); });
       b.setAttribute("data-id", id);
@@ -338,6 +361,37 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       if (state.kind === "elastic") cur().over = Math.min(50, cur().over);   // the curve box shows up to 50 % over
       refreshStrength();
     };
+    // Overshoot+ / Bounce Back: the plugin's three settings, under its names
+    const SETTINGS = {
+      overshoot: [["amp", "Amplitude", "How far it swings past the target (BOUNCr's Amplitude; 50 as in your reference).", 5, 200, 5],
+        ["freq", "Frequency", "Swings per second (2 as in your reference).", 0.5, 8, 0.5],
+        ["decay", "Decay", "How fast it settles: higher stops sooner (4 as in your reference).", 1, 20, 1]],
+      bounceBack: [["elast", "Elasticity", "How much speed each bounce keeps, in % (50 as in your reference).", 5, 95, 5],
+        ["grav", "Gravity", "How hard it is pulled back to the target: higher = lower, quicker bounces (50 as in your reference).", 5, 200, 5],
+        ["max", "Max bounces", "The most bounces before it rests.", 1, 20, 1]],
+    };
+    afterSteps.forEach((row, i) => {
+      const kind = () => (state.kind === "bounceBack" ? "bounceBack" : "overshoot");
+      const spec = () => SETTINGS[kind()][i];
+      const vals = () => state.after[kind()];
+      const go = (dir) => () => {
+        const [key, , , lo, hi, st] = spec();
+        vals()[key] = Math.min(hi, Math.max(lo, Math.round((vals()[key] + dir * st) * 10) / 10));
+        draw();
+      };
+      const label = el("div", "kf-label", "");
+      const minus = button("small", "−", "", go(-1));
+      const value = el("div", "kf-value");
+      const plus = button("small", "+", "", go(1));
+      for (const x of [label, minus, value, plus]) row.appendChild(x);
+      row.refresh = () => {
+        const [key, name, help] = spec();
+        label.textContent = name;
+        minus.setAttribute("data-tip", help);
+        plus.setAttribute("data-tip", help);
+        value.textContent = String(vals()[key]);
+      };
+    });
     for (const [id, name, help] of [
       ["off", "Off", "The animation plays once."],
       ["pingpong", "Ping-pong", "After your last keyframe the animation plays backwards, then forwards again, and so on."],
