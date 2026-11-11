@@ -226,4 +226,75 @@ function lock(track, motions, frame, opts = {}) {
     uncovered: z !== 1 ? 0 : uncovered, lost: ok.filter((o) => !o).length, smooth, keyedScale: !!opts.keyedScale };
 }
 
-module.exports = { motion, screenPoint, attach, lock, gaussian, runs, boxFrom, toSeq, toMedia };
+// ---------------------------------------------------------------- the Tracker page's viewer and timeline (0.10.55)
+
+/** The tracked box on frame f as four corners (file pixels): box [x, y, w, h] of the boxed frame, grown by f.s, turned by f.a. */
+function corners(f, box) {
+  const hw = (box[2] * f.s) / 2;
+  const hh = (box[3] * f.s) / 2;
+  const r = rad(f.a);
+  const c = Math.cos(r);
+  const n = Math.sin(r);
+  return [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]].map(([x, y]) => [f.x + c * x - n * y, f.y + n * x + c * y]);
+}
+
+/** The first frame of the next (dir 1) or previous (dir -1) run that is not sure, seen from frame i; -1 when none. */
+function problem(frames, i, dir) {
+  const bad = (k) => frames[k] && frames[k].state !== "sure";
+  let k = i;
+  if (dir > 0) {
+    while (k < frames.length && bad(k)) k++;                     // out of the run we are in
+    while (k < frames.length && !bad(k)) k++;
+    return k < frames.length ? k : -1;
+  }
+  while (k >= 0 && bad(k)) k--;
+  while (k >= 0 && !bad(k)) k--;
+  if (k < 0) return -1;
+  while (k > 0 && bad(k - 1)) k--;                               // the start of that run
+  return k;
+}
+
+/**
+ * A part tracked again from a new box (a frame the editor fixed) put into the track. part: the engine's answer for frames
+ * offset.. offset+n-1 (its own scale and angle start at 1 / 0 on its boxed frame). Scale and angle continue from the
+ * nearest sure frame of the old track next to the fixed one (a box drawn a little tighter must not make the attached text
+ * jump in size); with no sure frame left, the scale comes from the new box against the first one.
+ */
+function merge(track, part, offset, newBox) {
+  const old = track.frames;
+  const j = offset + (part.k0 || 0);
+  let ratio = Math.sqrt((newBox[2] * newBox[3]) / (track.box[2] * track.box[3]));
+  let base = 0;
+  for (let d = 1; d < old.length; d++) {
+    const a = old[j - d];
+    const b = old[j + d];
+    const near = a && a.state === "sure" ? a : b && b.state === "sure" ? b : null;
+    if (near) {
+      ratio = near.s;
+      base = near.a;
+      break;
+    }
+  }
+  const frames = old.slice();
+  part.frames.forEach((f, i) => {
+    if (offset + i < frames.length) frames[offset + i] = { ...f, s: f.s * ratio, a: f.a + base, fixed: true };
+  });
+  return { ...track, frames };
+}
+
+/** Marks for the timeline: one per second of the clip's own time (every 5 s when long). -> [{i, label}] */
+function ticks(frames, inPt) {
+  if (!frames.length) return [];
+  const t0 = frames[0].t;
+  const span = frames[frames.length - 1].t - t0;
+  const every = span > 40 ? 10 : span > 12 ? 5 : 1;
+  const out = [];
+  for (let s = Math.ceil((t0 - (inPt || 0)) / every) * every; s <= span + (t0 - (inPt || 0)) + 1e-6; s += every) {
+    const t = (inPt || 0) + s;
+    const i = frames.findIndex((f) => f.t >= t - 1e-6);
+    if (i >= 0) out.push({ i, label: `${s}s` });
+  }
+  return out;
+}
+
+module.exports = { motion, screenPoint, attach, lock, gaussian, runs, boxFrom, toSeq, toMedia, corners, problem, merge, ticks };

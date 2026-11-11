@@ -2059,5 +2059,5 @@ setInterval(() => {
 
 // browser preview only (preview/boot.js sets this; inside Premiere it never exists): sample results fill the views
 if (typeof window !== "undefined" && typeof window.__asistentPreview === "function") {
-  window.__asistentPreview({ finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab, renderSpeakers, renderLearned, learnedView, filterCaptions, runSearch });
+  window.__asistentPreview({ tracker: () => trackerPage, finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab, renderSpeakers, renderLearned, learnedView, filterCaptions, runSearch });
 }

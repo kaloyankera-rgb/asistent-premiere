@@ -62,6 +62,10 @@ first; brand profiles deferred.
   style tracking of any object, so the placed target came first (faces-first was the earlier plan). USER: track something
   real (a logo on a car, a sign, a face) and attach a text. Later if wanted: Stabilise (counter-move the clip), Centre /
   reframe 9:16 on a face (YuNet), corner pin (perspective), a thinner key set option.
+- [x] **A3b Tracker UI v2** (the user 2026-11-11: "add to the plan, better UI more advanced": a preview of what is tracked, a
+  timeline to go through after tracking). 0.10.55-0.10.56: live preview, viewer, scrub timeline, transport, problem jumps,
+  fix a stretch. USER: try it on the basketball clip. Later if wanted: keyboard arrows on the timeline, zoom into the
+  viewer, a graph of x / y, several tracks per clip.
 - [ ] **A4 Brand profiles**: deferred (text colour cannot be set by script); a new `brand.py` if taken up.
 
 ## EL. Learning from the other editors (the user, 2026-11-10: "add this to the to do list")

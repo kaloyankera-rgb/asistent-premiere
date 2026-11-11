@@ -10,6 +10,42 @@ function kfPress(labels) {
   }
 }
 
+// the Tracker page with a drawn clip: a court, a ball bouncing across it (no footage)
+function trackerDemo(api, cur) {
+  const W = 1080, H = 1920, N = 120;
+  const pos = (i) => [300 + 5 * i, 1150 + 420 * Math.abs(Math.sin(i / 7))];
+  const pic = (i) => {
+    const c = document.createElement("canvas");
+    c.width = 270;
+    c.height = 480;
+    const g = c.getContext("2d");
+    g.fillStyle = "#2f4a2c";
+    g.fillRect(0, 0, 270, 300);
+    g.fillStyle = "#8c3b2a";
+    g.fillRect(0, 300, 270, 180);
+    g.strokeStyle = "#3a7ca5";
+    for (let x = 10; x < 270; x += 60) g.strokeRect(x, 20, 50, 270);
+    const [x, y] = pos(i);
+    g.fillStyle = "#d9772b";
+    g.beginPath();
+    g.arc(x / 4, y / 4, 14, 0, Math.PI * 2);
+    g.fill();
+    return c.toDataURL("image/jpeg", 0.8).split(",")[1];
+  };
+  const frames = Array.from({ length: N }, (_, i) => {
+    const [x, y] = pos(i);
+    const state = i >= 60 && i < 66 ? "lost" : i >= 40 && i < 48 ? "unsure" : "sure";
+    return { t: 2 + i / 30, x, y, s: 1, a: 0, c: state === "sure" ? 0.95 - 0.05 * Math.sin(i / 5) : state === "unsure" ? 0.62 : 0.2, state };
+  });
+  const p = api.tracker();
+  p.demo({
+    source: { clip: { name: "C0412.MP4", path: "/x/C0412.MP4", track: 0, start: 10, inPt: 2, speed: 1 }, step: 1 / 30, t0: 2, from: 2, to: 6, at: 10 },
+    preview: { jpeg: pic(20), width: W, height: H, w: 270, h: 480 },
+    track: { frames, width: W, height: H, k0: 20, id: "demo", box: [pos(20)[0] - 60, pos(20)[1] - 60, 120, 120] },
+    thumbs: frames.map((_, i) => pic(i)), cur,
+  });
+}
+
 window.PREVIEW_SCENARIOS = (function () {
   // a before/after frame pair drawn on a canvas (base64 JPEG without the data: prefix, as the engine sends it)
   function frame(warm) {
@@ -97,6 +133,9 @@ window.PREVIEW_SCENARIOS = (function () {
         { id: "a2", name: "Logo slide in", client: "ReShape", span: 0.8, props: ["Motion › Position"] }] } },
       run: (api) => { api.openTab("paneKeyframer"); setTimeout(() => { const e = document.getElementById("kfProfile"); if (e) e.scrollIntoView(); }, 80); },
     },
+    // 0.10.55: the Tracker page with a made-up track of a bouncing ball (an unsure and a lost stretch), on frame 52
+    tracker: { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 52); } },
+    "tracker-lock": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 75); const b = [...document.querySelectorAll("#paneTracker .tr-mode")].pop(); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); } },
     "keyframer-bounce": { run: (api) => { api.openTab("paneKeyframer"); kfPress(["Bounce", "Both", "Loop", "+"]); } },
     review: {
       engine: { review: {

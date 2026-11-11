@@ -43,7 +43,9 @@ drive the engine. The Host header is checked against DNS rebinding.
   GET  /stash/list, /stash/get?id=   saved animations (stash.py, <app>/stash/); POST /stash/save {stash, project},
                               /stash/delete {id}, /stash/rename {id, name}
   POST /tracker/frame {path, t, width?} -> {jpeg, width, height, w, h}; POST /tracker/track {path, from, to, step, t0, box}
-                              -> job: {frames: [{t, x, y, s, a, c, state}], width, height} (motion tracker, 0.10.51)
+                              -> job: {frames: [{t, x, y, s, a, c, state}], width, height, id, box} (motion tracker, 0.10.51;
+                              "into": {id, offset} re-tracks a part of an earlier track, 0.10.55); the job's extra.live
+                              is the frame being tracked; GET /tracker/thumbs?id=&from=&n= every tracked frame as a JPEG
   POST /stash/clips/begin {name, fps, width, height, video, audio, seconds}, /stash/clips/export {id, sequence, guid,
                               project} (Stash clips, 0.10.50); /host/tracks {sequence, guid, project, video, audio}
   POST /colorlearn/record    {project, sequence, clips: [{path, start, end, lumetri, owned, layer, lut, animated}]} -> queued:
@@ -333,6 +335,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, learning.listing((parse_qs(url.query).get("project") or [""])[0]))
         if url.path == "/panel/store":
             return self._send(200, {"values": panelstore.get_all()})
+        if url.path == "/tracker/thumbs":
+            q = parse_qs(url.query)
+            try:
+                return self._send(200, TRACKER.thumbs((q.get("id") or [""])[0], int((q.get("from") or ["0"])[0]), int((q.get("n") or ["40"])[0])))
+            except ValueError as e:
+                return self._send(404, {"error": str(e)})
         if url.path == "/stash/list":
             return self._send(200, STASH.listing())
         if url.path == "/stash/get":
@@ -592,8 +600,11 @@ class Handler(BaseHTTPRequestHandler):
                 def work_track(job):
                     def progress(f):
                         job.progress, job.message = f, f"Tracking: {int(100 * f)} %"
+                    def live(info):
+                        job.extra = {"live": info}
+                    into = body.get("into") if isinstance(body.get("into"), dict) else None
                     return TRACKER.track(path, body.get("from") or 0, body.get("to") or 0, body.get("step") or 0,
-                                         body.get("t0") or 0, box, progress, lambda: job.cancelled)
+                                         body.get("t0") or 0, box, progress, lambda: job.cancelled, live, into)
                 return self._send(200, {"job": JOBS.submit("tracker", work_track).id})
             if self.path == "/export/peaks":
                 items = body.get("items") or []

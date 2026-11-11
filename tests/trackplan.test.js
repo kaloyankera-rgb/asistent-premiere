@@ -126,3 +126,38 @@ test("lock smooth: a bouncing ball gives a calm path that still follows it; lost
   // it still follows the sideways walk: the clip ends about 356 px further left
   assert.ok(Math.abs((soft.keys[89].x - soft.keys[0].x) * 1080 + 356) < 40);
 });
+
+// ---------------------------------------------------------------- viewer and timeline helpers (0.10.55)
+test("corners: the box grows and turns with the track", () => {
+  const c = P.corners({ x: 100, y: 100, s: 2, a: 90 }, [0, 0, 20, 10]);
+  // 20 x 10 doubled -> 40 x 20, turned 90: the first corner (-20, -10) goes to (10, -20)
+  assert.ok(near(c[0][0], 110) && near(c[0][1], 80));
+});
+
+test("problem: next and previous runs that are not sure", () => {
+  const st = "ssuulsssls".split("").map((c) => ({ state: { s: "sure", u: "unsure", l: "lost" }[c] }));
+  assert.strictEqual(P.problem(st, 0, 1), 2);
+  assert.strictEqual(P.problem(st, 2, 1), 8);       // from inside a bad run: the next one after it
+  assert.strictEqual(P.problem(st, 9, -1), 8);
+  assert.strictEqual(P.problem(st, 7, -1), 2);      // the start of the earlier run
+  assert.strictEqual(P.problem(st, 1, -1), -1);
+  assert.strictEqual(P.problem(st, 9, 1), -1);
+});
+
+test("merge: a re-tracked part replaces its frames and continues the scale and the angle from the old track", () => {
+  const fr = Array.from({ length: 6 }, (_, i) => ({ t: i, x: i, y: 0, s: 1.5, a: 10, state: i >= 3 ? "lost" : "sure" }));
+  const track = { frames: fr, box: [0, 0, 100, 100], k0: 0 };
+  const part = { k0: 0, frames: [3, 4, 5].map((i) => ({ t: i, x: 50 + i, y: 1, s: 1 + 0.1 * (i - 3), a: 2, state: "sure" })) };
+  const m = P.merge(track, part, 3, [0, 0, 140, 140]);      // a box drawn tighter: the scale still continues from 1.5
+  assert.deepStrictEqual(m.frames.map((f) => f.state), ["sure", "sure", "sure", "sure", "sure", "sure"]);
+  assert.ok(near(m.frames[3].s, 1.5) && near(m.frames[4].s, 1.65) && near(m.frames[5].a, 12));
+  assert.strictEqual(track.frames[3].state, "lost");     // the old track is not changed in place
+  // nothing sure left in the old track: the new box against the first one gives the scale
+  const allLost = { ...track, frames: fr.map((f) => ({ ...f, state: "lost" })) };
+  assert.ok(near(P.merge(allLost, part, 3, [0, 0, 150, 150]).frames[3].s, 1.5));
+});
+
+test("ticks: one per second from the clip's In", () => {
+  const fr = Array.from({ length: 91 }, (_, i) => ({ t: 2 + i / 30 }));
+  assert.deepStrictEqual(P.ticks(fr, 2).map((t) => [t.i, t.label]), [[0, "0s"], [30, "1s"], [60, "2s"], [90, "3s"]]);
+});

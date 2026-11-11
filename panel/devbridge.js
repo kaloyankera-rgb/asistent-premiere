@@ -603,6 +603,14 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       if (!hooks.tracker) throw new Error("no Tracker page in this panel");
       return hooks.tracker().setBox(a.box);
     },
+    async tracker_goto(a) {
+      if (!hooks.tracker) throw new Error("no Tracker page in this panel");
+      return hooks.tracker().goto(Number(a.frame) || 0);
+    },
+    async tracker_mode(a) {
+      if (!hooks.tracker) throw new Error("no Tracker page in this panel");
+      return hooks.tracker().mode(a.mode);
+    },
     async tracker_info() {
       if (!hooks.tracker) throw new Error("no Tracker page in this panel");
       return hooks.tracker().info();
