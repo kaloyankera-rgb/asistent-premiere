@@ -104,6 +104,11 @@ function downloadSubtitleModel() {
   return call("POST", "/subtitles/model/download", {});
 }
 
+// 0.10.40: large-v3-turbo, the rough cut's faster recognizer (never used for subtitles)
+function downloadTurbo() {
+  return call("POST", "/roughcut/model/download", {});
+}
+
 // the update check (GitHub releases, through the engine) and the update itself (only from the panel's Update button)
 function updateCheck(force) {
   return call("GET", force ? "/update/check?force=1" : "/update/check");
@@ -263,4 +268,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, colorLearnRecord, colorLearnReport, stashList, stashGet, stashSave, stashDelete, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, colorLearnRecord, colorLearnReport, stashList, stashGet, stashSave, stashDelete, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };

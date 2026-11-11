@@ -102,5 +102,7 @@ def test_pinned_downloads_are_checked_and_a_bad_file_is_never_trusted(tmp_path):
 def test_the_model_downloads_name_one_commit():
     import inspect
     from asistent import asr, translate
-    assert "revision=pins.WHISPER_REVISION" in inspect.getsource(asr.download_model)
+    src = inspect.getsource(asr.download_model)             # 0.10.40: large-v3 and turbo, each at its pinned commit
+    assert "pins.WHISPER_REVISION, pins.WHISPER_SHA256" in src and "pins.TURBO_REVISION, pins.TURBO_SHA256" in src
+    assert "revision=revision" in src and "pins.verify(d, hashes)" in src
     assert "revision=pins.NLLB_REVISION" in inspect.getsource(translate.download_model)
