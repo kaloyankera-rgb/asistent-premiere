@@ -281,3 +281,5 @@
 - 2026-11-11: 0.10.58 the Tracker look on the whole panel (the user asked): tokens, buttons, brief explanations, Keyframer graph from CSS. Preview 78 shots; Premiere 2026 bridge: loads, tabs, Keyframer read, Tracker load frame.
 - 2026-11-12: 0.10.59 minimal panel from the user's chosen mockup (A · Rows, Amethyst + Golden, glow): rows, Automatic switches, Motion tab, Log/Settings icons, Keyframer cards. Preview 87 shots; Premiere 2026 bridge: labels diff, pages, Read, Load frame, Check export, three switches.
 - 2026-11-12: 0.10.60 the user saw only the glow in 0.10.59 (UXP painted the <img> over the panel; the bridge could not tell): glow moved to the body background; the user confirmed panel + glow after a Premiere restart.
+
+- 2026-11-12 (night, the user asleep): 0.10.61 subtitle cuts by the delivery, measured on the editors' chunks of 40 client videos (leftovers 133 -> 8, F1 0.740 -> 0.761), ReShape identical (baseline, golden), installed.

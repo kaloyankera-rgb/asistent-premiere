@@ -1,5 +1,9 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.61 (2026-11-12, installed, measured on 40 client videos, NOT yet seen by the user): subtitles are cut where the
+speaker ends a phrase (Auto + the five client styles): leftover words 133 -> 8, cuts where the editors cut F1 0.740 -> 0.761;
+ReShape unchanged (baseline + golden identical).
+
 0.10.60 (2026-11-12, installed, SEEN by the user in Premiere 2026: the panel with the glow behind it): the glow is the body's
 background image (0.10.59's glow image covered the whole panel in Premiere).
 

@@ -3,6 +3,16 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
+## SEG. Subtitle cuts by the delivery (0.10.61, the user 2026-11-12)
+- [ ] USER: press Make subtitles with a client style (GStroy, Credissimo, ЕКОПАК, Beauty Sector, AULA) or Auto on a real
+  recording and say whether any word still waits for the next caption.
+- [ ] USER decides: ReShape too? (it is protected and still on the classic rules; one key, then its golden check differs).
+- [ ] Pitch and loudness as phrase-end cues: the job has the sound; measure on aligned words with the editors' chunks of videos
+  whose sound is here (the ReShape and reference videos) before using them. Word lengthening was measured on Whisper's own
+  times and made the cuts worse (CHANGELOG 0.10.61): measure it again on aligned times.
+- [ ] Standard (16:9) still fills two lines of 42 by count (`_group`): give it the delivery cost too if landscape is used.
+- [ ] Credissimo agrees a little less with its editors (0.727 -> 0.718): its editors join across commas more; look at a few.
+
 ## F. Field reports 2026-11-10 (the user: fixed in 0.10.25, see CHANGELOG)
 - [x] **Fix audio "No active sequence."** (several projects open: the host read the front project). Verified in 26.5.2.
 - [x] **Sync on an iPhone clip with Apple spatial audio (APAC)**: the AAC track is used.

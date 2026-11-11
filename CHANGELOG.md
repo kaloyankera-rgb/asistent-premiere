@@ -31,6 +31,36 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.61 - Subtitles are cut where the speaker ends a phrase (the user 2026-11-12: "the last word of a connected phrase appears in the next subtitle")
+- **The cause, measured** on the editors' own chunks of 40 client videos (GStroy, Credissimo, ЕКОПАК, Beauty Sector, AULA; their
+  speech through Whisper, chunks read from the exports in 2026-11-10): 133 times a word said straight on from the phrase before
+  it stood alone in the next caption with a phrase end after it („СЪС СЪВМЕСТИМ / АДАПТЕР“, „И ЗАХРАНВА / ОСВЕТЛЕНИЕТО“). The
+  cutting already scored pauses and grammar, but a phrase wider than the style's usual size (17-20 characters) was not allowed
+  at all, and a fourth word only with little words in it, so the last word had nowhere to go but the next caption.
+- **New in `subtitles.py`, for Auto (short) and the five client styles (`"delivery"`)**: each word boundary gets a strength from
+  how it was said: a sentence end 1, a comma Whisper heard 0.8, a pause by its length (0.35 s = 1). A cut costs what that
+  strength leaves; a phrase end heard inside a caption costs the same way. A caption of one word that belongs to the phrase
+  before it (said on, then a phrase end) costs as much as the strongest grammar rule; a lone first word less (editors do start
+  a phrase with one). The style's size and the 2-3 words are targets: a two-line client chunk may go up to 7 characters over
+  its usual size (their editors' chunks: 21-23 characters at the 97th percentile, 25 at most), never a line over 16; a fourth
+  word is allowed at a price. Grammar: a chain of short words after a verb ends a caption with it („Готова ли си“,
+  „признавате ли си“); a verb keeps its „да“ (`verb_chain`, the user's rule); a number keeps what it counts („220 волта“,
+  „3 месеца“). Each style's line layout inside a chunk is unchanged (GStroy's editors do write „ОЩЕ В / ПРОФИЛИТЕ“).
+- **Measured on the same 40 videos**: leftover words 133 -> 8 (the 8 are phrases wider than two lines of 16: „МОЖЕ ДА
+  ИЗГЛЕЖДАТ / ЕДНАКВО“), cuts where the editors cut F1 0.740 -> 0.761 (GStroy 0.767 -> 0.802, ЕКОПАК 0.735 -> 0.778, Beauty
+  Sector 0.772 -> 0.790, AULA 0.720 -> 0.754; Credissimo 0.727 -> 0.718, its editors join across commas more often), captions
+  2787 -> 2542 (the editors 2490), 2.28 -> 2.50 words a chunk. No word or time changes: only where the captions are cut.
+- **Tried and left out**: a drawn-out last word of a phrase (time per letter against the speaker's pace) as a phrase end, and
+  the pause read against the speaker's typical gap: on these word times the first moved the cuts away from the editors'
+  (F1 0.754 -> 0.748, leftovers 3 -> 6) and the second changed nothing. Pitch and loudness need the sound (TODO).
+- **ReShape unchanged** (protected): it has no `"delivery"`, so its classic path runs as before; `tests/test_reshape_baseline.py`
+  byte-identical and `scripts/reshape_golden.py check` on the client's recording: identical (SRT, English, job JSON). The
+  16:9 Standard style is unchanged too (it still fills two lines of 42; TODO).
+- Checked: 751 pytest (11 new in `tests/test_delivery.py`; the key ones fail on the old rules with the user's exact defect) +
+  274 node. In Premiere 2026 (NEW TEST, through the bridge): Make subtitles on C0737 L / R with AULA placed its caption track;
+  on those aligned words GStroy, Credissimo and ReShape cut as before, Auto and AULA no longer split „ако / е“ and start
+  „ТЯ ДА НЕ Е АНТИКА“ with its subject. Not yet seen by the user.
+
 ## 0.10.60 - The glow is the panel's background (0.10.59 showed only the glow in Premiere)
 - **Bug (the user's screenshot, 2026-11-12)**: in 0.10.59 the Asistent panel in Premiere 2026 showed nothing but the purple
   glow. The glow was an absolutely placed `<img>` meant to sit under `#shell`; Premiere's UXP painted it **over** the whole
