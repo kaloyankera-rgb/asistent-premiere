@@ -31,36 +31,47 @@ log = logging.getLogger("asistent")
 MODEL_REPO = "Systran/faster-whisper-large-v3"                  # MIT; the CTranslate2 conversion of OpenAI's large-v3
 MODEL_FILES = ("config.json", "preprocessor_config.json", "tokenizer.json", "vocabulary.json", "model.bin")
 MODEL_BYTES = 3_100_000_000                                      # about 3.1 GB, for the progress bar and the confirm text
+# 0.10.40 (the user's choice 2026-11-11): large-v3-turbo for the ROUGH CUT only. Its words decide where speech is and which
+# takes repeat; they are never shown and never stored where the subtitles read (roughcut_job keeps them under their own cache
+# key). Same engine and files, 4 decoder layers instead of 32. Subtitles always use large-v3.
+LARGE = "large-v3"
+TURBO = "turbo"
+MODELS = {
+    LARGE: {"repo": MODEL_REPO, "folder": "whisper", "bytes": MODEL_BYTES, "label": "large-v3, about 3 GB"},
+    TURBO: {"repo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo", "folder": "whisper-turbo", "bytes": 1_622_000_000,
+            "label": "large-v3-turbo, about 1.6 GB"},                # MIT; faster-whisper's own "turbo" name points here
+}
 IDLE_SECONDS = 600
 LANGUAGE = "bg"
 
 _lock = threading.Lock()                   # loading and freeing the model
-_state: dict = {"model": None, "device": None, "workers": 1, "last": 0.0, "timer": None}
+_state: dict = {"model": None, "device": None, "workers": 1, "last": 0.0, "timer": None}       # large-v3 (subtitles)
+_states: dict = {LARGE: _state, TURBO: {"model": None, "device": None, "workers": 1, "last": 0.0, "timer": None}}
 
 
 class ASRError(MediaError):
     """A problem the user can act on (no backend, no model): shown as the job's message."""
 
 
-def model_dir() -> str:
-    return os.path.join(config.app_dir(), "models", "whisper")
+def model_dir(kind: str = LARGE) -> str:
+    return os.path.join(config.app_dir(), "models", MODELS[kind]["folder"])
 
 
 def backend_installed() -> bool:
     return importlib.util.find_spec("faster_whisper") is not None
 
 
-def model_present() -> bool:
-    d = model_dir()
+def model_present(kind: str = LARGE) -> bool:
+    d = model_dir(kind)
     return all(os.path.isfile(os.path.join(d, f)) for f in MODEL_FILES)
 
 
-def model_status() -> dict:
+def model_status(kind: str = LARGE) -> dict:
     """What the panel shows before it offers the install: backend, model, size on disk, where, what it would run on."""
-    d = model_dir()
+    d = model_dir(kind)
     size = sum(os.path.getsize(p) for p in glob.glob(os.path.join(d, "**", "*"), recursive=True) if os.path.isfile(p))
-    return {"backend": backend_installed(), "model": model_present(), "dir": d, "bytes": size,
-            "expected_bytes": MODEL_BYTES, "device": _device()[0] if backend_installed() else None}
+    return {"backend": backend_installed(), "model": model_present(kind), "dir": d, "bytes": size,
+            "expected_bytes": MODELS[kind]["bytes"], "device": _device()[0] if backend_installed() else None}
 
 
 def read_wav(path: str) -> np.ndarray:
@@ -118,54 +129,60 @@ def workers() -> int:
     return _parallelism(_device()[0])[0]
 
 
-def _load():
+def _load(kind: str = LARGE):
     if not backend_installed():
         raise ASRError("The speech recognition packages (faster-whisper) are missing. They are installed from the panel or with "
                        "setup_mac.sh --subtitles.")
-    if not model_present():
-        raise ASRError("The recognition model (large-v3, about 3 GB) is not downloaded yet. Download it from the panel.")
+    if not model_present(kind):
+        raise ASRError(f"The recognition model ({MODELS[kind]['label']}) is not downloaded yet. Download it from the panel.")
+    st = _states[kind]
     with _lock:
-        if _state["model"] is not None:
-            return _state["model"]
+        if st["model"] is not None:
+            return st["model"]
         from faster_whisper import WhisperModel
         device, compute = _device()
         n, threads = _parallelism(device)
         t0 = time.time()
         try:
-            model = WhisperModel(model_dir(), device=device, compute_type=compute, num_workers=n, cpu_threads=threads)
+            model = WhisperModel(model_dir(kind), device=device, compute_type=compute, num_workers=n, cpu_threads=threads)
         except Exception:
             if device == "cpu":
                 raise
             device, compute = "cpu", "int8"         # no usable CUDA libraries: the processor
             n, threads = _parallelism(device)
-            model = WhisperModel(model_dir(), device=device, compute_type=compute, num_workers=n, cpu_threads=threads)
-        log.info("whisper large-v3 loaded on %s/%s (%d readings x %d threads) in %.1fs", device, compute, n, threads, time.time() - t0)
-        _state.update(model=model, device=device, workers=n)
+            model = WhisperModel(model_dir(kind), device=device, compute_type=compute, num_workers=n, cpu_threads=threads)
+        log.info("whisper %s loaded on %s/%s (%d readings x %d threads) in %.1fs", MODELS[kind]["label"].split(",")[0], device,
+                 compute, n, threads, time.time() - t0)
+        st.update(model=model, device=device, workers=n)
         return model
 
 
-def _schedule_free() -> None:
+def _schedule_free(kind: str = LARGE) -> None:
+    st = _states[kind]
+
     def free():
         with _lock:
-            if _state["model"] is not None and time.time() - _state["last"] >= IDLE_SECONDS - 1:
-                _state.update(model=None, device=None)
-                log.info("whisper model freed after %d s idle", IDLE_SECONDS)
-    if _state["timer"]:
-        _state["timer"].cancel()
-    _state["timer"] = threading.Timer(IDLE_SECONDS, free)
-    _state["timer"].daemon = True
-    _state["timer"].start()
+            if st["model"] is not None and time.time() - st["last"] >= IDLE_SECONDS - 1:
+                st.update(model=None, device=None)
+                log.info("whisper model %s freed after %d s idle", kind, IDLE_SECONDS)
+    if st["timer"]:
+        st["timer"].cancel()
+    st["timer"] = threading.Timer(IDLE_SECONDS, free)
+    st["timer"].daemon = True
+    st["timer"].start()
 
 
 def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[[float, str], None] | None = None,
-               cancelled: Callable[[], bool] | None = None, language: str = LANGUAGE, beam: int = 5) -> list[dict]:
+               cancelled: Callable[[], bool] | None = None, language: str = LANGUAGE, beam: int = 5,
+               model: str = LARGE) -> list[dict]:
     """Words with times (seconds from the start of `audio`) and Whisper's probability. Callers may run in parallel up to
-    `workers()`; more wait their turn inside the model."""
+    `workers()`; more wait their turn inside the model. `model`: LARGE (subtitles, the default) or TURBO (rough cut only)."""
+    kind = model
     progress = progress or (lambda f, m: None)
     cancelled = cancelled or (lambda: False)
     duration = max(len(audio) / 16000.0, 0.001)
     progress(0.0, "Loading the model…")
-    model = _load()
+    model = _load() if kind == LARGE else _load(kind)      # large-v3: the call exactly as before 0.10.40
     if cancelled():
         raise Cancelled()
     segments, _ = model.transcribe(audio, language=language, word_timestamps=True, vad_filter=False, beam_size=beam,
@@ -179,8 +196,8 @@ def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[
                 words.append({"word": w.word.strip(), "start": round(float(w.start), 3), "end": round(float(w.end), 3),
                               "p": round(float(w.probability), 2)})
         progress(min(seg.end / duration, 1.0), "Recognising the speech…")
-    _state["last"] = time.time()
-    _schedule_free()
+    _states[kind]["last"] = time.time()
+    _schedule_free(kind)
     return words
 
 
@@ -205,19 +222,21 @@ def score_texts(audio: np.ndarray, texts: list[str], language: str = LANGUAGE) -
     return out
 
 
-def download_model(progress: Callable[[float, str], None], cancelled: Callable[[], bool]) -> dict:
+def download_model(progress: Callable[[float, str], None], cancelled: Callable[[], bool], kind: str = LARGE) -> dict:
     """Download the model into `model_dir()` (resumable: a cancelled or broken download continues next time).
     Only ever called from the user's confirmed panel button; progress follows the bytes on disk."""
     if not backend_installed():
         raise ASRError("The speech recognition packages (faster-whisper) must be installed first.")
     from huggingface_hub import snapshot_download
-    d = model_dir()
+    revision, hashes = (pins.WHISPER_REVISION, pins.WHISPER_SHA256) if kind == LARGE else (pins.TURBO_REVISION, pins.TURBO_SHA256)
+    expected = MODELS[kind]["bytes"]
+    d = model_dir(kind)
     os.makedirs(d, exist_ok=True)
     err: list[BaseException] = []
 
     def run():
         try:
-            snapshot_download(MODEL_REPO, local_dir=d, allow_patterns=list(MODEL_FILES), revision=pins.WHISPER_REVISION)   # one commit
+            snapshot_download(MODELS[kind]["repo"], local_dir=d, allow_patterns=list(MODEL_FILES), revision=revision)   # one commit
         except BaseException as e:                              # noqa: BLE001 - reported to the job below
             err.append(e)
 
@@ -226,15 +245,15 @@ def download_model(progress: Callable[[float, str], None], cancelled: Callable[[
     while t.is_alive():
         if cancelled():
             raise Cancelled()                                   # the part file stays and resumes later
-        have = model_status()["bytes"]
-        progress(min(have / MODEL_BYTES, 0.99), f"Downloading the model: {have / 1e9:.1f} of about {MODEL_BYTES / 1e9:.1f} GB")
+        have = model_status(kind)["bytes"]
+        progress(min(have / expected, 0.99), f"Downloading the model: {have / 1e9:.1f} of about {expected / 1e9:.1f} GB")
         time.sleep(1.0)
     if err:
         raise ASRError(f"The download failed: {err[0]}")
-    if not model_present():
+    if not model_present(kind):
         raise ASRError("The download finished, but model files are missing.")
-    bad = pins.verify(d, pins.WHISPER_SHA256)                   # 0.10.6: exactly the files Asistent was tested with
+    bad = pins.verify(d, hashes)                                # 0.10.6: exactly the files Asistent was tested with
     if bad:
         raise ASRError(f"The downloaded model does not match its checksum ({', '.join(bad)}): press Download again.")
-    log.info("whisper model downloaded to %s", d)
-    return model_status()
+    log.info("whisper model %s downloaded to %s", kind, d)
+    return model_status(kind)

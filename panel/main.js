@@ -590,6 +590,33 @@ function renderSubtitleModel(st) {
   show("subtitleModel", !!text);
   show("subtitleAsk", st.backend && !st.model);
   show("translatorAsk", !!noTranslator);
+  if (st.turbo_bytes) $("roughTurbo").textContent = `Download the fast recognizer (${gb(st.turbo_bytes)} GB)`;
+  show("roughFaster", st.backend && st.turbo === false);
+  show("roughFastRow", st.backend && st.turbo === true);
+}
+
+// 0.10.40: the rough cut's faster recognizer (large-v3-turbo); its words are never used for subtitles
+async function onTurboDownload() {
+  if (state.busy) return;
+  if (!state.online) {
+    finish("No connection to the engine. See README.", false);
+    return;
+  }
+  show("result", false);
+  setBusy(true);
+  progress(0, "Downloading the fast recognizer…");
+  try {
+    const r = await engine.downloadTurbo();
+    if (!r.done) await runJob(r.job);
+    finish("The fast recognizer is downloaded. Tick Fast under Rough cut to use it.", true);
+  } catch (e) {
+    finish(e.message || String(e), false);
+    if (!(e instanceof premiere.UserError)) engine.log("error", `turbo model: ${e && e.stack ? e.stack : e}`);
+  } finally {
+    state.jobId = null;
+    setBusy(false);
+    engine.subtitlesModel().then(renderSubtitleModel).catch(() => {});
+  }
 }
 
 // who speaks and the corrections text are kept per project in the engine; shown again when the project changes
@@ -1183,7 +1210,8 @@ async function onRoughCut() {
   progress(0, "Reading the selected clips…");
   try {
     const project = await premiere.activeProject();
-    const opts = { mode: $("roughMode").value, tempo: $("roughTempo").value, markers: $("roughMarkers").checked };
+    const opts = { mode: $("roughMode").value, tempo: $("roughTempo").value, markers: $("roughMarkers").checked,
+      fast: !$("roughFastRow").hidden && $("roughFast").checked };
     const { payload, meta } = await premiereRough.readInput(project, opts);
     const { job } = await engine.startRoughcut(payload);
     const result = await runJob(job);
@@ -1818,6 +1846,9 @@ onTap($("learnedHead"), () => {
   if (learnedView.path) loadLearned(learnedView.path);
 });
 onTap($("rough"), onRoughCut);
+onTap($("roughTurbo"), onTurboDownload);
+$("roughFast").checked = store.getItem("asistent.roughFast") === "1";            // off unless the editor switched it on
+$("roughFast").addEventListener("change", () => store.setItem("asistent.roughFast", $("roughFast").checked ? "1" : "0"));
 onTap($("subtitleDownload"), onSubtitleDownload);
 onTap($("translatorDownload"), onTranslatorDownload);
 onTap($("updateGo"), onUpdate);

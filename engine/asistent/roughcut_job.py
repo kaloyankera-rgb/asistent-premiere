@@ -21,7 +21,7 @@ from typing import Callable
 
 from . import asr, edl, media, pauses, speechmap, subtitles, takes, vad, xmeml
 from .dialoguemix import ASR_SR, build_mix, read_segment
-from .subtitle_job import PAD, _cached, _inside, _same_word, plan_windows, read_window, window_audio
+from .subtitle_job import PAD, _cached, _inside, _same_word, _store, plan_windows, read_window, window_audio
 
 log = logging.getLogger("asistent")
 MODES = {"safe": "safe", "smart": "smart"}
@@ -33,6 +33,38 @@ MIN_PIECE_FRAMES = 2
 # one long reading, which the cut can afford (it needs where speech is and which takes repeat, not the spelling); the
 # subtitles keep their own long windows.
 PART = 30.0
+# 0.10.40 (the user's choice 2026-11-11, TODO A "rough cut faster on many clips"): the cut can read with large-v3-turbo. Measured
+# on GStroy FX3 (15 clips, 215 s, empty cache, M4 Max): 76.7 -> 35.8 s, but the takes differ: turbo missed a false start and
+# resolved one group of three takes differently (takes cut 58.4 -> 34.5 s, result 108.8 -> 123.3 s). So it is a switch the
+# editor turns on ("Fast"), never the default. Its words are kept under their own cache key (TURBO_KEY + the subtitles' key), so
+# the subtitles never see them; a subtitle reading of the same audio (large-v3) is still reused when it is there, at no cost.
+TURBO_KEY = "turbo-"
+
+
+def model(fast: bool = False) -> str | None:
+    """Which recognizer the rough cut uses: turbo when asked for and downloaded, else large-v3, else none."""
+    if not asr.backend_installed():
+        return None
+    if fast and asr.model_present(asr.TURBO):
+        return asr.TURBO
+    return asr.LARGE if asr.model_present() else None
+
+
+def read_rough(win: dict, kind: str, progress, cancelled) -> dict:
+    """One window's words for the cut: the subtitles' large-v3 reading if cached, else the rough cut's own reading."""
+    if kind == asr.LARGE:
+        return read_window(win, "", progress, cancelled)
+    y, key = window_audio(win, "")
+    entry = _cached(key) or {}
+    if "words" in entry:
+        return {"y": y, "key": key, "entry": entry, "cached": True}
+    key = TURBO_KEY + key
+    entry = _cached(key) or {}
+    cached = "words" in entry
+    if not cached:
+        entry = {"words": asr.transcribe(y, None, progress, cancelled, model=asr.TURBO)}
+        _store(key, entry)
+    return {"y": y, "key": key, "entry": entry, "cached": cached}
 
 
 def split_long(segments: list[dict], read=read_segment, part: float = PART) -> list[dict]:
@@ -114,13 +146,15 @@ def validate(body: dict) -> dict:
     return {"dialogue": dialogue, "layout": lay, "mode": mode, "tempo": tempo, "out_dir": out_dir,
             "fps": subtitles.exact_fps(_num(25.0 if body.get("fps") is None else body.get("fps"), "frames per second", 1.0)),
             "width": int(_num(body.get("width") or 1920, "width", 1)), "height": int(_num(body.get("height") or 1080, "height", 1)),
-            "name": str(body.get("name") or "sequence"), "markers": bool(body.get("markers")), "skipped": body.get("skipped") or []}
+            "name": str(body.get("name") or "sequence"), "markers": bool(body.get("markers")), "skipped": body.get("skipped") or [],
+            "fast": bool(body.get("fast"))}
 
 
-def _words(segments: list[dict], progress, cancelled) -> tuple[list[dict], dict]:
+def _words(segments: list[dict], progress, cancelled, fast: bool = False) -> tuple[list[dict], dict]:
     """Whisper words of the pieces in SEQUENCE seconds (verbatim, no spelling work: the cut needs where speech is, not how it
     is spelled) and a note on how they were made."""
-    if not (asr.backend_installed() and asr.model_present()):
+    kind = model(fast)
+    if not kind:
         return [], {"asr": False, "note": "No speech model: the pauses were found only by the sound level and Silero."}
     wins = plan_windows(segments)
     # fewer windows than readers (one long clip): long pieces are read in parts, unless the subtitles' readings of the same
@@ -138,7 +172,7 @@ def _words(segments: list[dict], progress, cancelled) -> tuple[list[dict], dict]
         def on_progress(f, m):
             frac[i] = f
             progress(sum(a * b for a, b in zip(frac, shares)), m)
-        return read_window(wins[i], "", on_progress, cancelled)
+        return read_rough(wins[i], kind, on_progress, cancelled)
 
     reads = [None] * len(wins)
     order = sorted(range(len(wins)), key=lambda i: -(wins[i]["b"] - wins[i]["a"]))
@@ -163,7 +197,7 @@ def _words(segments: list[dict], progress, cancelled) -> tuple[list[dict], dict]
     for w in words:
         if not any(_same_word(w, u) for u in unique[-3:]):
             unique.append(w)
-    return unique, {"asr": True, "cached": all(r["cached"] for r in reads), "windows": len(wins)}
+    return unique, {"asr": True, "cached": all(r["cached"] for r in reads), "windows": len(wins), "model": kind}
 
 
 def _version(folder: str, stem: str) -> int:
@@ -184,7 +218,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     fps = p["fps"]
     progress(0.0, "Reading the sound…")
     mix = build_mix(p["dialogue"], lambda f, m: progress(0.1 * f, m), cancelled)
-    words, how = _words(mix["segments"], lambda f, m: progress(0.1 + 0.6 * f, m), cancelled)
+    words, how = _words(mix["segments"], lambda f, m: progress(0.1 + 0.6 * f, m), cancelled, p["fast"])
     progress(0.72, "Finding the pauses…")
     t_start = round(min(i["start"] for i in p["layout"]) * fps) / fps
     t_end = round(max(i["end"] for i in p["layout"]) * fps) / fps

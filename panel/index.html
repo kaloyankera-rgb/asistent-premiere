@@ -64,6 +64,14 @@
         <input type="checkbox" id="roughMarkers" />
         <label for="roughMarkers" class="muted" data-tip="Puts a marker in the new sequence at every place to review (repeated takes, speech without a recognised word). Off by default.">Review markers</label>
       </div>
+      <div class="row options" id="roughFastRow" hidden>
+        <input type="checkbox" id="roughFast" />
+        <label for="roughFast" class="muted" data-tip="Reads the speech with large-v3-turbo: about twice as fast on many clips, but it finds fewer repeated takes (in a test: 34 s of takes cut instead of 58 s). Pauses are found the same way. Subtitles always use the full model.">Fast (fewer takes found)</label>
+      </div>
+      <div id="roughFaster" hidden>
+        <p class="desc">Fast rough cut needs a second recognizer, large-v3-turbo. It is used only for the rough cut, never for subtitles.</p>
+        <div id="roughTurbo" class="btn small" data-tip="Downloads large-v3-turbo once (checked against its fixed checksum). Then the Fast switch appears.">Download the fast recognizer (1.6 GB)</div>
+      </div>
     </div>
 
     <div class="card" id="secLabels">
