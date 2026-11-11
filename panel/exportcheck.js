@@ -14,6 +14,7 @@ const SAFE = {
 };
 
 const { routeOf } = require("./channels.js");
+const coverage = require("./coverage.js");
 
 // which channel of the file a clip plays: Fix audio's L / R copies say it in their name ("C0728 L 0.00-18.52",
 // "fx31031 0340a9 L 0.00-36.04"; host.jsx sets their Audio Channels to L/L or R/R), an older Fill Left / Right effect by
@@ -108,6 +109,21 @@ function report(input) {
   out.push({ id: "black", title: "Black gaps", status: g.length && !syncSeq ? "warn" : "ok",
     lines: g.length && syncSeq ? [`${g.length} gaps: a SYNC sequence is a working sequence, not for export.`] : g.length ? g.map((x) => `${clock(x.from)}–${clock(x.to)}: ${x.frames <= 2 ? `${x.frames || 1} frame${x.frames > 1 ? "s" : ""} of black (a flash frame)` : `${(x.to - x.from).toFixed(1)} s of black`}`)
       : ["No black between the start and the end."] });
+
+  // 0.10.44: every video / photo clip fills the frame (the user: under-scaled B-roll shows black or the clip below)
+  if (input.pictures && input.files && input.frame) {
+    const all = (input.items || []).filter((x) => x.kind === "video");
+    const r = coverage.check(input.pictures, input.files, input.frame, all);
+    const lines = r.bad.slice(0, 25).map((b) => b.text);
+    if (r.bad.length > 25) lines.push(`… and ${r.bad.length - 25} more clips.`);
+    const notes = [];
+    if (r.skipped) notes.push(`${r.skipped} logo, graphic or transparent ${r.skipped === 1 ? "file was" : "files were"} not checked (smaller on purpose).`);
+    const tr = input.pictures.filter((p) => p.transform).length;
+    if (tr) notes.push(`${tr} ${tr === 1 ? "clip has" : "clips have"} a Transform effect: measured with Motion only.`);
+    if (r.unknownFit) notes.push("Scale to Frame Size cannot be read in this Premiere: clips are measured as if it is off.");
+    out.push({ id: "fill", title: "Picture fills the frame", status: r.bad.length ? "warn" : "ok",
+      lines: [...(r.bad.length ? lines : [`All ${r.looked} video and photo clips fill the ${input.frame.width}x${input.frame.height} frame.`]), ...notes] });
+  }
 
   const capLines = [];
   for (const t of input.captions || []) {

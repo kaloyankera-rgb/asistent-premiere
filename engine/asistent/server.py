@@ -45,6 +45,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /colorlearn/record    {project, sequence, clips: [{path, start, end, lumetri, owned, layer, lut, animated}]} -> queued:
                               after an export, each clip's Lumetri next to Auto color's suggestion (colorlearn.py, read only)
   GET  /colorlearn/report?project=|client=   per camera: editors minus Asistent (medians), kept, untouched; /colorlearn/status
+  POST /export/frames        {"paths": [...]} -> {"items": [{path, width, height, rotation, alpha, still}]}: each video / photo
+                             file's frame for the pre-export coverage check (exportcheck.py, read only, 0.10.44)
   POST /export/peaks         {"items": [{path, start, end}]} -> job: each clip's true peak per channel in the used range
                               (pre-export check, read only; exportcheck.py)
   POST /audio/route          {"items": [{track, start, end, route}], "sequence", "project"?} -> through the host:
@@ -515,6 +517,11 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/colorlearn/record":
                 return self._send(200, colorlearn.queue_export(body.get("project") or "", body.get("sequence") or "",
                                                                body.get("clips") or []))
+            if self.path == "/export/frames":                    # 0.10.44: frame size, rotation, alpha (read only)
+                paths = body.get("paths") or []
+                if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
+                    raise ValueError("A list of files is needed.")
+                return self._send(200, EXPORTCHECK.frames(paths))
             if self.path == "/export/peaks":
                 items = body.get("items") or []
                 if not all(isinstance(i, dict) and isinstance(i.get("path"), str) for i in items):

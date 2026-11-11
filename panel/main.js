@@ -1174,6 +1174,12 @@ async function onExportCheck() {
       const res = await runJob(job);
       want.forEach((w, k) => { g.clips[w.i].peakDb = (res.items[k] || {}).peak_db || null; });
     }
+    const pics = g.input.pictures || [];
+    if (pics.length) {
+      progress(0.7, "Measuring the clips' frames…");
+      const fr = await engine.exportFrames([...new Set(pics.map((p) => p.path))]);
+      g.input.files = Object.fromEntries((fr.items || []).map((f) => [f.path, f]));
+    }
     const parts = exportcheck.report(g.input);
     const warn = parts.filter((p) => p.status === "warn");
     const mark = { ok: "✓", warn: "!", unknown: "?" };

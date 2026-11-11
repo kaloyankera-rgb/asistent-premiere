@@ -23,6 +23,11 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] **0.10.38 Sync keeps Fix audio, no gap:** USER: in B-Roll select C0930, C0932, IMG_0357 and press Sync: iPhone on V2 over
   C0930, C0932 straight after C0930, both with their L / R copies and levels.
 
+## FILL. Picture fills the frame (0.10.44, the user 2026-11-11)
+- [ ] Verify in NEW TEST: a 4K clip at 88 % on V2 over V1 (expect "10 px at the top and bottom ... V1 shows through"), Anchor
+  Point moved, Motion Crop, Scale to Frame Size on (can it be read?), a rotated clip, a keyframed scale. Then the user's own case.
+- [ ] After export: thin edge strips of any colour (uniform rows unlike the picture next to them), from about 0.3 % of the frame.
+
 ## CP. Cockpit plan (`../COCKPIT_PLAN.md`, the user's go 2026-11-10: commit, then Phase 0, the rest here)
 Additive only: new files and pages, the existing tabs, sync, Fix audio, colour, subtitles, rough cut, import, updater frozen;
 each feature on its own branch off `improvements/2026-11`, baseline test numbers before and the same plus new after, a
