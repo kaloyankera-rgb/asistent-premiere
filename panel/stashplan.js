@@ -89,4 +89,86 @@ function nameFor(clip, labels) {
   return `${base} · ${parts.slice(0, 3).join(", ")}${parts.length > 3 ? "…" : ""}`;
 }
 
-module.exports = { capture, place, sampleAt, nameFor, FORMAT, MAX_FRAMES };
+// ---------------------------------------------------------------- Stash clips (v2, 0.10.50)
+// A small group of clips (a logo on V2 over its background on V1, a title with its sound) kept as a Premiere project and
+// copied again at the playhead. Here only the plan: what the selection becomes, and where the copies can go without
+// covering anything (a copy never overwrites: Asistent does not remove or cut the editor's clips).
+
+const MAX_CLIPS = 60;
+const MAX_SHIFT = 12;                                         // tracks a group may move up to find room
+
+/**
+ * items: the selected track items {kind, track, start, end, name, path} (sequence seconds).
+ * -> {kind: "clips", span, video, audio, items: [{kind, track, start, end, name, label, group}], name} or {error}
+ * Times are from the selection's start; tracks stay as they were (a group comes back on the same tracks when they are free).
+ * group: clips of one file over the same time on video and audio (a clip and its sound): linked again after Apply.
+ */
+function captureClips(items, fps = 30) {
+  const sel = items.filter((x) => x && (x.kind === "video" || x.kind === "audio") && x.end > x.start);
+  if (!sel.length) return { error: "Select the clips to keep in the timeline (for example a logo on V2 and its background on V1)." };
+  if (sel.length > MAX_CLIPS) return { error: `${sel.length} clips are selected: a stash keeps up to ${MAX_CLIPS}.` };
+  const t0 = Math.min(...sel.map((x) => x.start));
+  const t1 = Math.max(...sel.map((x) => x.end));
+  const f = (x) => Math.round(x * fps) / fps;
+  const groups = new Map();
+  const out = sel.map((x) => {
+    const start = f(x.start - t0);
+    const end = f(x.end - t0);
+    const key = x.path ? `${x.path}|${start}|${end}` : null;
+    if (key && !groups.has(key)) groups.set(key, groups.size + 1);
+    return { kind: x.kind, track: x.track, start, end, name: x.name || "", label: `${x.kind === "video" ? "V" : "A"}${x.track + 1} ${x.name || ""}`.trim(),
+      group: key ? groups.get(key) : 0 };
+  });
+  // a group is a link only when it holds more than one clip
+  const sizes = {};
+  for (const x of out) if (x.group) sizes[x.group] = (sizes[x.group] || 0) + 1;
+  for (const x of out) if (x.group && sizes[x.group] < 2) x.group = 0;
+  out.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "video" ? -1 : 1) || b.track - a.track || a.start - b.start);
+  const vids = out.filter((x) => x.kind === "video");
+  const top = vids[0] || out[0];
+  const base = String(top.name || "Clips").replace(/\.[A-Za-z0-9]{2,4}$/, "");
+  return { kind: "clips", span: f(t1 - t0), items: out, name: `${base}${out.length > 1 ? ` + ${out.length - 1}` : ""}`,
+    video: vids.length ? Math.max(...vids.map((x) => x.track)) + 1 : 0,
+    audio: out.some((x) => x.kind === "audio") ? Math.max(...out.filter((x) => x.kind === "audio").map((x) => x.track)) + 1 : 0 };
+}
+
+/**
+ * Where a clips stash goes at `at` (sequence seconds) in a sequence holding `existing` items {kind, track, start, end} with
+ * `counts` {video, audio} tracks: the same tracks when they are free there, else moved up (video) / down (audio) by the
+ * smallest shift that is free over the whole time of each kind. Never over another clip.
+ * -> {dv, da, add: {video, audio}, ranges} (add = tracks to add first) or {error}
+ */
+function fitClips(stash, at, existing, counts, fps = 30) {
+  const tol = 0.5 / fps;
+  const busy = (kind, track, a, b) => existing.some((x) => x.kind === kind && x.track === track && x.start < b - tol && x.end > a + tol);
+  const pick = (kind) => {
+    const mine = stash.items.filter((x) => x.kind === kind);
+    if (!mine.length) return { shift: 0, add: 0 };
+    for (let d = 0; d <= MAX_SHIFT; d++) {
+      if (mine.every((x) => !busy(kind, x.track + d, at + x.start, at + x.end))) {
+        const need = Math.max(...mine.map((x) => x.track + d)) + 1;
+        return { shift: d, add: Math.max(0, need - (counts[kind] || 0)) };
+      }
+    }
+    return null;
+  };
+  const v = pick("video");
+  const a = pick("audio");
+  if (!v || !a) return { error: `No free room for the stash at ${at.toFixed(2)} s within ${MAX_SHIFT} tracks: park the playhead elsewhere.` };
+  const ranges = stash.items.map((x) => ({ kind: x.kind, track: x.track + (x.kind === "video" ? v.shift : a.shift),
+    start: at + x.start, end: at + x.end, group: x.group, label: x.label }));
+  return { dv: v.shift, da: a.shift, add: { video: v.add, audio: a.add }, ranges };
+}
+
+/** The link groups of placed ranges, as host.jsx as_link wants them: [[{kind, track, start, end}]]. */
+function linkGroups(ranges) {
+  const g = new Map();
+  for (const r of ranges) {
+    if (!r.group) continue;
+    if (!g.has(r.group)) g.set(r.group, []);
+    g.get(r.group).push({ kind: r.kind, track: r.track, start: r.start, end: r.end });
+  }
+  return [...g.values()].filter((x) => x.length > 1);
+}
+
+module.exports = { capture, place, sampleAt, nameFor, captureClips, fitClips, linkGroups, FORMAT, MAX_FRAMES, MAX_CLIPS, MAX_SHIFT };

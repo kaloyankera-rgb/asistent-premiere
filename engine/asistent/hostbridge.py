@@ -26,7 +26,8 @@ def set_lane(lane: str | None) -> None:
 
 def lane() -> str:
     return getattr(_lane, "value", "")
-COMMANDS = ("ping", "probe", "captions", "graphics", "audio_route", "link", "eval", "play", "play_stop")   # play: Captions tab ▶ (0.10.11)
+COMMANDS = ("ping", "probe", "captions", "graphics", "audio_route", "link", "eval", "play", "play_stop", "stash_export",
+            "add_tracks")   # play: Captions tab ▶ (0.10.11)
 SEEN_WITHIN = 45.0             # the host polls every <= 20 s; older than this it is not running
 _state = {"seen": 0.0, "version": None}
 

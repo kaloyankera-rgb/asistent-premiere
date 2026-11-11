@@ -42,6 +42,8 @@ drive the engine. The Host header is checked against DNS rebinding.
                               "balance_db"?: how far apart two speakers may be (default 2)}
   GET  /stash/list, /stash/get?id=   saved animations (stash.py, <app>/stash/); POST /stash/save {stash, project},
                               /stash/delete {id}, /stash/rename {id, name}
+  POST /stash/clips/begin {name, fps, width, height, video, audio, seconds}, /stash/clips/export {id, sequence, guid,
+                              project} (Stash clips, 0.10.50); /host/tracks {sequence, guid, project, video, audio}
   POST /colorlearn/record    {project, sequence, clips: [{path, start, end, lumetri, owned, layer, lut, animated}]} -> queued:
                               after an export, each clip's Lumetri next to Auto color's suggestion (colorlearn.py, read only)
   GET  /colorlearn/report?project=|client=   per camera: editors minus Asistent (medians), kept, untouched; /colorlearn/status
@@ -530,6 +532,33 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _start_audio(body))
             if self.path == "/stash/save":
                 return self._send(200, STASH.save(body.get("stash"), body.get("project") or ""))
+            if self.path == "/stash/clips/begin":
+                # 0.10.50 Stash clips: a new stash's folder and the empty sequence (shell.xml) the panel copies the clips into
+                return self._send(200, STASH.begin_clips(body.get("name") or "", body.get("fps") or 0, body.get("width") or 0,
+                                                         body.get("height") or 0, body.get("video") or 0, body.get("audio") or 0,
+                                                         body.get("seconds") or 0))
+            if self.path == "/stash/clips/export":
+                # the host saves the stash's sequence as a project file in the stash's own folder (Sequence.exportAsProject)
+                seq = body.get("sequence")
+                if not isinstance(seq, str) or not seq:
+                    raise ValueError("The sequence is missing.")
+                path = os.path.join(STASH.clips_dir(str(body.get("id") or "")), "clips.prproj")
+                proj = body.get("project") if isinstance(body.get("project"), str) else None
+                res = hostbridge.run("stash_export", {"sequence": seq, "guid": _guid(body), "project": proj, "path": path}, wait=120.0)
+                log.info("stash/clips/export: %s", res)
+                return self._send(200, res)
+            if self.path == "/host/tracks":
+                # 0.10.50: video / audio tracks added to the ACTIVE sequence (QE), for a stash or a tracked layer that needs room
+                seq = body.get("sequence")
+                if not isinstance(seq, str) or not seq:
+                    raise ValueError("The sequence is missing.")
+                v, a = int(body.get("video") or 0), int(body.get("audio") or 0)
+                if not (0 <= v <= 20 and 0 <= a <= 20) or not (v or a):
+                    raise ValueError("Unclear how many tracks to add.")
+                proj = body.get("project") if isinstance(body.get("project"), str) else None
+                res = hostbridge.run("add_tracks", {"sequence": seq, "guid": _guid(body), "project": proj, "video": v, "audio": a})
+                log.info("host/tracks: %s", res)
+                return self._send(200, res)
             if self.path == "/stash/delete":
                 return self._send(200, STASH.delete(str(body.get("id") or "")))
             if self.path == "/stash/rename":

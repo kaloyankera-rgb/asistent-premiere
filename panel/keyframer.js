@@ -88,7 +88,9 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   // Stash v1 (0.10.37): the ticked properties' animation saved as data, applied to any clip at the playhead
   root.appendChild(el("div", "title spaced", "Stash"));
   root.appendChild(el("p", "desc", "Save the ticked properties' animation, then put it on any clip: select the clip, park the " +
-    "playhead where it should start, press the stash. Same timing and easing; kept on this computer for every project."));
+    "playhead where it should start, press the stash. Same timing and easing; kept on this computer for every project. " +
+    "Save selected clips keeps whole clips instead (a logo over its background, a title with its sound, every effect and " +
+    "keyframe): park the playhead and press it to put them in, on free tracks, in any project."));
   const stashTop = el("div", "row buttons");
   root.appendChild(stashTop);
   const profileRow = el("div", "row options");
@@ -128,10 +130,19 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     const shown = r.items.filter((i) => !profile.value || i.client === profile.value);
     for (const it of shown) {
       const row = el("div", "row kf-stash-row");
-      const b = button("small", it.name, `Puts this animation on the selected clip from the playhead (${(it.props || []).join(", ")}; ${Number(it.span || 0).toFixed(2)} s). One Undo step.`,
+      const clips = it.kind === "clips";
+      const tip = clips
+        ? `Puts these clips in at the playhead (${(it.clips || []).join(", ")}; ${Number(it.span || 0).toFixed(2)} s), on free tracks. Nothing is covered.`
+        : `Puts this animation on the selected clip from the playhead (${(it.props || []).join(", ")}; ${Number(it.span || 0).toFixed(2)} s). One Undo step.`;
+      const b = button("small", clips ? `${it.name} (clips)` : it.name, tip,
         () => guarded(async () => {
           const s = await engine.stashGet(it.id);
           const project = await premiere.activeProject();
+          if (clips) {
+            const res = await ST.applyClips(project, s);
+            say([res.placed ? `Done: ${it.name}, ${res.placed} of ${res.total} clips at ${res.at.toFixed(2)} s. Cmd/Ctrl+Z ${res.steps > 1 ? `${res.steps} times takes` : "takes"} it back.` : `${it.name}: nothing placed.`, ...res.lines], res.placed === res.total ? "line" : "warn");
+            return;
+          }
           const res = await ST.apply(project, s);
           say([res.written ? `Done: ${it.name} on ${res.clip}, ${res.written} keyframes. Cmd/Ctrl+Z takes it back.` : `${it.name}: nothing written.`, ...res.lines], res.written ? "line" : "warn");
           if (state.sel) await read(true);
@@ -150,7 +161,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       row.appendChild(del);
       stashList.appendChild(row);
     }
-    if (!r.items.length) stashList.appendChild(el("div", "muted", "No stash yet: read a clip, tick its moving properties, press Save animation."));
+    if (!r.items.length) stashList.appendChild(el("div", "muted", "No stash yet: read a clip, tick its moving properties, press Save animation; or select clips and press Save selected clips."));
     stashFoot.textContent = r.items.length ? `${r.items.length} saved · ${Math.max(1, Math.round(r.bytes / 1024))} KB on disk` : "";
     bindTips(root);
   }
@@ -483,6 +494,14 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     if (s.error) return say(s.error, "warn");
     const r = await engine.stashSave(s, project.path);
     say(`Saved as ${r.name}${r.client ? ` (${r.client})` : ""}.`);
+    await fillStash();
+  })));
+
+  stashTop.appendChild(button("secondary", "Save selected clips", "Keeps the clips selected in the timeline (with their effects and keyframes) as a stash for any project.", () => guarded(async () => {
+    const project = await premiere.activeProject();
+    say("Saving the selected clips…");
+    const r = await ST.saveClips(project);
+    say([`Saved as ${r.name}${r.client ? ` (${r.client})` : ""}.`, ...r.lines]);
     await fillStash();
   })));
 

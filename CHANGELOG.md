@@ -31,6 +31,23 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.50 - Stash clips (Cockpit plan A2b, the user's go 2026-11-11)
+- Keyframer page, Stash: **Save selected clips** keeps the clips selected in the timeline (a logo on V2 over its background on
+  V1, a title with its sound) as a stash for any project. The clips are copied (createCloneTrackItemAction: same project items,
+  every effect, Motion, keyframe) into a new empty sequence "Stash - <name> <id>" in the bin "Asistent stash" (made from a shell
+  XML the engine writes), and the host saves that sequence with `Sequence.exportAsProject` into `<app>/stash/clips/<id>/`.
+- Pressing a clips stash puts it in at the playhead: from its sequence when it is still in the project, otherwise its project
+  file is imported into "Asistent stash" first. Same tracks when they are free there; otherwise the whole group moves up
+  (video) / down (audio) to free tracks, adding tracks on top when needed (host QE `addTracks`). A copy never covers or cuts a
+  clip. A clip and its sound are linked again. Undo: one step for the copies, one for the link.
+- Asistent deletes nothing in the project: the stash sequences and anything imported stay in the bin "Asistent stash" (the
+  editor may delete it). Deleting a stash in the panel removes its folder in `<app>/stash/`.
+- Verified through the bridge in Premiere 26.5.2 (NEW TEST, then TEST.prproj): V1 clip + V2 adjustment layer (Black & White,
+  Transform) + A1 saved (13.8 KB project); applied at 120 s on the same tracks with the same effect chains, linked; applied again
+  at the same place it went to V3/V4/A2 and Premiere added V4; Position keyframes carried with the same times and values;
+  in TEST.prproj it was imported from the file, placed and linked, Black & White working (saturation 0.0) and the file upright
+  (no black bars). NOT tried by the user yet.
+
 ## 0.10.49 - Auto color on slowed-down clips (the user, 2026-11-11)
 - fx30449 (a 4.5 s 119.88 fps file, slowed on the timeline) said "Cannot read frames": its clip's range lay past the file's
   end, so every seek gave nothing and the frames through the LUT layer were dropped with it (their log check reads the file
