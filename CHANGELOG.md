@@ -31,6 +31,12 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.49 - Auto color on slowed-down clips (the user, 2026-11-11)
+- fx30449 (a 4.5 s 119.88 fps file, slowed on the timeline) said "Cannot read frames": its clip's range lay past the file's
+  end, so every seek gave nothing and the frames through the LUT layer were dropped with it (their log check reads the file
+  too). `color.read_frames` keeps the range inside the file (the whole file when nothing of it is). Verified on the real file
+  (4 frames read from a range past its end) and on a synthetic one. NOT verified by the user in Premiere yet.
+
 ## 0.10.48 - Auto color looks through a LUT-only layer in Premiere 27.0 too (the user, 2026-11-11)
 - The user's Pulse Fitness Video 6 in Premiere 27.0: an adjustment layer with only an S-Log3 LUT was taken for a layer that
   covers the clip ("its Lumetri has more than a LUT (Color Wheels: false, untouched false)"), so Auto color measured the flat

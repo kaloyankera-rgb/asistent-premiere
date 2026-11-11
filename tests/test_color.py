@@ -736,3 +736,12 @@ def test_mixed_light_in_opposite_directions_leaves_white_alone():
     room[:, :w // 4] = lin[:, :w // 4] * np.array([1.12, 1.0, 0.86])  # a neutral surface under warmer light
     r = C.decide([C.encode(room)] * 3)
     assert r["white"]["confidence"] == "low" and any("Mixed light" in x for x in r["reasons"]), (r["white"], r["reasons"])
+
+
+def test_a_range_past_the_files_end_still_reads_frames(tmp_path):
+    # 0.10.49, the user's fx30449: a 4.5 s slow-motion file whose clip reported a range past the end of the file
+    short = tmp_path / "slowmo.mp4"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:d=2:r=120", "-c:v", "libx264",
+                    str(short)], check=True)
+    assert len(C.read_frames(str(short), n=4, width=160, start=3.0, end=7.5)) == 4        # all of it past the end
+    assert len(C.read_frames(str(short), n=4, width=160, start=1.0, end=9.0)) == 4        # partly past the end
