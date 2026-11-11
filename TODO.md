@@ -23,6 +23,8 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
   94.6 s). Measured reading in ~30 s parts at the quietest moments: GStroy C9036 189 -> 87 s (the long reading looped and lost
   ~80 words), Beauty Sector fx30-2-1304 137 -> 45 s (without the names prompt "бюти сектор" for "beauty sector"). The words
   change, so: behind a switch, compared on the ReShape golden at the office before it is offered.
+- [x] 2026-11-12 in NEW TEST (bridge): the Fast switch is shown once turbo is on disk, the rough cut runs with it on (words came
+  from the cache, so turbo itself did not recognise anything new there); switched back off.
 - [x] **0.10.40 Fast switch built (turbo, off by default: 2.1x faster, fewer takes found). USER: decide whether Fast is worth it; maybe
   turbo for pauses + large-v3 only where takes are suspected.** Rough cut faster on many clips (was): 0.10.25 splits only when there are fewer windows than readers (one long clip: 149 ->
   60 s). With many clips (Pulse, 48 items) the time is recognition itself: a faster recognizer for the rough cut only (its words
