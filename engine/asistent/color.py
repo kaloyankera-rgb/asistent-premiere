@@ -108,6 +108,15 @@ def read_frames(path: str, n: int = 6, width: int = 480, start: float = 0.0, end
     info = probe(path)
     if not info.has_video:
         raise MediaError(f"{os.path.basename(path)} has no picture.")
+    # 0.10.49 (the user's Pulse Fitness Video 6, 2026-11-11: fx30449, a 4.5 s 119.88 fps clip slowed down on the timeline):
+    # the range a speed-changed clip reports may lie past the file's end, every seek then gave no frame ("Cannot read frames")
+    # and the frames through the LUT layer were dropped with it. The range is kept inside the file; when nothing of it is,
+    # the whole file is read.
+    if info.duration and info.duration > 0:
+        start = min(max(0.0, float(start or 0.0)), info.duration)
+        end = min(float(end), info.duration) if end else None
+        if (end if end else info.duration) - start < 0.1:
+            start, end = 0.0, None
     dur = (end if end else info.duration) - start
     dw, dh = _display_size(path, info)
     if dw >= dh:
