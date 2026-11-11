@@ -16,7 +16,10 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `main.js` UI and flows · `engine.js` HTTP client · `premiere.js` timeline reading, SYNC sequence,
     shared helpers (`transaction`, `has`, `maybe`, `ensureBin`, `readTimeline`, `readItems`)
   - `premiere-audio.js` Fill L/R, split copy, Volume level/keyframes · `channels.js` effect-chain routing
-  - `stashplan.js` Stash v1: capture and place an animation (pure) · `premiere-stash.js` save and apply at the playhead (0.10.37)
+  - `stashplan.js` Stash: capture and place an animation, and (0.10.50) a clips stash's capture and free-track fit (pure) ·
+    `premiere-stash.js` save and apply at the playhead (0.10.37; clips through a stash sequence + exportAsProject, 0.10.50)
+  - `trackplan.js` the tracker's maths: the tracked point through the clip's Motion, the attached clip's keys (pure) ·
+    `premiere-tracker.js` reads the clips, writes / takes off the keys · `tracker.js` the Tracker page (0.10.51, docs/TRACKER.md)
   - `premiere-colorlearn.js` reads the exported sequence's Lumetri for colour learning (0.10.36)
   - `exportcheck.js` what the pre-export check reports (pure) · `premiere-exportcheck.js` reads the sequence for it (0.10.35)
   - `tracknames.js` which name each track gets (pure) · `premiere-labels.js` Track names: renames and camera colours in one step (0.10.34)
@@ -48,7 +51,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`; one lock per file, 0.10.6)
   - `pins.py` the model commits and SHA-256 of what Asistent downloads (0.10.6); `requirements-*-lock-mac.txt` hash-locked packages
     (`scripts/lock_requirements.py`), used by setup and updates; `media.decode_f32` streams FFmpeg's sound into place (half the memory)
-  - `stash.py` saved animations in `<app>/stash/` (0.10.37)
+  - `stash.py` saved animations in `<app>/stash/` (0.10.37) and clips stashes (`stash/clips/<id>/clips.prproj`, 0.10.50)
+  - `tracker.py` the motion tracker: flow + first-frame template, sub-pixel, scale and turn, lost / unsure / sure per frame
+    (0.10.51; accuracy in docs/TRACKER.md, `scripts/bench_tracker.py`)
   - `colorlearn.py` colour learning at export: the editors' Lumetri next to Auto color per client and camera, local records, report (0.10.36)
   - `exportcheck.py` the pre-export check's peaks per clip range (`/export/peaks`, read only, 0.10.35)
   - `color.py` exposure/white-balance analysis, previews, render check, Lumetri calibration, probe measurement

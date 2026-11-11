@@ -31,6 +31,22 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.51-0.10.53 - Motion tracker (Cockpit plan A3, the user 2026-11-11: "track objects perfectly ... like it's in After Effects")
+- New **Tracker** page: Load frame (the selected clip at the playhead), drag a box around the object, Track (forwards and
+  backwards over the whole clip, progress, Cancel, a green / yellow / red strip; a click moves the playhead there), then
+  **Attach selected**: the selected text / logo / clip follows the object with one Position key per frame (Scale and
+  Rotation when ticked), keeping where the editor put it on the boxed frame, through the source clip's own Motion (also a
+  keyframed punch-in). One Undo step; lost frames get no key; never over the editor's own keyframes; **Detach** takes the
+  tracker's keys off.
+- Engine `tracker.py`: optical flow with a forward-backward check and RANSAC similarity, corrected every frame against the
+  first frame's region (sub-pixel), scale and angle refined on it, a wide search when unsure, an adapting second template
+  for changes of look, lost / unsure / sure per frame. Synthetic accuracy 0.002-0.03 px median (also 70 px a frame, blur,
+  light change, 12 hidden frames picked up again), about 1 px for a 70° turn in depth (docs/TRACKER.md,
+  scripts/bench_tracker.py). Endpoints `/tracker/frame`, `/tracker/track` (job).
+- Verified in Premiere 26.5.2 on a synthetic 4K clip with a known path: attached square within 0.25-0.5 px at full
+  resolution, angle and size following exactly. 0.10.52-0.10.53: test bridge only (`tracker_box`, `tracker_info`, the
+  Tracker's checkboxes in `fill`; the page reads its checkboxes when Attach is pressed). NOT tried by the user yet.
+
 ## 0.10.50 - Stash clips (Cockpit plan A2b, the user's go 2026-11-11)
 - Keyframer page, Stash: **Save selected clips** keeps the clips selected in the timeline (a logo on V2 over its background on
   V1, a title with its sound) as a stash for any project. The clips are copied (createCloneTrackItemAction: same project items,

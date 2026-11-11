@@ -35,7 +35,8 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
   async function idle(timeout) {
     const end = Date.now() + timeout * 1000;
     await sleep(300);
-    while (busy() && Date.now() < end) await sleep(300);
+    const pageBusy = () => !!(hooks.tracker && hooks.tracker() && hooks.tracker().busy());     // the Tracker page's own work
+    while ((busy() || pageBusy()) && Date.now() < end) await sleep(300);
     await sleep(SETTLE);
     return panelState();
   }
@@ -124,12 +125,19 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     async fill(a) {
       // the notes box, and (0.10.34) the Track names options, so a test can choose colours and the auto switch
       // 0.10.41: and the rough cut's Fast switch (with whether its row and the download offer are shown)
-      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughFast"].includes(a.id)) throw new Error("fill: notes, the Track names options and roughFast only.");
+      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughFast", "tr_scale", "tr_rotation"].includes(a.id)) throw new Error("fill: notes, the Track names options, roughFast and the Tracker's Scale / Rotation only.");
       const e = doc.getElementById(a.id);
-      const box = a.id === "labelsAuto" || a.id === "roughFast";
+      const box = a.id === "labelsAuto" || a.id === "roughFast" || a.id.startsWith("tr_");
       if (box) e.checked = !!a.value;
       else e.value = String(a.value);
-      if (a.id !== "notes") e.dispatchEvent(new Event("change"));
+      if (a.id !== "notes") {
+        try {
+          e.dispatchEvent(new Event("change"));
+        } catch (err) {
+          // UXP's own checkbox code reads a detail a script's event lacks (a box the panel made itself, 0.10.53); the box is set
+          if (!box) throw err;
+        }
+      }
       const extra = a.id === "roughFast" ? { row_shown: !$("roughFastRow").hidden, download_shown: !$("roughFaster").hidden } : {};
       return { id: a.id, value: box ? e.checked : e.value, ...extra };
     },
@@ -590,6 +598,15 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     },
     // 0.10.39: what the panel's export-event handler sends for the after-export check (a scripted export fires no event):
     // the active sequence read by premiere-exportcheck.js, then /exports/done with the file
+    // 0.10.51 Tracker: the box a drag would set (the bridge cannot drag), and what the page holds
+    async tracker_box(a) {
+      if (!hooks.tracker) throw new Error("no Tracker page in this panel");
+      return hooks.tracker().setBox(a.box);
+    },
+    async tracker_info() {
+      if (!hooks.tracker) throw new Error("no Tracker page in this panel");
+      return hooks.tracker().info();
+    },
     async after_export(a) {
       if (!hooks.afterExport) throw new Error("no after-export check in this panel");
       return hooks.afterExport(a.out || null);

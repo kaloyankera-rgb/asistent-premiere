@@ -58,8 +58,10 @@ first; brand profiles deferred.
 - [x] **A2b Stash clips v2** (0.10.50, verified through the bridge in NEW TEST and TEST). The user said "go" without choosing
   delete or keep: the stash sequences are KEPT in the bin "Asistent stash" (nothing deleted). USER: save a real logo + background
   and put it in another project. Later: a thumbnail, rename in the panel.
-- [ ] **A3 Tracker**: faces first (YuNet, reframing 9:16), then a placed target (OpenCV), confidence strip, smoothed and
-  thinned Position keys in one Undo step, never over the editor's keyframes.
+- [x] **A3 Tracker** (0.10.51-0.10.53, verified through the bridge on a synthetic 4K clip). The user asked for After Effects
+  style tracking of any object, so the placed target came first (faces-first was the earlier plan). USER: track something
+  real (a logo on a car, a sign, a face) and attach a text. Later if wanted: Stabilise (counter-move the clip), Centre /
+  reframe 9:16 on a face (YuNet), corner pin (perspective), a thinner key set option.
 - [ ] **A4 Brand profiles**: deferred (text colour cannot be set by script); a new `brand.py` if taken up.
 
 ## EL. Learning from the other editors (the user, 2026-11-10: "add this to the to do list")

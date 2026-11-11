@@ -212,6 +212,14 @@ function placeGraphics(payload) {
 }
 
 // L/L and R/R through the clips' own channels, done by the host (ExtendScript): can take a few seconds per clip
+// Motion tracker (0.10.51): a frame of the file to box the object on, and the tracking job
+function trackerFrame(payload) {
+  return call("POST", "/tracker/frame", payload);
+}
+function startTracking(payload) {
+  return call("POST", "/tracker/track", payload);
+}
+
 // Stash clips (0.10.50): a new stash's folder and empty sequence; the host saves the stash sequence as a project file
 function stashClipsBegin(payload) {
   return call("POST", "/stash/clips/begin", payload);
@@ -298,4 +306,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, trackerFrame, startTracking, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };
