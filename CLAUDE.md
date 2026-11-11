@@ -82,7 +82,11 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   `<header>`/`<footer>` (centred flex rows: use divs). Buttons are `div.btn` (Premiere paints `<button>` grey): make them with
   `button()`, switch them with `enable()`. Colours only through the tokens in `style.css` `:root`. Layout (0.10.59, the user's chosen mockup): Tools = rows
   (`.feat` in a `.list`, groups Run / Automatic; options under ▾ via `data-more`, one open), Motion = Keyframer | Tracker
-  (`openTab("motion")`), Log and Settings = icon tabs; the glow is `panel/img/glow.jpg` behind translucent `--glass`.
+  (`openTab("motion")`), Log and Settings = icon tabs; the glow is `panel/img/glow.jpg` as the body's `background-image`
+  behind translucent `--glass`. UXP paints an absolutely placed element OVER the panel whatever the DOM order or
+  `position: relative` (0.10.59: the glow `<img>` hid everything): never place one meant to sit underneath. The bridge reads
+  the DOM, not what is painted: after any layout or look change, ask the user for one look (or a screenshot) before calling
+  it done; a new panel version shows only after Premiere restarts.
 - Dependencies: Python 3.12 venv with `numpy==2.5.4`, `scipy==1.18.1`, `watchdog==7.0.0`, `opencv-python-headless==5.0.0.93` (`requirements.txt`),
   `pytest==9.2.0` (`requirements-dev.txt`); system FFmpeg/FFprobe (Homebrew on Mac); Node only for tests.
 

@@ -31,6 +31,15 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.60 - The glow is the panel's background (0.10.59 showed only the glow in Premiere)
+- **Bug (the user's screenshot, 2026-11-12)**: in 0.10.59 the Asistent panel in Premiere 2026 showed nothing but the purple
+  glow. The glow was an absolutely placed `<img>` meant to sit under `#shell`; Premiere's UXP painted it **over** the whole
+  panel (in Chrome, the browser preview, it sat underneath). The test bridge reads the DOM, not what is painted, so every
+  bridge check had passed.
+- **Fix**: no element for the glow any more: it is the body's `background-image: url("img/glow.jpg")` (`background-size:
+  100% 100%`). Confirmed by the user in Premiere 2026 after a restart: the panel with the glow behind it.
+- Note: a new panel version loads only after Premiere restarts; closing and reopening the panel kept 0.10.59.
+
 ## 0.10.59 - A minimal panel: Tools as rows, Motion, the user's colours and a glow (the user 2026-11-11/12: "keep it minimal, right now everything is everywhere"; chosen from three clickable mockups: A · Rows, Amethyst + Golden, the glow Soft)
 - **Tools as rows**: two bordered lists. **Run**: one row per tool (Sync, Rough cut, Track names, Audio, Color, Subtitles,
   Before export) with its icon, its name (the tooltip says what it does: the old ⓘ text) and its main button, all one
@@ -58,7 +67,8 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   26.5.2 (NEW TEST, bridge): loads as 0.10.59; the button list against 0.10.58 differs only by the renames, the switches
   and the tabs; Motion / Keyframer / Tracker / Tools open; Keyframer read "Tracker test"; Tracker loaded its frame; Check
   export ran ("1 to look at: picture fills the frame"); the Export check, Show exports and Learn switches each turned the
-  engine's setting off and on again. Not checked: how it looks in UXP (the glow image, translucency, the gradient) and the
+  engine's setting off and on again. All of that passed while the panel was in fact covered by the glow (fixed in 0.10.60:
+  the bridge cannot see what is painted). Not checked: how it looks in UXP (the glow image, translucency, the gradient) and the
   Auto import switch (switching it on would import Downloads into NEW TEST).
 
 ## 0.10.58 - The whole panel takes the Tracker's look (the user 2026-11-11: "put the same UI on the overall tool while following the rules for UI design we have")
