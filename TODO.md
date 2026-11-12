@@ -5,7 +5,7 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 
 ## N. The user's tweaks of 2026-11-12 (night)
 - [x] Tracker: range, Stop that keeps, go on (0.10.64). USER: drag the golden handles on a real clip, Stop mid-way, go on.
-- [ ] Keyframer: drag and shape custom curves (not only presets).
+- [x] Keyframer Custom curves (0.10.68). USER: Bounce > Edit as points, drag the points, Apply on a title; Alt-click, double-click.
 - [ ] Anchor Studio into Asistent (github kaloyankera-rgb/anchor-studio), fixes and improvements.
 - [x] Auto import: drop a folder on its row (0.10.67). USER: drag a folder from Finder onto the Auto import row; if nothing
   happens, `grep "import drop" engine.log` shows what Premiere passed.

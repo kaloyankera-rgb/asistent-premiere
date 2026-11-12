@@ -179,3 +179,50 @@ test("the sampled path of a curve for the editor box", () => {
     assert.ok(v[0] < 300 && v[1] < 400 && Math.abs((300 - v[0]) / (400 - v[1]) - 0.75) < 1e-6);
   });
 }
+
+// ---------------------------------------------------------------- Custom curves from points (0.10.68)
+test("a Custom curve passes through its points, from 0 to 1, smooth or with a sharp corner", () => {
+  const pts = [[0.3, 1.2], [0.6, 0.9, 1], [0.8, 1.05]];
+  const c = { kind: "points", pts };
+  assert.ok(K.curveOk(c));
+  assert.strictEqual(K.ease(c, 0), 0);
+  assert.strictEqual(K.ease(c, 1), 1);
+  for (const [x, y] of pts) assert.ok(near(K.ease(c, x), y, 1e-9), `${x}`);
+  // the corner: the slope changes sign at 0.6 (it comes down to 0.9 and goes up again), no smoothing across it
+  const before = K.ease(c, 0.6) - K.ease(c, 0.59);
+  const after = K.ease(c, 0.61) - K.ease(c, 0.6);
+  assert.ok(before < 0 && after > 0);
+  // one point in the middle on the straight line: a straight, even move
+  assert.ok(near(K.ease({ kind: "points", pts: [[0.5, 0.5]] }, 0.25), 0.25, 1e-9));
+});
+
+test("Custom curves refuse what would run time backwards or leave the editor", () => {
+  for (const bad of [[], [[0.5, 2]], [[0.6, 0.5], [0.5, 0.6]], [[0.5, 0.5], [0.505, 0.6]], [[0, 0.5]], [[0.5, 0.5, 2]],
+    Array.from({ length: K.MAX_POINTS + 1 }, (_, i) => [(i + 1) / (K.MAX_POINTS + 3), 0.5])]) {
+    assert.ok(!K.curveOk({ kind: "points", pts: bad }), JSON.stringify(bad));
+  }
+});
+
+test("Edit as points: every curve between two keyframes becomes a few points that keep its shape", () => {
+  const err = (c, pts) => Math.max(...Array.from({ length: 401 }, (_, i) => Math.abs(K.ease({ kind: "points", pts }, i / 400) - K.ease(c, i / 400))));
+  for (const [c, most, tol] of [[[0.42, 0, 0.58, 1], 4, 0.02], [[0.34, 1.56, 0.64, 1], 6, 0.02], [{ kind: "elastic", dir: "end", n: 2, over: 0.2 }, 10, 0.03],
+    [{ kind: "bounce", dir: "end", n: 3, h: 0.5 }, 10, 0.05]]) {
+    const pts = K.toPoints(c);
+    assert.ok(K.pointsOk(pts), JSON.stringify(c));
+    assert.ok(pts.length <= most, `${JSON.stringify(c)}: ${pts.length} points`);
+    assert.ok(err(c, pts) < tol, `${JSON.stringify(c)}: ${err(c, pts)}`);
+  }
+  assert.strictEqual(K.toPoints({ kind: "bounce", dir: "end", n: 3, h: 0.5 }).filter((q) => q[2]).length, 3);      // each hit is sharp
+});
+
+test("a Custom curve is baked like the others: one key per frame between yours, and it repeats", () => {
+  const step = 1 / 30;
+  const curve = { kind: "points", pts: [[0.5, 1.1]] };
+  const r = K.plan([{ id: "scale", keys: [{ t: 0, v: 0 }, { t: 1, v: 100 }] }], curve, step);
+  assert.ok(!r.error, r.error);
+  const add = r.props[0].add;
+  assert.strictEqual(add.length, 29);
+  assert.ok(near(add[14].v, 110, 0.5));                       // 0.5 s: 110 % of the move (the point)
+  const loop = K.plan([{ id: "scale", keys: [{ t: 0, v: 0 }, { t: 1, v: 100 }] }], curve, step, { repeat: { mode: "pingpong", times: 1 }, until: 2 });
+  assert.ok(!loop.error && loop.props[0].repeated > 0, loop.error);
+});

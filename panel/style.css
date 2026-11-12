@@ -263,6 +263,7 @@ svg .kf-arm { stroke: var(--accent-text); stroke-width: 1px; }
 svg .kf-arm.off { stroke-width: 0; }
 svg .kf-curve { fill: none; stroke: var(--text); stroke-width: 2px; }
 svg .kf-handle { fill: var(--accent); stroke: var(--on-accent); stroke-width: 1px; }
+svg .kf-pt.on { fill: var(--sel); }
 .kf-presets { margin-top: 4px; }
 .buttons.spaced { margin-top: 12px; }
 .kf-status { margin-top: 6px; }
