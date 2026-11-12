@@ -6,6 +6,7 @@ const premiereAudio = require("./premiere-audio.js");
 const audioplan = require("./audioplan.js");
 const PANEL_VERSION = require("./version.js");
 const premiereImport = require("./premiere-import.js");
+const dropfolder = require("./dropfolder.js");
 const premiereColor = require("./premiere-color.js");
 const premiereProbe = require("./premiere-probe.js");
 const { plansFor, statusOf, STATUS_BG } = require("./colorplans.js");
@@ -1781,6 +1782,37 @@ async function importSwitch(folder) {
 }
 
 onTap($("importToggle"), () => importSwitch(null));
+
+// 0.10.67: a folder dragged from Finder / Explorer onto the Auto import row is watched (dropfolder.js). The row lights up
+// while something is held over it; what the drop carried is logged, so a Premiere that hands panels no path can be seen.
+(function importDrop() {
+  const row = $("secImport");
+  const on = (e) => {
+    try {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    } catch (err) { /* read-only in some hosts */ }
+    if (!/ dropping\b/.test(` ${row.className}`)) row.className = `${row.className} dropping`;
+  };
+  const off = () => { row.className = row.className.replace(/\s*dropping\b/g, ""); };
+  row.addEventListener("dragenter", on);
+  row.addEventListener("dragover", on);
+  row.addEventListener("dragleave", off);
+  row.addEventListener("drop", (e) => {
+    try {
+      e.preventDefault();
+    } catch (err) { /* nothing to prevent */ }
+    off();
+    const parts = dropfolder.partsOf(e);
+    const folder = dropfolder.droppedPath(parts);
+    engine.log("info", `import drop: ${parts.note} -> ${folder || "no path"}`);
+    if (!folder) {
+      finish("Premiere did not pass the dropped folder to the panel: use Other folder… under Auto import.", false);
+      return;
+    }
+    importSwitch(folder);
+  });
+})();
 onTap($("importFolder"), async () => {
   const folder = await premiereImport.pickFolder().catch(() => null);
   if (folder) importSwitch(folder);

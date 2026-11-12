@@ -31,6 +31,19 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.67 - Auto import: drop a folder on the row to watch it (the user 2026-11-12)
+- The user: "another way of syncing folders ... just dragging the folder and dropping it on top of the area of upload for the
+  sync auto import". The Auto import row is a drop target: it lights up (dashed golden edge, tinted) while something is held
+  over it; a folder dropped there is watched for this project and Auto import switches on (as Other folder… does). A file
+  dropped there: "That is a file (…): drop the folder it is in." (engine `importer.bind`).
+- `panel/dropfolder.js` (pure) reads the path from whatever the drop carries: the files list (nativePath / path), the file://
+  links of text/uri-list (escaped spaces, Windows drives), or plain text that is a path. What Premiere's UXP gives a panel
+  for a drag from Finder is not documented: every drop is logged ("import drop: types …, files …, uri …"), and when no path
+  comes the panel says to use Other folder… instead.
+- NOT tried in Premiere (a client project was open; a drag from Finder also needs a person): the first drop will show in
+  engine.log whether Premiere hands the path over.
+- Tests: 3 node (`tests/dropfolder.test.js`), 1 pytest.
+
 ## 0.10.66 - Captions: Export transcript (the user 2026-11-12: "export the captions as transcriptions")
 - Captions tab: **Export transcript** (and **With times**): the last subtitles as a .txt next to the .srt
   ("<name> transcript.txt" / "... transcript (times).txt"), shown in Finder. Built from the run's own words (corrected,

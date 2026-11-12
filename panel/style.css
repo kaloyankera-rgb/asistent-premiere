@@ -429,3 +429,6 @@ svg.tr-ico path { fill: var(--text-2); }
 .kf-card .kf-stash-row { padding: 4px 0; border-top: 1px solid var(--glass-faint); }
 .kf-card .kf-stash-row:first-child { border-top-width: 0; }
 .kf-stash-row .btn.small { flex: 1; min-width: 0; margin: 0 6px 0 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 0.10.67: a folder held over the Auto import row (drop to watch it) */
+.feat.dropping { outline: 2px dashed var(--sel); outline-offset: -2px; background-color: var(--ref-bg); }

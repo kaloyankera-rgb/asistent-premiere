@@ -1,5 +1,7 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.67 (2026-11-12, NOT installed yet): Auto import takes a folder dropped on its row (depends on Premiere passing the path: NOT tried).
+
 0.10.66 (2026-11-12, NOT installed yet): Captions tab Export transcript (.txt next to the .srt, With times).
 
 0.10.65 (2026-11-12, installed, engine measured on real NEW TEST media; NOT run in Premiere: a client project was open):
