@@ -208,8 +208,8 @@ let trackerPage = null;                                   // the Tracker page (m
 
 // 0.10.59: Keyframer and Tracker share the Motion tab (a switch between them, the last one used comes back); Log and
 // Settings are icons at the right of the tab row.
-const PANES = ["paneTools", "paneKeyframer", "paneTracker", "paneLog", "panePreview", "paneCaptions", "paneSettings"];
-const MOTION = ["paneKeyframer", "paneTracker"];
+const PANES = ["paneTools", "paneKeyframer", "paneTracker", "paneAnchor", "paneLog", "panePreview", "paneCaptions", "paneSettings"];
+const MOTION = ["paneKeyframer", "paneTracker", "paneAnchor"];
 let motionSide = "paneKeyframer";
 
 function openTab(pane) {
@@ -2052,6 +2052,7 @@ onTap($("cancel"), () => {
 for (const t of document.querySelectorAll(".btn.tab, .btn.mside")) onTap(t, () => openTab(t.getAttribute("data-tab")));
 require("./keyframer.js").mount({ $, el, button, enable, bindTips, premiere });     // the Keyframer page (0.10.32)
 trackerPage = require("./tracker.js").mount({ $, el, button, enable, bindTips, premiere });   // the Tracker page (0.10.51)
+require("./anchor.js").mount({ $, el, button, enable, bindTips, premiere });     // the Anchor page (0.10.69, Anchor Studio)
 onTap($("openLog"), () => openTab("paneLog"));
 onTap($("openPreview"), () => openTab("panePreview"));
 onTap($("hideResult"), () => show("result", false));       // the full answer stays in Log

@@ -31,6 +31,28 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.69 - Anchor: Anchor Studio in the Motion tab, Use alpha read by the engine (the user 2026-11-12)
+- The user: "we also need added anchor from our github we have it built, integrate it into our asistent ... if you find bugs or
+  performance fixes apply them, if you can make it better also do it". Anchor Studio 0.3.1 (github kaloyankera-rgb/anchor-studio,
+  private) is the third page of Motion: Keyframer | Tracker | **Anchor**. Nine points (or press between them and drag): the
+  selected clips' anchor point goes there, Position compensated so the picture stays; Effect Motion / Transform; Box Clip /
+  Sequence / Selection; X / Y percentages; Save / Use saved; one Undo step.
+- Kept as it was (its 33 tests ported and passing): the geometry (`panel/anchorplan.js` = core.js) and the Premiere side
+  (`panel/premiere-anchor.js` = premiere.js: every clip read and checked before any write, one transaction inside
+  lockedAccess, values read back; rotated / non-uniform Motion, Transform under Motion, Linear / Hold Position keys moved).
+- Better: **Use alpha needs no file dialog** and has no size limit: the engine reads the visible pixels with OpenCV
+  (`engine/asistent/anchoralpha.py`, `POST /anchor/alpha`), where Anchor Studio asked the editor to pick the same PNG once
+  and decoded up to 24 MP in JavaScript (with fflate). PNG, TIFF and WebP; 8 / 16 bit; grey + alpha; a palette with
+  transparency; Premiere's Invert Alpha; the same cutoff rule (its test image gives its documented (72, 40)-(184, 152) at
+  50 %, (200, 168) at 1 %). The page is in Asistent's look (div buttons; no absolutely placed marker: CLAUDE.md, 0.10.59);
+  the choices and the saved anchor live in the panel's store (UXP's localStorage is erased by every update, 0.10.17).
+- Its file-access code (alpha-source.js) compared paths after turning "/" into "\" and lowering the case, which on a Mac with
+  a case-sensitive volume could accept another file: gone with the dialog. Its PNG decoder and fflate are not brought over.
+- NOT tried in Premiere (a client project was open). Anchor Studio's own one-click Motion placement was confirmed by the user
+  in Premiere at its 0.1.2; its Transform path is still untested in Premiere (as its README says).
+- Tests: 33 node (Anchor Studio's), 4 pytest (`tests/test_anchoralpha.py`, its test image in tests/fixtures); 773 pytest + 24
+  skipped, node 318.
+
 ## 0.10.68 - Keyframer: Custom curves you shape with points (the user 2026-11-12)
 - The user: "for the keyframer we need to be able to move and make custom motion curves not only see them as a preview from the
   presets we have". Until now only the plain Curve's two Bézier handles could be dragged; Elastic, Bounce and the others were

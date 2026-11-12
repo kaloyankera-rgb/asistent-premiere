@@ -433,3 +433,12 @@ svg.tr-ico path { fill: var(--text-2); }
 
 /* 0.10.67: a folder held over the Auto import row (drop to watch it) */
 .feat.dropping { outline: 2px dashed var(--sel); outline-offset: -2px; background-color: var(--ref-bg); }
+
+/* 0.10.69: the Anchor page (Anchor Studio): nine points in three rows; the board is pressable between them */
+.anchor-row { align-items: center; margin-top: 6px; }
+.anchor-board { width: 168px; padding: 6px; margin: 4px auto 0 auto; border: 1px solid var(--line-strong); border-radius: 6px; background-color: var(--stage); }
+.anchor-line { justify-content: space-between; margin: 10px 0; }
+.btn.small.anchor-pt { width: 26px; height: 26px; min-width: 26px; padding: 0; border-radius: 13px; }
+.anchor-where { text-align: center; margin-top: 4px; }
+.anchor-num { width: 52px; }
+.anchor-xy { margin: 0 6px 0 2px; }

@@ -6,7 +6,9 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 ## N. The user's tweaks of 2026-11-12 (night)
 - [x] Tracker: range, Stop that keeps, go on (0.10.64). USER: drag the golden handles on a real clip, Stop mid-way, go on.
 - [x] Keyframer Custom curves (0.10.68). USER: Bounce > Edit as points, drag the points, Apply on a title; Alt-click, double-click.
-- [ ] Anchor Studio into Asistent (github kaloyankera-rgb/anchor-studio), fixes and improvements.
+- [x] Anchor Studio as the Anchor page (0.10.69). USER: select a clip, click the corners; a PNG logo with Use alpha;
+  Transform target on a clip with a Transform effect. Note: anchor-studio is a PRIVATE repo, Asistent's is PUBLIC: a push makes
+  its code public (ask before pushing).
 - [x] Auto import: drop a folder on its row (0.10.67). USER: drag a folder from Finder onto the Auto import row; if nothing
   happens, `grep "import drop" engine.log` shows what Premiere passed.
 - [x] Captions tab: Export transcript (0.10.66). USER: Make subtitles, Captions tab, Export transcript (and With times).

@@ -17,6 +17,7 @@ drive the engine. The Host header is checked against DNS rebinding.
                               Whisper -> captions -> SRT + JSON in <out_dir>/Asistent_subtitles (nothing goes to Premiere)
   GET  /host/poll?wait=s     the Premiere host (CEP extension, ExtendScript): the next command; GET /host/status
   POST /host/result          {id, ok, data} from the host
+  POST /anchor/alpha        {path, threshold?, invert?} -> {width, height, bounds, alpha}: visible pixels of a still (0.10.69)
   POST /subtitles/transcript {json, times?} -> {path, paragraphs}: the subtitles as a .txt next to the SRT, shown in Finder (0.10.66)
   POST /subtitles/review     {json} -> what to check per caption line (review.py; reads the run's JSON, changes nothing)
   GET  /panel/store         the panel's settings {values}; POST /panel/store {key, value|null} (survive panel updates)
@@ -110,6 +111,7 @@ from . import colorlearn
 from . import stash as STASH
 from . import tracker as TRACKER
 from . import transcript
+from . import anchoralpha
 from . import reveal
 from .groups import sync_groups
 from .importer import Store, Watcher
@@ -587,6 +589,9 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
                     raise ValueError("A list of files is needed.")
                 return self._send(200, EXPORTCHECK.frames(paths))
+            if self.path == "/anchor/alpha":
+                # 0.10.69: the visible-pixel bounds of a still with transparency (the Anchor page's Use alpha)
+                return self._send(200, anchoralpha.bounds(body.get("path"), body.get("threshold", 1), bool(body.get("invert"))))
             if self.path == "/subtitles/transcript":
                 # 0.10.66: the subtitles as a transcript (.txt next to the SRT), shown in Finder / Explorer
                 res = transcript.export(body.get("json"), bool(body.get("times")))
