@@ -26,6 +26,7 @@ class Job:
         self.error: str | None = None
         self.created = time.time()
         self._cancel = threading.Event()
+        self._stop = threading.Event()   # 0.10.63: finish now and keep what is done (the tracker's Stop); cancel drops it
         self.extra: dict = {}            # live data a job shows while it runs (the tracker's current frame, 0.10.55)
 
     def cancel(self):
@@ -36,6 +37,13 @@ class Job:
     @property
     def cancelled(self) -> bool:
         return self._cancel.is_set()
+
+    def stop(self):
+        self._stop.set()
+
+    @property
+    def stopping(self) -> bool:
+        return self._stop.is_set()
 
     def to_dict(self) -> dict:
         return {"id": self.id, "kind": self.kind, "state": self.state, "progress": round(self.progress, 3),

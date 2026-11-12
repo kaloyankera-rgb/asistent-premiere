@@ -163,3 +163,72 @@ def test_the_frame_at_each_time_is_the_one_premiere_shows(tmp_path):
 def test_endpoints_refuse_bad_input(engine):  # noqa: F811
     assert call("POST", "/tracker/frame", {"path": "/nope/x.mp4", "t": 1})[0] == 400
     assert call("POST", "/tracker/track", {"path": "/nope/x.mp4", "box": [0.1]})[0] == 400
+
+
+def _moving_file(tmp_path, n=90):
+    fps = 30000 / 1001
+    bg, rng = _bg(9)
+    obj = _obj(rng, 80)
+    path = str(tmp_path / "move.mp4")
+    p = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{W}x{H}", "-r", "30000/1001",
+                          "-i", "-", "-c:v", "libx264", "-crf", "8", "-pix_fmt", "yuv420p", "-g", "15", path], stdin=subprocess.PIPE)
+    for k in range(n):
+        p.stdin.write(_frame(bg, obj, rng, k, 100 + 7 * k, 270).tobytes())
+    p.stdin.close()
+    assert p.wait() == 0
+    return path, 1 / fps
+
+
+def test_a_range_tracks_only_its_frames_and_the_rest_come_back_untracked(tmp_path):
+    """0.10.63 (the user: "choose until when we want to track"): only frames 30-55 are tracked; every frame of the clip comes
+    back, the others as "none" with no measurement of their own."""
+    path, step = _moving_file(tmp_path)
+    k0 = 40
+    box = [(100 + 7 * k0 - 35) / W, (270 - 35) / H, 70 / W, 70 / H]
+    res = T.track(path, 0, 90 * step, step, k0 * step, box, rng=[30, 55])
+    fr = res["frames"]
+    assert len(fr) == 90 and res["range"] == [30, 55] and res["k0"] == k0 and not res["stopped"]
+    tracked = [i for i, f in enumerate(fr) if f["state"] != "none"]
+    assert tracked == list(range(30, 56))
+    assert max(abs(fr[i]["x"] - (100 + 7 * i)) for i in tracked) < 0.5
+    assert fr[10]["state"] == "none" and fr[10]["x"] == fr[30]["x"] and fr[80]["x"] == fr[55]["x"]
+    with pytest.raises(ValueError, match="outside the range"):
+        T.track(path, 0, 90 * step, step, 70 * step, box, rng=[30, 55])
+
+
+def test_stop_keeps_the_frames_tracked_so_far(tmp_path):
+    """Stop (0.10.63): the job ends at once with what it has, forwards from the boxed frame; backwards is not started."""
+    path, step = _moving_file(tmp_path)
+    k0 = 20
+    box = [(100 + 7 * k0 - 35) / W, (270 - 35) / H, 70 / W, 70 / H]
+    seen = []
+    res = T.track(path, 0, 90 * step, step, k0 * step, box, progress=lambda f: seen.append(f),
+                  stopping=lambda: len(seen) >= 3)          # progress comes every 5 frames: stop after about 15
+    fr = res["frames"]
+    tracked = [i for i, f in enumerate(fr) if f["state"] != "none"]
+    assert res["stopped"] and tracked and tracked[0] == k0 and 10 <= len(tracked) <= 20
+    assert tracked == list(range(k0, k0 + len(tracked)))
+    assert max(abs(fr[i]["x"] - (100 + 7 * i)) for i in tracked) < 0.5
+
+
+def test_a_stopped_job_finishes_with_its_result(engine, tmp_path):  # noqa: F811
+    path, step = _moving_file(tmp_path, n=300)
+    k0 = 5
+    box = [(100 + 7 * k0 - 35) / W, (270 - 35) / H, 70 / W, 70 / H]
+    code, started = call("POST", "/tracker/track", {"path": path, "from": 0, "to": 120 * step, "step": step, "t0": k0 * step, "box": box})
+    assert code == 200
+    import time as _t
+    for _ in range(100):
+        code, j = call("GET", f"/jobs/{started['job']}")
+        if j.get("progress", 0) > 0.05 or j["state"] != "running":
+            break
+        _t.sleep(0.05)
+    code, _ = call("POST", f"/jobs/{started['job']}/stop", {})
+    assert code == 200
+    for _ in range(200):
+        code, j = call("GET", f"/jobs/{started['job']}")
+        if j["state"] in ("done", "error", "cancelled"):
+            break
+        _t.sleep(0.05)
+    assert j["state"] == "done", j
+    assert len(j["result"]["frames"]) == 120 and any(f["state"] == "none" for f in j["result"]["frames"])

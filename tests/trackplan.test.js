@@ -161,3 +161,29 @@ test("ticks: one per second from the clip's In", () => {
   const fr = Array.from({ length: 91 }, (_, i) => ({ t: 2 + i / 30 }));
   assert.deepStrictEqual(P.ticks(fr, 2).map((t) => [t.i, t.label]), [[0, "0s"], [30, "1s"], [60, "2s"], [90, "3s"]]);
 });
+
+// 0.10.63: a range, Stop and going on from a tracked frame
+test("attach: frames not tracked (outside the range, after Stop) get no key and are not counted as lost", () => {
+  const src = { start: 10, inPt: 2, speed: 1 };
+  const fr = [0, 1, 2, 3, 4].map((i) => ({ t: 2 + i / 30, x: 540 + 10 * i, y: 960, s: 1, a: 0, state: i >= 3 ? "none" : "sure" }));
+  const target = { start: 10, end: 11, inPt: 0, speed: 1, x: 0.5, y: 0.5, scale: 100, rot: 0 };
+  const r = P.attach(track(fr, 1), src, {}, target, frame);
+  assert.strictEqual(r.keys.length, 3);
+  assert.strictEqual(r.lost, 0);
+  assert.strictEqual(P.problem(fr, 0, 1), -1);              // a stretch not tracked is not a "problem" to jump to
+  assert.ok(P.usable(fr[0]) && !P.usable(fr[3]) && !P.usable({ state: "lost" }));
+});
+
+test("going on from a tracked frame: its box, and the part continues its scale and angle", () => {
+  const t = { width: 1000, height: 500, k0: 0, box: [100, 100, 100, 50], id: "x",
+    frames: [{ t: 0, x: 150, y: 125, s: 1, a: 0, state: "sure" }, { t: 1, x: 300, y: 200, s: 2, a: 10, state: "sure" },
+      { t: 2, x: 300, y: 200, s: 2, a: 10, state: "none" }] };
+  const b = P.boxAt(t, t.frames[1]);
+  assert.ok(near(b[0], 0.2) && near(b[1], 0.3) && near(b[2], 0.2) && near(b[3], 0.2));
+  // the part was tracked from frame 1 with that box: its own scale starts at 1, angle at 0
+  const part = { k0: 1, box: [200, 150, 200, 100], frames: [{ state: "none" }, { t: 1, x: 300, y: 200, s: 1, a: 0, state: "sure" },
+    { t: 2, x: 320, y: 210, s: 1.5, a: 5, state: "sure" }] };
+  const m = P.merge(t, part, 0, null);
+  assert.strictEqual(m.frames[0].x, 150);                   // "none" in the part leaves the old frame alone
+  assert.ok(near(m.frames[2].s, 3) && near(m.frames[2].a, 15) && m.frames[2].state === "sure");
+});

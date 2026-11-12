@@ -44,7 +44,8 @@ drive the engine. The Host header is checked against DNS rebinding.
                               /stash/delete {id}, /stash/rename {id, name}
   POST /tracker/frame {path, t, width?} -> {jpeg, width, height, w, h}; POST /tracker/track {path, from, to, step, t0, box}
                               -> job: {frames: [{t, x, y, s, a, c, state}], width, height, id, box} (motion tracker, 0.10.51;
-                              "into": {id, offset} re-tracks a part of an earlier track, 0.10.55); the job's extra.live
+                              "into": {id, offset} re-tracks a part of an earlier track, 0.10.55; "range": [first, last] frame indexes of the
+                              clip to track, frames outside it come back "none", 0.10.63); the job's extra.live
                               is the frame being tracked; GET /tracker/thumbs?id=&from=&n= every tracked frame as a JPEG
   POST /stash/clips/begin {name, fps, width, height, video, audio, seconds}, /stash/clips/export {id, sequence, guid,
                               project} (Stash clips, 0.10.50); /host/tracks {sequence, guid, project, video, audio}
@@ -59,6 +60,7 @@ drive the engine. The Host header is checked against DNS rebinding.
                               L/L and R/R subclips placed and linked (host.jsx as_audio_route); {"ok", "items"}
   GET  /jobs/<id>            state, progress, message, result
   POST /jobs/<id>/cancel
+  POST /jobs/<id>/stop      finish now and keep what is done (the tracker, 0.10.63)
   POST /log                  {"level": "info"|"error", "message": "..."} panel messages into the engine log
   POST /color               {"items": [{"path", "start", "end"}]} -> job: exposure + white balance + preview
   POST /color/sliders        {"fix_temp", "fix_tint"} -> Lumetri Temperature/Tint (learnt calibration)
@@ -603,8 +605,10 @@ class Handler(BaseHTTPRequestHandler):
                     def live(info):
                         job.extra = {"live": info}
                     into = body.get("into") if isinstance(body.get("into"), dict) else None
+                    rng = body.get("range") if isinstance(body.get("range"), list) and len(body.get("range")) == 2 else None
                     return TRACKER.track(path, body.get("from") or 0, body.get("to") or 0, body.get("step") or 0,
-                                         body.get("t0") or 0, box, progress, lambda: job.cancelled, live, into)
+                                         body.get("t0") or 0, box, progress, lambda: job.cancelled, live, into,
+                                         rng=rng, stopping=lambda: job.stopping)
                 return self._send(200, {"job": JOBS.submit("tracker", work_track).id})
             if self.path == "/export/peaks":
                 items = body.get("items") or []
@@ -753,12 +757,12 @@ class Handler(BaseHTTPRequestHandler):
                                                        seq if isinstance(seq, dict) else None))
             if self.path == "/exports/reveal":
                 return self._send(200, _exports().again(str(body.get("id") or "")))
-            m = re.fullmatch(r"/jobs/([0-9a-f]{12})/cancel", self.path)
+            m = re.fullmatch(r"/jobs/([0-9a-f]{12})/(cancel|stop)", self.path)
             if m:
                 job = JOBS.get(m.group(1))
                 if not job:
                     return self._send(404, {"error": "No such job."})
-                job.cancel()
+                job.cancel() if m.group(2) == "cancel" else job.stop()
                 return self._send(200, job.to_dict())
             if self.path == "/log":
                 level = logging.ERROR if body.get("level") == "error" else logging.INFO

@@ -11,7 +11,7 @@ const TP = require("./trackplan.js");
 const TR = require("./premiere-tracker.js");
 const engine = require("./engine.js");
 
-const COLORS = { sure: "#3fb950", unsure: "#f0883e", lost: "#e5534b" };   // the --ok-dot / --unsure / --err-dot tokens (0.10.59: unsure orange, golden marks a selection)
+const COLORS = { sure: "#3fb950", unsure: "#f0883e", lost: "#e5534b", none: "#5a5d68" };   // none: not tracked (0.10.63)   // the --ok-dot / --unsure / --err-dot tokens (0.10.59: unsure orange, golden marks a selection)
 const ACCENT = "#8745a5";                                                  // --accent (Amethyst, 0.10.59)
 const SEL = "#ffc945";                                                     // --sel (Golden Yellow): the boxed frame
 const NS = "http://www.w3.org/2000/svg";
@@ -32,7 +32,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   const root = $("paneTracker");
   const state = { source: null, preview: null, box: null, boxAt: -1, track: null, thumbs: [], cur: 0, timer: null, job: null,
     busy: false, loading: false, live: null, liveLo: -1, liveHi: -1, progress: 0, part: null, mode: "attach", sync: true,
-    lastSeek: 0, timelineW: 0, viewW: 0 };
+    lastSeek: 0, timelineW: 0, viewW: 0, range: null, rangeDrag: -1 };
   const checks = {};
   const optWrap = {};
 
@@ -94,6 +94,9 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   div(transport, "spacer");
   const probGroup = div(transport, "row");
   const timeline = div(timeArea, "tr-time");
+  const rangeLine = div(timeArea, "row tr-range");                     // 0.10.63: what will be tracked, the handles' times
+  const rangeText = div(rangeLine, "tr-range-l", "");
+  div(rangeLine, "spacer");
   const foot = div(timeArea, "row tr-foot");
   const timeText = div(foot, "tr-tc", "");
   const legend = div(foot, "row tr-legend");
@@ -108,7 +111,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   const boxMeta = div(trackHead, "tr-card-m", "");
   const trackRow = div(trackCard, "row tr-btns");
   const hint = div(trackCard, "tr-hint", "");
-  const fixHint = div(trackCard, "tr-hint", "To fix a stretch: go to a bad frame, draw a new box there, then Track from here.");
+  const fixHint = div(trackCard, "tr-hint", "To fix a stretch: go to a bad frame, draw a new box there, then Track from here. To go on after Stop: go to the last tracked frame, Track from here.");
 
   // ---- Apply (Attach / Lock)
   const useCard = div(cols, "tr-card");
@@ -238,10 +241,10 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     // the path: every tracked point, coloured by run
     if (t && !state.job) {
       for (const r of TP.runs(t.frames)) {
-        if (r.state === "lost") continue;
+        if (r.state === "lost" || r.state === "none") continue;
         const pts = [];
         for (let i = Math.max(0, r.from - 1); i < r.to; i++) {
-          if (t.frames[i] && t.frames[i].state !== "lost") pts.push(`${(t.frames[i].x * k).toFixed(1)},${(t.frames[i].y * k).toFixed(1)}`);
+          if (TP.usable(t.frames[i])) pts.push(`${(t.frames[i].x * k).toFixed(1)},${(t.frames[i].y * k).toFixed(1)}`);
         }
         if (pts.length > 1) svgEl(svg, "polyline", { points: pts.join(" ") }, `fill:none;stroke:${COLORS[r.state]};stroke-width:1.25px;stroke-opacity:0.75`);
       }
@@ -249,7 +252,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     // the box on this frame (tracked, or live while tracking)
     const f = state.job && state.live ? state.live : t && !state.job ? t.frames[state.cur] : null;
     const box = t ? t.box : state.box && [state.box[0] * p.width, state.box[1] * p.height, state.box[2] * p.width, state.box[3] * p.height];
-    if (f && box && f.state !== "lost") {
+    if (f && box && f.state !== "lost" && f.state !== "none") {
       drawBox(TP.corners(f, box).map(([x, y]) => [x * k, y * k]), COLORS[f.state] || COLORS.sure, false);
       crosshair(f.x * k, f.y * k);
     } else if (f && f.state === "lost") {
@@ -269,7 +272,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       chip(frameChip, state.live ? `${state.live.k + 1}` : "");
     } else if (t) {
       const fr = t.frames[state.cur];
-      chip(hud, fr.state === "lost" ? "Lost" : `${fr.state === "sure" ? "Sure" : "Unsure"}  ${Math.round(fr.c * 100)} %${fr.fixed ? "  ·  fixed" : ""}`, COLORS[fr.state]);
+      chip(hud, fr.state === "none" ? "Not tracked" : fr.state === "lost" ? "Lost" : `${fr.state === "sure" ? "Sure" : "Unsure"}  ${Math.round(fr.c * 100)} %${fr.fixed ? "  ·  fixed" : ""}`, COLORS[fr.state]);
       chip(frameChip, `${state.cur + 1} / ${t.frames.length}`);
     } else {
       chip(hud, state.box ? "Box set: press Track" : "Drag a box around the object", state.box ? ACCENT : null);
@@ -285,11 +288,12 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
 
   function drawTimeline() {
     const t = state.track;
-    const pending = !t && !!state.job && !!state.source;
-    const n = t ? t.frames.length : pending ? pendingCount() : 0;
+    const n = t ? t.frames.length : state.source ? pendingCount() : 0;
     timeArea.hidden = !n;
     transport.hidden = foot.hidden = !t;
+    rangeLine.hidden = !n || !state.range;
     if (!n) return;
+    if (!state.range) state.range = [0, n - 1];
     timeline.innerHTML = "";
     let W = 0;
     try {
@@ -313,6 +317,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     svgEl(g, "rect", { x: 0, y: y0, width: W, height: y1 - y0 }, "fill:#202228");             // untracked: muted
     if (t) {
       for (const r of TP.runs(t.frames)) {
+        if (r.state === "none") continue;                                  // not tracked: the muted lane shows through
         const a = Math.max(0, pos(r.from) - per / 2);
         const b = Math.min(W, pos(r.to - 1) + per / 2);
         const c = COLORS[r.state] || COLORS.lost;
@@ -348,6 +353,18 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
         svgEl(g, "line", { x1: pos(state.live.k).toFixed(1), y1: y0 - 2, x2: pos(state.live.k).toFixed(1), y2: y1 + 2 }, `stroke:${ACCENT};stroke-width:2px`);
       }
     }
+    // the range to track (0.10.63): outside it darker, a golden handle at each end (drag them; Premiere's playhead follows)
+    const [ra, rb] = state.range;
+    const xa = Math.max(0, pos(ra) - per / 2);
+    const xb = Math.min(W, pos(rb) + per / 2);
+    if (xa > 0) svgEl(g, "rect", { x: 0, y: y0, width: xa.toFixed(1), height: y1 - y0 }, "fill:#000000;fill-opacity:0.45");
+    if (xb < W) svgEl(g, "rect", { x: xb.toFixed(1), y: y0, width: (W - xb).toFixed(1), height: y1 - y0 }, "fill:#000000;fill-opacity:0.45");
+    for (const [x, dir] of [[xa, 1], [xb, -1]]) {
+      svgEl(g, "rect", { x: (dir > 0 ? x : x - 2).toFixed(1), y: y0 - 3, width: 2, height: y1 - y0 + 6 }, `fill:${SEL}`);
+      const tip = dir > 0 ? x + 2 : x - 2;
+      svgEl(g, "polygon", { points: `${tip.toFixed(1)},${y0 - 3} ${(tip + dir * 5).toFixed(1)},${y0 - 3} ${tip.toFixed(1)},${y0 + 3}` }, `fill:${SEL}`);
+    }
+    rangeText.textContent = rangeLabel();
     // the boxed frame
     const k0 = t ? t.k0 : state.source ? Math.round((state.source.t0 - state.source.from) / state.source.step) : -1;
     if (k0 >= 0 && k0 < n) {
@@ -368,7 +385,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       const s = state.source;
       const at = s ? TP.toSeq({ start: s.clip.start, inPt: s.clip.inPt, speed: s.clip.speed }, fr.t) : fr.t;
       timeText.textContent = `${at.toFixed(2)} s`;
-      const c = { sure: 0, unsure: 0, lost: 0 };
+      const c = { sure: 0, unsure: 0, lost: 0, none: 0 };
       for (const x of t.frames) c[x.state] = (c[x.state] || 0) + 1;
       legend.innerHTML = "";
       for (const st of ["sure", "unsure", "lost"]) {
@@ -413,17 +430,36 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   root.addEventListener("mouseenter", relayoutIfResized);
 
   // ---------------------------------------------------------------- moving through the track
-  async function seekPremiere(force) {
+  async function seekPremiere(force, frame) {
     const s = state.source;
     const t = state.track;
-    if (!state.sync || !s || !t || !t.frames[state.cur]) return;
+    const i = frame === undefined ? state.cur : frame;
+    if (!state.sync || !s || (frame === undefined && (!t || !t.frames[i]))) return;
     const now = Date.now();
     if (!force && now - state.lastSeek < 150) return;
     state.lastSeek = now;
     try {
       const project = await premiere.activeProject();
-      await TR.seek(project, TP.toSeq({ start: s.clip.start, inPt: s.clip.inPt, speed: s.clip.speed }, t.frames[state.cur].t) + 0.0005);
+      await TR.seek(project, TP.toSeq({ start: s.clip.start, inPt: s.clip.inPt, speed: s.clip.speed }, s.from + i * s.step) + 0.0005);
     } catch (e) { /* the panel's own view still moves */ }
+  }
+
+  // 0.10.63: "Track 1.20-4.80 s (108 frames)", in the sequence's time
+  function rangeLabel() {
+    const s = state.source;
+    if (!s || !state.range) return "";
+    const at = (i) => TP.toSeq({ start: s.clip.start, inPt: s.clip.inPt, speed: s.clip.speed }, s.from + i * s.step);
+    const [a, b] = state.range;
+    const all = a === 0 && b === pendingCount() - 1;
+    return `${all ? "Track the whole clip" : "Track"} ${at(a).toFixed(2)}-${at(b + 1).toFixed(2)} s  ·  ${b - a + 1} frames` +
+      (all ? "  ·  drag the golden handles to track a part" : "");
+  }
+
+  function setRange(a, b) {
+    const n = pendingCount();
+    a = Math.max(0, Math.min(n - 1, Math.round(a)));
+    b = Math.max(0, Math.min(n - 1, Math.round(b)));
+    state.range = a <= b ? [a, b] : [b, a];
   }
 
   function goto(i, final = true) {
@@ -493,18 +529,40 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
 
   // scrub: press and drag on the timeline
   let scrubbing = false;
-  const scrubTo = (e, final) => {
-    let x = 0;
+  const xOf = (e) => {
     try {
-      x = e.clientX - timeline.getBoundingClientRect().left;
+      return e.clientX - timeline.getBoundingClientRect().left;
     } catch (err) {
-      x = e.offsetX;
+      return e.offsetX;
     }
-    const n = state.track.frames.length;
-    goto(Math.round(((x - 1) / Math.max(1, (state.timelineW || 260) - 2)) * (n - 1)), final);
+  };
+  const frameAt = (x, n) => Math.round(((x - 1) / Math.max(1, (state.timelineW || 260) - 2)) * (n - 1));
+  const scrubTo = (e, final) => {
+    const x = xOf(e);
+    if (state.rangeDrag >= 0) {                                          // a golden handle: the range, and Premiere follows
+      const n = pendingCount();
+      const k = Math.max(0, Math.min(n - 1, frameAt(x, n)));
+      const r = state.range.slice();
+      r[state.rangeDrag] = k;
+      if (r[0] > r[1]) r[state.rangeDrag] = r[1 - state.rangeDrag];
+      state.range = r;
+      drawTimeline();
+      seekPremiere(final, k);
+      return;
+    }
+    goto(frameAt(x, state.track.frames.length), final);
   };
   timeline.addEventListener("pointerdown", (e) => {
-    if (!state.track || state.job) return;
+    if (state.job || !state.source || !state.range) return;
+    const n = pendingCount();
+    const W = state.timelineW || 260;
+    const per = (W - 2) / Math.max(1, n - 1);
+    const px = (i) => (n > 1 ? (i / (n - 1)) * (W - 2) + 1 : W / 2);
+    const x = xOf(e);
+    const da = Math.abs(x - (px(state.range[0]) - per / 2));
+    const db = Math.abs(x - (px(state.range[1]) + per / 2));
+    state.rangeDrag = Math.min(da, db) <= 8 ? (da <= db ? 0 : 1) : -1;
+    if (state.rangeDrag < 0 && !state.track) return;
     stopPlay();
     scrubbing = true;
     try {
@@ -519,8 +577,12 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     if (!scrubbing) return;
     scrubbing = false;
     scrubTo(e, true);
+    state.rangeDrag = -1;
   });
-  timeline.addEventListener("pointercancel", () => { scrubbing = false; });
+  timeline.addEventListener("pointercancel", () => {
+    scrubbing = false;
+    state.rangeDrag = -1;
+  });
 
   const sync = document.createElement("input");
   sync.type = "checkbox";
@@ -597,7 +659,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
         }
         drawView();
         drawTimeline();
-        if (j.state === "done") return j.result;
+        if (j.state === "done") return j.result;                          // also after Stop: what was tracked
         if (j.state === "cancelled") throw new premiere.UserError("Cancelled. The track is as it was.");
         if (j.state === "error") throw new premiere.UserError(j.error || "The tracker stopped.");
         await new Promise((r) => setTimeout(r, 250));
@@ -621,36 +683,46 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     const s = state.source;
     if (!s || !state.box) return say("Load a frame and drag a box around the object first.", "warn");
     const t0 = state.track && state.boxAt >= 0 ? state.track.frames[state.boxAt].t : s.t0;
-    const res = await runTrack({ path: s.clip.path, from: s.from, to: s.to, step: s.step, t0, box: state.box });
+    if (!state.range) state.range = [0, pendingCount() - 1];
+    const kb = Math.round((t0 - s.from) / s.step);
+    if (kb < state.range[0] || kb > state.range[1]) return say("The boxed frame is outside the range to track: drag a golden handle past it.", "warn");
+    const res = await runTrack({ path: s.clip.path, from: s.from, to: s.to, step: s.step, t0, box: state.box, range: state.range });
     Object.assign(state, { track: res, thumbs: [], cur: res.k0, box: null, boxAt: -1 });
     hint.textContent = "";
     redraw();
-    await fetchThumbs(res.id, 0, res.frames.length);
-    report();
+    await fetchThumbs(res.id, res.range ? res.range[0] : 0, res.range ? res.range[1] + 1 : res.frames.length);
+    report(res.stopped ? "Stopped: what was tracked is kept." : "");
   }
 
+  // 0.10.63: from a frame with a new box (a fix), or on from a tracked frame with the box the tracker had there (to go on
+  // after Stop or past the range), up to the range's end (forwards) or start (backwards); only that part is replaced
   async function trackPart(dir) {
     const s = state.source;
     const t = state.track;
-    if (!t || !state.box || state.boxAt !== state.cur) return say("Go to the frame to fix, draw a new box around the object there, then press this.", "warn");
     const k = state.cur;
-    const payload = dir > 0
-      ? { path: s.clip.path, from: t.frames[k].t, to: s.to, step: s.step, t0: t.frames[k].t, box: state.box, into: { id: t.id, offset: k } }
-      : { path: s.clip.path, from: t.frames[0].t, to: t.frames[k].t + s.step, step: s.step, t0: t.frames[k].t, box: state.box, into: { id: t.id, offset: 0 } };
-    state.part = dir > 0 ? [k, t.frames.length - 1] : [0, k];
-    const part = await runTrack(payload);
-    const offset = dir > 0 ? k : 0;
-    state.track = TP.merge(t, part, offset, part.box);
+    const drawn = !!(state.box && state.boxAt === k);
+    if (!t || (!drawn && !TP.usable(t.frames[k]))) {
+      return say("This frame is not tracked: draw a box around the object here, then press this.", "warn");
+    }
+    const [ra, rb] = state.range || [0, t.frames.length - 1];
+    const range = dir > 0 ? [k, Math.max(k + 1, rb)] : [Math.min(ra, k - 1), k];
+    if (range[0] < 0 || range[1] > t.frames.length - 1) return say(dir > 0 ? "This is the clip's last frame." : "This is the clip's first frame.", "warn");
+    const box = drawn ? state.box : TP.boxAt(t, t.frames[k]);
+    state.part = range;
+    const part = await runTrack({ path: s.clip.path, from: s.from, to: s.to, step: s.step, t0: t.frames[k].t, box, range, into: { id: t.id, offset: 0 } });
+    state.track = TP.merge(t, part, 0, drawn ? part.box : null);
     Object.assign(state, { box: null, boxAt: -1 });
     hint.textContent = "";
-    await fetchThumbs(t.id, offset, offset + part.frames.length);
-    report(`${dir > 0 ? "From" : "Up to"} frame ${k + 1}: ${part.frames.length} frames tracked again.`);
+    await fetchThumbs(t.id, range[0], range[1] + 1);
+    const got = part.frames.filter((f) => f.state !== "none").length;
+    report(`${part.stopped ? "Stopped: " : ""}${dir > 0 ? "From" : "Back from"} frame ${k + 1}: ${got} frames tracked${drawn ? " again" : ""}.`);
   }
 
   function report(first) {
-    const c = { sure: 0, unsure: 0, lost: 0 };
+    const c = { sure: 0, unsure: 0, lost: 0, none: 0 };
     for (const f of state.track.frames) c[f.state] = (c[f.state] || 0) + 1;
-    const lines = [first || "Tracked.", `${state.track.frames.length} frames: ${c.sure} sure, ${c.unsure} unsure, ${c.lost} lost.`];
+    const lines = [first || "Tracked.", `${state.track.frames.length - c.none} frames: ${c.sure} sure, ${c.unsure} unsure, ${c.lost} lost.` +
+      (c.none ? ` ${c.none} not tracked (outside the range or after Stop): go to the last tracked frame and press Track from here to go on.` : "")];
     if (c.lost || c.unsure) lines.push("The arrows at the right of the transport jump to them; draw a new box there and Track from here to fix a stretch.");
     say(lines, c.lost ? "warn" : "ok");
   }
@@ -684,7 +756,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       const project = await premiere.activeProject();
       const s = await TR.readSource(project);
       const p = await engine.trackerFrame({ path: s.clip.path, t: s.t0, width: 640 });
-      Object.assign(state, { source: s, preview: p, box: null, boxAt: -1, track: null, thumbs: [], cur: 0 });
+      Object.assign(state, { source: s, preview: p, box: null, boxAt: -1, track: null, thumbs: [], cur: 0, range: null });
       clipName.textContent = s.clip.name;
       clipLine.textContent = `${s.at.toFixed(2)} s  ·  V${s.clip.track + 1}${Math.abs(s.clip.speed - 1) > 0.01 ? `  ·  speed ${Math.round(s.clip.speed * 100)} %` : ""}  ·  ${p.width} × ${p.height}`;
       boxMeta.textContent = "";
@@ -696,12 +768,12 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   }));
   top.appendChild(loadBtn);
 
-  const trackBtn = button("action", "Track", "Follows the boxed object through the whole clip, forwards and backwards from the boxed frame.", () => guarded(trackAll));
-  const cancelBtn = button("", "Cancel", "Stops the tracking (the track stays as it was).", async () => {
-    if (state.job) await engine.cancel(state.job).catch(() => null);
+  const trackBtn = button("action", "Track", "Follows the boxed object through the range (the golden handles; the whole clip unless you moved them), forwards then backwards from the boxed frame. Stop ends it when you want and keeps what is tracked.", () => guarded(trackAll));
+  const cancelBtn = button("", "Stop", "Stops the tracking now and keeps every frame tracked so far.", async () => {
+    if (state.job) await engine.stop(state.job).catch(() => null);
   });
-  const fromHere = button("", "Track from here", "Tracks again from this frame to the end with the new box you drew here (only that part is replaced).", () => guarded(() => trackPart(1)));
-  const backHere = button("", "Track back from here", "Tracks again from this frame back to the start with the new box you drew here (only that part is replaced).", () => guarded(() => trackPart(-1)));
+  const fromHere = button("", "Track from here", "Tracks from this frame to the range's end: with a new box you drew here (a fix), or on from where the tracker was (after Stop). Only that part is replaced.", () => guarded(() => trackPart(1)));
+  const backHere = button("", "Track back from here", "Tracks from this frame back to the range's start: with a new box you drew here, or on from where the tracker was. Only that part is replaced.", () => guarded(() => trackPart(-1)));
   for (const b of [trackBtn, cancelBtn, fromHere, backHere]) trackRow.appendChild(b);
 
   const MODE_TEXT = {
@@ -760,12 +832,16 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     if (!state.preview) return loadBtn;
     if (!state.track) return state.box ? trackBtn : null;
     if (state.box && state.boxAt === state.cur) return fromHere;
+    const fr = state.track.frames;
+    // after Stop or a range: going on is the next step only at the edge of what is tracked
+    const edge = TP.usable(fr[state.cur]) && fr[state.cur + 1] && fr[state.cur + 1].state === "none";
+    if (edge) return fromHere;
     return state.mode === "attach" ? attachBtn : lockBtn;
   }
 
   function drawControls() {
     const t = state.track;
-    const fixable = !!(t && state.box && state.boxAt === state.cur);
+    const fixable = !!(t && ((state.box && state.boxAt === state.cur) || TP.usable(t.frames[state.cur])));
     enable(loadBtn, !state.busy);
     enable(trackBtn, !state.busy && !!state.box && !!state.source);
     enable(cancelBtn, !!state.job);
@@ -773,6 +849,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     enable(backHere, !state.busy && fixable && state.cur > 0);
     fromHere.hidden = backHere.hidden = !t;
     fixHint.hidden = !t || !!state.box || !!state.job;
+    cancelBtn.hidden = !state.job;
     for (const x of [...navGroup.children, ...probGroup.children]) enable(x, !state.busy);
     setIcon(playBtn, state.timer ? "pause" : "play");
     for (const x of useRow.children) enable(x, !state.busy && !!t);
@@ -809,6 +886,12 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       goto(i);
       return { cur: state.cur };
     },
+    range(a, b) {
+      if (!state.source) throw new Error("Load a frame first.");
+      setRange(a, b);
+      drawTimeline();
+      return { range: state.range, label: rangeLabel() };
+    },
     mode(m) {
       state.mode = m === "lock" ? "lock" : "attach";
       drawControls();
@@ -816,12 +899,12 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     },
     info() {
       const t = state.track;
-      return { source: state.source, box: state.box, boxAt: state.boxAt, cur: state.cur, mode: state.mode, busy: state.busy,
+      return { source: state.source, box: state.box, boxAt: state.boxAt, cur: state.cur, mode: state.mode, busy: state.busy, range: state.range, rangeText: rangeText.textContent,
         preview: state.preview && { w: state.preview.w, h: state.preview.h, width: state.preview.width, height: state.preview.height },
         thumbs: state.thumbs.filter(Boolean).length, hud: hud.textContent, frame: frameChip.textContent, svg: svg.childNodes.length,
         view: { w: Number(svg.getAttribute("width")) || 0, h: Number(svg.getAttribute("height")) || 0, stage: Math.round(stageWidth()) },
         timeline: timeline.childNodes.length, timelineW: state.timelineW, status: status.textContent,
-        track: t && { n: t.frames.length, k0: t.k0, id: t.id, states: TP.runs(t.frames), first: t.frames[0], ref: t.frames[t.k0], fixed: t.frames.filter((f) => f.fixed).length } };
+        track: t && { n: t.frames.length, k0: t.k0, id: t.id, states: TP.runs(t.frames), stopped: !!t.stopped, first: t.frames[0], ref: t.frames[t.k0], fixed: t.frames.filter((f) => f.fixed).length } };
     },
     track() {
       return state.track;

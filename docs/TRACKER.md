@@ -33,6 +33,12 @@ like it's in After Effects". Panel page **Tracker**; engine `tracker.py`; maths 
    tokens, violet accent on the next step's button, Track and Apply cards, state chips on the viewer, a ruler and
    confidence-height runs on the timeline); behaviour unchanged.
 
+## Range, Stop and going on (0.10.64)
+The timeline shows the whole clip once a frame is loaded; two golden handles set the range to track (Premiere's playhead
+follows a handle). Stop ends a run and keeps what is tracked; frames not tracked come back with state "none" (no key, not lost).
+Track from here / back from here on a tracked frame go on with the box the tracker had there (`trackplan.boxAt`, the part's
+scale and angle continue that frame's, `merge(..., null)`), up to the range's end / start; with a new box they fix a stretch.
+
 ## Accuracy (scripts/bench_tracker.py, synthetic, error against the known path)
 | Scene | Median | Max | Notes |
 |---|---|---|---|

@@ -51,6 +51,12 @@ function trackerDemo(api, cur, variant) {
     return p.demo({ source, preview, box: null, busy: true, job: "demo", progress: 0.4, liveLo: 20, liveHi: 68,
       live: { k: 68, jpeg: pic(68), x, y, s: 1, a: 0, state: "sure" } });
   }
+  if (variant === "range") {                    // 0.10.63: tracked 10-90 of a range 10-110, then Stop: the rest not tracked
+    const fr = frames.map((f, i) => (i < 10 || i > 90 ? { ...f, c: 0, state: "none" } : f));
+    return p.demo({ source, preview, range: [10, 110],
+      track: { frames: fr, width: W, height: H, k0: 20, id: "demo", box: [pos(20)[0] - 60, pos(20)[1] - 60, 120, 120], stopped: true },
+      thumbs: fr.map((f, i) => (f.state === "none" ? null : pic(i))), cur });
+  }
   p.demo({
     source,
     preview,
@@ -153,6 +159,7 @@ window.PREVIEW_SCENARIOS = (function () {
     settings: { run: (api) => { api.openTab("paneSettings"); } },
     "log-page": { run: (api) => { api.openTab("paneLog"); } },
     "tracker-empty": { run: (api) => { api.openTab("paneTracker"); } },
+    "tracker-range": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 90, "range"); } },
     "tracker-box": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 0, "box"); } },
     "tracker-busy": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 0, "busy"); } },
     "tracker-lock": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 75); const b = [...document.querySelectorAll("#paneTracker .tr-mode")].pop(); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); } },

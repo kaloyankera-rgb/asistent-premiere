@@ -39,6 +39,7 @@ SURE = 0.80              # match score of a sure frame
 UNSURE = 0.60            # below: the frame is unsure (yellow)
 LOST = 0.45              # below: lost (red), the flow alone is not trusted either
 MAX_FRAMES = 9000        # 5 minutes at 30 fps
+MAX_CLIP_FRAMES = 4 * MAX_FRAMES   # 0.10.63: a longer clip is tracked a range at a time (its frame list stays under ~3 MB)
 ADAPT_EVERY = 4          # frames between two takes of the adapting template
 CHUNK = 48               # frames decoded at a time when tracking backwards
 
@@ -338,12 +339,17 @@ class RegionTracker:
 
 # ---------------------------------------------------------------- the whole track
 
-def track_frames(frames_fwd, frames_back, box, k0: int, total: int, progress=None, cancelled=None, hook=None) -> list[dict | None]:
+def track_frames(frames_fwd, frames_back, box, k0: int, total: int, progress=None, cancelled=None, hook=None,
+                 lo: int = 0, hi: int | None = None, stopping=None) -> list[dict | None]:
     """frames_fwd: frames k0, k0+1, ... ; frames_back: frames k0, k0-1, ... (both start with the boxed frame). A frame may be
     a (grey, extra) pair: hook(k, extra, result) is then called for it (the panel's pictures, 0.10.55).
+    lo / hi: the frames to track (0.10.63, the editor's range); stopping(): finish now, keeping what is done (Stop).
     -> one entry per frame index 0..total-1 (None where no frame came)."""
     out: list[dict | None] = [None] * total
+    hi = total - 1 if hi is None else hi
+    span = max(1, hi - lo + 1)
     done = 0
+    stopped = [False]
 
     def run(frames, sign):
         nonlocal done
@@ -351,8 +357,11 @@ def track_frames(frames_fwd, frames_back, box, k0: int, total: int, progress=Non
         for i, f in enumerate(frames):
             if cancelled and cancelled():
                 raise Cancelled()
+            if stopping and stopping():
+                stopped[0] = True
+                return
             k = k0 + sign * i
-            if k < 0 or k >= total:
+            if k < lo or k > hi:
                 break
             extra = None
             if isinstance(f, tuple):
@@ -366,10 +375,10 @@ def track_frames(frames_fwd, frames_back, box, k0: int, total: int, progress=Non
                 hook(k, extra, out[k])
             done += 1
             if progress and done % 5 == 0:
-                progress(done / max(1, total))
+                progress(done / span)
 
     run(frames_fwd, 1)
-    if k0 > 0:
+    if k0 > lo and not stopped[0]:
         run(frames_back, -1)
     return out
 
@@ -436,10 +445,14 @@ def thumbs(tid: str, first: int, count: int) -> dict:
 
 
 def track(path: str, t_from: float, t_to: float, step: float, t0: float, box: list, progress=None, cancelled=None,
-          live=None, into: dict | None = None) -> dict:
+          live=None, into: dict | None = None, rng=None, stopping=None) -> dict:
     """Track the region `box` [x, y, w, h] (fractions of the upright picture) boxed at media time t0, over the media range
     [t_from, t_to) in steps of `step` (one timeline frame). -> {frames: [{t, x, y, s, a, c, state}], width, height, k0}
-    x, y in file pixels (upright)."""
+    x, y in file pixels (upright).
+    rng: [first, last] frame indexes of that range to track (0.10.63, the editor's range; default all of it); stopping():
+    finish now, keeping what is done (the panel's Stop). Every frame of the range [t_from, t_to) comes back: one not tracked
+    has state "none" (no key is written for it) and the position of the nearest tracked frame, so the panel can show the
+    whole clip and track more of it later ("into")."""
     if not os.path.isfile(path):
         raise ValueError("The file is missing (offline media?): " + os.path.basename(path))
     step = float(step)
@@ -454,11 +467,20 @@ def track(path: str, t_from: float, t_to: float, step: float, t0: float, box: li
     total = int(math.floor((t_to - t_from) / step + 1e-6))
     if total < 2:
         raise ValueError("The clip is too short to track.")
-    if total > MAX_FRAMES:
-        raise ValueError(f"The clip is {total} frames long: the tracker takes up to {MAX_FRAMES} (trim it or track a part).")
+    if total > MAX_CLIP_FRAMES:
+        raise ValueError(f"The clip is {total} frames long: the tracker works on clips up to {MAX_CLIP_FRAMES} (trim it).")
+    lo, hi = 0, total - 1
+    if rng is not None:
+        lo, hi = max(0, int(rng[0])), min(total - 1, int(rng[1]))
+        if hi < lo:
+            raise ValueError("The range to track is empty: move its handles apart.")
+    if hi - lo + 1 > MAX_FRAMES:
+        raise ValueError(f"The range is {hi - lo + 1} frames long: the tracker takes up to {MAX_FRAMES} at a time (make it shorter).")
     k0 = int(round((t0 - t_from) / step))
     if not (0 <= k0 < total):
         raise ValueError("Park the playhead over the clip to track.")
+    if not (lo <= k0 <= hi):
+        raise ValueError("The boxed frame is outside the range to track: move a handle past it or box another frame.")
     dw, dh = display_size(path)
     ww, wh, k = work_size(dw, dh)
     bx, by, bw, bh = (float(v) for v in box)
@@ -484,19 +506,31 @@ def track(path: str, t_from: float, t_to: float, step: float, t0: float, box: li
                       "x": round(r["x"] / k_, 2), "y": round(r["y"] / k_, 2), "s": r["s"], "a": r["a"], "state": r["state"]})
 
     k_ = k
-    fwd = decode(path, t_from + k0 * step, step, total - k0, (ww, wh), cancelled, colour=True)
-    back = _backwards(path, t_from, step, k0, (ww, wh), cancelled, colour=True) if k0 > 0 else iter(())
-    raw = track_frames(fwd, back, wbox, k0, total, progress, cancelled, hook)
-    frames = []
-    for i, r in enumerate(raw):
-        if r is None:
-            continue
-        frames.append({"t": round(t_from + i * step, 6), "x": round(r["x"] / k, 3), "y": round(r["y"] / k, 3),
-                       "s": round(r["s"], 5), "a": round(r["a"], 4), "c": round(r["c"], 3), "state": r["state"]})
+    fwd = decode(path, t_from + k0 * step, step, hi - k0 + 1, (ww, wh), cancelled, colour=True)
+    back = _backwards(path, t_from + lo * step, step, k0 - lo, (ww, wh), cancelled, colour=True) if k0 > lo else iter(())
+    raw = track_frames(fwd, back, wbox, k0, total, progress, cancelled, hook, lo=lo, hi=hi, stopping=stopping)
+    frames = untracked_filled(raw, t_from, step, k)
     states = [f["state"] for f in frames]
-    log.info("tracker %s: %d frames (%d sure, %d unsure, %d lost) of %d, box %s at %.3f, work %dx%d, %.1f s",
-             os.path.basename(path), len(frames), states.count("sure"), states.count("unsure"), states.count("lost"), total,
-             [round(v, 3) for v in box], t0, ww, wh, time.time() - t_start)
+    stopped = bool(stopping and stopping())
+    log.info("tracker %s: %d frames tracked (%d sure, %d unsure, %d lost) of %d, range %d-%d%s, box %s at %.3f, work %dx%d, %.1f s",
+             os.path.basename(path), total - states.count("none"), states.count("sure"), states.count("unsure"), states.count("lost"),
+             total, lo, hi, ", stopped" if stopped else "", [round(v, 3) for v in box], t0, ww, wh, time.time() - t_start)
     return {"frames": frames, "width": dw, "height": dh, "k0": k0, "total": total, "step": step, "t0": t0, "id": store["id"],
             "offset": offset, "box": [round(bx * dw, 2), round(by * dh, 2), round(bw * dw, 2), round(bh * dh, 2)],
-            "thumb": list(tsize)}
+            "thumb": list(tsize), "range": [lo, hi], "stopped": stopped}
+
+
+def untracked_filled(raw: list, t_from: float, step: float, k: float) -> list[dict]:
+    """One entry per frame: a tracked one as measured (file pixels), one not tracked as state "none" with the nearest tracked
+    frame's position, scale and angle (so a drawing or a sum never meets an empty value; no key is written for it)."""
+    idx = [i for i, r in enumerate(raw) if r is not None]
+    out = []
+    for i, r in enumerate(raw):
+        if r is None:
+            near = raw[min(idx, key=lambda j: abs(j - i))] if idx else {"x": 0.0, "y": 0.0, "s": 1.0, "a": 0.0}
+            out.append({"t": round(t_from + i * step, 6), "x": round(near["x"] / k, 3), "y": round(near["y"] / k, 3),
+                        "s": round(near["s"], 5), "a": round(near["a"], 4), "c": 0.0, "state": "none"})
+        else:
+            out.append({"t": round(t_from + i * step, 6), "x": round(r["x"] / k, 3), "y": round(r["y"] / k, 3),
+                        "s": round(r["s"], 5), "a": round(r["a"], 4), "c": round(r["c"], 3), "state": r["state"]})
+    return out

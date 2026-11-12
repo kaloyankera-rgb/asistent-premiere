@@ -31,6 +31,26 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.64 - Tracker: a range to track, Stop that keeps what is tracked, go on from any tracked frame (the user 2026-11-12)
+- The user: "we need to be able to start and stop the tracking whenever we want to, cause right now it tracks the whole clip and
+  you can't stop it. We need to be able to choose until when we want to track."
+- **Range**: as soon as a frame is loaded the timeline shows the whole clip with a golden handle at each end; drag them to
+  track only that part (outside it is darker; Premiere's playhead follows the handle so the Program Monitor shows the frame;
+  "Track 1.67-4.04 s · 71 frames" under it). Track works inside the range, forwards then backwards from the boxed frame.
+- **Stop** (was Cancel, which threw the work away): ends the tracking at once and keeps every frame tracked so far.
+- **Go on**: Track from here / Track back from here now also work on a tracked frame without a new box (the tracker goes on
+  with the box it had there, scale and angle continuing), up to the range's end / start; with a new box drawn they fix a
+  stretch as before. At the edge of what is tracked, Track from here is the highlighted next step.
+- Engine: `tracker.track(..., rng, stopping)`; every frame of the clip comes back, a frame not tracked as state "none" (no key
+  is written for it, it is not counted as lost, the problem arrows skip it); `POST /jobs/<id>/stop` (finish now, keep the
+  result; cancel still drops it); a clip up to 36 000 frames, tracked up to 9 000 at a time.
+- Checked in Premiere 26.5.2 (NEW TEST, "Tracker test", through the bridge): range 50-120 -> 71 frames tracked, 109 not; the end
+  handle moved to 179 and Track from here at 120 -> 60 more, all sure; Stop after 0.8 s -> 9 frames kept, 171 not tracked.
+  Found on the way: the highlighted-button rule used an undefined name (fixed before commit; the browser preview has a new
+  "tracker-range" scenario that runs that path). A reinstall of the same version number does not replace Adobe's copy:
+  0.10.63 was never committed.
+- Tests: 3 new pytest (range, Stop, a stopped job finishes with its result), 2 new node; 756 pytest + 24 skipped, node 276.
+
 ## 0.10.62 - The after-export check names the sides that really show a black bar; tried in Premiere
 - **Tried in Premiere 26.5.2 (NEW TEST, through the bridge, 2026-11-12)**: the 6 s sequence "Tracker test" (a synthetic clip,
   no client footage) exported with Premiere's own "Match Source - Low bitrate" H.264 preset into a scratch folder the watcher

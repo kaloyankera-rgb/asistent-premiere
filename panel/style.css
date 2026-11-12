@@ -330,6 +330,8 @@ svg .kf-handle { fill: var(--accent); stroke: var(--on-accent); stroke-width: 1p
 .tr-sfill { height: 2px; width: 0; background-color: var(--accent); }
 
 /* transport, timeline and the line under it */
+.tr-range { margin-top: 4px; }
+.tr-range-l { font-size: 11px; color: var(--text-3); }
 .tr-timearea { padding: 6px 8px 8px 8px; border-top: 1px solid var(--line); }
 .tr-transport { margin-bottom: 6px; }
 #paneTracker .btn.tr-icon { width: 26px; height: 24px; padding: 4px 5px; margin: 0 2px 0 0; border-color: transparent; background-color: transparent; }

@@ -1,5 +1,8 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.64 (2026-11-12, installed, tested through the bridge in Premiere 26.5.2): Tracker range (golden handles), Stop keeps what
+is tracked, Track from here goes on without a new box. NOT tried by the user.
+
 0.10.62 (2026-11-12, installed): After-export check tried in Premiere 26.5.2 through the bridge (a scripted export of a
 synthetic sequence: the watcher found it, the check right on every line); bar sides named as they are. NOT verified:
 Premiere's export event and the comparison with the sequence (a scripted export fires no event: a real Export needed).

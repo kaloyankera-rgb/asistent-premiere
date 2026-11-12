@@ -252,6 +252,11 @@ function cancel(id) {
   return call("POST", `/jobs/${id}/cancel`, {});
 }
 
+// 0.10.63: finish now and keep what is done (the tracker's Stop)
+function stop(id) {
+  return call("POST", `/jobs/${id}/stop`, {});
+}
+
 // test bridge (devbridge.js): 404 while the engine's flag file is missing
 function devPoll(wait) {
   return call("GET", `/dev/poll?wait=${wait}`);
@@ -310,4 +315,4 @@ function log(level, message) {
 }
 
 module.exports = { status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, trackerFrame, startTracking, trackerThumbs, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, trackerFrame, startTracking, trackerThumbs, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, stop, log };

@@ -63,6 +63,7 @@ function attach(track, src, motions, target, frame, opts = {}) {
   }
   for (let i = 0; i < fr.length; i++) {
     const f = fr[i];
+    if (f.state === "none") continue;                            // not tracked (outside the range, or after Stop): no key
     if (f.state === "lost") {
       lost++;
       continue;
@@ -171,7 +172,8 @@ function lock(track, motions, frame, opts = {}) {
   if (Array.isArray(motions) && new Set(motions.map((m) => `${m.sw}|${m.sh}`)).size > 1 && opts.zoom) {
     opts = { ...opts, zoom: false, keyedScale: true };
   }
-  const ok = fr.map((f) => f.state !== "lost");
+  // a frame not tracked (0.10.63: outside the range or after Stop) gets no key, like a lost one, but is not counted as lost
+  const ok = fr.map((f) => usable(f));
   if (!ok.some(Boolean)) return { error: "Every frame was lost: track again with a box on something with more detail." };
   // v at zoom 1, per frame (pixels)
   const v = fr.map((f, i) => {
@@ -223,7 +225,7 @@ function lock(track, motions, frame, opts = {}) {
     keys.push({ t: fr[i].t, x, y });
   }
   return { keys, zoom: z, need, scale: z !== 1 ? Math.round(m0.sh * z * 10) / 10 : null, needScale: need ? Math.round(m0.sh * need * 10) / 10 : null,
-    uncovered: z !== 1 ? 0 : uncovered, lost: ok.filter((o) => !o).length, smooth, keyedScale: !!opts.keyedScale };
+    uncovered: z !== 1 ? 0 : uncovered, lost: fr.filter((f) => f.state === "lost").length, smooth, keyedScale: !!opts.keyedScale };
 }
 
 // ---------------------------------------------------------------- the Tracker page's viewer and timeline (0.10.55)
@@ -240,7 +242,7 @@ function corners(f, box) {
 
 /** The first frame of the next (dir 1) or previous (dir -1) run that is not sure, seen from frame i; -1 when none. */
 function problem(frames, i, dir) {
-  const bad = (k) => frames[k] && frames[k].state !== "sure";
+  const bad = (k) => frames[k] && (frames[k].state === "unsure" || frames[k].state === "lost");
   let k = i;
   if (dir > 0) {
     while (k < frames.length && bad(k)) k++;                     // out of the run we are in
@@ -263,6 +265,16 @@ function problem(frames, i, dir) {
 function merge(track, part, offset, newBox) {
   const old = track.frames;
   const j = offset + (part.k0 || 0);
+  // newBox null (0.10.63): the part went on from a tracked frame with the box the tracker had there, so its scale and angle
+  // continue that frame's
+  if (!newBox && usable(old[j])) {
+    const frames = old.slice();
+    part.frames.forEach((f, i) => {
+      if (offset + i < frames.length && f.state !== "none") frames[offset + i] = { ...f, s: f.s * old[j].s, a: f.a + old[j].a };
+    });
+    return { ...track, frames };
+  }
+  newBox = newBox || part.box;
   let ratio = Math.sqrt((newBox[2] * newBox[3]) / (track.box[2] * track.box[3]));
   let base = 0;
   for (let d = 1; d < old.length; d++) {
@@ -277,9 +289,27 @@ function merge(track, part, offset, newBox) {
   }
   const frames = old.slice();
   part.frames.forEach((f, i) => {
-    if (offset + i < frames.length) frames[offset + i] = { ...f, s: f.s * ratio, a: f.a + base, fixed: true };
+    if (offset + i < frames.length && f.state !== "none") frames[offset + i] = { ...f, s: f.s * ratio, a: f.a + base, fixed: true };
   });
   return { ...track, frames };
+}
+
+/** A frame with a measurement of its own (not lost, not "none": outside the range or after Stop, 0.10.63). */
+function usable(f) {
+  return !!f && (f.state === "sure" || f.state === "unsure");
+}
+
+/** The box the tracker had on frame f, as fractions of the picture [x, y, w, h] (to go on tracking from it, 0.10.63):
+ * the first box's size times the frame's scale, centred on the tracked point. */
+function boxAt(track, f) {
+  const w = track.box[2] * f.s;
+  const h = track.box[3] * f.s;
+  const fx = (f.x - w / 2) / track.width;
+  const fy = (f.y - h / 2) / track.height;
+  const cl = (v) => Math.min(Math.max(v, 0), 0.999);
+  const bx = cl(fx);
+  const by = cl(fy);
+  return [bx, by, Math.min(w / track.width, 1 - bx), Math.min(h / track.height, 1 - by)];
 }
 
 /** Marks for the timeline: one per second of the clip's own time (every 5 s when long). -> [{i, label}] */
@@ -297,4 +327,4 @@ function ticks(frames, inPt) {
   return out;
 }
 
-module.exports = { motion, screenPoint, attach, lock, gaussian, runs, boxFrom, toSeq, toMedia, corners, problem, merge, ticks };
+module.exports = { motion, screenPoint, attach, lock, gaussian, runs, boxFrom, toSeq, toMedia, corners, problem, merge, ticks, usable, boxAt };
