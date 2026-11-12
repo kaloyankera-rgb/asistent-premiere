@@ -1,5 +1,9 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+Installed 0.10.70 on 2026-11-12 11:30 (the user: "Install"). Tried in Premiere 2026 (NEW TEST, bridge): Cut silences on 26 clips
+(two cameras + lavalier L/R): 1:52 -> 0:59, 12 silences, 41 cloned pieces checked as written, 11 links, 1.2 s listening;
+Export transcript: 3 paragraphs next to the .srt, shown in Finder. Premiere 2027 loads 0.10.70 after its next restart.
+
 0.10.70 (2026-11-12, NOT installed yet): Auto import ignores files deeper than 3 folders and inside repositories.
 
 0.10.69 (2026-11-12, NOT installed yet): Anchor page (Anchor Studio) in Motion; Use alpha read by the engine.
