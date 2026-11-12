@@ -909,6 +909,25 @@ async function loadLearned(projectPath) {
   }
 }
 
+// 0.10.66 (the user: "export the captions as transcriptions"): the last subtitles as a .txt, shown in Finder
+async function onTranscript() {
+  if (state.busy) return;
+  const r = captionEdit.result;
+  if (!r || !r.json) {
+    finish("Make subtitles first: the transcript is made from them.", false);
+    return;
+  }
+  const typed = captionEdit.inputs.some((i) => i.value !== i.getAttribute("data-original"));
+  try {
+    const t = await engine.transcript(r.json, $("captionTranscriptTimes").checked);
+    const name = String(t.path).split(/[\\/]/).pop();
+    finish(`Transcript saved: ${name} (${t.paragraphs} ${t.paragraphs === 1 ? "paragraph" : "paragraphs"}), shown in Finder.` +
+      (typed ? " What you typed in the lines is not in it yet: press Apply and rebuild, then export again." : ""), true);
+  } catch (e) {
+    finish(e.message || String(e), false);
+  }
+}
+
 async function onCaptionApply() {
   if (state.busy || !captionEdit.result) return;
   const edited = captionEdit.inputs.map((i) => i.value);
@@ -1948,6 +1967,7 @@ for (const id of ["labelsAuto", "labelsColor1", "labelsColor2"]) $(id).addEventL
 onTap($("audio"), () => onAudio(null));
 onTap($("subtitles"), () => onSubtitles());
 onTap($("captionApply"), onCaptionApply);
+onTap($("captionTranscript"), onTranscript);
 onTap($("moveOffFaces"), onMoveOffFaces);
 function runSearch() {
   search.applied = $("captionSearch").value.trim().toLowerCase();

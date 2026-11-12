@@ -402,3 +402,12 @@ test("Sync does Fix audio again on the files that had Asistent's L / R copies, t
   assert.match(sync, /await fixAudio\(project, sel, undefined\)/);
   assert.match(main, /async function onAudio[\s\S]*?await fixAudio\(project, sel, force\)/);
 });
+
+test("Captions: Export transcript is a button of its own, wired to the engine (0.10.66)", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "panel", "index.html"), "utf8");
+  const main = fs.readFileSync(path.join(__dirname, "..", "panel", "main.js"), "utf8");
+  assert.match(html, /<div id="captionTranscript" class="btn small" data-tip="[^"]+">Export transcript<\/div>/);
+  assert.match(html, /id="captionTranscriptTimes"/);
+  assert.match(main, /onTap\(\$\("captionTranscript"\), onTranscript\)/);
+  assert.match(main, /engine\.transcript\(r\.json, \$\("captionTranscriptTimes"\)\.checked\)/);
+});
