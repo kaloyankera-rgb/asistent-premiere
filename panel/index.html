@@ -43,28 +43,16 @@
       <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg></span><div class="fname" data-tip="Lines up the cameras by their shared sound in a new SYNC sequence, in recording order. Your sequence is not touched.">Sync</div><div id="sync" class="btn action" data-tip="Select the clips in the timeline (all of them is fine) and press. Makes a new SYNC sequence with each camera on its own track; clips without a pair stay in their place in time.">Sync cameras</div><span class="fghost"></span></div>
     </div>
     <div class="feat" id="secRough">
-      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88"/><path d="M14.47 14.48 20 20"/><path d="M8.12 8.12 12 12"/></svg></span><div class="fname" data-tip="Select the cameras and the microphones with speech. Pauses and repeated takes are cut in a new sequence; the original is not touched. Audio you do not use (a quiet camera microphone): mute its track first, it is then left out.">Rough cut</div><div id="rough" class="btn action" data-tip="Finds the pauses from the words, the sound level and Silero, and the repeated takes from the words, then makes a new ROUGH sequence with the same cuts on every selected camera and microphone (sync is kept). Each press is a new version; the original and older versions are not touched.">Rough cut</div><div class="btn more" data-more="optRough" data-tip="Options for Rough cut."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88"/><path d="M14.47 14.48 20 20"/><path d="M8.12 8.12 12 12"/></svg></span><div class="fname" data-tip="Select the cameras and the microphones. The silences and dead spaces are cut out of every selected clip at once (the cameras stay in sync), in a new sequence; the original is not touched. No speech recognition: it listens to each microphone's level, and Silero keeps quiet speech.">Silences</div><div id="rough" class="btn action" data-tip="Listens to every selected sound clip (its own noise floor and voice level, or your threshold), keeps every moment anyone is heard plus a margin around it, and builds a new sequence without the silences. Each press is a new version; the original and older versions are not touched.">Cut silences</div><div class="btn more" data-more="optRough" data-tip="Options for Silences."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
       <div id="optRough" class="fopts" hidden>
-      <p id="aboutRough" class="desc">Select the cameras and the microphones with speech. Pauses and repeated takes are cut in a new sequence; the original is not touched. Audio you do not use (a quiet camera microphone): mute its track first, it is then left out.</p>
+      <p id="aboutRough" class="desc">Select the cameras and the microphones. Silences are cut from every selected clip at once; each microphone counts, so nobody who speaks is cut. A camera microphone you do not want to count: mute its track first.</p>
       <div class="row options">
-        <label for="roughMode" class="muted" data-tip="Safe: cuts only long pauses that are surely silence, and repeated takes (the last full take stays). Smart: also shortens every pause to the tempo and cuts a start repeated inside a sentence.">Mode</label>
-        <select id="roughMode"><option value="safe" selected>Safe</option><option value="smart">Smart</option></select>
-      </div>
-      <div class="row options">
-        <label for="roughTempo" class="muted" data-tip="How much pause stays between sentences and inside them: calm 0.45 / 0.30 s, normal 0.35 / 0.22 s, tight 0.25 / 0.12 s.">Tempo</label>
-        <select id="roughTempo"><option value="calm">Calm</option><option value="normal" selected>Normal</option><option value="tight">Tight</option></select>
+        <label for="roughTempo" class="muted" data-tip="Which pauses go. Calm: pauses over 0.8 s, 0.20 s kept before speech and 0.30 s after. Normal: over 0.5 s, 0.15 / 0.22 s kept. Tight: over 0.3 s, 0.15 / 0.20 s kept (on a very quiet microphone it can touch the soft start of a word).">Pauses</label>
+        <select id="roughTempo"><option value="calm">Calm (over 0.8 s)</option><option value="normal" selected>Normal (over 0.5 s)</option><option value="tight">Tight (over 0.3 s)</option></select>
       </div>
       <div class="row options">
-        <input type="checkbox" id="roughMarkers" />
-        <label for="roughMarkers" class="muted" data-tip="Puts a marker in the new sequence at every place to review (repeated takes, speech without a recognised word). Off by default.">Review markers</label>
-      </div>
-      <div class="row options" id="roughFastRow" hidden>
-        <input type="checkbox" id="roughFast" />
-        <label for="roughFast" class="muted" data-tip="Reads the speech with large-v3-turbo: about twice as fast on many clips, but it finds fewer repeated takes (in a test: 34 s of takes cut instead of 58 s). Pauses are found the same way. Subtitles always use the full model.">Fast (fewer takes found)</label>
-      </div>
-      <div id="roughFaster" hidden>
-        <p class="desc">Fast rough cut needs a second recognizer, large-v3-turbo. It is used only for the rough cut, never for subtitles.</p>
-        <div id="roughTurbo" class="btn small" data-tip="Downloads large-v3-turbo once (checked against its fixed checksum). Then the Fast switch appears.">Download the fast recognizer (1.6 GB)</div>
+        <label for="roughThreshold" class="muted" data-tip="Auto: each microphone's own threshold from its noise floor and voice level, with Silero keeping quiet speech and dropping clicks. A dB value: everything under it is silence, on every microphone (nothing else decides).">Level</label>
+        <select id="roughThreshold"><option value="auto" selected>Auto (each microphone)</option><option value="-30">-30 dB</option><option value="-35">-35 dB</option><option value="-40">-40 dB</option><option value="-45">-45 dB</option><option value="-50">-50 dB</option><option value="-55">-55 dB</option><option value="-60">-60 dB</option></select>
       </div>
       </div>
     </div>
@@ -75,7 +63,7 @@
       <div class="row buttons"><div id="labelsBack" class="btn small" data-tip="Puts back the names (and colours) Asistent changed in this sequence, where they are still as it left them.">Put names back</div></div>
       <div class="row options">
         <input type="checkbox" id="labelsAuto" />
-        <label for="labelsAuto" class="muted" data-tip="Names the tracks of every new SYNC and ROUGH sequence right after it is made (those sequences are Asistent's own).">Also after Sync and rough cut</label>
+        <label for="labelsAuto" class="muted" data-tip="Names the tracks of every new SYNC and NO SILENCE sequence right after it is made (those sequences are Asistent's own).">Also after Sync and rough cut</label>
       </div>
       <div class="row options">
         <label for="labelsColor1" class="muted kf-wide" data-tip="A label colour for every file of camera POV 1. Premiere keeps it on the file, so it shows in every sequence and in the Project panel. Keep = not touched.">POV 1 colour</label>

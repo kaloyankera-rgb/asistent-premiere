@@ -633,33 +633,6 @@ function renderSubtitleModel(st) {
   show("subtitleModel", !!text);
   show("subtitleAsk", st.backend && !st.model);
   show("translatorAsk", !!noTranslator);
-  if (st.turbo_bytes) $("roughTurbo").textContent = `Download the fast recognizer (${gb(st.turbo_bytes)} GB)`;
-  show("roughFaster", st.backend && st.turbo === false);
-  show("roughFastRow", st.backend && st.turbo === true);
-}
-
-// 0.10.40: the rough cut's faster recognizer (large-v3-turbo); its words are never used for subtitles
-async function onTurboDownload() {
-  if (state.busy) return;
-  if (!state.online) {
-    finish("No connection to the engine. See README.", false);
-    return;
-  }
-  show("result", false);
-  setBusy(true);
-  progress(0, "Downloading the fast recognizer…");
-  try {
-    const r = await engine.downloadTurbo();
-    if (!r.done) await runJob(r.job);
-    finish("The fast recognizer is downloaded. Tick Fast under Rough cut to use it.", true);
-  } catch (e) {
-    finish(e.message || String(e), false);
-    if (!(e instanceof premiere.UserError)) engine.log("error", `turbo model: ${e && e.stack ? e.stack : e}`);
-  } finally {
-    state.jobId = null;
-    setBusy(false);
-    engine.subtitlesModel().then(renderSubtitleModel).catch(() => {});
-  }
 }
 
 // who speaks and the corrections text are kept per project in the engine; shown again when the project changes
@@ -1280,7 +1253,7 @@ async function onExportCheck() {
   }
 }
 
-// ---------------------------------------------------------------- rough cut (Phase 8 M2)
+// ---------------------------------------------------------------- Remove silences (was the rough cut, Phase 8; 0.10.65)
 
 // One press: the engine finds the pauses and writes an XML, Premiere imports it as a NEW sequence (the source sequence
 // is only read), and the new sequence is checked against the engine's list before it is opened.
@@ -1295,8 +1268,9 @@ async function onRoughCut() {
   progress(0, "Reading the selected clips…");
   try {
     const project = await premiere.activeProject();
-    const opts = { mode: $("roughMode").value, tempo: $("roughTempo").value, markers: $("roughMarkers").checked,
-      fast: !$("roughFastRow").hidden && $("roughFast").checked };
+    // 0.10.65 (the user: "focus only on removing silences"): no recognition, no takes; which pauses go and the threshold
+    const th = $("roughThreshold").value;
+    const opts = { mode: "silence", tempo: $("roughTempo").value, threshold: th === "auto" ? null : Number(th) };
     const input = await premiereRough.readInput(project, opts);
     const { payload, meta } = input;
     const { job } = await engine.startRoughcut(payload);
@@ -2005,9 +1979,12 @@ onTap($("learnedHead"), () => {
   if (learnedView.path) loadLearned(learnedView.path);
 });
 onTap($("rough"), onRoughCut);
-onTap($("roughTurbo"), onTurboDownload);
-$("roughFast").checked = store.getItem("asistent.roughFast") === "1";            // off unless the editor switched it on
-$("roughFast").addEventListener("change", () => store.setItem("asistent.roughFast", $("roughFast").checked ? "1" : "0"));
+// the choices stay between sessions (the panel's store survives updates)
+for (const id of ["roughTempo", "roughThreshold"]) {
+  const v = store.getItem(`asistent.${id}`);
+  if (v && [...$(id).options].some((o) => o.value === v)) $(id).value = v;
+  $(id).addEventListener("change", () => store.setItem(`asistent.${id}`, $(id).value));
+}
 onTap($("subtitleDownload"), onSubtitleDownload);
 onTap($("translatorDownload"), onTranslatorDownload);
 onTap($("updateGo"), onUpdate);

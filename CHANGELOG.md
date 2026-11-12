@@ -31,6 +31,34 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.65 - Rough cut becomes Silences: cut silences only, from every microphone's own level (the user 2026-11-12)
+- The user: "change the rough cut to remove silences and focus on only removing silences and dead spaces in selected videos
+  ... below a certain threshold you cut ... keep in mind the multiple POVs ... accurate and also fast and optimized".
+- **New `engine/asistent/silence.py`, no speech recognition** (the old cut waited minutes for Whisper):
+  1. every selected sound clip on its own, its level in dB per 10 ms (the louder channel, or the one an L/L / R/R copy plays);
+  2. Auto: the clip's own noise floor and voice level set its threshold (speech from 9.5 dB over the floor or 12.8 dB under
+     the voice), with 6 dB hysteresis so a word's tail is not chopped; a fixed dB (Level: -30 ... -60 dB) is the level alone;
+  3. Silero (already installed) in Auto: drops a short burst it does not hear at all (under 0.15 s: a click, a knock), keeps
+     quiet speech it is sure of (also under music or hum: over -60 dB), and lets a word's fading tail / soft start go on
+     while it still hears speech (up to 0.5 s). It never removes a loud stretch of word length: measured, it misses short
+     loud words („Има“ at -20 dB, Silero 0.03-0.6);
+  4. multi-POV: a moment is kept when ANY selected microphone hears speech (two lavaliers are two people; a camera and a
+     lavalier are one person twice), and the same cuts go through every selected clip, so the cameras stay in sync;
+  5. Pauses: Calm (cut over 0.8 s; 0.20 s kept before speech, 0.30 s after), Normal (0.5 s; 0.15 / 0.22), Tight (0.3 s;
+     0.15 / 0.20); time with no selected sound is cut whole; margins never reach over a clip's edge.
+- **Measured** (NEW TEST and the ReShape golden recording, 274 s, 573 words with ALIGNED times as the reference): words cut
+  into: Normal 0, Calm 0, Tight 4 (soft starts on very quiet camera microphones; said in its tooltip). Against Whisper's own
+  word times the remaining hits were Whisper's errors (checked one by one on the levels: words placed 0.3-0.6 s early,
+  „Абонирайте“ on silence). Sound over its own microphone's threshold inside the cuts: only clicks of 0.1 s or less.
+  Speed: 388 s of a two-camera + lavalier sequence (24 sound clips) in 2.3 s (the whole job, XML included).
+- Panel: the row is **Silences** with **Cut silences**; options Pauses and Level (remembered); the new sequence is
+  "NO SILENCE – <sequence> vN" in the bin "No silence", built from clones of the editor's own clips as before (rotation,
+  Motion, colour, effects, Fix audio's L / R copies kept). Mode, Review markers and Fast are gone from the panel (the engine
+  keeps Safe / Smart for a later review step).
+- NOT run in Premiere yet: a client project (GStroy КП-11) was open in Premiere 2026 when it was ready, so Premiere was left
+  alone. The engine job ran end to end on the real NEW TEST media (above).
+- Tests: 9 new pytest (`tests/test_silence.py`), 1 new node; 765 pytest + 24 skipped, node 277.
+
 ## 0.10.64 - Tracker: a range to track, Stop that keeps what is tracked, go on from any tracked frame (the user 2026-11-12)
 - The user: "we need to be able to start and stop the tracking whenever we want to, cause right now it tracks the whole clip and
   you can't stop it. We need to be able to choose until when we want to track."

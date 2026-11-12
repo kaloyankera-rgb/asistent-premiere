@@ -19,12 +19,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
-from . import asr, edl, media, pauses, speechmap, subtitles, takes, vad, xmeml
+from . import asr, edl, media, pauses, silence, speechmap, subtitles, takes, vad, xmeml
 from .dialoguemix import ASR_SR, build_mix, read_segment
 from .subtitle_job import PAD, _cached, _inside, _same_word, _store, plan_windows, read_window, window_audio
 
 log = logging.getLogger("asistent")
-MODES = {"safe": "safe", "smart": "smart"}
+MODES = {"safe": "safe", "smart": "smart", "silence": "silences"}
+# 0.10.65 (the user 2026-11-12): the panel's only mode is "silence" (Remove silences, silence.py: no recognition); Safe and
+# Smart (words, repeated takes) stay in the engine for a later Review step but are no longer offered
 MIN_PIECE_FRAMES = 2
 # When there are fewer windows than readers, long pieces are read in parts of about this many seconds, cut at their quietest
 # moment, so the readers work side by side (0.10.25, the user: "the rough cut took way too much time"). One long window
@@ -144,8 +146,9 @@ def validate(body: dict) -> dict:
                     "inPt": _num(it.get("inPt", 0), "in point"), "name": str(it.get("name") or os.path.basename(it["path"])),
                     "channel": ch, "gain_db": gain})
     mode, tempo = body.get("mode", "safe"), body.get("tempo", "normal")
-    if mode not in MODES or tempo not in pauses.TEMPO:
+    if mode not in MODES or tempo not in (silence.TEMPO if mode == "silence" else pauses.TEMPO):
         raise ValueError("Invalid mode or tempo.")
+    threshold = silence.clamp_threshold(body.get("threshold")) if mode == "silence" else None
     out_dir = body.get("out_dir")
     if not isinstance(out_dir, str) or not os.path.isdir(out_dir):
         raise ValueError("The project folder was not found: save the project and try again.")
@@ -153,7 +156,7 @@ def validate(body: dict) -> dict:
             "fps": subtitles.exact_fps(_num(25.0 if body.get("fps") is None else body.get("fps"), "frames per second", 1.0)),
             "width": int(_num(body.get("width") or 1920, "width", 1)), "height": int(_num(body.get("height") or 1080, "height", 1)),
             "name": str(body.get("name") or "sequence"), "markers": bool(body.get("markers")), "skipped": body.get("skipped") or [],
-            "fast": bool(body.get("fast"))}
+            "fast": bool(body.get("fast")), "threshold": threshold}
 
 
 def _words(segments: list[dict], progress, cancelled, fast: bool = False) -> tuple[list[dict], dict]:
@@ -221,6 +224,8 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     p = validate(body)
     t0 = time.time()
     media.probe_all([d["path"] for d in p["dialogue"]] + [i["path"] for i in p["layout"]])     # the XML needs every file's facts
+    if p["mode"] == "silence":
+        return run_silence(p, progress, cancelled, t0)
     fps = p["fps"]
     progress(0.0, "Reading the sound…")
     mix = build_mix(p["dialogue"], lambda f, m: progress(0.1 * f, m), cancelled)
@@ -305,5 +310,56 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         json.dump({**result, "words": words, "items": p["layout"]}, f, ensure_ascii=False, indent=1)
     log.info("roughcut: %s %s/%s %.1f -> %.1f s (%d cuts, %d review) words=%d asr=%s vad=%s in %.1f s", seq_name, p["mode"], p["tempo"],
              before, after, len(cuts), len(review), len(words), how.get("asr"), sm["vad"], time.time() - t0)
+    progress(1.0, "Done")
+    return result
+
+
+def run_silence(p: dict, progress, cancelled, t0: float) -> dict:
+    """Remove silences (0.10.65, silence.py): every selected sound clip is listened to on its own (level + Silero), the
+    silences everybody shares are cut from every selected clip at once (the cameras stay in sync), into a new sequence built
+    like the rough cut's (XML + the shell the panel fills with clones of the editor's own clips)."""
+    fps = p["fps"]
+    t_start = round(min(i["start"] for i in p["layout"]) * fps) / fps
+    t_end = round(max(i["end"] for i in p["layout"]) * fps) / fps
+    progress(0.0, "Listening to the sound…")
+    det = silence.detect(p["dialogue"], t_start, t_end, p["threshold"], lambda f, m: progress(0.75 * f, m), cancelled)
+    raw = silence.cuts(det["speech"], det["covered"], t_start, p["tempo"])
+    cuts = [(a, b) for a, b in pauses.snap(raw, fps) if (b - a) * fps >= MIN_PIECE_FRAMES - 1e-6]
+    kept = edl.kept_ranges(t_start, t_end, cuts)
+    pieces = [x for x in edl.pieces(p["layout"], kept, fps) if x["end"] - x["start"] >= MIN_PIECE_FRAMES]
+    pieces, flashes = edl.drop_flashes(pieces)
+    before, after = (round(t_end * fps) - round(t_start * fps)) / fps, edl.total_frames(kept, fps) / fps
+    progress(0.85, "Building the sequence…")
+    folder = os.path.join(p["out_dir"], "Asistent_roughcut")
+    os.makedirs(folder, exist_ok=True)
+    stem = f"NO SILENCE – {p['name']}"
+    seq_name = f"{stem} v{_version(folder, stem)}"
+    xml_path = os.path.join(folder, seq_name + ".xml")
+    layout_check = xmeml.write(xml_path, seq_name, fps, p["width"], p["height"], pieces, [])
+    shell_path = os.path.join(folder, seq_name + " (shell).xml")
+    xmeml.write(shell_path, seq_name, fps, p["width"], p["height"], pieces, [], shell=True)
+    covered = det["covered"]
+    no_sound = float((~covered).sum()) * silence.HOP_S
+    saved = sum(b - a for a, b in cuts)
+    result = {
+        "xml": xml_path, "shell": shell_path, "json": os.path.join(folder, seq_name + ".json"), "name": seq_name, "mode": "silence",
+        "tempo": p["tempo"], "tempo_label": silence.TEMPO_LABEL[p["tempo"]], "threshold": p["threshold"],
+        "settings": dict(zip(("min_silence", "before", "after"), silence.TEMPO[p["tempo"]])),
+        "before_s": round(before, 2), "after_s": round(after, 2), "saved_s": round(saved, 2), "takes_cut_s": 0.0,
+        "flashes_dropped": flashes, "hole_speech_s": 0.0, "no_sound_s": round(no_sound, 2), "empty_s": 0.0,
+        "pieces": [{"kind": x["kind"], "track": x["track"], "item": x["item"], "start": x["start"], "end": x["end"],
+                    "path": x["path"], "src_in": x["src_in"], "src_out": x["src_out"]} for x in pieces],
+        "counts": {"pauses_seen": len(raw), "cuts": len(cuts), "kept_ranges": len(kept), "pieces": len(pieces), "review": 0,
+                   "takes": 0, "takes_cut": 0},
+        "takes": [], "review": [], "cuts": [{"start": round(a, 3), "end": round(b, 3)} for a, b in cuts],
+        "check": {"frames": layout_check["frames"], "video": layout_check["video"], "audio": layout_check["audio"], "fps": fps},
+        "speech": {"asr": False, "vad": any(i["vad"] for i in det["items"]) if p["threshold"] is None else False,
+                   "listened": det["items"]},
+        "skipped": p["skipped"], "seconds": round(time.time() - t0, 1),
+    }
+    with open(result["json"], "w", encoding="utf-8") as f:
+        json.dump({**result, "items": p["layout"]}, f, ensure_ascii=False, indent=1)
+    log.info("silences: %s %s %s %.1f -> %.1f s (%d cuts) from %d sound clips in %.1f s", seq_name, p["tempo"],
+             "auto" if p["threshold"] is None else f"{p['threshold']} dB", before, after, len(cuts), len(p["dialogue"]), time.time() - t0)
     progress(1.0, "Done")
     return result

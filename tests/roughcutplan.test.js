@@ -123,3 +123,20 @@ test("rough cut: a switched-off clip or a hidden video track is left out and nam
   assert.deepStrictEqual(p.layout.map((x) => x.name), ["A", "A"]);
   assert.ok(p.skipped.some((s) => /B \(switched off/.test(s)) && p.skipped.some((s) => /C \(on V3, whose output is off/.test(s)));
 });
+
+test("Remove silences (0.10.65): the result says what was cut, how it listened and each microphone's levels", () => {
+  const R = require("../panel/roughcutplan.js");
+  const r = { mode: "silence", tempo: "normal", tempo_label: "normal", threshold: null, settings: { min_silence: 0.5, before: 0.15, after: 0.22 },
+    before_s: 100, after_s: 70, saved_s: 30, name: "NO SILENCE – SYNC v1", counts: { cuts: 12 }, no_sound_s: 4.2, flashes_dropped: 0,
+    speech: { asr: false, vad: true, listened: [{ name: "C0737.MP4", floor: -63, voice: -33, open: -46, speech_s: 51.2 }] }, skipped: [] };
+  const d = R.describeResult(r, { notes: [], problems: [] });
+  assert.match(d.text, /^Done: 1:40 → 1:10 \(−30 %\)\. Sequence: NO SILENCE – SYNC v1\.$/);
+  const all = d.lines.map((l) => l.text).join("\n");
+  assert.match(all, /12 silences cut, 30\.0 s taken out\. Pauses normal \(over 0\.5 s; 0\.15 s kept before speech, 0\.22 s after\)/);
+  assert.match(all, /each with its own threshold; Silero kept quiet speech/);
+  assert.match(all, /C0737\.MP4: noise -63 dB, voice -33 dB, speech from -46 dB/);
+  assert.match(all, /4\.2 s with no selected sound/);
+  assert.ok(!/\btakes?\b|recogni|\bwords?\b/i.test(all), all);
+  const fixed = R.describeResult({ ...r, threshold: -45 }, null);
+  assert.match(fixed.lines.map((l) => l.text).join("\n"), /Threshold -45 dB on all 1 sound clip: under it is silence\./);
+});

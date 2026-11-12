@@ -67,8 +67,35 @@ function takeLines(r) {
   return lines;
 }
 
+/** Remove silences (0.10.65): what was cut, how it listened, each microphone's levels in the tooltip-free lines. */
+function describeSilences(r, placed) {
+  const c = r.counts || {};
+  const pct = r.before_s > 0 ? Math.round((100 * (r.before_s - r.after_s)) / r.before_s) : 0;
+  const st = r.settings || {};
+  const lines = [];
+  lines.push({ cls: "line", text: `${c.cuts} ${c.cuts === 1 ? "silence" : "silences"} cut, ${r.saved_s.toFixed(1)} s taken out. Pauses ${r.tempo_label || r.tempo}` +
+    (st.min_silence ? ` (over ${st.min_silence} s; ${st.before} s kept before speech, ${st.after} s after)` : "") + "." });
+  const sp = r.speech || {};
+  const mics = sp.listened || [];
+  lines.push({ cls: "line", text: r.threshold === null || r.threshold === undefined
+    ? `Listened to ${mics.length} sound ${mics.length === 1 ? "clip" : "clips"}, each with its own threshold${sp.vad ? "; Silero kept quiet speech and dropped clicks" : " (Silero is not available: the level alone)"}.`
+    : `Threshold ${r.threshold} dB on all ${mics.length} sound ${mics.length === 1 ? "clip" : "clips"}: under it is silence.` });
+  for (const m of mics.slice(0, 6)) {
+    if (m.floor === null || m.floor === undefined) continue;
+    lines.push({ cls: "reason", text: `${m.name}: noise ${m.floor} dB, voice ${m.voice} dB, speech from ${m.open} dB; ${m.speech_s} s of speech heard.` });
+  }
+  if (mics.length > 6) lines.push({ cls: "reason", text: `…and ${mics.length - 6} more.` });
+  for (const s of r.skipped || []) lines.push({ cls: "warn", text: `Skipped: ${s}.` });
+  if (r.no_sound_s > 0.05) lines.push({ cls: "line", text: `${r.no_sound_s.toFixed(1)} s with no selected sound at all were taken out (for example a camera rolling before anyone speaks, or empty timeline).` });
+  if (r.flashes_dropped > 0) lines.push({ cls: "line", text: `${r.flashes_dropped} pieces of a few frames taken out at the end of a clip while the other camera goes on.` });
+  for (const l of (placed && placed.notes) || []) lines.push(l);
+  if (placed && placed.problems && placed.problems.length) for (const p of placed.problems) lines.push({ cls: "warn", text: p });
+  return { text: `Done: ${clock(r.before_s)} → ${clock(r.after_s)} (−${pct} %). Sequence: ${r.name}.`, lines };
+}
+
 /** The engine's /roughcut result -> { text, lines: [{cls, text}] }. */
 function describeResult(r, placed) {
+  if (r.mode === "silence") return describeSilences(r, placed);
   const c = r.counts || {};
   const pct = r.before_s > 0 ? Math.round((100 * (r.before_s - r.after_s)) / r.before_s) : 0;
   const lines = [];

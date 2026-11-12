@@ -505,3 +505,10 @@ our rule never ends one, so nothing was tuned towards that. ReShape's preset is 
 was asleep when this was built, so it stays on the classic rules; switching it is one key (`"delivery": True`) once the user
 says so (its golden check will then differ). Word lengthening was measured and left out: it made the cuts worse on Whisper's
 word times; pitch and loudness need the sound, which the job has but these 40 videos do not.
+
+## 2026-11-12: Silences replaces the rough cut in the panel; no recognition (0.10.65)
+The user asked to focus the rough cut on removing silences only, accurate and fast, with the multiple POVs in mind. Speech
+recognition is what made the rough cut slow and is not needed to find silence, so the new mode listens to each microphone's
+level against its own noise floor, with Silero only as a helper (it misses short loud words, so it may never remove a loud
+stretch). Every microphone counts (the union), because grouping microphones that hear each other (the mix's rule for
+subtitles) could cut a second speaker's quieter words. Margins favour keeping speech: a cut word is worse than a little air.
