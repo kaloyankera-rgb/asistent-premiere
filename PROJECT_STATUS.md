@@ -1,5 +1,8 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.65 (2026-11-12, installed, engine measured on real NEW TEST media; NOT run in Premiere: a client project was open):
+Rough cut -> Silences (Cut silences): per-microphone levels + Silero, no recognition, multi-POV, 2.3 s for 388 s.
+
 0.10.64 (2026-11-12, installed, tested through the bridge in Premiere 26.5.2): Tracker range (golden handles), Stop keeps what
 is tracked, Track from here goes on without a new box. NOT tried by the user.
 

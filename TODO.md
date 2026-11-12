@@ -9,7 +9,8 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] Anchor Studio into Asistent (github kaloyankera-rgb/anchor-studio), fixes and improvements.
 - [ ] Auto import: drop a folder on the panel to add it.
 - [ ] Captions tab: export the captions as a transcript.
-- [ ] Rough cut -> Remove silences only: the best silence cutter (levels, multi-POV, fast).
+- [x] Rough cut -> Silences (0.10.65). USER: Cut silences on a real multi-camera edit (Normal, then Tight); say if a word
+  start or end is ever clipped, or a pause you want gone stays. Then: the Premiere run of it in NEW TEST (blocked tonight).
 
 ## SEG. Subtitle cuts by the delivery (0.10.61, the user 2026-11-12)
 - [ ] USER: press Make subtitles with a client style (GStroy, Credissimo, ЕКОПАК, Beauty Sector, AULA) or Auto on a real

@@ -170,7 +170,7 @@ test("COLOR: the separate buttons run the same analysis and the same apply as Au
 
 test("ROUGH CUT: the source sequence is only read; the result is imported as a new sequence and checked", () => {
   const rough = fs.readFileSync(path.join(panel, "premiere-roughcut.js"), "utf8");
-  assert.match(html, /<div id="rough" class="btn action" data-tip="[^"]+">Rough cut<\/div>/);
+  assert.match(html, /<div id="rough" class="btn action" data-tip="[^"]+">Cut silences<\/div>/);
   assert.match(main, /onTap\(\$\("rough"\), onRoughCut\)/);
   assert.match(rough, /project\.importFiles\(\[result\.xml\]/);
   assert.match(rough, /verify\(result\.check, got\)/);

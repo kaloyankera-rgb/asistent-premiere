@@ -25,11 +25,11 @@ async function frameSize(sequence) {
 async function readInput(project, opts) {
   const t = await P.readTimeline(project);
   const plan = planRoughCut(t.items);
-  if (!plan.selected) throw new P.UserError("Select the clips for the rough cut in the timeline: the cameras and the microphones with speech.");
-  if (!plan.dialogue.length) throw new P.UserError(`Select the audio clip with speech too: the pauses are found from the sound. ${plan.skipped.join("; ")}`);
+  if (!plan.selected) throw new P.UserError("Select the clips in the timeline: the cameras and the microphones.");
+  if (!plan.dialogue.length) throw new P.UserError(`Select the audio clips too: the silences are found from the sound. ${plan.skipped.join("; ")}`);
   if (!plan.layout.length) throw new P.UserError(`No suitable clip. ${plan.skipped.join("; ")}`);
   const folder = dirOf(project.path);
-  if (!folder) throw new P.UserError("Save the project (Cmd/Ctrl+S): the rough cut files go into its folder.");
+  if (!folder) throw new P.UserError("Save the project (Cmd/Ctrl+S): the files of the new sequence go into its folder.");
   const size = await frameSize(t.sequence);
   // what the new pieces must carry over: an Asistent split clip's channel (L/L, R/R) and the level go into the XML; the
   // limiter and the colour are put on the new pieces after the import (carry below)
@@ -53,9 +53,10 @@ async function readInput(project, opts) {
     meta.push(m);
   }
   const payload = { items: plan.dialogue, layout: plan.layout, out_dir: folder, name: t.sequence.name || "sequence", fps: t.fps || 25,
-    width: size && size.width, height: size && size.height, mode: opts.mode, tempo: opts.tempo, markers: !!opts.markers, fast: !!opts.fast, skipped: plan.skipped };
+    width: size && size.width, height: size && size.height, mode: opts.mode, tempo: opts.tempo, markers: !!opts.markers, fast: !!opts.fast,
+    threshold: opts.threshold === undefined ? null : opts.threshold, skipped: plan.skipped };
   engine.log("info", `roughcut: ${plan.layout.length} items (${plan.layout.map((x) => `${x.kind[0].toUpperCase()}${x.track + 1} ${x.name}`).join(" | ")}), ` +
-    `${plan.dialogue.length} for the sound, ${plan.skipped.length} skipped, ${t.fps} fps, ${opts.mode}/${opts.tempo}`);
+    `${plan.dialogue.length} for the sound, ${plan.skipped.length} skipped, ${t.fps} fps, ${opts.mode}/${opts.tempo}${opts.threshold === null || opts.threshold === undefined ? "" : ` ${opts.threshold} dB`}`);
   return { payload, plan, meta, sequence: t.sequence };
 }
 
@@ -101,7 +102,7 @@ async function cloneInto(project, sequence, result, refs) {
     slot += (end - start) + frameTicks(SCRATCH_GAP * Math.round(fps));
     slot = (slot / tpf) * tpf;                                 // on a frame
   }
-  P.transaction(project, "Asistent: Rough cut (copies)", (c) => {
+  P.transaction(project, "Asistent: Remove silences (copies)", (c) => {
     for (const j of jobs) c.addAction(editor.createCloneTrackItemAction(j.ref.ti, T(j.offset), 0, 0, true, false));
   });
   // 2. find each copy, trim it to its piece
@@ -118,7 +119,7 @@ async function cloneInto(project, sequence, result, refs) {
     j.copy = hit ? hit.x : null;
   }
   const placed = jobs.filter((j) => j.copy);
-  P.transaction(project, "Asistent: Rough cut (trim)", (c) => {
+  P.transaction(project, "Asistent: Remove silences (trim)", (c) => {
     for (const j of placed) {
       c.addAction(j.copy.ti.createSetInPointAction(T(frameTicks(j.p.src_in))));
       c.addAction(j.copy.ti.createSetOutPointAction(T(frameTicks(j.p.src_out))));
@@ -126,7 +127,7 @@ async function cloneInto(project, sequence, result, refs) {
   });
   // 3. move each trimmed copy into its place (it starts where its copy now starts; the scratch area ends up empty)
   for (const j of placed) j.at = await ticksOf(await j.copy.ti.getStartTime());
-  P.transaction(project, "Asistent: Rough cut (place)", (c) => {
+  P.transaction(project, "Asistent: Remove silences (place)", (c) => {
     for (const j of placed) if (j.at !== null) c.addAction(j.copy.ti.createMoveAction(T(frameTicks(j.p.start) - j.at)));
   });
   P.debug(`roughcut clones: ${jobs.length} pieces, ${placed.length} copies found`);
@@ -151,7 +152,7 @@ async function cloneInto(project, sequence, result, refs) {
 }
 
 async function importSequence(project, file, name) {
-  const bin = await P.ensureBin(project, "Rough cut");
+  const bin = await P.ensureBin(project, "No silence");
   const target = ppro.ProjectItem.cast(bin) || bin;
   const accepted = await project.importFiles([file], true, target, false);
   if (accepted === false) return null;
@@ -187,7 +188,7 @@ async function placeClones(project, result, input) {
 async function place(project, result, meta, input) {
   const cloned = await placeClones(project, result, input);
   if (cloned) return cloned;
-  const bin = await P.ensureBin(project, "Rough cut");
+  const bin = await P.ensureBin(project, "No silence");
   const target = ppro.ProjectItem.cast(bin) || bin;
   const accepted = await project.importFiles([result.xml], true, target, false);
   if (accepted === false) return { problems: ["Premiere did not accept the XML file. It is in the Asistent_roughcut folder: File > Import."], notes: [] };

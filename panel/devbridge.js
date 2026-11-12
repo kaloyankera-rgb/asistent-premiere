@@ -124,10 +124,10 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     // fill the corrections box the way a person would
     async fill(a) {
       // the notes box, and (0.10.34) the Track names options, so a test can choose colours and the auto switch
-      // 0.10.41: and the rough cut's Fast switch (with whether its row and the download offer are shown)
-      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughFast", "tr_scale", "tr_rotation", "tr_centre", "tr_smooth", "tr_zoom"].includes(a.id)) throw new Error("fill: notes, the Track names options, roughFast and the Tracker's Scale / Rotation only.");
+      // 0.10.65: and Remove silences' Pauses / Threshold
+      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughTempo", "roughThreshold", "tr_scale", "tr_rotation", "tr_centre", "tr_smooth", "tr_zoom"].includes(a.id)) throw new Error("fill: notes, the Track names options, Remove silences' options and the Tracker's options only.");
       const e = doc.getElementById(a.id);
-      const box = a.id === "labelsAuto" || a.id === "roughFast" || a.id.startsWith("tr_");
+      const box = a.id === "labelsAuto" || a.id.startsWith("tr_");
       if (box) e.checked = !!a.value;
       else e.value = String(a.value);
       if (a.id !== "notes") {
@@ -138,7 +138,7 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
           if (!box) throw err;
         }
       }
-      const extra = a.id === "roughFast" ? { row_shown: !$("roughFastRow").hidden, download_shown: !$("roughFaster").hidden } : {};
+      const extra = {};
       return { id: a.id, value: box ? e.checked : e.value, ...extra };
     },
     async click(a) {
