@@ -302,6 +302,11 @@ function captionFaces(frames, project, graphics) {
   return call("POST", "/captions/faces", { frames, project, graphics });
 }
 
+// 0.10.69: the visible pixels of a still with transparency (the Anchor page's Use alpha)
+function anchorAlpha(path, threshold, invert) {
+  return call("POST", "/anchor/alpha", { path, threshold, invert: !!invert });
+}
+
 // 0.10.66: the subtitles as a transcript (.txt next to the SRT, shown in Finder)
 function transcript(json, times) {
   return call("POST", "/subtitles/transcript", { json, times: !!times });
@@ -319,5 +324,5 @@ function log(level, message) {
   return call("POST", "/log", { level, message }).catch(() => {});
 }
 
-module.exports = { transcript, status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
+module.exports = { anchorAlpha, transcript, status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
   startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, trackerFrame, startTracking, trackerThumbs, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, stop, log };

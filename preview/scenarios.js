@@ -163,6 +163,7 @@ window.PREVIEW_SCENARIOS = (function () {
     "tracker-box": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 0, "box"); } },
     "tracker-busy": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 0, "busy"); } },
     "tracker-lock": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 75); const b = [...document.querySelectorAll("#paneTracker .tr-mode")].pop(); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); } },
+    anchor: { run: (api) => api.openTab("paneAnchor") },
     "keyframer-custom": { run: (api) => { api.openTab("paneKeyframer"); kfPress(["Bounce", "Edit as points"]); } },
     "keyframer-bounce": { run: (api) => { api.openTab("paneKeyframer"); kfPress(["Bounce", "Both", "Loop", "+"]); } },
     review: {
