@@ -7,7 +7,8 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [x] Tracker: range, Stop that keeps, go on (0.10.64). USER: drag the golden handles on a real clip, Stop mid-way, go on.
 - [ ] Keyframer: drag and shape custom curves (not only presets).
 - [ ] Anchor Studio into Asistent (github kaloyankera-rgb/anchor-studio), fixes and improvements.
-- [ ] Auto import: drop a folder on the panel to add it.
+- [x] Auto import: drop a folder on its row (0.10.67). USER: drag a folder from Finder onto the Auto import row; if nothing
+  happens, `grep "import drop" engine.log` shows what Premiere passed.
 - [x] Captions tab: Export transcript (0.10.66). USER: Make subtitles, Captions tab, Export transcript (and With times).
 - [x] Rough cut -> Silences (0.10.65). USER: Cut silences on a real multi-camera edit (Normal, then Tight); say if a word
   start or end is ever clipped, or a pause you want gone stays. Then: the Premiere run of it in NEW TEST (blocked tonight).

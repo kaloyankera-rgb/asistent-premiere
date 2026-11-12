@@ -122,6 +122,8 @@ class Store:
     # bindings: folder -> project
     def bind(self, folder: str, project: str) -> dict:
         folder = os.path.abspath(os.path.expanduser(folder))
+        if os.path.isfile(folder):                     # 0.10.67: a file dropped on the row instead of its folder
+            raise ValueError(f"That is a file ({os.path.basename(folder)}): drop the folder it is in.")
         if not os.path.isdir(folder):
             raise ValueError(f"The folder does not exist: {folder}")
         with self.lock:

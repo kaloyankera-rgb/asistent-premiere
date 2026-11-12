@@ -256,3 +256,14 @@ def test_waiting_request_wakes_up_on_new_file(setup):
     w.check(t + I.MOVED_STABLE + 0.05)
     th.join(3)
     assert len(got["q"]) == 1 and got["after"] < 2
+
+
+def test_a_dropped_file_is_refused_with_what_to_drop_instead(tmp_path):
+    """0.10.67: a folder dropped on the Auto import row is bound; a file dropped there says to drop its folder."""
+    store = I.Store(str(tmp_path / "import.json"))
+    folder = tmp_path / "Footage day 2"
+    folder.mkdir()
+    (folder / "clip.mp4").write_bytes(b"x")
+    assert store.bind(str(folder), "/p/a.prproj")["folder"] == str(folder)
+    with pytest.raises(ValueError, match="drop the folder it is in"):
+        store.bind(str(folder / "clip.mp4"), "/p/a.prproj")
