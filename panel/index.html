@@ -196,6 +196,10 @@
     <div id="captionEditActions" class="row buttons">
       <div id="captionApply" class="btn action" data-tip="Adds what you changed to the corrections, rebuilds the subtitles (the speech is not recognised again, so it takes seconds) and puts them on the timeline in place of the earlier ones.">Apply and rebuild</div>
     </div>
+    <div class="row options">
+      <div id="captionTranscript" class="btn small" data-tip="Saves the subtitles as a transcript (.txt) next to the .srt and shows it in Finder: plain sentences in paragraphs (a new one where the speaker pauses), with the corrections already applied. Press Apply and rebuild first to include what you just typed.">Export transcript</div>
+      <input type="checkbox" id="captionTranscriptTimes" /><label for="captionTranscriptTimes" class="muted" data-tip="Each paragraph starts with its time in the sequence, like [1:23].">With times</label>
+    </div>
     <div id="captionEditState" class="muted"></div>
     <div class="row options"><input type="checkbox" id="captionHelpers" checked /><label for="captionHelpers" class="muted" data-tip="Play buttons, the reasons under each line to check and Lines to check. They only read the subtitles that were made; switching them off shows the list as before.">Review helpers</label></div>
     <div id="speakerRow" class="speakers" hidden></div>

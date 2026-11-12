@@ -31,6 +31,17 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.66 - Captions: Export transcript (the user 2026-11-12: "export the captions as transcriptions")
+- Captions tab: **Export transcript** (and **With times**): the last subtitles as a .txt next to the .srt
+  ("<name> transcript.txt" / "... transcript (times).txt"), shown in Finder. Built from the run's own words (corrected,
+  aligned, with their case and punctuation), not from the caption lines a client style shows in capitals without
+  punctuation; paragraphs break where the speaker stops (a sentence end then 0.8 s, or any 2 s pause); times are the
+  sequence's ([1:05]); an English line, when made, follows as its own section. Lines typed but not applied are not in it
+  (the panel says so: Apply and rebuild first).
+- Engine: `transcript.py`, `POST /subtitles/transcript {json, times}` (only files in an Asistent_subtitles folder).
+- Tried on a real NEW TEST run (6 paragraphs, times right). NOT installed tonight: a client project was open in Premiere 2026.
+- Tests: 3 pytest (`tests/test_transcript.py`), 1 node.
+
 ## 0.10.65 - Rough cut becomes Silences: cut silences only, from every microphone's own level (the user 2026-11-12)
 - The user: "change the rough cut to remove silences and focus on only removing silences and dead spaces in selected videos
   ... below a certain threshold you cut ... keep in mind the multiple POVs ... accurate and also fast and optimized".

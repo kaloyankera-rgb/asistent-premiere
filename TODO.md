@@ -8,7 +8,7 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] Keyframer: drag and shape custom curves (not only presets).
 - [ ] Anchor Studio into Asistent (github kaloyankera-rgb/anchor-studio), fixes and improvements.
 - [ ] Auto import: drop a folder on the panel to add it.
-- [ ] Captions tab: export the captions as a transcript.
+- [x] Captions tab: Export transcript (0.10.66). USER: Make subtitles, Captions tab, Export transcript (and With times).
 - [x] Rough cut -> Silences (0.10.65). USER: Cut silences on a real multi-camera edit (Normal, then Tight); say if a word
   start or end is ever clipped, or a pause you want gone stays. Then: the Premiere run of it in NEW TEST (blocked tonight).
 
