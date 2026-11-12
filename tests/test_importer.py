@@ -267,3 +267,38 @@ def test_a_dropped_file_is_refused_with_what_to_drop_instead(tmp_path):
     assert store.bind(str(folder), "/p/a.prproj")["folder"] == str(folder)
     with pytest.raises(ValueError, match="drop the folder it is in"):
         store.bind(str(folder / "clip.mp4"), "/p/a.prproj")
+
+
+def test_files_deep_inside_a_watched_folder_or_in_a_repository_are_not_downloads(tmp_path):
+    """0.10.70: Downloads watched for NEW TEST imported 928 screenshots written deep inside the Content Studio vault (a git
+    repository 7 folders down). A download is at most MAX_DEPTH folders below the watched folder and never in a repository."""
+    top = str(tmp_path)
+    assert I.wanted(os.path.join(top, "clip.mp4"), top)
+    assert I.wanted(os.path.join(top, "Footage", "Day 1", "Cam A", "clip.mp4"), top)                 # an unzipped shoot
+    assert not I.wanted(os.path.join(top, "a", "b", "c", "d", "clip.mp4"), top)                      # deeper than a download
+    repo = tmp_path / "Vault" / "tool"
+    (repo / ".git").mkdir(parents=True)
+    (repo / "shots").mkdir()
+    assert not I.wanted(str(repo / "shots" / "x.png"), top)                                           # inside a repository
+    assert not I.wanted(os.path.join(top, "node_modules", "x.png"), top)
+    cache = {}
+    assert not I.wanted(str(repo / "y.png"), top, cache) and cache                                     # remembered per folder
+
+
+def test_catch_up_skips_repositories_and_deep_folders(tmp_path):
+    store = I.Store(str(tmp_path / "import.json"))
+    dl = tmp_path / "Downloads"
+    (dl / "shoot" / "day").mkdir(parents=True)
+    (dl / "repo" / ".git").mkdir(parents=True)
+    store.bind(str(dl), "/p/a.prproj")
+    store.data["bindings"][str(dl)]["since"] = 0
+    seen = []
+    w = I.Watcher(store)
+    w.watched[str(dl)] = object()
+    w.settle.touch = lambda p, moved=False: seen.append(os.path.relpath(p, dl))
+    for rel in ("a.mp4", "shoot/day/b.mov", "repo/c.png", "shoot/day/1/2/deep.mp4"):
+        f = dl / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_bytes(b"x")
+    w.catch_up(str(dl))
+    assert sorted(seen) == ["a.mp4", os.path.join("shoot", "day", "b.mov")]

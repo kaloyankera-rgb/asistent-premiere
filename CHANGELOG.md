@@ -31,6 +31,17 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.70 - Auto import: only real downloads (a folder 3 deep at most, never a repository)
+- **Bug found 2026-11-12**: Auto import had Downloads bound to NEW TEST (switched on at 00:30), and Asistent's repository sits
+  inside Downloads (Downloads/LOVDJIQ/04. AUDIO/MUSIC/Content Studio/tools/asistent). The 928 preview screenshots written
+  tonight were imported into NEW TEST (filed under MUSIC, from the path). Only NEW TEST got them; bound to a client project,
+  the vault's renders and frames would have gone into it.
+- Fix (`importer.wanted`): a file counts only up to 3 folders below the watched folder (an unzipped shoot,
+  Footage/Day 1/Cam A/clip.mp4, still does) and never inside a git repository or a node_modules / venv / .cache folder; the
+  catch-up after a restart no longer walks into those folders either (faster on a big Downloads).
+- NEW TEST keeps the imported screenshots (Asistent deletes nothing from a project): delete the bin by hand.
+- Tests: 2 pytest; 775 pytest + 24 skipped.
+
 ## 0.10.69 - Anchor: Anchor Studio in the Motion tab, Use alpha read by the engine (the user 2026-11-12)
 - The user: "we also need added anchor from our github we have it built, integrate it into our asistent ... if you find bugs or
   performance fixes apply them, if you can make it better also do it". Anchor Studio 0.3.1 (github kaloyankera-rgb/anchor-studio,
