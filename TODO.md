@@ -3,6 +3,14 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
+## N. The user's tweaks of 2026-11-12 (night)
+- [x] Tracker: range, Stop that keeps, go on (0.10.64). USER: drag the golden handles on a real clip, Stop mid-way, go on.
+- [ ] Keyframer: drag and shape custom curves (not only presets).
+- [ ] Anchor Studio into Asistent (github kaloyankera-rgb/anchor-studio), fixes and improvements.
+- [ ] Auto import: drop a folder on the panel to add it.
+- [ ] Captions tab: export the captions as a transcript.
+- [ ] Rough cut -> Remove silences only: the best silence cutter (levels, multi-POV, fast).
+
 ## SEG. Subtitle cuts by the delivery (0.10.61, the user 2026-11-12)
 - [ ] USER: press Make subtitles with a client style (GStroy, Credissimo, ЕКОПАК, Beauty Sector, AULA) or Auto on a real
   recording and say whether any word still waits for the next caption.
