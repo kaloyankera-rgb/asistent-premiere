@@ -3,16 +3,18 @@
 Installed 0.10.70 on 2026-11-12 11:30 (the user: "Install"). Tried in Premiere 2026 (NEW TEST, bridge): Cut silences on 26 clips
 (two cameras + lavalier L/R): 1:52 -> 0:59, 12 silences, 41 cloned pieces checked as written, 11 links, 1.2 s listening;
 Export transcript: 3 paragraphs next to the .srt, shown in Finder. Premiere 2027 loads 0.10.70 after its next restart.
+Pushed to GitHub (main) and published as release v0.10.70 on 2026-11-12 (the user: "Push the commit to github and get the update to
+the others"): installed Asistents (the editors were on 0.10.24) offer it in the panel.'s Update line.
 
-0.10.70 (2026-11-12, NOT installed yet): Auto import ignores files deeper than 3 folders and inside repositories.
+0.10.70 (2026-11-12, installed with 0.10.70): Auto import ignores files deeper than 3 folders and inside repositories.
 
-0.10.69 (2026-11-12, NOT installed yet): Anchor page (Anchor Studio) in Motion; Use alpha read by the engine.
+0.10.69 (2026-11-12, installed with 0.10.70): Anchor page (Anchor Studio) in Motion; Use alpha read by the engine.
 
-0.10.68 (2026-11-12, NOT installed yet): Keyframer Custom curves from points (Edit as points from any preset).
+0.10.68 (2026-11-12, installed with 0.10.70): Keyframer Custom curves from points (Edit as points from any preset).
 
-0.10.67 (2026-11-12, NOT installed yet): Auto import takes a folder dropped on its row (depends on Premiere passing the path: NOT tried).
+0.10.67 (2026-11-12, installed with 0.10.70): Auto import takes a folder dropped on its row (depends on Premiere passing the path: NOT tried).
 
-0.10.66 (2026-11-12, NOT installed yet): Captions tab Export transcript (.txt next to the .srt, With times).
+0.10.66 (2026-11-12, installed with 0.10.70): Captions tab Export transcript (.txt next to the .srt, With times).
 
 0.10.65 (2026-11-12, installed, engine measured on real NEW TEST media; NOT run in Premiere: a client project was open):
 Rough cut -> Silences (Cut silences): per-microphone levels + Silero, no recognition, multi-POV, 2.3 s for 388 s.
