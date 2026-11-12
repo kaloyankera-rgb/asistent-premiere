@@ -204,6 +204,44 @@ class Store:
             return it
 
 
+# 0.10.70: how deep below a watched folder a file still counts as a download (Downloads/<zip>/<day>/<camera>/clip.mp4), and
+# folders whose files never do. Found 2026-11-12: with Downloads watched for NEW TEST, the 928 preview screenshots written
+# deep inside the Content Studio vault (Downloads/LOVDJIQ/04. AUDIO/MUSIC/Content Studio/tools/asistent/preview/shots, so
+# filed under MUSIC) were imported; bound to a client project, the vault's renders and frames would have gone there.
+MAX_DEPTH = 3
+SKIP_DIRS = {".git", "node_modules", "venv", ".venv", "__pycache__", ".cache"}
+
+
+def _repo_root(path: str, top: str, cache: dict) -> bool:
+    """Is `path` inside a git repository below the watched folder `top`? (cached per folder)"""
+    d = os.path.dirname(path)
+    seen = []
+    while len(d) > len(top) and d.startswith(top):
+        if d in cache:
+            hit = cache[d]
+            break
+        seen.append(d)
+        if os.path.isdir(os.path.join(d, ".git")):
+            hit = True
+            break
+        d = os.path.dirname(d)
+    else:
+        hit = False
+    for x in seen:
+        cache[x] = hit
+    return hit
+
+
+def wanted(path: str, top: str, cache: dict | None = None) -> bool:
+    """A file under the watched folder `top` that may be a download: at most MAX_DEPTH folders below it, not inside a
+    skipped folder or a git repository (a work folder, not a download)."""
+    rel = os.path.relpath(path, top)
+    parts = rel.split(os.sep)
+    if rel.startswith("..") or len(parts) - 1 > MAX_DEPTH or any(p in SKIP_DIRS for p in parts[:-1]):
+        return False
+    return not _repo_root(path, top, {} if cache is None else cache)
+
+
 class Watcher:
     """Watches every enabled folder and turns finished downloads into queue items."""
 
@@ -213,6 +251,7 @@ class Watcher:
         self.fails: dict[str, int] = {}            # path -> unreadable attempts
         self.observer = None
         self.watched: dict[str, object] = {}
+        self._repos: dict[str, bool] = {}              # folder -> inside a git repository (wanted's cache)
         self._stop = threading.Event()
 
     # -- watchdog wiring
@@ -255,7 +294,10 @@ class Watcher:
     def catch_up(self, folder: str):
         """Files that arrived while the engine was not running (newer than the binding)."""
         since = self.store.data["bindings"][folder]["since"]
-        for root, _dirs, files in os.walk(folder):
+        for root, dirs, files in os.walk(folder):
+            depth = 0 if root == folder else os.path.relpath(root, folder).count(os.sep) + 1
+            # 0.10.70: not into work folders, repositories or deeper than a download goes (faster on a big Downloads too)
+            dirs[:] = [d for d in dirs if d not in SKIP_DIRS and depth < MAX_DEPTH and not os.path.isdir(os.path.join(root, d, ".git"))]
             for n in files:
                 p = os.path.join(root, n)
                 try:
@@ -266,6 +308,9 @@ class Watcher:
 
     def touch(self, path: str, moved: bool = False):
         if is_temp(path) or os.path.splitext(path)[1].lower() not in MEDIA:
+            return
+        top = next((f for f in self.watched if path.startswith(f.rstrip(os.sep) + os.sep)), None)
+        if top is not None and not wanted(path, top, self._repos):
             return
         self.settle.touch(path, moved)
 

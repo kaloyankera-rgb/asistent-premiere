@@ -11,6 +11,9 @@ warning became an error inside its C code and left it half set up, so Python cra
 it at exit (5 crash reports 2026-11-11/12, all from test runs started in the terminal, none from the engine, which never runs
 with -W error). `tests/conftest.py` imports it once with only that warning ignored; the real-model tests run again (12 pass).
 
+## Fixed in 0.10.70: Auto import took files from deep inside the watched folder (the vault's screenshots)
+See CHANGELOG 0.10.70. NEW TEST still holds the 928 imported screenshots (bin MUSIC): delete them by hand.
+
 ## Open bugs
 - **Open (2026-11-10, Premiere 26.5.2):** after `release_mac.sh` the old panel can stay loaded even when the panel is closed
   and opened ("Failed to add plugin as it already exists" in UXPLogs; 0.10.29 kept running after 0.10.30 installed). Removing
