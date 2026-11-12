@@ -8,7 +8,7 @@ const path = require("node:path");
 const { chromium } = require("playwright-core");
 
 const ROOT = path.resolve(__dirname, "..");                 // tools/asistent: /panel and /preview are served from here
-const SCENARIOS = ["idle", "offline", "busy", "done", "error", "log", "color", "beforeafter", "captions", "review", "search", "learned", "open", "update", "nudge", "exports", "afterexport", "keyframer", "keyframer-elastic", "keyframer-bounce", "keyframer-stash", "tracker", "tracker-lock", "tracker-empty", "tracker-box", "tracker-busy", "tracker-range", "row-open", "settings", "log-page"];
+const SCENARIOS = ["idle", "offline", "busy", "done", "error", "log", "color", "beforeafter", "captions", "review", "search", "learned", "open", "update", "nudge", "exports", "afterexport", "keyframer", "keyframer-elastic", "keyframer-bounce", "keyframer-custom", "keyframer-stash", "tracker", "tracker-lock", "tracker-empty", "tracker-box", "tracker-busy", "tracker-range", "row-open", "settings", "log-page"];
 const WIDTHS = [240, 300, 420];
 const HEIGHT = Number(process.env.HEIGHT) || 760;
 const NOISE = 250;                                           // run-to-run anti-aliasing differs by up to ~150 pixels                                          // tall enough to see most of the Tools view at once

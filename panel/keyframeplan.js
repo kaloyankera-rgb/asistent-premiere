@@ -109,6 +109,7 @@ function ease(curve, x) {
   if (Array.isArray(curve)) return progress(curve, x);
   if (x <= 0) return 0;
   if (x >= 1) return 1;
+  if (curve.kind === "points") return pointsAt(curve.pts, x);
   if (curve.kind === "elastic") return shaped((t) => elasticOut(t, curve.n, curve.over), curve.dir, x);
   if (curve.kind === "bounce") return shaped((t) => bounceOut(t, curve.n, curve.h), curve.dir, x);
   return progress(curve.p, x);
@@ -221,9 +222,97 @@ function afterKeys(anchors, curve, step, until) {
   return add;
 }
 
+// ---------------------------------------------------------------- custom curves from points (0.10.68)
+// The user (2026-11-12): "we need to be able to move and make custom motion curves not only see them as a preview from the
+// presets". A curve through points the editor places and drags: from (0, 0) to (1, 1) through 1..MAX_POINTS (16) points
+// [x, y] (x = time, strictly forward; y = progress, may overshoot to -0.5 .. 1.5), smooth (cubic Hermite, Catmull-Rom
+// slopes, flat-free one-sided slopes at the ends). It is a function of time, so a frame's value needs no solving.
+const MAX_POINTS = 16;
+const MIN_GAP = 0.01;
+
+function pointsOk(pts) {
+  if (!Array.isArray(pts) || pts.length < 1 || pts.length > MAX_POINTS) return false;
+  let last = 0;
+  for (const q of pts) {
+    if (!Array.isArray(q) || (q.length !== 2 && q.length !== 3) || !q.slice(0, 2).every(Number.isFinite)) return false;
+    if (q.length === 3 && q[2] !== 1 && q[2] !== 0) return false;
+    if (q[0] < last + MIN_GAP || q[0] > 1 - MIN_GAP || q[1] < -0.5 || q[1] > 1.5) return false;
+    last = q[0];
+  }
+  return true;
+}
+
+function pointsAt(pts, x) {
+  const k = [[0, 0], ...pts, [1, 1]];
+  let i = 0;
+  while (i < k.length - 2 && x > k[i + 1][0]) i++;
+  // a point's slope: smooth (Catmull-Rom), or at a corner ([x, y, 1]: a bounce's hit) the slope of the side being drawn
+  const slope = (j, side) => {
+    const corner = k[j].length === 3 && k[j][2] === 1;
+    const a = k[Math.max(0, corner && side > 0 ? j : j - 1)];
+    const b = k[Math.min(k.length - 1, corner && side < 0 ? j : j + 1)];
+    return (b[1] - a[1]) / (b[0] - a[0]);
+  };
+  const [x0, y0] = k[i];
+  const [x1, y1] = k[i + 1];
+  const h = x1 - x0;
+  const t = (x - x0) / h;
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return (2 * t3 - 3 * t2 + 1) * y0 + (t3 - 2 * t2 + t) * h * slope(i, 1) + (-2 * t3 + 3 * t2) * y1 + (t3 - t2) * h * slope(i + 1, -1);
+}
+
+/** Any between-keys curve as points to drag ("Edit as points"): the fewest points (at most `most`: few enough to drag;
+ * the editor may add up to MAX_POINTS) whose curve stays within `tol` of the original at 200 samples, corners first. */
+function toPoints(curve, tol = 0.02, most = null) {
+  const n = 200;
+  const xs = Array.from({ length: n + 1 }, (_, i) => i / n);
+  const ys = xs.map((x) => ease(curve, x));
+  const keep = new Set([0, n]);
+  // a corner where the direction jumps (a bounce hitting the target): the slopes on its two sides differ a lot
+  const d = (i) => (ys[i + 1] - ys[i]) * n;
+  // (a smooth peak, as Elastic's, is nearly flat on both sides; a hit is steep on both)
+  const corner = (i) => i > 1 && i < n - 1 && Math.sign(d(i)) !== Math.sign(d(i - 1)) && Math.min(Math.abs(d(i)), Math.abs(d(i - 1))) > 0.3;
+  const corners = [];
+  for (let i = 2; i < n - 1; i++) if (corner(i)) corners.push(i);
+  // few enough to drag: 10, more for a curve with many hits (two points per hop keep its shape)
+  most = most || Math.min(MAX_POINTS, Math.max(10, 2 * corners.length + 4));
+  for (const i of corners.slice(0, most)) keep.add(i);                                       // every corner first
+  const worst = () => {
+    const pts = [...keep].sort((a, b) => a - b).filter((i) => i !== 0 && i !== n).map((i) => (corner(i) ? [xs[i], ys[i], 1] : [xs[i], ys[i]]));
+    let at = -1;
+    let err = 0;
+    for (let i = 1; i < n; i++) {
+      const e = Math.abs((pts.length ? pointsAt(pts, xs[i]) : xs[i]) - ys[i]);
+      if (e > err) {
+        err = e;
+        at = i;
+      }
+    }
+    return { at, err, pts };
+  };
+  let w = worst();
+  while (w.err > tol && keep.size - 2 < most && w.at > 0) {
+    keep.add(w.at);
+    w = worst();
+  }
+  const pts = w.pts.length ? w.pts : [[0.5, ease(curve, 0.5)]];
+  const out = [];
+  for (const q of pts.map((r) => [Math.round(r[0] * 1000) / 1000, Math.round(Math.max(-0.5, Math.min(1.5, r[1])) * 1000) / 1000, ...(r[2] ? [1] : [])])) {
+    const prev = out[out.length - 1];
+    if (prev && q[0] < prev[0] + MIN_GAP) {                // two points too close: a corner wins (a bounce's hit stays sharp)
+      if (q[2] && !prev[2]) out[out.length - 1] = q;
+      continue;
+    }
+    out.push(q);
+  }
+  return out;
+}
+
 function curveOk(c) {
   if (Array.isArray(c)) return validCurve(c);
   if (!c) return false;
+  if (c.kind === "points") return pointsOk(c.pts);
   if (c.kind === "overshoot") return c.amp > 0 && c.amp <= 500 && c.freq > 0 && c.freq <= 20 && c.decay > 0 && c.decay <= 50;
   if (c.kind === "bounceBack") return c.elast > 0 && c.elast < 100 && c.grav > 0 && c.grav <= 500 && Number.isInteger(c.max) && c.max >= 1 && c.max <= 30;
   if (c.kind === "elastic") return Number.isInteger(c.n) && c.n >= 1 && c.n <= 8 && c.over > 0 && c.over < 1;
@@ -371,4 +460,4 @@ function samplePath(curve, size, pad, n = 120) {
   return `M ${pts.join(" L ")}`;
 }
 
-module.exports = { afterOffset, afterValueAt, afterKeys, afterLength, AFTER_KINDS, PRESETS, NATIVE, MAX_KEYS, progress, ease, curveOk, validCurve, lerp, bake, plan, valueAt, repeatKeys, curvePath, samplePath };
+module.exports = { MAX_POINTS, pointsOk, pointsAt, toPoints, afterOffset, afterValueAt, afterKeys, afterLength, AFTER_KINDS, PRESETS, NATIVE, MAX_KEYS, progress, ease, curveOk, validCurve, lerp, bake, plan, valueAt, repeatKeys, curvePath, samplePath };

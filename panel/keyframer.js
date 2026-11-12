@@ -9,8 +9,8 @@ const store = require("./store.js");
 const ST = require("./premiere-stash.js");
 const engine = require("./engine.js");
 
-const SIZE = 200;
-const PAD = 50;                         // room above and below for Overshoot (y from -0.5 to 1.5 is visible)
+const SIZE = 240;
+const PAD = 60;                         // room above and below for Overshoot (y from -0.5 to 1.5 is visible); 0.10.68: 120 px to drag in
 const MINE = "asistent.keyframer.curves";
 
 function mount({ $, el, button, enable, bindTips, premiere }) {
@@ -23,7 +23,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   };
   const state = {
     curve: { id: "easeInOut", p: K.PRESETS[0].p.slice() }, sel: null, ticked: new Set(), busy: false,
-    kind: "curve",                                            // curve | elastic | bounce | overshoot | bounceBack
+    kind: "curve",                                            // curve | elastic | bounce | overshoot | bounceBack | points
+    points: [[0.5, 0.5]],                                     // 0.10.68: the Custom curve's points [x, y(, 1 = corner)]
     spring: { dir: "end", elastic: { n: 2, over: 20 }, bounce: { n: 3, h: 50 } },
     // 0.10.45: the user's reference (BOUNCr in After Effects), its settings as defaults
     after: { overshoot: { amp: 50, freq: 2, decay: 4 }, bounceBack: { elast: 50, grav: 50, max: 10 } },
@@ -58,6 +59,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     `<line id="kfL1" class="kf-arm"/><line id="kfL2" class="kf-arm"/>` +
     `<path id="kfPath" class="kf-curve"/>` +
     `<circle id="kfH1" class="kf-handle" r="7"/><circle id="kfH2" class="kf-handle" r="7"/>` +
+    `<g id="kfPts"></g>` +
     "</svg>";
   host.appendChild(box);
   const curveName = el("div", "muted");
@@ -71,6 +73,15 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   curveRows.appendChild(natives);
   const mineRow = el("div", "row wrap kf-presets");
   curveRows.appendChild(mineRow);
+  // 0.10.68 (the user: "move and make custom motion curves, not only see them as a preview"): Edit as points turns the curve
+  // shown into points to drag (Custom); the Custom curve's own row
+  const editRow = el("div", "row wrap kf-presets");
+  host.appendChild(editRow);
+  const pointsRows = el("div", "");
+  host.appendChild(pointsRows);
+  pointsRows.appendChild(el("div", "muted", "Click the graph to add a point, drag points anywhere (time runs left to right), double-click a point to remove it, Alt-click it for a sharp corner."));
+  const pointsBtns = el("div", "row wrap kf-presets");
+  pointsRows.appendChild(pointsBtns);
   const springRows = el("div", "");                         // Elastic and Bounce: where, how many, how strong
   host.appendChild(springRows);
   const dirRow = el("div", "row wrap kf-presets");
@@ -205,6 +216,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     if (state.kind === "bounce") return { kind: "bounce", dir: state.spring.dir, n: state.spring.bounce.n, h: state.spring.bounce.h / 100 };
     if (state.kind === "overshoot") return { kind: "overshoot", ...state.after.overshoot };
     if (state.kind === "bounceBack") return { kind: "bounceBack", ...state.after.bounceBack };
+    if (state.kind === "points") return { kind: "points", pts: state.points.map((q) => q.slice()) };
     const nat = K.NATIVE.find((n) => n.id === state.curve.id);
     return nat ? { mode: nat.mode } : { p: state.curve.p };
   }
@@ -215,8 +227,13 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     mark(dirRow, state.spring.dir);
     mark(repeatRow, state.repeat.mode);
     const after = state.kind === "overshoot" || state.kind === "bounceBack";
+    const custom = state.kind === "points";
     curveRows.hidden = state.kind !== "curve";
-    springRows.hidden = state.kind === "curve" || after;
+    springRows.hidden = state.kind === "curve" || after || custom;
+    pointsRows.hidden = !custom;
+    // Edit as points: any curve between two keyframes (Overshoot+ / Bounce Back move after the key: they keep their settings)
+    editRow.hidden = custom || after || (state.kind === "curve" && K.NATIVE.some((n) => n.id === state.curve.id));
+    drawPoints(custom);
     afterRows.hidden = !after;
     for (const r of afterSteps) if (r.refresh) r.refresh();
     timesRow.hidden = state.repeat.mode === "off";
@@ -228,6 +245,13 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       svg.style.opacity = "1";
       const c = chosen();
       box.querySelector("#kfPath").setAttribute("d", K.samplePath(c, SIZE, PAD));
+      if (custom) {
+        const named = mine().find((m) => m.pts && JSON.stringify(m.pts) === JSON.stringify(state.points));
+        curveName.textContent = `${named ? named.name : "Custom"}: ${state.points.length} ${state.points.length === 1 ? "point" : "points"}` +
+          `${state.points.some((q) => q[2]) ? `, ${state.points.filter((q) => q[2]).length} sharp` : ""} (baked as one keyframe per frame)`;
+        mark(mineRow, named ? named.id : "");
+        return;
+      }
       if (after) {
         curveName.textContent = c.kind === "overshoot"
           ? `Overshoot+: amplitude ${c.amp}, frequency ${c.freq}, decay ${c.decay} (after the last keyframe)`
@@ -294,16 +318,116 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   svg.addEventListener("pointerup", stop);
   svg.addEventListener("pointercancel", stop);
 
+  // ---- the Custom curve's points (0.10.68): circles, a corner as a square; drawn from the state each time
+  const ptsG = box.querySelector("#kfPts");
+  let ptDrag = -1;                                            // the point being dragged (-1: none)
+  function drawPoints(on) {
+    while (ptsG.firstChild) ptsG.removeChild(ptsG.firstChild);
+    if (!on) return;
+    state.points.forEach((q, i) => {
+      const shape = document.createElementNS("http://www.w3.org/2000/svg", q[2] ? "rect" : "circle");
+      if (q[2]) {
+        shape.setAttribute("x", (X(q[0]) - 5).toFixed(1));
+        shape.setAttribute("y", (Y(q[1]) - 5).toFixed(1));
+        shape.setAttribute("width", "10");
+        shape.setAttribute("height", "10");
+      } else {
+        shape.setAttribute("cx", X(q[0]).toFixed(1));
+        shape.setAttribute("cy", Y(q[1]).toFixed(1));
+        shape.setAttribute("r", "6");
+      }
+      shape.setAttribute("class", i === ptDrag ? "kf-handle kf-pt on" : "kf-handle kf-pt");
+      ptsG.appendChild(shape);
+    });
+  }
+  const toCurve = (lx, ly) => [(lx - PAD) / (SIZE - 2 * PAD), (SIZE - PAD - ly) / (SIZE - 2 * PAD)];
+  const nearest = (lx, ly) => {
+    let best = -1;
+    let d = 12;                                              // px: a point within this is grabbed
+    state.points.forEach((q, i) => {
+      const e = Math.hypot(X(q[0]) - lx, Y(q[1]) - ly);
+      if (e < d) {
+        d = e;
+        best = i;
+      }
+    });
+    return best;
+  };
+  let lastDown = { at: 0, i: -1 };
+  svg.addEventListener("pointerdown", (e) => {
+    if (state.kind !== "points") return;
+    const [lx, ly] = local(e);
+    let i = nearest(lx, ly);
+    const now = Date.now();
+    if (i >= 0 && lastDown.i === i && now - lastDown.at < 350) {        // double-click (UXP may send no dblclick): remove
+      if (state.points.length > 1) state.points.splice(i, 1);
+      lastDown = { at: 0, i: -1 };
+      draw();
+      return;
+    }
+    lastDown = { at: now, i };
+    if (i >= 0 && e.altKey) {                                           // Alt-click: a sharp corner, or smooth again
+      const q = state.points[i];
+      state.points[i] = q[2] ? [q[0], q[1]] : [q[0], q[1], 1];
+      draw();
+      return;
+    }
+    if (i < 0) {                                                        // a new point where the graph was clicked
+      const [x, y] = toCurve(lx, ly);
+      if (x <= 0.02 || x >= 0.98 || state.points.length >= K.MAX_POINTS) return;
+      if (state.points.some((q) => Math.abs(q[0] - x) < 0.015)) return;
+      state.points.push([x, Math.min(1.5, Math.max(-0.5, y))]);
+      state.points.sort((a, b) => a[0] - b[0]);
+      i = state.points.findIndex((q) => q[0] === x);
+    }
+    ptDrag = i;
+    try {
+      svg.setPointerCapture(e.pointerId);
+    } catch (err) { /* follows inside the box */ }
+    draw();
+  });
+  svg.addEventListener("pointermove", (e) => {
+    if (ptDrag < 0) return;
+    const [lx, ly] = local(e);
+    const [x, y] = toCurve(lx, ly);
+    const lo = ptDrag > 0 ? state.points[ptDrag - 1][0] + 0.012 : 0.012;            // time only runs forward
+    const hi = ptDrag < state.points.length - 1 ? state.points[ptDrag + 1][0] - 0.012 : 0.988;
+    const q = state.points[ptDrag];
+    state.points[ptDrag] = [Math.min(hi, Math.max(lo, x)), Math.min(1.5, Math.max(-0.5, y)), ...(q[2] ? [1] : [])];
+    draw();
+  });
+  const ptStop = () => {
+    ptDrag = -1;
+    if (state.kind === "points") draw();
+  };
+  svg.addEventListener("pointerup", ptStop);
+  svg.addEventListener("pointercancel", ptStop);
+  svg.addEventListener("dblclick", (e) => {
+    if (state.kind !== "points") return;
+    const i = nearest(...local(e));
+    if (i >= 0 && state.points.length > 1) {
+      state.points.splice(i, 1);
+      draw();
+    }
+  });
+
   function mine() {
     try {
-      return (JSON.parse(store.getItem(MINE) || "[]") || []).filter((c) => K.validCurve(c.p));
+      return (JSON.parse(store.getItem(MINE) || "[]") || []).filter((c) => (c.pts ? K.pointsOk(c.pts) : K.validCurve(c.p)));
     } catch (e) {
       return [];
     }
   }
 
   function pick(c) {
+    if (c.pts) {                                              // a saved Custom curve (0.10.68)
+      state.kind = "points";
+      state.points = c.pts.map((q) => q.slice());
+      draw();
+      return;
+    }
     state.curve = { id: c.id, p: (c.p || state.curve.p).slice(), mode: c.mode };
+    if (state.kind === "points") state.kind = "curve";
     draw();
   }
 
@@ -327,11 +451,15 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       mineRow.appendChild(b);
     }
     mineRow.appendChild(button("link", "Save this curve", "Keeps the curve in the editor under My curve N (for every project).", () => {
-      if (K.NATIVE.some((n) => n.id === state.curve.id)) return say("Choose or drag a curve first: Premiere's own ones cannot be saved.", "warn");
+      const custom = state.kind === "points";
+      if (!custom && K.NATIVE.some((n) => n.id === state.curve.id)) return say("Choose or drag a curve first: Premiere's own ones cannot be saved.", "warn");
       const all = mine();
-      const c = { id: `mine${Date.now()}`, name: `My curve ${all.length + 1}`, p: state.curve.p.map((v) => Math.round(v * 1000) / 1000) };
+      const c = custom
+        ? { id: `mine${Date.now()}`, name: `My curve ${all.length + 1}`, pts: state.points.map((q) => [Math.round(q[0] * 1000) / 1000, Math.round(q[1] * 1000) / 1000, ...(q[2] ? [1] : [])]) }
+        : { id: `mine${Date.now()}`, name: `My curve ${all.length + 1}`, p: state.curve.p.map((v) => Math.round(v * 1000) / 1000) };
       store.setItem(MINE, JSON.stringify([...all, c]));
-      state.curve = { id: c.id, p: c.p.slice() };
+      if (custom) state.points = c.pts.map((q) => q.slice());
+      else state.curve = { id: c.id, p: c.p.slice() };
       fillPresets();
       draw();
       say(`Saved as ${c.name}.`);
@@ -358,11 +486,26 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       ["bounce", "Bounce", "Drops onto the target and bounces back in smaller and smaller hops, never past it."],
       ["overshoot", "Overshoot+", "As BOUNCr's Overshoot+: the move arrives at full speed, swings past the target and settles. The motion is added after your last keyframe."],
       ["bounceBack", "Bounce Back", "As BOUNCr's Bounce Back: the move hits the target and bounces back toward where it came from, smaller each time, never past it."],
+      ["points", "Custom", "Your own curve from points: click to add, drag, double-click to remove. Edit as points under any curve starts from it."],
     ]) {
       const b = button("small", name, help, () => { state.kind = id; draw(); });
       b.setAttribute("data-id", id);
       kinds.appendChild(b);
     }
+    editRow.appendChild(button("small", "Edit as points", "Turns the curve shown into points you can drag (Custom): add, move or remove points to make it your own. The preset itself stays as it was.", () => {
+      state.points = K.toPoints(chosen());
+      state.kind = "points";
+      draw();
+      say(`${state.points.length} points: drag them to shape the motion.`);
+    }));
+    pointsBtns.appendChild(button("small", "Straight", "Starts again from one point in the middle (a straight, even move).", () => {
+      state.points = [[0.5, 0.5]];
+      draw();
+    }));
+    pointsBtns.appendChild(button("small", "Smooth all", "Makes every sharp corner smooth again.", () => {
+      state.points = state.points.map((q) => [q[0], q[1]]);
+      draw();
+    }));
     for (const [id, name, help] of [
       ["end", "At the end", "The wobble or the hops happen as the move arrives (the usual bounce in)."],
       ["start", "At the start", "The move winds up first, then goes (the mirror of At the end)."],

@@ -31,6 +31,23 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.68 - Keyframer: Custom curves you shape with points (the user 2026-11-12)
+- The user: "for the keyframer we need to be able to move and make custom motion curves not only see them as a preview from the
+  presets we have". Until now only the plain Curve's two Bézier handles could be dragged; Elastic, Bounce and the others were
+  a picture.
+- **Custom**: a curve through points you place: click the graph to add one, drag it anywhere (time only runs left to right,
+  progress may overshoot from -50 % to 150 %), double-click to remove it, Alt-click for a sharp corner (a hit, as in a bounce);
+  Straight starts again, Smooth all removes the corners. Up to 16 points; smooth between them (cubic Hermite, Catmull-Rom
+  slopes), one-sided at a corner. Baked like every curve: one keyframe per frame between your keyframes, Repeat works.
+- **Edit as points** under Curve, Elastic and Bounce turns the curve shown into a few points to drag (3-4 for an ease, 8-14
+  for an elastic or a bounce with its hits as sharp corners; within 2-4 % of the preset), so any preset is a starting point.
+  Overshoot+ and Bounce Back move after the last keyframe and keep their settings.
+- Save this curve keeps Custom curves too (My curve N, every project). The editor's drawing area is bigger (120 px).
+- Tried in the browser preview with real mouse events: add, drag (lands on the spot), Alt-click corner, double-click remove,
+  a point dragged past the end stays inside. NOT tried in Premiere (a client project was open): UXP's pointer events were
+  probed in 0.10.31; a double-click is also detected by hand (two presses within 0.35 s) in case UXP sends none.
+- Tests: 4 node (keyframeplan: through the points, corners, refusals, Edit as points accuracy, baking and repeat).
+
 ## 0.10.67 - Auto import: drop a folder on the row to watch it (the user 2026-11-12)
 - The user: "another way of syncing folders ... just dragging the folder and dropping it on top of the area of upload for the
   sync auto import". The Auto import row is a drop target: it lights up (dashed golden edge, tinted) while something is held
