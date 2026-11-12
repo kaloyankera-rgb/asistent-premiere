@@ -4,7 +4,7 @@ Installed 0.10.70 on 2026-11-12 11:30 (the user: "Install"). Tried in Premiere 2
 (two cameras + lavalier L/R): 1:52 -> 0:59, 12 silences, 41 cloned pieces checked as written, 11 links, 1.2 s listening;
 Export transcript: 3 paragraphs next to the .srt, shown in Finder. Premiere 2027 loads 0.10.70 after its next restart.
 Pushed to GitHub (main) and published as release v0.10.70 on 2026-11-12 (the user: "Push the commit to github and get the update to
-the others"): installed Asistents (the editors were on 0.10.24) offer it in the panel.'s Update line.
+the others"): installed Asistents (the editors were on 0.10.24) offer it in the panel's Update line.
 
 0.10.70 (2026-11-12, installed with 0.10.70): Auto import ignores files deeper than 3 folders and inside repositories.
 
