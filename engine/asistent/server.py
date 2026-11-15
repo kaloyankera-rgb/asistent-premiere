@@ -18,6 +18,7 @@ drive the engine. The Host header is checked against DNS rebinding.
   GET  /host/poll?wait=s     the Premiere host (CEP extension, ExtendScript): the next command; GET /host/status
   POST /host/result          {id, ok, data} from the host
   POST /anchor/alpha        {path, threshold?, invert?} -> {width, height, bounds, alpha}: visible pixels of a still (0.10.69)
+  POST /anchor/drawn        {before, after} -> {width, height, hull, bounds}: what one clip draws (two renders, 0.10.91)
   POST /subtitles/transcript {json, times?} -> {path, paragraphs}: the subtitles as a .txt next to the SRT, shown in Finder (0.10.66)
   POST /subtitles/review     {json} -> what to check per caption line (review.py; reads the run's JSON, changes nothing)
   GET  /panel/store         the panel's settings {values}; POST /panel/store {key, value|null} (survive panel updates)
@@ -60,6 +61,16 @@ drive the engine. The Host header is checked against DNS rebinding.
                               (pre-export check, read only; exportcheck.py)
   POST /audio/route          {"items": [{track, start, end, route}], "sequence", "project"?} -> through the host:
                               L/L and R/R subclips placed and linked (host.jsx as_audio_route); {"ok", "items"}
+  GET  /brand/kits?project=  brand kits (brandkit.py, 0.10.71): {kits, detected, why, roots, missing}; the client from the project
+  GET  /brand/kit?id=&project=&sig=   one kit: colours, fonts, assets by category, subtitle preset, notes; {unchanged} when sig matches
+  POST /brand/thumbs {id, rels} -> {thumbs: {rel: data URI|null}};  POST /brand/resolve {id, rel, project} -> {path, cached, note?}
+  POST /brand/favorite {id, rel, on};  POST /brand/copy {text} (clipboard);  POST /brand/reveal {id, rel?};  POST /brand/open {id, rel}
+  POST /brand/font {id, family} installs the kit's TTF/OTF of that family for this user
+  POST /brand/manage {action, ...}: create, duplicate, rename, delete (moved to "_Deleted kits"), forget, aliases, color_add,
+                              color_remove, subtitle, add_folder, set_root, remove_root
+  POST /brand/add {id, paths, category?} -> job: the files COPIED into the kit (a name that exists gets " (2)")
+  POST /brand/mogrt {path, sequence, guid, project, seconds, video} -> through the host: a MOGRT placed (host.jsx as_brand_mogrt)
+  POST /brand/color {hex, sequence, guid, project, index?} -> through the host: the selected MOGRTs' colour control set
   GET  /jobs/<id>            state, progress, message, result
   POST /jobs/<id>/cancel
   POST /jobs/<id>/stop      finish now and keep what is done (the tracker, 0.10.63)
@@ -109,6 +120,7 @@ from . import color as COLOR
 from . import exportcheck as EXPORTCHECK
 from . import colorlearn
 from . import stash as STASH
+from . import brandkit as BRAND
 from . import tracker as TRACKER
 from . import transcript
 from . import anchoralpha
@@ -307,6 +319,60 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("Invalid request.")
         return data
 
+    def _brand(self, body: dict) -> dict | None:
+        """The Brand page (0.10.71): brandkit.py, plus the two host commands that need ExtendScript."""
+        project = body.get("project") if isinstance(body.get("project"), str) else ""
+        kid = str(body.get("id") or "")
+        if self.path == "/brand/thumbs":
+            return BRAND.thumbs(kid, body.get("rels") or [], project)
+        if self.path == "/brand/resolve":
+            return BRAND.resolve(kid, str(body.get("rel") or ""), project)
+        if self.path == "/brand/favorite":
+            return BRAND.favorite(kid, str(body.get("rel") or ""), bool(body.get("on")))
+        if self.path == "/brand/copy":
+            return BRAND.copy_text(str(body.get("text") or ""))
+        if self.path == "/brand/reveal":
+            return BRAND.reveal(kid, str(body.get("rel") or ""), project)
+        if self.path == "/brand/open":
+            return BRAND.open_file(kid, str(body.get("rel") or ""), project)
+        if self.path == "/brand/font":
+            return BRAND.install_font(kid, str(body.get("family") or ""), project)
+        if self.path == "/brand/manage":
+            res = BRAND.manage(str(body.get("action") or ""), body, project)
+            log.info("brand/manage %s: %s", body.get("action"), {k: v for k, v in res.items() if k != "roots"})
+            return res
+        if self.path == "/brand/add":
+            plan = BRAND.plan_add(kid, body.get("paths"), str(body.get("category") or ""), project)
+
+            def work(job):
+                def progress(f, msg):
+                    job.progress, job.message = f, msg
+                res = BRAND.add_files(plan, progress, lambda: job.cancelled)
+                log.info("brand/add: %d of %d files into %s", len(res["added"]), res["total"], kid)
+                return res
+
+            return {"job": JOBS.submit("brand_add", work).id, "count": len(plan)}
+        if self.path in ("/brand/mogrt", "/brand/color"):
+            seq = body.get("sequence")
+            if not isinstance(seq, str) or not seq:
+                raise ValueError("The sequence is missing.")
+            args = {"sequence": seq, "guid": _guid(body), "project": project or None}
+            if self.path == "/brand/mogrt":
+                path = body.get("path")
+                if not isinstance(path, str) or not path.lower().endswith(".mogrt") or not os.path.isfile(path):
+                    raise ValueError("The MOGRT file is missing.")
+                args.update(path=path, seconds=float(body.get("seconds") or 0), video=int(body.get("video") or 0))
+                res = hostbridge.run("brand_mogrt", args)
+            else:
+                hexv = str(body.get("hex") or "")
+                if not re.fullmatch(r"#[0-9A-Fa-f]{6}", hexv):
+                    raise ValueError("A colour is written as #RRGGBB.")
+                args.update(hex=hexv, index=int(body.get("index") or 0))
+                res = hostbridge.run("brand_color", args)
+            log.info("%s: %s", self.path, res)
+            return res
+        return None
+
     def do_OPTIONS(self):
         self.send_response(403)
         self.end_headers()
@@ -353,6 +419,15 @@ class Handler(BaseHTTPRequestHandler):
         if url.path == "/stash/get":
             try:
                 return self._send(200, STASH.get((parse_qs(url.query).get("id") or [""])[0]))
+            except ValueError as e:
+                return self._send(404, {"error": str(e)})
+        if url.path in ("/brand/kits", "/brand/kit"):
+            q = parse_qs(url.query)
+            project = (q.get("project") or [""])[0]
+            try:
+                if url.path == "/brand/kits":
+                    return self._send(200, BRAND.list_kits(project))
+                return self._send(200, BRAND.read_kit((q.get("id") or [""])[0], project, (q.get("sig") or [""])[0] or None))
             except ValueError as e:
                 return self._send(404, {"error": str(e)})
         if url.path == "/colorlearn/report":
@@ -581,6 +656,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, STASH.delete(str(body.get("id") or "")))
             if self.path == "/stash/rename":
                 return self._send(200, STASH.rename(str(body.get("id") or ""), str(body.get("name") or "")))
+            if self.path.startswith("/brand/"):
+                res = self._brand(body)
+                if res is not None:
+                    return self._send(200, res)
             if self.path == "/colorlearn/record":
                 return self._send(200, colorlearn.queue_export(body.get("project") or "", body.get("sequence") or "",
                                                                body.get("clips") or []))
@@ -589,6 +668,13 @@ class Handler(BaseHTTPRequestHandler):
                 if not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
                     raise ValueError("A list of files is needed.")
                 return self._send(200, EXPORTCHECK.frames(paths))
+            if self.path == "/anchor/drawn":
+                # 0.10.91: what a text made in Premiere draws: the frame as it is against the frame with the clip hidden
+                folder = os.path.realpath(os.path.join(config.app_dir(), "frames"))
+                pair = [os.path.realpath(str(body.get(k) or "")) for k in ("before", "after")]
+                if any(os.path.dirname(q) != folder for q in pair):
+                    raise ValueError("The frames must be in the engine's frames folder.")
+                return self._send(200, anchoralpha.drawn(pair[0], pair[1]))
             if self.path == "/anchor/alpha":
                 # 0.10.69: the visible-pixel bounds of a still with transparency (the Anchor page's Use alpha)
                 return self._send(200, anchoralpha.bounds(body.get("path"), body.get("threshold", 1), bool(body.get("invert"))))
@@ -716,6 +802,8 @@ class Handler(BaseHTTPRequestHandler):
                 if os.path.dirname(want) != folder:
                     raise ValueError("The frame must be in the engine's frames folder.")
                 timeout = min(max(float(body.get("timeout") or 15), 0.5), 60)
+                if body.get("png"):                              # 0.10.92: complete as soon as the PNG's IEND is there
+                    return self._send(200, {"path": anchoralpha.ready(want, timeout)})
                 return self._send(200, {"path": COLOR._wait_file(want, timeout)})
             if self.path == "/color/check":
                 before = COLOR._wait_file(str(body.get("before") or ""), 4.0)

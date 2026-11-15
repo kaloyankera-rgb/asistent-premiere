@@ -8,10 +8,43 @@ const KF = require("./premiere-keyframes.js");
 const store = require("./store.js");
 const ST = require("./premiere-stash.js");
 const engine = require("./engine.js");
+const B = require("./blurplan.js");
 
 const SIZE = 240;
 const PAD = 60;                         // room above and below for Overshoot (y from -0.5 to 1.5 is visible); 0.10.68: 120 px to drag in
+// 0.10.78: time never leaves 0..1, so the sides need only a handle's room: the drawing is cut to 12 px each side (a viewBox),
+// which makes space for the preview on the right; the curve's own coordinates stay as they were
+const CUT = PAD - 12;
 const MINE = "asistent.keyframer.curves";
+const LIVE = "asistent.keyframer.live";       // 0.10.72: "1" (default) = a changed setting re-applies on the clip last applied
+const LIVE_WAIT = 500;                         // ms after the last change (a drag: after it ends)
+const BLUR = "asistent.keyframer.blur";        // 0.10.78: {on, amount} remembered for every project
+const PV_W = 148;                              // the preview's drawing (px)
+const PV_H = 104;
+const PV_GHOSTS = 8;                           // moments a blurred frame is drawn from (Premiere averages its window too)
+const PLAY_ICON = "M4 2.2v9.6L12 7z";
+const REPLAY_ICON = "M7 1.5a5.5 5.5 0 1 1-5.2 7.3l1.5-.5A4 4 0 1 0 4.4 4L6 5.6H1.5V1.1l1.8 1.8A5.5 5.5 0 0 1 7 1.5z";
+
+// 0.10.77: let go of a captured pointer by hand (UXP seemed to keep it after the release, and the next presses on the
+// page's buttons went here)
+const release = (node, e) => {
+  try {
+    if (e && e.pointerId !== undefined) node.releasePointerCapture(e.pointerId);
+  } catch (err) { /* not captured */ }
+};
+
+const clampAmount = (v) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : B.DEFAULT_AMOUNT;
+};
+// the last motion blur choice (off and 50 % the first time)
+function readBlur() {
+  try {
+    const b = JSON.parse(store.getItem(BLUR) || "null");
+    if (b && typeof b === "object") return { on: !!b.on, amount: clampAmount(b.amount) };
+  } catch (e) { /* the default */ }
+  return { on: false, amount: B.DEFAULT_AMOUNT };
+}
 
 function mount({ $, el, button, enable, bindTips, premiere }) {
   const root = $("paneKeyframer");
@@ -29,6 +62,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     // 0.10.45: the user's reference (BOUNCr in After Effects), its settings as defaults
     after: { overshoot: { amp: 50, freq: 2, decay: 4 }, bounceBack: { elast: 50, grav: 50, max: 10 } },
     repeat: { mode: "off", times: 0 },                        // times 0 = until the clip ends
+    blur: readBlur(),                                         // 0.10.78
   };
 
   root.innerHTML = "";
@@ -53,15 +87,61 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   host.appendChild(el("div", "title spaced", "Motion"));
   const kinds = el("div", "row wrap kf-presets");
   host.appendChild(kinds);
+  // 0.10.78: the curve on the left, the live preview and the motion blur on the right (under it when the panel is narrow)
+  const stage = el("div", "row kf-stage");
+  host.appendChild(stage);
   const box = el("div", "kf-editor");
-  box.innerHTML = `<svg id="kfSvg" width="${SIZE}" height="${SIZE}">` +
+  box.innerHTML = `<svg id="kfSvg" width="${SIZE - 2 * CUT}" height="${SIZE}" viewBox="${CUT} 0 ${SIZE - 2 * CUT} ${SIZE}">` +
     `<rect class="kf-frame" x="${PAD}" y="${PAD}" width="${SIZE - 2 * PAD}" height="${SIZE - 2 * PAD}"/>` +
     `<line id="kfL1" class="kf-arm"/><line id="kfL2" class="kf-arm"/>` +
     `<path id="kfPath" class="kf-curve"/>` +
     `<circle id="kfH1" class="kf-handle" r="7"/><circle id="kfH2" class="kf-handle" r="7"/>` +
     `<g id="kfPts"></g>` +
     "</svg>";
-  host.appendChild(box);
+  stage.appendChild(box);
+  const side = el("div", "kf-side");
+  stage.appendChild(side);
+  const pv = el("div", "kf-pv");
+  pv.setAttribute("data-tip", "How the motion will look on the clip: the same curve, timing and motion blur Apply writes. With a clip read, its own " +
+    "ticked keyframes at the sequence's frame rate; otherwise a sample move.");
+  pv.innerHTML = `<svg id="kfPv" width="${PV_W}" height="${PV_H}"><g id="kfPvBack"></g><g id="kfPvObj"></g></svg>` +
+    '<div class="kf-pv-bar"><div id="kfPvFill" class="kf-pv-fill"></div></div>';
+  side.appendChild(pv);
+  const pvRow = el("div", "row kf-pv-row");
+  side.appendChild(pvRow);
+  const playBtn = button("small kf-play", "", "Plays the preview again.", () => preview.play());
+  playBtn.innerHTML = `<svg class="kf-ico" width="12" height="12" viewBox="0 0 14 14"><path d="${PLAY_ICON}"/></svg>`;
+  pvRow.appendChild(playBtn);
+  const pvInfo = el("div", "kf-pv-info", "");
+  pvRow.appendChild(pvInfo);
+  // Motion blur: a switch, the amount as a slider and a number
+  const blurHead = el("div", "row kf-blur-head");
+  side.appendChild(blurHead);
+  const blurName = el("div", "kf-blur-name", "Motion blur");
+  blurName.setAttribute("data-tip", "Premiere's own motion blur on the shaped motion (Position, Scale, Rotation of Motion): each frame is smeared " +
+    "along the way the clip moves during the shutter time, so fast frames blur more and still frames not at all. Apply puts it " +
+    "in an Asistent Transform at the end of the clip's effects; your keyframes stay as they are. Off takes it away again.");
+  blurHead.appendChild(blurName);
+  const blurSw = button("small sw", "", "Motion blur on or off (Apply writes it; with Update live, at once).", () => {
+    state.blur.on = !state.blur.on;
+    blurChanged();
+  });
+  blurSw.innerHTML = '<span class="knob"></span>';
+  blurSw.id = "kfBlurSwitch";
+  blurHead.appendChild(blurSw);
+  const blurRow = el("div", "row kf-blur-row");
+  side.appendChild(blurRow);
+  const slider = el("div", "kf-slider");
+  slider.setAttribute("data-tip", "Amount: how long the shutter stays open in each frame. 50 = a film camera's 180° shutter, 100 = the whole frame.");
+  slider.innerHTML = '<div class="kf-slider-track"></div><div class="kf-slider-fill"></div><div class="kf-slider-thumb"></div>';
+  blurRow.appendChild(slider);
+  const amountBox = document.createElement("input");
+  amountBox.type = "text";
+  amountBox.id = "kfBlurAmount";
+  amountBox.className = "kf-num";
+  amountBox.setAttribute("data-tip", "Amount, 0-100 (type a number, Enter).");
+  blurRow.appendChild(amountBox);
+  blurRow.appendChild(el("div", "kf-unit", "%"));
   const curveName = el("div", "muted");
   host.appendChild(curveName);
   const curveRows = el("div", "");                          // the bezier curves: presets, Premiere's own, saved
@@ -108,6 +188,23 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
 
   const actions = el("div", "row buttons spaced kf-actions");
   host.appendChild(actions);
+  // 0.10.72 (the user: "auto update when we change these settings"): after Apply, every change re-applies on that clip
+  const liveRow = el("div", "row options");
+  const liveBox = document.createElement("input");
+  liveBox.type = "checkbox";
+  liveBox.id = "kfLive";
+  liveBox.checked = store.getItem(LIVE) !== "0";
+  const liveLabel = el("label", "", "Update live after Apply");
+  liveLabel.setAttribute("for", "kfLive");
+  liveLabel.setAttribute("data-tip", "After you press Apply on a clip, every change of the curve or its settings is applied to that clip again by itself " +
+    "(half a second after your last change, a drag when you let go). Each update is one Cmd/Ctrl+Z. Selecting another clip pauses it until you press Apply there.");
+  liveBox.addEventListener("change", () => {
+    store.setItem(LIVE, liveBox.checked ? "1" : "0");
+    if (liveBox.checked) liveSoon();
+  });
+  liveRow.appendChild(liveBox);
+  liveRow.appendChild(liveLabel);
+  host.appendChild(liveRow);
   const status = el("div", "kf-status");
   host.appendChild(status);
 
@@ -223,6 +320,29 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
 
   const WHERE = { end: "at the end", start: "at the start", both: "at both ends" };
   function draw() {
+    render();
+    liveSoon();
+  }
+
+  // ---- live updates (0.10.72): the clip last applied and what it got; a change re-applies there after LIVE_WAIT
+  const live = { key: null, name: "", sig: "", timer: null };
+  const settings = () => JSON.stringify([chosen(), state.repeat.mode === "off" ? null : state.repeat, state.blur.on ? state.blur.amount : 0]);
+  function liveSoon(wait = LIVE_WAIT) {
+    if (!liveBox.checked || !live.key || settings() === live.sig) return;
+    clearTimeout(live.timer);
+    live.timer = setTimeout(liveRun, wait);
+  }
+  async function liveRun() {
+    live.timer = null;
+    if (!liveBox.checked || !live.key || settings() === live.sig) return;
+    if (state.busy || drag || ptDrag >= 0 || sliding) return liveSoon(300);            // a press or a drag still going: after it
+    await guarded(() => applyNow(true));
+    liveSoon();                                                             // changed again while it was writing
+  }
+
+  function render() {
+    preview.soon();
+    paintBlur();
     mark(kinds, state.kind);
     mark(dirRow, state.spring.dir);
     mark(repeatRow, state.repeat.mode);
@@ -289,9 +409,9 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   function local(e) {
     try {
       const r = svg.getBoundingClientRect();
-      return [e.clientX - r.left, e.clientY - r.top];
+      return [e.clientX - r.left + CUT, e.clientY - r.top];
     } catch (err) {
-      return [e.offsetX, e.offsetY];
+      return [e.offsetX + CUT, e.offsetY];
     }
   }
   for (const [id, n] of [["#kfH1", 1], ["#kfH2", 2]]) {
@@ -314,7 +434,10 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     state.curve = { id: "custom", p };
     draw();
   });
-  const stop = () => { drag = 0; };
+  const stop = (e) => {
+    release(svg, e);
+    drag = 0;
+  };
   svg.addEventListener("pointerup", stop);
   svg.addEventListener("pointercancel", stop);
 
@@ -396,7 +519,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     state.points[ptDrag] = [Math.min(hi, Math.max(lo, x)), Math.min(1.5, Math.max(-0.5, y)), ...(q[2] ? [1] : [])];
     draw();
   });
-  const ptStop = () => {
+  const ptStop = (e) => {
+    release(svg, e);
     ptDrag = -1;
     if (state.kind === "points") draw();
   };
@@ -589,7 +713,11 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       box2.type = "checkbox";
       box2.id = `kf_${p.id}`;
       box2.checked = state.ticked.has(p.id);
-      box2.addEventListener("change", () => (box2.checked ? state.ticked.add(p.id) : state.ticked.delete(p.id)));
+      box2.addEventListener("change", () => {
+        if (box2.checked) state.ticked.add(p.id);
+        else state.ticked.delete(p.id);
+        preview.soon();
+      });
       const frames = p.keys.slice(1).map((k, i) => Math.round((k.t - p.keys[i].t) / state.sel.step));
       const label = el("label", "", `${p.label}: ${p.keys.length} keyframes, ${frames.join(" + ")} frames${p.earlier ? " (shaped by Asistent)" : ""}`);
       label.setAttribute("for", box2.id);
@@ -612,6 +740,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     clipLine.textContent = `${sel.clip.name}${Math.abs((sel.clip.speed || 1) - 1) > 0.01 ? ` (speed ${Math.round(sel.clip.speed * 100)} %)` : ""}` +
       `${sel.others ? ` · ${sel.others} more selected: only the first is shaped` : ""}`;
     renderProps();
+    preview.soon();
     return { project, sel };
   }
 
@@ -633,18 +762,36 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     say(state.sel.props.length ? "Tick the properties to shape, choose a curve, press Apply." : "Nothing to shape on this clip.");
   })));
 
-  actions.appendChild(button("action", "Apply", "Shapes the ticked properties with the curve, in one Undo step. Earlier Asistent curves on them are replaced.", () => guarded(async () => {
+  // the clip live updates go to: media and In (KF.clipKey) are not enough, Premiere's graphics all share them (measured in
+  // NEW TEST: two "Graphic" clips, both In 3600 s), so its track and start too
+  const liveKey = (c) => `${KF.clipKey(c)}|${c.kind}${c.track}|${Number(c.start || 0).toFixed(3)}`;
+
+  // Apply, pressed or live (0.10.72: live only on the clip last applied, still selected; the settings it used are kept)
+  async function applyNow(isLive) {
+    const sig = settings();
     const { project, sel } = await read(true);
+    if (isLive && liveKey(sel.clip) !== live.key) {
+      live.sig = sig;                                                       // no retry for these settings until a new change
+      return say(`Live update paused: ${live.name} is not selected (press Apply to shape ${sel.clip.name} on V${sel.clip.track + 1}).`, "muted");
+    }
     const props = sel.props.filter((p) => state.ticked.has(p.id));
     if (!props.length) return say("Tick at least one property.", "warn");
     const planned = K.plan(props.map((p) => ({ id: p.id, keys: p.keys, earlier: p.earlier })), chosen(), sel.step,
       { repeat: state.repeat.mode === "off" ? null : state.repeat, until: sel.clip.outPt });
+    live.key = liveKey(sel.clip);
+    live.name = `${sel.clip.name} on V${sel.clip.track + 1}`;
+    live.sig = sig;
     if (planned.error) return say(planned.error, "warn");
     const skipped = planned.props.filter((p) => p.skip).map((p) => `${sel.props.find((q) => q.id === p.id).label}: ${p.skip}`);
-    const res = await KF.apply(project, sel, planned);
+    const res = await KF.apply(project, sel, planned, { blur: state.blur, curve: chosen(), repeat: state.repeat.mode === "off" ? null : state.repeat, until: sel.clip.outPt });
     await read(true);
-    say([`Done: ${res.written} keyframes added. Cmd/Ctrl+Z takes it back.`, ...res.lines, ...skipped]);
-  })));
+    const undoes = res.steps > 1 ? `Cmd/Ctrl+Z ${res.steps} times takes it back (Premiere adds an effect in a step of its own).` : "Cmd/Ctrl+Z takes it back.";
+    say([isLive ? `Updated live: ${res.written} keyframes. ${res.steps > 1 ? undoes : "Each update is one Cmd/Ctrl+Z."}` : `Done: ${res.written} keyframes added. ${undoes}` +
+      (liveBox.checked ? " Changes now update this clip live." : ""), ...res.lines, ...skipped]);
+  }
+
+  actions.appendChild(button("action", "Apply", "Shapes the ticked properties with the curve, in one Undo step. Earlier Asistent curves on them are replaced. " +
+    "With Update live on, later changes are applied to this clip by themselves.", () => guarded(() => applyNow(false))));
 
   stashTop.appendChild(button("secondary", "Save animation", "Saves the ticked properties of the read clip (their keyframes and easing, every frame) as a stash.", () => guarded(async () => {
     if (!state.sel) return say("Read a clip first, then tick the properties to save.", "warn");
@@ -667,14 +814,251 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   actions.appendChild(button("secondary", "Undo last", "Takes out the keyframes Asistent's last curve added on this clip (only those still where it put them).", () => guarded(async () => {
     const { project, sel } = await read(true);
     const res = await KF.undo(project, sel);
+    live.key = null;                                                        // live stops until the next Apply
+    clearTimeout(live.timer);
     await read(true);
-    say(res.removed ? `Taken out: ${res.removed} keyframes Asistent had added.` : "Nothing of Asistent's to take out on this clip.");
+    say(res.removed || res.blur ? `Taken out: ${res.removed} keyframes Asistent had added${res.blur ? " and its motion blur Transform" : ""}.` : "Nothing of Asistent's to take out on this clip.");
   })));
+
+  // ---- motion blur controls (0.10.78)
+  function paintBlur() {
+    blurSw.className = state.blur.on ? "btn small sw on" : "btn small sw";
+    blurRow.className = state.blur.on ? "row kf-blur-row" : "row kf-blur-row off";
+    const pc = state.blur.amount;
+    slider.querySelector(".kf-slider-fill").style.width = `${pc}%`;
+    slider.querySelector(".kf-slider-thumb").style.left = `calc(${pc}% - 6px)`;
+    if (document.activeElement !== amountBox) amountBox.value = String(state.blur.amount);
+  }
+  function blurChanged() {
+    store.setItem(BLUR, JSON.stringify(state.blur));
+    draw();
+  }
+  let sliding = false;
+  function slideTo(e) {
+    const r = slider.getBoundingClientRect();
+    state.blur.amount = clampAmount(((e.clientX - r.left) / Math.max(1, r.width)) * 100);
+    paintBlur();
+    preview.soon();
+  }
+  slider.addEventListener("pointerdown", (e) => {
+    sliding = true;
+    try {
+      slider.setPointerCapture(e.pointerId);
+    } catch (err) { /* follows inside the slider */ }
+    slideTo(e);
+  });
+  slider.addEventListener("pointermove", (e) => { if (sliding) slideTo(e); });
+  const slideEnd = (e) => {
+    release(slider, e);
+    if (!sliding) return;
+    sliding = false;
+    blurChanged();
+  };
+  slider.addEventListener("pointerup", slideEnd);
+  slider.addEventListener("pointercancel", slideEnd);
+  const typed = () => {
+    const v = clampAmount(amountBox.value);
+    amountBox.value = String(v);
+    if (v === state.blur.amount) return;
+    state.blur.amount = v;
+    blurChanged();
+  };
+  amountBox.addEventListener("change", typed);
+  amountBox.addEventListener("blur", typed);
+  amountBox.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") typed();
+    else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      state.blur.amount = clampAmount(state.blur.amount + (e.key === "ArrowUp" ? 1 : -1) * (e.shiftKey ? 10 : 1));
+      amountBox.value = String(state.blur.amount);
+      blurChanged();
+    }
+  });
+
+  // ---- the live preview (0.10.78): the same shaped function (keyframeplan.shapedFn) and blur window (blurplan.samples)
+  // Apply writes, played at the sequence's frame rate, one drawing per frame as Premiere shows it
+  const preview = (() => {
+    const NS = "http://www.w3.org/2000/svg";
+    const back = pv.querySelector("#kfPvBack");
+    const objs = pv.querySelector("#kfPvObj");
+    const fill = pv.querySelector("#kfPvFill");
+    let timer = null;
+    let wait = null;
+    let shown = null;
+    const visible = () => !root.hidden && root.offsetWidth > 0;
+    const clear = (g) => { while (g.firstChild) g.removeChild(g.firstChild); };
+    const make = (tag, cls, attrs = {}) => {
+      const n = document.createElementNS(NS, tag);
+      n.setAttribute("class", cls);
+      for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+      return n;
+    };
+    // which animation: the read clip's first ticked property (Position, then Scale, Rotation, anything), else a sample move
+    function source() {
+      const curve = chosen();
+      const sel = state.sel;
+      const fps = (sel && sel.timeline && sel.timeline.fps) || 30;
+      const step = sel ? sel.step : 1 / fps;
+      const repeat = state.repeat.mode === "off" ? null : state.repeat;
+      const props = sel ? sel.props.filter((p) => state.ticked.has(p.id) && p.keys.length >= 2) : [];
+      const prop = ["position", "scale", "rotation"].map((w) => props.find((p) => new RegExp(`motion.*${w}`, "i").test(p.label))).find(Boolean) || props[0];
+      let anchors = null;
+      let added = [];
+      let until = Infinity;
+      let label = "Sample";
+      let type = "move";
+      let note = "";
+      if (prop) {
+        const pl = K.plan([{ id: prop.id, keys: prop.keys, earlier: prop.earlier }], curve, step, { repeat, until: sel.clip.outPt });
+        const one = pl.props[0];
+        if (!pl.error && one && !one.skip) {
+          anchors = one.anchors;
+          added = one.add;
+          until = sel.clip.outPt;
+          label = prop.paramName || "Clip";
+          type = /scale/i.test(label) && !Array.isArray(anchors[0].v) ? "scale" : /rotation/i.test(label) ? "rotate" : Array.isArray(anchors[0].v) ? "path" : "value";
+        } else note = pl.error || (one && one.skip) || "";
+      }
+      if (!anchors) {
+        const after = curve.kind && K.AFTER_KINDS.has(curve.kind);
+        anchors = [{ t: 0, v: 0 }, { t: (after ? 3 : 18) * step, v: 1 }];
+        // a sample shows two repeats when "until the clip ends" is chosen
+        until = repeat ? anchors[1].t * (1 + (repeat.times || 2)) + step / 2 : Infinity;
+      }
+      const opts = { repeat, until };
+      let fn = K.shapedFn(anchors, curve, step, opts);
+      // Premiere's ease: its handles are Premiere's; drawn as its default third-of-the-way ease
+      if (!fn) fn = K.shapedFn(anchors, { p: [1 / 3, 0, 2 / 3, 1] }, step, opts);
+      let end = anchors[anchors.length - 1].t;
+      for (const k of added) end = Math.max(end, k.t);
+      if (!prop && repeat && Number.isFinite(until)) end = until;
+      const frames = [];
+      for (let t = anchors[0].t; t <= end + 0.4 + 1e-9 && frames.length < 900; t += step) frames.push(t);
+      return { fn, frames, step, fps, type, label, note, aspect: sel ? sel.frame.w / sel.frame.h : 1 };
+    }
+    // where a value is drawn: the range every frame and blur moment covers, fitted in the box
+    function layout(d) {
+      const open = state.blur.on ? B.shutter(state.blur.amount) : 0;
+      const vals = [];
+      for (const t of d.frames) for (const u of B.samples(t, d.step, open, 3)) vals.push(d.fn(u));
+      const pad = 16;
+      if (d.type === "path") {
+        const xs = vals.map((v) => v[0] * d.aspect);
+        const ys = vals.map((v) => v[1]);
+        const x0 = Math.min(...xs); const x1 = Math.max(...xs); const y0 = Math.min(...ys); const y1 = Math.max(...ys);
+        const k = Math.min((PV_W - 2 * pad) / Math.max(1e-9, x1 - x0), (PV_H - 2 * pad) / Math.max(1e-9, y1 - y0));
+        const ox = (PV_W - (x1 - x0) * k) / 2;
+        const oy = (PV_H - (y1 - y0) * k) / 2;
+        return (v) => ({ x: ox + (v[0] * d.aspect - x0) * k, y: oy + (v[1] - y0) * k });
+      }
+      const nums = vals.map(Number);
+      const lo = Math.min(...nums);
+      const hi = Math.max(...nums);
+      if (d.type === "scale") {
+        const top = Math.max(1e-9, Math.abs(hi), Math.abs(lo));
+        return (v) => ({ x: PV_W / 2, y: PV_H / 2, size: Math.max(0, (Number(v) / top) * (PV_H - 2 * pad)) });
+      }
+      if (d.type === "rotate") return (v) => ({ x: PV_W / 2, y: PV_H / 2, rot: Number(v) });
+      return (v) => ({ x: pad + ((Number(v) - lo) / Math.max(1e-9, hi - lo)) * (PV_W - 2 * pad), y: PV_H / 2 });
+    }
+    function shape(d, g, at, opacity) {
+      let n;
+      if (d.type === "scale" || d.type === "rotate") {
+        const w = d.type === "scale" ? at.size : 64;
+        const h = d.type === "scale" ? at.size : 10;
+        const r = ((at.rot || 0) * Math.PI) / 180;
+        const pts = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]
+          .map(([px, py]) => `${(at.x + Math.cos(r) * px - Math.sin(r) * py).toFixed(1)},${(at.y + Math.sin(r) * px + Math.cos(r) * py).toFixed(1)}`);
+        n = make("polygon", "kf-pv-obj", { points: pts.join(" ") });
+      } else n = make("circle", "kf-pv-obj", { cx: at.x.toFixed(1), cy: at.y.toFixed(1), r: 8 });
+      n.style.opacity = String(opacity);
+      g.appendChild(n);
+    }
+    function frame(d, i) {
+      const t = d.frames[i];
+      const open = state.blur.on ? B.shutter(state.blur.amount) : 0;
+      let times = B.samples(t, d.step, open, PV_GHOSTS);
+      // as Apply: a frame that grows past 4x within its shutter time is left sharp (Premiere's blur cannot take it)
+      if (d.type === "scale" && times.length > 1) {
+        const v0 = Math.abs(Number(d.fn(t)));
+        if (times.some((u) => Math.abs(Number(d.fn(u))) * 100 > B.SCALE_MAX * Math.max(1e-9, v0))) times = [t];
+      }
+      // each moment drawn faintly so that where all of them overlap it is about solid, as Premiere's average is
+      const alpha = times.length > 1 ? 1 - Math.pow(0.08, 1 / times.length) : 1;
+      clear(objs);
+      for (const u of times) shape(d, objs, d.at(d.fn(u)), alpha);
+      fill.style.width = `${d.frames.length > 1 ? (100 * i) / (d.frames.length - 1) : 100}%`;
+    }
+    function prepare() {
+      const d = source();
+      d.at = layout(d);
+      clear(back);
+      if (d.type === "path" || d.type === "value") {
+        const pts = d.frames.map((t) => d.at(d.fn(t))).map((q) => `${q.x.toFixed(1)},${q.y.toFixed(1)}`);
+        back.appendChild(make("polyline", "kf-pv-path", { points: pts.join(" ") }));
+      } else {
+        shape(d, back, d.at(d.fn(d.frames[d.frames.length - 1])), 1);         // where it comes to rest, as an outline
+        back.lastChild.setAttribute("class", "kf-pv-rest");
+      }
+      const span = (d.frames.length - 1) * d.step;
+      const open = state.blur.on ? B.shutter(state.blur.amount) : 0;
+      pvInfo.textContent = `${d.label} · ${span.toFixed(2)} s${open ? ` · blur ${Math.round(open * 360)}°` : ""}`;
+      pvInfo.setAttribute("data-tip", d.note ? `Sample move: ${d.note}` : `${d.frames.length} frames at ${Math.round(d.fps * 100) / 100} fps`);
+      return d;
+    }
+    function icon(path) {
+      playBtn.innerHTML = `<svg class="kf-ico" width="12" height="12" viewBox="0 0 14 14"><path d="${path}"/></svg>`;
+    }
+    function play() {
+      clearTimeout(timer);
+      clearTimeout(wait);
+      let d;
+      try {
+        d = prepare();
+      } catch (e) {
+        premiere.debug(`keyframer preview: ${e && e.stack ? e.stack : e}`);
+        return;
+      }
+      shown = d;
+      if (!visible()) {
+        frame(d, d.frames.length - 1);
+        return icon(REPLAY_ICON);
+      }
+      icon(PLAY_ICON);
+      let i = 0;
+      const tick = () => {
+        frame(d, i);
+        i++;
+        if (i < d.frames.length) timer = setTimeout(tick, 1000 / d.fps);
+        else {
+          timer = null;
+          icon(REPLAY_ICON);
+        }
+      };
+      tick();
+    }
+    return {
+      play,
+      soon() {
+        clearTimeout(wait);
+        wait = setTimeout(play, 150);
+      },
+      info: () => (shown ? { type: shown.type, label: shown.label, frames: shown.frames.length, playing: !!timer, drawn: objs.childNodes.length } : null),
+    };
+  })();
 
   fillMotion();
   fillPresets();
   draw();
   fillStash();
+  // for the test bridge (0.10.72)
+  return {
+    remembered: () => {
+      state.blur = readBlur();
+      liveBox.checked = store.getItem(LIVE) !== "0";
+      render();
+    },
+    info: () => ({ blur: { ...state.blur }, preview: preview.info(), status: [...status.children].map((c) => c.textContent), live: { on: liveBox.checked, clip: live.key ? live.name : null, pending: !!live.timer, applied: live.sig, now: settings() } }),
+  };
 }
 
 module.exports = { mount };

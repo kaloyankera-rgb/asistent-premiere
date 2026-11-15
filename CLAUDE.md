@@ -24,11 +24,12 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `exportcheck.js` what the pre-export check reports (pure) · `premiere-exportcheck.js` reads the sequence for it (0.10.35)
   - `tracknames.js` which name each track gets (pure) · `premiere-labels.js` Track names: renames and camera colours in one step (0.10.34)
   - `captionedit.js` (what a typed caption correction becomes: correction lines for the engine) · `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
+  - `brand.js` the Brand page (0.10.71, docs/BRAND_KIT.md) · `premiere-brand.js` import into the client's bin, place at the playhead / the end above everything, MOGRT through the host, Tint · `brandplan.js` its decisions (pure)
   - `cssprobe.js` which CSS this UXP really supports (measured, run by the bridge's `css_probe`) · `devbridge.js` test bridge executor · `exportevents.js` Premiere's export events → the engine (0.10.7) · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
 - **Asistent host** `host/` (since 0.9.45): an invisible CEP extension (`CSXS/manifest.xml`, `main.js`, `host.jsx`) installed by
   `engine/asistent/install.py` (called by `setup_mac.sh` / `setup_win.ps1`, so by `release_mac.sh` and by updates). It long-polls `GET /host/poll` and runs ExtendScript inside Premiere,
   `createCaptionTrack` (the subtitles' caption track), `as_graphics` (subtitle lines as After Effects template graphics,
-  0.9.80, kept but not used by the panel: see DECISIONS) and the L/L R/R audio split (UXP cannot do any of these). A NEW extension needs one Premiere restart; `host.jsx` is read per
+  0.9.80, kept but not used by the panel: see DECISIONS) and the L/L R/R audio split, and for the Brand tab a MOGRT placed (`brand_mogrt`) and a MOGRT's colour control set (`brand_color`, 0.10.71) (UXP cannot do any of these). A NEW extension needs one Premiere restart; `host.jsx` is read per
   command, so edits to it need none. Separate from Quick Search. Development: `scripts/dev_cmd.py host ping|probe|captions|eval`.
 - **Python engine** `engine/asistent/` (stdlib HTTP server on `127.0.0.1:47390`, requests must carry
   header `X-Asistent: 1`; web origins and foreign Host headers are rejected). Started by `engine/run_engine.py`.
@@ -51,6 +52,8 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `managed.py` fingerprints of the Lumetri corrections Asistent wrote (ownership, `managed.json`; one lock per file, 0.10.6)
   - `pins.py` the model commits and SHA-256 of what Asistent downloads (0.10.6); `requirements-*-lock-mac.txt` hash-locked packages
     (`scripts/lock_requirements.py`), used by setup and updates; `media.decode_f32` streams FFmpeg's sound into place (half the memory)
+  - `brandkit.py` brand kits (0.10.71): library / client / project Brand Kit folders, the client from the project, a kit's files,
+    colours and fonts (brand.json read only, the editor's changes in asistent-kit.json), thumbnails, offline index, local copies, manage
   - `stash.py` saved animations in `<app>/stash/` (0.10.37) and clips stashes (`stash/clips/<id>/clips.prproj`, 0.10.50)
   - `tracker.py` the motion tracker: flow + first-frame template, sub-pixel, scale and turn, lost / unsure / sure per frame
     (0.10.51; accuracy in docs/TRACKER.md, `scripts/bench_tracker.py`)

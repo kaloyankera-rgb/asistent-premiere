@@ -512,3 +512,55 @@ recognition is what made the rough cut slow and is not needed to find silence, s
 level against its own noise floor, with Silero only as a helper (it misses short loud words, so it may never remove a loud
 stretch). Every microphone counts (the union), because grouping microphones that hear each other (the mix's rule for
 subtitles) could cut a second speaker's quieter words. Margins favour keeping speech: a cut word is worse than a little air.
+
+## 2026-11-14: Brand kits are folders; Asistent never rewrites brand.json and never deletes a kit (0.10.71)
+- A kit is a folder found in a library, as a client folder, or as a `Brand Kit` folder above the project: the office keeps
+  clients on the server, Content Studio keeps hand-made kits in `brand-kits/`, and both are read the same way, so no import
+  step and no database. Files are sorted by folder words and type, so a server folder made by hand works without
+  `brand.json`.
+- `brand.json` is written by hand (the brand-kits project) and holds much more than Asistent shows: Asistent only reads it.
+  The editor's changes go into `asistent-kit.json` next to it (hidden colours are hidden there, not removed from brand.json).
+- Delete moves the kit into `_Deleted kits` in the same library (the permanent rule: nothing is removed without a specific
+  approval); Forget only stops showing a client folder.
+- Premiere is given the server's file while the server is reachable, never the local copy: an office project opened on
+  another computer must not point at one computer's disk. The local copies are for when the server is away (the panel says
+  "relink later") and for installing fonts.
+- MOGRTs are placed for the brand kit (the user's spec lists them); the earlier "no MOGRTs" decisions were about subtitles.
+- Placement goes above every clip it would overlap (a new track on top when none is free), never over or into the editor's
+  clips, like Stash clips; the clipboard goes through the engine (`pbcopy` / `clip`) so the panel needs no new UXP permission.
+
+## 2026-11-14: Keyframer updates live after Apply, one Undo step per update (0.10.72)
+The user asked for changes to apply without pressing Apply again. Live starts only with a press of Apply on a clip (nothing is
+written before the editor chose to shape that clip), stays on that clip only, waits 500 ms after the last change (a drag: until
+it ends) so a run of presses is one update, and can be switched off. Every update is its own transaction, so Cmd+Z goes back
+one update at a time; Undo last still takes out all of Asistent's keys on the clip.
+
+## 2026-11-15: the tracker says unsure or lost rather than guess (0.10.76)
+The user asked for small, blurry, low-detail and fast objects, and for uncertainty instead of inaccurate keyframes. The
+tracker now prefers a lost frame (no key) to a sure frame it cannot back up: a match is sure only when it clearly beats every
+other place (after weighing by the motion) and the background's own match on the boxed frame; blur-only or smeared matches,
+fallbacks and ambiguous frames are at most unsure, and more than three of them in a row become lost; a lost frame reports the
+last measured place, never a guessed path. The cost: fast, motion-blurred things show more orange frames, and a thing that
+looks like its surroundings while moving faster than its own size a frame is mostly lost. Unsure frames still get keys, as
+before. Tuning was checked on scenes the rules were not tuned on (the tests) before it was kept.
+
+## 2026-11-15: Keyframer motion blur is an Asistent Transform that moves only inside each frame's shutter window (0.10.88)
+The user asked for a motion blur switch and amount that follow the speed, for every effect, visible in Premiere. Premiere's
+Motion has no motion blur. Measured in NEW TEST: Directional Blur (Legacy) is an exact Gaussian (sigma = 0.98 x Blur Length,
+0° vertical) and could be keyed per frame, but only blurs straight moves (no scale or rotation blur). The Transform effect's
+own blur (composition shutter off) averages 16 samples from just after the frame to the end of the window and honours keys
+between frames, so a Transform at rest on every frame that, inside the window, carries Motion(t)^-1 · Motion(u) gives
+Premiere's real blur for Position, Scale and Rotation without touching the editor's Motion keys. Moving the animation into a
+Transform was rejected: it changes the editor's keys. Measured limits built in: Premiere draws Position's path between keys
+as a curve (window ends pinned with a second key), setting the interpolation in the same step adds a key at media time 0
+(new keys are Linear already, so it is not set), Scale keys past about 4x make Premiere blend every frame straight (such
+frames stay sharp). Amount 0-100 % is the shutter angle 0-360°, capped at 346° (the window must end before the next frame).
+
+## 2026-11-15: the tracker uses colour, but never picks an object up again on colour alone (0.10.77)
+The user's basketball showed the grey template's limit: a plain object matches anything with the same shading (the dark
+shorts were called sure). Colour now weighs every candidate and gates sure frames and jumps. A rule that picked the ball up
+again after a loss from colour, grey and spot together over two frames followed the ball on many more frames, but scored
+against hand-marked positions it put 7-11 keys in wrong places (court corners, the player's head), because in that clip the
+ball, the shadowed court and the skin share one colour. Wrong keys are worse than red frames (the user's rule: say unsure or
+lost rather than guess), so it was not kept. Tuning on the one clip was chaotic (a 1 % change of one threshold moved the result
+a lot): settings were chosen for what they prevent, then checked on synthetic colour scenes over six seeds.

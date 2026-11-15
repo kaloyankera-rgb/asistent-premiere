@@ -5,6 +5,10 @@
   not saved). Bridge only; the editor clicking a box is not affected. Fix: dispatch in try/catch or call the handler.
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
+## Fixed in 0.10.90: Anchor refused a text made in Premiere ("source media is unavailable") and animated Scale / Rotation
+- A Type-tool graphic has no project item; it now counts as the sequence frame. Limit: Premiere gives no script the text's box
+  (Source Text is null / binary), 0.10.91 measures the letters from two renders instead (two extra Undo steps that cancel out; refused when every Opacity is animated).
+
 ## Fixed 2026-11-12: the translator crashed pytest (and macOS reported "Python quit unexpectedly")
 sentencepiece is built with SWIG, which warns on Python 3.12 while it sets itself up; under the test command's `-W error` the
 warning became an error inside its C code and left it half set up, so Python crashed while loading the model or when unloading
@@ -15,7 +19,22 @@ with -W error). `tests/conftest.py` imports it once with only that warning ignor
 See CHANGELOG 0.10.70. NEW TEST still holds the 928 imported screenshots (bin MUSIC): delete them by hand.
 
 ## Open bugs
-- **Open (2026-11-10, Premiere 26.5.2):** after `release_mac.sh` the old panel can stay loaded even when the panel is closed
+- **Premiere crashed once while testing 0.10.86 (2026-11-15 04:07, NEW TEST, recovered on relaunch):** inside UXP, turning a
+  Premiere object into JavaScript (`napi_wrap` from `CallProperty`; the pointer read was text: a freed object), right after
+  the Keyframer added its motion blur Transform. The same step ran fine about ten times before and after; Lumetri and Tint
+  add effects the same way. 0.10.87 keeps the new effect referenced, waits 60 ms and reads the chain from a fresh handle. If
+  it happens again, the crash report is in `~/Library/Logs/DiagnosticReports/Adobe Premiere Pro 2026-*.ips`.
+- **Limit (0.10.88):** motion blur leaves a frame sharp when the picture grows more than 4x within the shutter time (Premiere
+  then blends every frame's blur straight from start to end); typically the first frame of a pop from scale 0.
+- **Fixed in 0.10.77, not yet confirmed by the user (2026-11-15):** Track and Stop in the Tracker needed several clicks (the
+  user's screen recording): Track's tooltip stayed up while it was clicked and only the last press reached the log. Likely the
+  picture kept the pointer captured after the box was drawn. Captures are released by hand now, and a press landing on a button
+  but delivered elsewhere presses that button (log: "press for ... arrived at ..."); if that line never shows and presses are
+  still lost, the cause is elsewhere.
+- **Fixed in 0.10.71 (2026-11-14):** Adobe's installer listed only 0.10.71 but Premiere's own plugin list
+  (`UXP/PluginsInfo/v1/premierepro.json`) kept 0.10.70 first, and Premiere loaded 0.10.70 even after a restart. `install_panel`
+  now also reads that list and does the remove + install cycle when it holds another version. The case below is the same bug.
+- **Was open (2026-11-10, Premiere 26.5.2):** after `release_mac.sh` the old panel can stay loaded even when the panel is closed
   and opened ("Failed to add plugin as it already exists" in UXPLogs; 0.10.29 kept running after 0.10.30 installed). Removing
   the plugin with UnifiedPluginInstallerAgent `--remove "Asistent"` before `--install` made Premiere load the new one at once.
   Not changed yet (the installer is frozen during the Cockpit work): candidate fix for `install.py` / `release_mac.sh`.
@@ -71,7 +90,16 @@ See CHANGELOG 0.10.70. NEW TEST still holds the 928 imported screenshots (bin MU
 2. **Render check confirmed once (12:21).** Earlier: 0.9.5-0.9.10 never exported a frame, and before 0.9.13 the „before“ frame could be rendered after the correction (queued export); so `/color/check` and the slider
    calibration (`lumetri.json`) are unproven. First apply will use the guess 60/80 slider units per log2.
 
+### Keyframer's record cannot tell Premiere's graphics apart (found 2026-11-14, 0.10.72)
+`premiere-keyframes.clipKey` is media + In point; every graphic made in Premiere has no media path, the name "Graphic" and
+In 3600 s, so two graphics share one record ("shaped by Asistent", Undo last). Undo last only takes out keys still where
+Asistent put them, so nothing wrong is removed, but the record of one graphic can be replaced by another's. Live updates
+(0.10.72) use track + start as well. Fix the record key the same way (keeping old records readable) when Keyframer is next changed.
+
 ## Not verified in Premiere (implemented)
+- 0.10.71 Brand tab: not installed, not run in Premiere (docs/BRAND_KIT.md "Still to check"). `ppro.Color`'s range is not
+  measured (`brandplan.COLOR_RANGE` = 1 assumed): a tinted logo may come out black until it is. Whether `getOutPoint` gives a
+  still's length, whether Premiere passes dropped files to the panel, `insertMogrtFromPath` (not used: the host's importMGT is).
 0.10.45-0.10.47: the SYNC clips' own POV colour on the timeline (scripts cannot read a clip's label; the files are coloured), Bounce Back, the clone rough cut on footage with a rotation flag (the clones keep the original project item, so the flag stays).
 Subtitles M3 (0.9.42): verified working in Premiere on 2026-11-01 (see `PROJECT_STATUS.md`); still unjudged: Bulgarian accuracy and caption timing against the picture, behaviour with an unsaved project (refused with a message, not tried).
 Fixed in 0.9.43: wrong words because the noisiest duplicate microphone was recognised (see `PROJECT_STATUS.md`); to be confirmed by the user in Premiere. Open: caption timing is only as exact as Whisper's word times (±0.1-0.3 s), direction of the error unknown.
@@ -83,6 +111,9 @@ identical for untrimmed clips), auto-import speed after 0.7.1, colour values set
 probe, `scripts/setup_win.ps1` (never run), Windows overall.
 
 ## Platform limitations (Premiere 26.0.2 UXP)
+- Brand tab (0.10.71): no script sets the colour or font of text made in Premiere (Type tool, upgraded captions); effect
+  presets (.prfpr) cannot be applied or imported by script; Premiere does not import SVG or PDF; new fonts show after a
+  Premiere restart. The tab says each of these at the press.
 - The Mix (master) track and its effects cannot be reached by script (QE: Audio 1-N only), so the Dynamics limiter of „Оправи звука“ is per clip.
 - No audio channel mapping through UXP (ExtendScript can set it on bin clips only: used by the host for the L/L + R/R copies), no multicam creation, no track creation except by insert/overwrite past the last track.
 - Removing track items while CEP panels run ExtendScript crashes Premiere → never remove.

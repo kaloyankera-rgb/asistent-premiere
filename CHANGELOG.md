@@ -31,6 +31,211 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.93 - Anchor on a text: instant again (the user 2026-11-15: "it needs to be instant like before") - installed
+- **Kept box**: a text's measured box is kept per clip in the layer's own pixels, so later clicks on the same text need no
+  render and no hide / show step (one Undo step, as fast as before 0.10.91), also after the anchor, Position, Scale or
+  Rotation changed. Measured again when the clip moves or is trimmed, or anything readable inside the graphic changes (its
+  layers' transforms, the text's length). Premiere gives no script the words or the font: a same-length rewording keeps the old
+  box until the panel reloads. The done line says when the box was measured.
+- **Faster first click**: rendered at half size for 4K (long side 1920; an edge within 1 sequence pixel) and taken as soon as
+  the PNG's end is written (`anchoralpha.ready`, `/frames/wait` with `png`) instead of the same size twice 0.15 s apart.
+  Timed in NEW TEST: both renders and the comparison 0.2-0.3 s (0.10.91: about 2 s). Measuring frames are deleted also when
+  nothing is found. 0.10.92 was a test build.
+- Tests: node 361 (kept box: second click no render, one step; 4K measured at half size), pytest anchoralpha 6.
+
+## 0.10.91 - Anchor: the letters' own box for a text made in Premiere (the user's screen recording 2026-11-15) - installed
+- **The wish**: selecting the text (not the whole graphic) should put the anchor on the letters, so Keyframer's pop grows from
+  where the text is anchored. 0.10.90 used the sequence frame as such a graphic's picture.
+- **How**: Premiere gives no script the text's box (UXP Source Text null, ExtendScript one character), so on Clip / Selection the
+  page renders the frame at the playhead as it is and once with the graphic hidden (its Opacity 0 for a moment, then put back
+  exactly; a graphic layer's own Opacity when the clip's is animated, refused when all are). Two renders of one moment are
+  identical, so the changed pixels are exactly the text, over footage too (`anchoralpha.drawn`, `/anchor/drawn`); their hull is
+  taken through Motion (and Transform) back into the layer. About one second. Premiere lists two extra steps (hide, show) that
+  cancel out; one Cmd/Ctrl+Z takes the anchor back, and the done line says so. Sequence mode is not measured.
+- **Measured in NEW TEST** on the user's text (V1 390.29 s, Motion Scale pop): box 837 x 85 px found; anchor on its centre; the
+  box middle then stays at 1141, 2118 at 390.45, 390.6 and 392 s (before: y 2079 to 2152, the pop grew from the frame centre);
+  the frame at the playhead unchanged. The text is left anchored on its centre.
+- Tests: node 359, pytest anchoralpha 5.
+
+## 0.10.90 - Anchor: text made in Premiere and animated Scale / Rotation (the user's screenshot 2026-11-15) - installed
+- **The problem**: on a text made with Premiere's Type tool the Anchor page said "Graphic: source media is unavailable". Such a
+  graphic has no project item, so there was no source size to read; the user's subtitles worked because they are MOGRTs (a file).
+  The same clip also had 45 Scale keys from Keyframer and a Rotation key, which the page refused as well.
+- **Text and shapes made in Premiere** (`premiere-anchor.js`): a clip with no project item whose effects include Graphic Group /
+  Text / Shape counts as the size of the sequence frame (its Motion Anchor 0.5, 0.5 shows as 1080, 1920 in a 2160 x 3840
+  sequence). Premiere does not tell a script where the text sits inside that layer (Source Text reads back null in UXP and as
+  binary in ExtendScript), so Use alpha is refused on a graphic with a plain message, and Clip means the frame.
+- **Animated Scale / Rotation** is allowed now: Position moves by one fixed amount read with Scale and Rotation at the playhead,
+  so the picture stays where it is at the playhead and the animation grows and turns around the new point. The playhead must be
+  on the clip and Scale must not be 0 there (0.10.89 fell back to the clip's start, a pop's Scale 0, and moved nothing: caught
+  in NEW TEST, fixed). Animated Anchor Point is still refused. The done line says when this applied.
+- **Measured in NEW TEST** on the user's clip (V1 401.87 s), frames 2160 x 3840 from Premiere: at the playhead the text's box,
+  centre and ink are identical before, with the anchor top-left, bottom-right and back at the centre; during the pop the text
+  grows from the chosen point (centre at 402.02 s: 1078, 2080 / 862, 1696 / 1294, 2464) and returns exactly when put back.
+- Tests: node 358 (animated Scale gives the static result, playhead off the clip and Scale 0 refused, animated Anchor refused, a
+  graphic is the frame and refuses Use alpha). 0.10.89 was a test build.
+
+## 0.10.88 - Keyframer: motion blur (on/off, amount) and a live preview (the user's reminders 8 and 9, 2026-11-15) - installed
+- 0.10.78-0.10.87 were this change's test builds on the development Mac (Premiere loads a panel again only when its version
+  changes); nothing else changed in between.
+- **Motion blur** (Keyframer, right of the curve): a switch, an Amount slider and a number (0-100 %; 50 = a film camera's 180°
+  shutter, 100 = the whole frame, kept at 346° so the window ends before the next frame). Off by default; the last choice is
+  remembered (panel store `asistent.keyframer.blur`, read again when the store loads late). Apply (and Update live) writes it.
+- How (measured in NEW TEST, see DECISIONS): Premiere's Motion has no blur; its Transform effect has (shutter angle, the
+  composition's shutter off) and honours keys between frames. Asistent adds its own Transform at the end of the clip's
+  effects that is at rest on every frame and, inside each frame's shutter window, moves the picture as Motion will move it:
+  Rel(u) = Motion(t)^-1 · Motion(u) (`blurplan.js`). The smear is Premiere's own, so it follows each frame's speed; Position,
+  Scale and Rotation all blur (a Directional Blur could only blur straight moves). Your Motion keys are never touched.
+- Accuracy on rendered frames (a 300 px square, 86.4 px per frame): smear 21 / 43 / 82 px at 25 / 50 / 100 % (expected 21.6 /
+  43.2 / 82.9); frames before and after a move sharp; an Elastic scale pop matches the real motion within 1 px on every frame
+  (overshoot inside a frame included); a 1000x600 picture turned 30° smears exactly along its path (49.8°).
+- The window's motion is drawn as straight pieces between keys: two per window, more (up to 8) where the motion curves inside
+  it, each window's ends pinned (Premiere draws Position's path between keys as its own curve). Premiere renders every frame of
+  a Transform as a plain start-to-end blend once any Scale key passes about 4x (400 % right, 460 % broke the other frames):
+  such a frame (the first frame of a pop from nothing) is left sharp and the status line says so.
+- One press stays one Undo step; only the first blur on a clip takes two (Premiere adds the effect in a step of its own).
+  Off (switch or Amount 0) takes Asistent's Transform off again; Undo last takes it with the keys. It is recognised by the
+  times of its Position keys (the clip's record), so a Transform of the editor's is never touched, and it is left out of the
+  property list.
+- **Live preview** (right of the curve, under it in a narrow panel): plays the motion with `keyframeplan.shapedFn` (new: the
+  shaped animation between frames, equal to every baked key, tested for every curve kind with and without Ping-pong / Loop)
+  and the same shutter window, at the sequence's frame rate, one drawing per frame; the read clip's first ticked property
+  (Position as its path, Scale, Rotation, anything else), or a sample move. Play / Replay; it replays on every change.
+- The curve editor's empty sides are cut (viewBox, 12 px each side instead of 60) to make room; the curve's coordinates and
+  dragging are unchanged.
+- Test bridge: `uxp_eval` (a UXP script in the test projects, like `host eval`), `fill kfBlurAmount`, `keyframer_info` shows
+  the blur and the preview.
+- Tests: `tests/blurplan.test.js` (12); node 354 pass.
+
+## 0.10.77 - Tracker: the object's colours; Track / Stop take the first press (the user's ball recording 2026-11-15) - installed
+- The user's screen recording (a basketball, 1080x1920, 0.10.76): after 4 sure and 4 unsure frames the track went red, and
+  Track and Stop needed several clicks. Measured on the clip: the grey template took the dark shorts for the orange ball
+  (16 frames called sure there in a re-run), and the box shrank to 0.72 of the ball in ten blurred frames.
+- Colour model in `tracker.RegionTracker` (colour footage only; the engine already decoded every frame in colour for the
+  panel's pictures): the object's colours (inside the box's ellipse) against its surroundings (a ring and the whole picture),
+  a never-seen colour counted as background, used only while it sets the object apart. Every candidate is weighed by how much
+  of the object's colours and colour spot (a centre-surround of its size) it holds; a place with hardly any is no candidate and
+  no rival; a jump or pick-up after a loss must land on such a spot; a sure frame must hold nearly all of them; the first frame
+  after a loss is unsure; colours of the surroundings (fast) and the object (slow) learnt on sure frames. Where the template
+  cannot follow, the spots of its colours in the searched area are matched as well; a colour spot alone near the motion keeps
+  a weak frame as unsure.
+- An unsure frame changes size and angle by at most 1 % and 1 degree (the drift above).
+- Scored against hand-marked ball centres (57 frames of the first shot): 0.10.76 4 on the ball, 3 wrong, 50 lost; 0.10.77 13 on
+  the ball, 2 clearly off and 2 at its edge (all orange), 40 lost; the remaining losses are the low fast bounces where the ball,
+  the shadowed court and the player's skin share one colour. Rejected after measuring: a two-frame pick-up after a loss (more
+  ball frames, but 7-11 wrong ones: court corners, the head), a roundness score (the court scored as round as the ball).
+- Synthetic colour scenes (tests): a dribbled orange ball with motion blur crossing a dark area next to a grey disc as bright
+  as it: grey alone 99-130 of 150 wrong (or 101 lost) over six scenes, with colour 0 wrong, 0 lost; into shade (half the
+  brightness): 0 lost. Grey benchmarks unchanged (bench_tracker.py identical; bench_tracker_hard.py WRONG unchanged).
+- Panel: a press that lands on a button but reaches another element (the Tracker's picture still holding the pointer after the
+  box was drawn: Track's tooltip stayed up while it was clicked) now presses that button and is logged ("press for ... arrived
+  at ..."); the picture, the timeline, the Keyframer graph and the Anchor board release the pointer by hand on release; the
+  picture ignores a press outside itself.
+- Slower when lost: about 55 ms a frame on the 1080x1920 clip (35 before), mostly the colour spots searched while lost.
+
+## 0.10.76 - Tracker: small, blurry, low-detail and fast objects (the user 2026-11-14) - installed, engine tried on the 4K test clip
+- The user's spec: track small, blurry, low-detail and fast objects accurately; no minimum box; sub-pixel; the file's own
+  resolution; less jitter, drift and jumps; no jumping to look-alikes; detect failures; recover after unclear or covered
+  frames; confidence that marks unreliable stretches; predicted places never confirmed; judged on frame-by-frame positions.
+- Engine step reworked inside `tracker.RegionTracker` (panel, data and keys unchanged): search of the whole reachable area
+  weighed by the motion prediction, second-best place kept (ambiguous = never sure), far or look-alike places only when sure
+  and alone, sure threshold raised above the background's own match and judged against the noise, weak evidence in a row
+  ends as lost, small boxes magnified (2x) and tracked on the file's own pixels (`work_for_box`), scale / angle only when the
+  object shows them, tight boxes around plain things use the whole box, shading taken out for smooth things, motion-smeared
+  and focus-blurred matching (unsure on that alone), adapting template only from sharp sure frames like its last look, flow
+  points seeded only on sure frames, lost search from the last place seen growing by the object's speed with kept looks,
+  lost frames report the last measured place. Box minimum 2 px (was 8). Details and numbers: `docs/TRACKER.md`.
+- New `scripts/bench_tracker_hard.py` (13 scenes). WRONG frames (sure/unsure in the wrong place) 184 -> 6 over all scenes,
+  all 6 in the scene where nothing tells the object apart (was 144 there, up to 1135 px off); the older benchmark unchanged.
+  4K 24 px object: median 0.045 px (0.115), faster (38 vs 51 ms a frame).
+- Panel: the small-box hint now says to zoom in (Alt + click) and draw it tight.
+- Tests: 10 new in `tests/test_tracker.py`; one changed (a 3 px box is now taken). pytest 825 passed, node 342 passed.
+
+## 0.10.75 - Tracker: the layout follows the clip's shape (the user 2026-11-14) - installed, tried in Premiere 2026 through the bridge
+- The user's spec: detect the source's aspect ratio (the file, not the sequence), a portrait layout for 9:16 with a much larger
+  preview, a wide layout for 16:9, other shapes without stretching or cropping, controls and timeline placed by the shape,
+  compact, recalculated when switching clips, box / zoom / mouse exact, tracking and keyframes unchanged.
+- `trackplan.layoutFor` sizes two layouts and keeps the larger picture: stacked (as before; a vertical clip may now take 62 % of
+  the height instead of 52 %) and side by side (the viewer card exactly as wide as the picture on the left, as tall as the page
+  allows; the timeline, Track and Apply in a column on the right). Side by side only for shapes narrower than 1.2:1 and when it
+  gives 25 % more picture; 16:9, 4:3 and wider always stack (the timeline keeps the full width). The same nodes are moved
+  between the layouts; chosen on Load frame (the engine's file size: `display_size`, rotation included) and again when the panel
+  is resized. The clip line names the shape ("2160 × 3840 · 9:16"; `trackplan.aspectName`). Box, path, zoom and Move/Alt use the
+  one viewport as before. Nothing in the tracking, the engine or the keyframes changed.
+- Tried in NEW TEST (Premiere 26.5.3, panel 737 x 455 px of room, bridge): fx31031 and C0728 (9:16) side by side, viewer
+  195 x 347 (was 140 x 248), timeline 514 px; aula_lesson_outro.mp4 (16:9) stacked 421 x 237, timeline 703 px; back to 9:16 side by
+  side. Playhead moved for Load frame and put back. Preview (Chrome) at 760 x 540, 1000 x 760 and 300 x 760 for 9:16, 16:9 and
+  1:1 (scenarios `tracker-wide`, `tracker-square`). 342 node tests pass (7 new).
+
+## 0.10.74 - Tracker zoom: Move, Alt + drag, Alt + click, a one-line guide (the user 2026-11-14) - installed
+- The user: "I can zoom but I can't move around the frame", then "with ALT + dragging it works, we need a little guide, minimal",
+  "the move button is nice, we can keep it", "zoom in/out while holding alt + scroll". Zoomed in: a Move button (arrows icon,
+  gold when on: dragging moves the picture instead of drawing a box; off again at Fit and after Load frame), Alt + drag and the
+  middle button move it too, Alt + click zooms in where clicked (Alt + Shift + click out; also on a fresh frame at Fit, where
+  there is nothing to move), and one muted line under the viewer: "Alt + click: zoom · Alt + drag: move".
+- Measured in Premiere 26.5.3 (logging build, the user's try): Alt and the drag reach the panel and move the view when zoomed;
+  NO scroll reaches the panel at all (no `wheel` or `mousewheel` on the viewer, the page or the document), so Alt + scroll,
+  Cmd/Ctrl + scroll and pinch zoom were taken out again. The user: the buttons and Move work.
+- Preview (Chrome, real mouse): Alt + click Fit -> 1.5× at the click, Alt + drag moves, Alt + Shift + click back to Fit.
+  336 node tests pass.
+
+## 0.10.73 - Tracker: zoom in and out of the viewer (the user 2026-11-14) - installed, buttons tried through the bridge
+- The user: "We need an option to be able to zoom in/out of the preview in the tracker as well." − / Fit / + in the viewer's
+  corner (up to 8×; + from Fit zooms in on the box or the tracked point), Cmd/Ctrl + scroll or a pinch at the mouse, scroll or
+  Alt-drag to move around zoomed in, the view follows the tracked point while stepping or playing. Boxes drawn zoomed in land
+  on the same object (frame and overlay share one size and shift). Load frame now asks for 1280 px (was 640) so it stays sharp.
+  Maths in `trackplan.js` (`viewport`, `zoomAt`, `zoomStep`, `panBy`, `follow`, 6 node tests); preview scenario `tracker-zoom`.
+  Details: `docs/TRACKER.md`.
+- Tried in NEW TEST (bridge): a 1280 px frame of fx31031 loaded (720 x 1280), box set, + twice -> 2× centred on the box,
+  − -> 1.5×, Fit -> 1. The viewer there is 140 x 248 px. Not checkable through the bridge: that Premiere clips the zoomed picture
+  to the viewer, scroll / pinch / Alt-drag (the user's look). 336 node tests pass.
+
+## 0.10.72 - Keyframer: Update live after Apply (the user 2026-11-14) - installed, tried in Premiere 2026 through the bridge
+- The user: "Can we have keyframer auto update when we change these settings? Right now when I update the values I have to
+  click apply again". After Apply on a clip, every change of the curve or its settings (kind, presets, a dragged handle or point,
+  Elastic / Bounce / Overshoot+ / Bounce Back steppers, Repeat) is applied to that clip again by itself, 500 ms after the last
+  change (a drag: when it ends; several presses in a row: one update). Each update is one Undo step and replaces Asistent's
+  earlier curve as Apply always did. Checkbox "Update live after Apply" under Apply, on by default, kept per computer
+  (store `asistent.keyframer.live`).
+- Only the clip last applied: when another clip is selected the update is skipped and the page says "Live update paused:
+  <clip> on V<n> is not selected"; back on that clip, the next change applies again. Undo last stops it until the next Apply.
+  The clip is recognised by media, In point, track and start: Premiere's graphics all share media and In (two "Graphic"
+  clips in NEW TEST, both In 3600 s), which the first build mixed up (the update went to the other Graphic, wrote nothing).
+- Test bridge `keyframer_info` (status lines and the live state).
+- Tried in NEW TEST (Premiere 26.5.3, bridge): Apply (Ease in-out, 8 keys) then Elastic -> "Updated live" in ~0.5 s after the
+  press; Overshoot+ -> 86 keys; another Graphic selected + a change -> paused, nothing written; back -> updated; Undo last ->
+  keys taken out, live off. The user's own look in the panel still to come. 330 node tests pass.
+
+## 0.10.71 - Brand tab: the client's brand kit inside Premiere (the user 2026-11-14) - installed, NOT yet run in Premiere
+- The user's spec: per-client brand kits on the office server, the client found from the project, one-click import and
+  timeline placement of logos and video assets, HEX copy and colour on supported graphics, subtitle and text styles,
+  intros and outros, frequent assets without browsing, create / edit / duplicate / delete kits, drag and drop, custom server
+  paths, refresh when files change, a local cache, graceful when files, formats or the server are missing, Mac and Windows.
+  Full description, Premiere limits per action and the open Premiere checks: `docs/BRAND_KIT.md`.
+- Engine `brandkit.py` + `/brand/*` endpoints: kits from library folders (Content Studio's `brand-kits/`, an office server
+  folder; `/Volumes/Production/Brand Kits` read when it exists), client folders anywhere, and a `Brand Kit` folder above the
+  project; the client from the project's name or folders (across Cyrillic and Latin, aliases); files sorted by folder words
+  and type, one row per logo in several formats; colours, fonts, subtitle style and notes from `brand.json` (read only),
+  the editor's changes in `asistent-kit.json`; signature for refresh, offline index, local copies of server files from the
+  second use (Premiere still gets the server's file while it is reachable), thumbnails (FFmpeg; SVG as is), font install for
+  the user, clipboard through the engine, Show / Open, manage (Delete moves the kit into `_Deleted kits`), adding files as a
+  copy job.
+- Host: `brand_mogrt` (ExtendScript `importMGT`, the call proven for the subtitle graphics) and `brand_color` (the selected
+  MOGRTs' colour control). Host version 0.10.71.
+- Panel: a **Brand** tab (`brand.js`, `premiere-brand.js`, pure `brandplan.js`): client picker (Auto = detected, a choice is
+  remembered per project), search, Quick (starred, then most used), Colours (click = copy; Apply to selected: Tint on picture
+  and video files, the MOGRT's colour control; native text cannot be coloured by script: said, HEX copied), Logos, Graphics,
+  Video (Add at the playhead above everything there, At end for outros, Import), Fonts (Install, Copy), Presets (MOGRT Add,
+  the client's subtitle style Use, effect presets / LUTs shown with the manual step), References (Open), Notes, Manage, drop
+  files on the page. Every placement is checked afterwards. Bridge: `brand_info`, `brand_choose`, `brand_act`, `brand_color`.
+- Open: `brandplan.COLOR_RANGE` (what `ppro.Color` takes, 0-1 or 0-255) is not measured; the Tint colour is checked on the
+  first Premiere run (docs/BRAND_KIT.md step 1). Installed on the Mac on the user's word (the first attempt was stopped by Claude Code's permission check).
+- Installer: after this install Premiere 2026 kept loading 0.10.70 even after a restart (its own plugin list still had the old
+  copy first, while Adobe's installer listed only 0.10.71). `install.install_panel` now also checks Premiere's list
+  (`_premiere_versions`) and removes + installs again when it holds another version; fixed by hand on this Mac. 2 pytest.
+- Preview: scenarios `brand`, `brand-manage`, `brand-offline`; `shoot.js --only a,b`.
+- Tests: `test_brandkit.py` (15), `brandplan.test.js` (12); 792 pytest + 24 skipped, 330 node.
+
 ## 0.10.70 - Auto import: only real downloads (a folder 3 deep at most, never a repository)
 - **Bug found 2026-11-12**: Auto import had Downloads bound to NEW TEST (switched on at 00:30), and Asistent's repository sits
   inside Downloads (Downloads/LOVDJIQ/04. AUDIO/MUSIC/Content Studio/tools/asistent). The 928 preview screenshots written

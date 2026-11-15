@@ -1,5 +1,48 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.93 (2026-11-15, installed): the text's box is kept, so later clicks are instant; the first click measures in ~0.3 s.
+
+0.10.91 (2026-11-15, installed, measured in NEW TEST): on a text made in Premiere, Clip / Selection use the letters' own box
+(two renders, the text hidden for a moment); Keyframer's pop then grows from that point.
+
+0.10.90 (2026-11-15, installed, measured on frames in NEW TEST): the Anchor page works on text made in Premiere (the
+sequence frame is its picture; Premiere gives no text box) and on clips with animated Scale / Rotation (the picture stays put at
+the playhead). USER: try it on the text from the screenshot.
+
+0.10.88 (2026-11-15, installed; tried through the bridge and measured on frames Premiere rendered in NEW TEST, the panel's look
+not yet seen by the user): Keyframer **motion blur** (switch, Amount slider and number) carried by an Asistent Transform at the
+end of the clip's effects (Premiere's own smear, by each frame's speed; Position, Scale, Rotation; Motion keys untouched) and a
+**live preview** of the motion right of the curve, from the same functions Apply uses.
+
+0.10.77 (2026-11-15, installed; measured on the user's ball clip, Track / Stop presses not yet tried by the user): Tracker uses
+the **object's colours** (no sure frames on the player's shorts; 13 of 57 marked ball frames followed instead of 4, 2 clearly
+off, all orange) and a press that reaches another element than the button under it still presses it (Track / Stop needed
+several clicks).
+
+0.10.76 (2026-11-15, installed; engine tried on the 4K test clip, no real footage yet): Tracker for **small, blurry,
+low-detail and fast objects**: no jumps to look-alikes, unsure/lost instead of wrong keys, small boxes on the file's own pixels
+(benchmark: wrong frames 184 -> 6, all in a scene that cannot be told apart; docs/TRACKER.md).
+
+0.10.75 (2026-11-14, installed; tried in Premiere 2026 through the bridge): Tracker layout by the clip's shape (9:16 side by
+side with a twice-as-large viewer in a wide panel, 16:9 wide and stacked, any shape unstretched; recalculated per clip).
+
+0.10.74 (2026-11-14, installed): Tracker zoom gets Move and Alt + drag (both work for the user), Alt + click zoom and a one-line guide; Premiere passes no scroll to panels, so no scroll zoom.
+
+0.10.73 (2026-11-14, installed; zoom buttons tried through the bridge, the user's look still to come): Tracker viewer **zoom**
+(− / Fit / +, Cmd/Ctrl + scroll or pinch, scroll or Alt-drag to pan, follows the tracked point); frames load at 1280 px.
+
+0.10.72 (2026-11-14, installed; tried in Premiere 2026 NEW TEST through the bridge, the user's look still to come): Keyframer
+**Update live after Apply**: after Apply, a changed curve or setting is applied to that clip again by itself (one Undo step
+each), paused while another clip is selected, off after Undo last or with the checkbox.
+
+0.10.71 (2026-11-14, installed on the Mac at the user's word "Install it"; loaded in Premiere 2026 after a remove + install (an old copy blocked it, installer fixed); NOT yet tried in Premiere): **Brand tab**, the client's brand kit inside Premiere (the user's
+Brand Kit spec): kits from library folders / client folders / a Brand Kit folder above the project, client found from the
+project, Add / At end / Import / MOGRT / colour (Tint, MOGRT control) / font install / references, Quick row, refresh by
+itself, offline index and local copies, Manage (create, rename, duplicate, delete = moved to `_Deleted kits`, aliases,
+colours, files by drop or picker). Verified outside Premiere only: 15 pytest + 12 node, the endpoints on the real
+`brand-kits/` (AULA: 109 files read in 0.14 s, 32 of 33 thumbnails in 0.13 s), the preview at 240/300/420 px. Library folder set to
+Content Studio's `brand-kits` on this Mac (10 kits). `ppro.Color`'s range unmeasured. Details and checks: `docs/BRAND_KIT.md`.
+
 Installed 0.10.70 on 2026-11-12 11:30 (the user: "Install"). Tried in Premiere 2026 (NEW TEST, bridge): Cut silences on 26 clips
 (two cameras + lavalier L/R): 1:52 -> 0:59, 12 silences, 41 cloned pieces checked as written, 11 links, 1.2 s listening;
 Export transcript: 3 paragraphs next to the .srt, shown in Finder. Premiere 2027 loads 0.10.70 after its next restart.

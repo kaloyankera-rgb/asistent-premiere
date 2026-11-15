@@ -1,7 +1,7 @@
 ﻿// Asistent host: the ExtendScript (ES3) side. main.js evaluates this file for every command and calls as_run(name, args).
 // Every function answers with a JSON string {ok, msg, ...}; nothing here throws out of as_run.
 
-var AS_HOST_VERSION = "0.10.11";
+var AS_HOST_VERSION = "0.10.93";
 
 function as_json(v) {
     if (v === null || v === undefined) return "null";
@@ -541,6 +541,73 @@ function as_play_stop(a) {
     return as_result(true, "left alone", { at: at, playing: !!player.isPlaying });
 }
 
+// ---------------------------------------------------------------- Brand page (0.10.71)
+// A client's MOGRT placed at a time on a track the panel chose free (brandplan.placeOn: above every clip from that time on,
+// so nothing of the editor's is covered or cut). importMGT is the call as_graphics proved in NEW TEST (2026-11-04).
+function as_brand_mogrt(a) {
+    var tg = as_target(a);
+    if (tg.error) return as_result(false, tg.error);
+    var seq = tg.seq;
+    if (seq.importMGT === undefined) return as_result(false, "This Premiere version cannot place a MOGRT by script.");
+    if (!new File(a.path).exists) return as_result(false, "The MOGRT file is missing: " + a.path);
+    var vi = a.video | 0, ai = a.audio | 0;
+    if (vi < 0 || vi >= seq.videoTracks.numTracks) return as_result(false, "The track V" + (vi + 1) + " does not exist. Nothing was placed.");
+    if (ai < 0 || ai >= seq.audioTracks.numTracks) ai = 0;
+    var at = new Time();
+    at.seconds = Math.max(0, Number(a.seconds) || 0);
+    var ti = seq.importMGT(a.path, at.ticks, vi, ai);
+    if (!ti) return as_result(false, "Premiere did not place the MOGRT (it may need a newer Premiere or After Effects).");
+    var info = { track: vi, start: ti.start.seconds, end: ti.end.seconds, name: String(ti.name) };
+    try {
+        var m = ti.getMGTComponent();
+        info.controls = m ? m.properties.numItems : 0;
+    } catch (e) { info.controls = -1; }
+    return as_result(true, "ok", info);
+}
+
+function as_hex_rgb(hex) {
+    var h = String(hex).replace("#", "");
+    return [parseInt(h.substr(0, 2), 16), parseInt(h.substr(2, 2), 16), parseInt(h.substr(4, 2), 16)];
+}
+
+// The colour controls of a MOGRT (Essential Graphics properties the template exposes): getColorValue answers
+// [alpha, red, green, blue] 0-255 for those only.
+function as_colour_controls(mgt) {
+    var out = [];
+    for (var p = 0; p < mgt.properties.numItems; p++) {
+        var pr = mgt.properties[p], v = null;
+        try { v = pr.getColorValue(); } catch (e) { v = null; }
+        if (v && v.length === 4 && typeof v[1] === "number" && v[1] >= 0 && v[1] <= 255) out.push(pr);
+    }
+    return out;
+}
+
+// The colour goes into one colour control (index: 0 = the first) of every selected MOGRT. Native text (Premiere's Type
+// tool, captions upgraded to graphics) has no scriptable colour in 26.x: those are counted, not touched.
+function as_brand_color(a) {
+    var tg = as_target(a);
+    if (tg.error) return as_result(false, tg.error);
+    var seq = tg.seq, sel = seq.getSelection(), rgb = as_hex_rgb(a.hex), idx = Math.max(0, a.index | 0);
+    var out = { mogrts: 0, set: 0, other: 0, skipped: [], controls: [] };
+    for (var i = 0; i < sel.length; i++) {
+        var ti = sel[i], mgt = null;
+        if (ti.mediaType && String(ti.mediaType) !== "Video") continue;
+        try { mgt = ti.getMGTComponent(); } catch (e) { mgt = null; }
+        if (!mgt) { out.other++; continue; }
+        out.mogrts++;
+        var cols = as_colour_controls(mgt);
+        if (!out.controls.length) for (var c = 0; c < cols.length; c++) out.controls.push(String(cols[c].displayName));
+        if (!cols.length) { out.skipped.push(String(ti.name) + ": no colour control"); continue; }
+        var pr = cols[Math.min(idx, cols.length - 1)];
+        var animated = false;
+        try { animated = pr.isTimeVarying(); } catch (e2) { animated = false; }
+        if (animated) { out.skipped.push(String(ti.name) + ": " + pr.displayName + " has keyframes"); continue; }
+        pr.setColorValue(255, rgb[0], rgb[1], rgb[2], true);
+        out.set++;
+    }
+    return as_result(true, "ok", out);
+}
+
 function as_eval(a) {
     if (!app.project || !/^(NEW )?TEST\.prproj$/.test(String(app.project.name))) return as_result(false, "eval only in TEST.prproj or NEW TEST.prproj.");
     var out = eval(String(a.code));
@@ -557,6 +624,8 @@ function as_run(name, args) {
         if (name === "link") return as_link(args || {});
         if (name === "stash_export") return as_stash_export(args || {});
         if (name === "add_tracks") return as_add_tracks(args || {});
+        if (name === "brand_mogrt") return as_brand_mogrt(args || {});
+        if (name === "brand_color") return as_brand_color(args || {});
         if (name === "eval") return as_eval(args || {});
         if (name === "play") return as_play(args || {});
         if (name === "play_stop") return as_play_stop(args || {});

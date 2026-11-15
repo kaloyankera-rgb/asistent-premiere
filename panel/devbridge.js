@@ -125,7 +125,7 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     async fill(a) {
       // the notes box, and (0.10.34) the Track names options, so a test can choose colours and the auto switch
       // 0.10.65: and Remove silences' Pauses / Threshold
-      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughTempo", "roughThreshold", "tr_scale", "tr_rotation", "tr_centre", "tr_smooth", "tr_zoom"].includes(a.id)) throw new Error("fill: notes, the Track names options, Remove silences' options and the Tracker's options only.");
+      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughTempo", "roughThreshold", "tr_scale", "tr_rotation", "tr_centre", "tr_smooth", "tr_zoom", "kfBlurAmount"].includes(a.id)) throw new Error("fill: notes, the Track names options, Remove silences' options and the Tracker's options and the Keyframer's blur amount only.");
       const e = doc.getElementById(a.id);
       const box = a.id === "labelsAuto" || a.id.startsWith("tr_");
       if (box) e.checked = !!a.value;
@@ -615,6 +615,24 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       if (!hooks.tracker) throw new Error("no Tracker page in this panel");
       return hooks.tracker().range(a.from, a.to);
     },
+    // the Brand page (0.10.71): what it shows, one asset action ({verb: place|end|mogrt|import|open|show, rel}), a colour on the selection
+    async brand_info() {
+      return hooks.brand && hooks.brand() ? hooks.brand().info() : null;
+    },
+    async brand_choose(a) {
+      return hooks.brand().choose(a.kit);
+    },
+    async brand_act(a) {
+      return hooks.brand().act(a.verb, a.rel);
+    },
+    async brand_color(a) {
+      return hooks.brand().color(a.hex, a.index || 0);
+    },
+    // the Keyframer page (0.10.72): its status lines and the live update's state
+    async keyframer_info() {
+      if (!hooks.keyframer || !hooks.keyframer()) throw new Error("no Keyframer page in this panel");
+      return hooks.keyframer().info();
+    },
     async tracker_info() {
       if (!hooks.tracker) throw new Error("no Tracker page in this panel");
       return hooks.tracker().info();
@@ -641,6 +659,14 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       const started = Date.now();
       const ok = await manager.exportSequence(seq, type, a.out, a.preset);
       return { ok, type, types: types ? Object.keys(types) : null, ms: Date.now() - started };
+    },
+    // 0.10.78: run a short UXP script in the test project (like `host eval` for ExtendScript): `code` is an async function
+    // body with ppro, premiere (premiere.js), project and sequence in scope; its return value comes back
+    async uxp_eval(a) {
+      const { p } = await project();
+      const seq = await p.getActiveSequence();
+      const fn = new Function("ppro", "premiere", "project", "sequence", `return (async () => { ${String(a.code || "")} })();`);
+      return { value: await fn(require("premierepro"), premiere, p, seq) };
     },
     // method names of an object, to find what this Premiere offers
     async api(a) {

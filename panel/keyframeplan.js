@@ -388,6 +388,67 @@ function repeatKeys(anchors, curve, step, repeat, until) {
 }
 
 /**
+ * 0.10.78: the shaped animation of one property as a function of media time u, for the motion between frames (the motion
+ * blur and the preview). At every frame it equals the key plan() bakes there; between frames it is the curve itself (a
+ * bounce's hit inside a frame stays a hit). Same rules as plan(): the curve between the anchors, Overshoot+ / Bounce Back
+ * after each key, Ping-pong / Loop after the last anchor, the last key's value held afterwards. Premiere's own modes: Linear
+ * and Hold are known; Premiere's ease is not (its handles are Premiere's): null, read it from Premiere instead.
+ * opts: {repeat, until} as for plan().
+ */
+function shapedFn(anchors, curve, step, opts = {}) {
+  if (Array.isArray(curve)) curve = { p: curve };                 // a plain bezier, as plan() takes it too
+  const first = anchors[0];
+  const last = anchors[anchors.length - 1];
+  if (curve.mode) {
+    if (curve.mode === "LINEAR") return (u) => valueAt(anchors, [0, 0, 1, 1], u);
+    if (curve.mode === "HOLD") {
+      return (u) => {
+        let i = 0;
+        while (i + 1 < anchors.length && anchors[i + 1].t <= u) i++;
+        return anchors[i].v;
+      };
+    }
+    return null;
+  }
+  if (AFTER_KINDS.has(curve.kind)) {
+    const prev = anchors[anchors.length - 2];
+    const delta = Array.isArray(last.v) ? last.v.map((x, k) => x - prev.v[k]) : last.v - prev.v;
+    const v = Array.isArray(delta) ? delta.map((x) => x / (last.t - prev.t)) : delta / (last.t - prev.t);
+    const end = last.t + afterLength(curve, v, norm(delta));
+    // as afterKeys: a key on every frame before the tail is still, then one more frame at the rest value
+    const tail = first.t + step * (Math.ceil((end + step / 2 - first.t) / step - 1e-9) - 1);
+    if (!(tail > last.t)) return (u) => (u <= first.t ? first.v : u >= last.t ? last.v : afterValueAt(anchors, curve, u));
+    return (u) => {
+      if (u <= first.t) return first.v;
+      if (u >= tail + step) return last.v;
+      if (u > tail) return lerp(afterValueAt(anchors, curve, tail), last.v, (u - tail) / step);
+      return afterValueAt(anchors, curve, u);
+    };
+  }
+  const shape = curve.kind ? curve : curve.p;
+  const base = (u) => valueAt(anchors, shape, u);
+  const repeat = opts.repeat && opts.repeat.mode && opts.repeat.mode !== "off" ? opts.repeat : null;
+  const span = last.t - first.t;
+  if (!repeat || span < 2 * step) return base;
+  let times = repeat.times || 0;
+  if (!times) times = Number.isFinite(opts.until) ? Math.floor((opts.until - last.t + step / 2) / span) : 0;
+  const pingpong = repeat.mode === "pingpong";
+  return (u) => {
+    if (u <= last.t || !times) return base(u);
+    const k = Math.max(1, Math.ceil((u - last.t) / span - 1e-9));
+    if (k > times) return pingpong && times % 2 === 1 ? base(first.t) : base(last.t);
+    const local = u - (last.t + (k - 1) * span);
+    if (pingpong) return k % 2 === 1 ? base(last.t - local) : base(first.t + local);
+    // Loop: the last value until the jump one frame in (no move across the jump), then Premiere's straight line to the
+    // second frame's key, then the curve
+    const tiny = step * 1e-6;                          // a frame's time in floating point
+    if (local < step - tiny) return base(last.t);
+    if (local < 2 * step) return lerp(base(first.t), base(first.t + 2 * step), (local - step) / step);
+    return base(first.t + local);
+  };
+}
+
+/**
  * The whole press. props: [{id, keys: [{t, v}], earlier?: {anchors: [t], added: [t]}}] (earlier = Asistent's last bake on that
  * property: its keys are taken out first and the editor's own keys are the anchors again, so a new curve replaces the old one).
  * curve: {p} for a custom curve or {mode} for Premiere's own interpolation. -> { props: [{id, remove, add, anchors, segments,
@@ -460,4 +521,4 @@ function samplePath(curve, size, pad, n = 120) {
   return `M ${pts.join(" L ")}`;
 }
 
-module.exports = { MAX_POINTS, pointsOk, pointsAt, toPoints, afterOffset, afterValueAt, afterKeys, afterLength, AFTER_KINDS, PRESETS, NATIVE, MAX_KEYS, progress, ease, curveOk, validCurve, lerp, bake, plan, valueAt, repeatKeys, curvePath, samplePath };
+module.exports = { shapedFn, PREVIEW_MOVE, MAX_POINTS, pointsOk, pointsAt, toPoints, afterOffset, afterValueAt, afterKeys, afterLength, AFTER_KINDS, PRESETS, NATIVE, MAX_KEYS, progress, ease, curveOk, validCurve, lerp, bake, plan, valueAt, repeatKeys, curvePath, samplePath };

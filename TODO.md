@@ -5,6 +5,18 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 
 ## N. The user's tweaks of 2026-11-12 (night)
 - [x] Tracker: range, Stop that keeps, go on (0.10.64). USER: drag the golden handles on a real clip, Stop mid-way, go on.
+- [x] Tracker: small, blurry, low-detail, fast objects (0.10.76, engine on the 4K test clip).
+- [x] Anchor on a text made in Premiere and on animated Scale / Rotation (0.10.90, measured in NEW TEST). USER: playhead on
+  the text where it is fully visible, then a point; play the pop. The letters' own box came in 0.10.91 (two renders). USER: select the text, playhead where it is visible, click a point, play.
+- [x] Keyframer motion blur + live preview (0.10.88, the user's reminders 8 and 9; measured on rendered frames in NEW TEST).
+  USER: look at the Keyframer page (the preview right of the curve, the blur switch, slider and number); Apply with Motion blur
+  on a title that slides or pops in and play it; say if 50 % is the right default strength.
+- [x] Tracker colours + first-press buttons (0.10.77, the user's ball recording). USER: press Track and Stop once (do they act
+  on the first press? the log line "press for ... arrived at ..." shows the safety net caught one); track the ball clip again:
+  the green and orange frames should sit on the ball; red during the low bounces is expected.
+- [x] Tracker layout by the clip's shape (0.10.75, tried through the bridge). USER: look at a 9:16 and a 16:9 clip; resize the panel narrow and wide.
+- [x] Tracker viewer zoom (0.10.73, buttons tried through the bridge). The user: zoom stays inside the viewer, Alt + drag moves (0.10.74: Move, Alt + click zoom, guide line; no scroll reaches panels). USER: Alt + click on a fresh frame zooms in there.
+- [x] Keyframer Update live after Apply (0.10.72, tried through the bridge). USER: Apply once, then change Amplitude / drag a handle and watch the clip update; say if 0.5 s feels slow or too eager.
 - [x] Keyframer Custom curves (0.10.68). USER: Bounce > Edit as points, drag the points, Apply on a title; Alt-click, double-click.
 - [x] Anchor Studio as the Anchor page (0.10.69). USER: select a clip, click the corners; a PNG logo with Use alpha;
   Transform target on a clip with a Transform effect. Note: anchor-studio is a PRIVATE repo, Asistent's is PUBLIC: a push makes
@@ -14,6 +26,30 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [x] Captions tab: Export transcript (0.10.66). USER: Make subtitles, Captions tab, Export transcript (and With times).
 - [x] Rough cut -> Silences (0.10.65). USER: Cut silences on a real multi-camera edit (Normal, then Tight); say if a word
   start or end is ever clipped, or a pause you want gone stays. Then: the Premiere run of it in NEW TEST (blocked tonight).
+
+## BK. Brand tab (0.10.71, the user's Brand Kit spec of 2026-11-14)
+- [x] Built and tested outside Premiere: engine `brandkit.py`, host `brand_mogrt` / `brand_color`, panel Brand tab
+  (docs/BRAND_KIT.md).
+- [x] Installed on the Mac 2026-11-14 (the user: "Install it"); Library folder = Content Studio's `brand-kits`.
+- [ ] Premiere checks in NEW TEST, docs/BRAND_KIT.md "Still to check", first the `ppro.Color` range (sets
+  `brandplan.COLOR_RANGE`).
+- [ ] USER: Manage > Library folder… = Content Studio's `brand-kits` (and the office server folder when there is one); open
+  a client project, check the client is found, Add a logo, At end an outro, click a colour and Apply it to a logo.
+- [ ] Windows (PC session): font install, clipboard, Show in Explorer.
+- [ ] Later if wanted: SVG to PNG on import (needs a renderer), a kit's own MOGRT colour presets, per-kit text styles once
+  Premiere exposes them to scripts.
+
+## XD. Smart Export Destination (the user 2026-11-12: plan only, "we will come back to this later")
+- [ ] Plan in `docs/SMART_EXPORT_DESTINATION_PLAN.md`: Premiere's Export window points at the existing
+  `Exported Videos/<client>/Контент план N` of the open project. Hard rule: find only, NEVER create folders on the server.
+  Only for the user's Mac for now. First step: probe in NEW TEST whether setting `MZ.Prefs.Export.Media.Path` while
+  Premiere runs changes the Export window's Location. Do not build before the user says so.
+
+## SIL. Cut silences field report (the user 2026-11-13, Fornetti КП-9 Видео 10, fx30-3-0403 after Fix audio L/R)
+- [ ] **An empty channel blocks the cuts.** R is a dead camera input (floor -88.6, "voice" -66.4 dBFS): Auto set its threshold
+  at -79 dB and counted 28 s of hiss as speech, so only 3 cuts (5.1 s) instead of L's 7 (15.4 s). Measured fix: a clip whose
+  Auto threshold is under SURE_MIN_DB counts only where Silero is sure (>= 0.8): same 7 cuts as L alone on this clip. Check it
+  keeps a quiet lavalier (the -57 dB fx31031 case) before building. Waiting for the user's go.
 
 ## SEG. Subtitle cuts by the delivery (0.10.61, the user 2026-11-12)
 - [ ] USER: press Make subtitles with a client style (GStroy, Credissimo, ЕКОПАК, Beauty Sector, AULA) or Auto on a real
@@ -98,7 +134,7 @@ first; brand profiles deferred.
   fix a stretch. 0.10.57: restyled as a dark workspace (the user's "premium, professional" brief). USER: try it on the
   basketball clip and say how the new look reads in Premiere. Later if wanted: keyboard arrows on the timeline, zoom into the
   viewer, a graph of x / y, several tracks per clip.
-- [ ] **A4 Brand profiles**: deferred (text colour cannot be set by script); a new `brand.py` if taken up.
+- [x] **A4 Brand profiles**: built as the Brand tab (0.10.71, section BK above).
 
 ## EL. Learning from the other editors (the user, 2026-11-10: "add this to the to do list")
 Goal: Asistent learns from what the editors actually do (fixes, colour, sound, cuts), per client, and Claude turns the patterns

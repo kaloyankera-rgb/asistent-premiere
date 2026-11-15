@@ -79,3 +79,49 @@ def test_what_it_refuses(tmp_path):
         A.bounds(e)
     with pytest.raises(ValueError, match="cutoff"):
         A.bounds(REF, 101)
+
+
+def test_drawn_finds_only_what_differs(tmp_path):
+    # 0.10.91: the frame as it is against the frame with the clip hidden; the hull and box are the changed pixels only
+    import cv2
+    import numpy as np
+    from asistent import anchoralpha
+    bg = np.random.default_rng(1).integers(0, 255, (120, 200, 4), dtype=np.uint8)
+    bg[:, :, 3] = 255
+    shown = bg.copy()
+    shown[40:61, 30:151, :3] = 255
+    a, b = str(tmp_path / "a.png"), str(tmp_path / "b.png")
+    cv2.imwrite(a, shown)
+    cv2.imwrite(b, bg)
+    r = anchoralpha.drawn(a, b)
+    assert (r["width"], r["height"]) == (200, 120)
+    box = r["bounds"]
+    assert (box["x"], box["y"], box["width"], box["height"])[:2] == (30, 40)
+    assert box["x"] + box["width"] <= 151 and box["y"] + box["height"] <= 61
+    xs = [p[0] for p in r["hull"]]
+    assert min(xs) >= 30.5 and max(xs) <= 150.5
+    cv2.imwrite(a, bg)
+    cv2.imwrite(b, bg)
+    try:
+        anchoralpha.drawn(a, b)
+        assert False, "identical frames must be refused"
+    except ValueError as e:
+        assert "Nothing" in str(e)
+
+
+def test_ready_waits_for_the_png_end(tmp_path):
+    # 0.10.92: a PNG counts as written once its IEND chunk is there; a half-written one is not
+    import cv2
+    import numpy as np
+    from asistent import anchoralpha
+    full = str(tmp_path / "f.png")
+    cv2.imwrite(full, np.zeros((20, 30, 3), np.uint8))
+    assert anchoralpha.ready(full, 0.5) == full
+    from pathlib import Path
+    data = Path(full).read_bytes()
+    half = str(tmp_path / "h.png")
+    Path(half).write_bytes(data[:-12])
+    assert anchoralpha.ready(half, 0.1) is None
+    doubled = str(tmp_path / "d.png")
+    Path(doubled + ".png").write_bytes(data)
+    assert anchoralpha.ready(doubled, 0.5) == doubled + ".png"

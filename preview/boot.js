@@ -59,6 +59,9 @@
     playStop: async () => ({ ok: true }),
     devPoll: () => Promise.reject(new Error("bridge off in the preview")),
     stashList: async () => engineState.stash || { items: [], bytes: 0 },
+    brandKits: async () => engineState.brandKits || { kits: [], detected: null, roots: [], missing: [] },
+    brandKit: async (id, project, sig) => (sig && engineState.brandKit && sig === engineState.brandKit.sig ? { unchanged: true } : engineState.brandKit),
+    brandThumbs: async (id, rels) => ({ thumbs: Object.fromEntries(rels.map((r) => [r, S.thumb ? S.thumb(r) : null])) }),
   }, { get: (t, k) => (k in t ? t[k] : async () => ({})) });
 
   const fakes = {

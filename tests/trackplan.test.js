@@ -187,3 +187,95 @@ test("going on from a tracked frame: its box, and the part continues its scale a
   assert.strictEqual(m.frames[0].x, 150);                   // "none" in the part leaves the old frame alone
   assert.ok(near(m.frames[2].s, 3) && near(m.frames[2].a, 15) && m.frames[2].state === "sure");
 });
+
+// ---- the viewer's zoom (0.10.73)
+test("viewport: zoom 1 shows the whole frame, unshifted", () => {
+  const a = P.viewport({ z: 1, cx: 0.9, cy: 0.1 }, 200, 356);
+  assert.deepEqual([a.cw, a.ch, a.px, a.py], [200, 356, 0, 0]);
+});
+
+test("viewport: the shift is kept inside the frame", () => {
+  const a = P.viewport({ z: 2, cx: 1, cy: 0 }, 200, 300);
+  assert.deepEqual([a.cw, a.ch, a.px, a.py], [400, 600, 200, 0]);
+  assert.equal(a.cx, 0.75);
+  assert.equal(a.cy, 0.25);
+});
+
+test("zoomAt keeps the frame point under the mouse in place", () => {
+  const w = 240, h = 420;
+  const v0 = { z: 1.5, cx: 0.4, cy: 0.6 };
+  const a = P.viewport(v0, w, h);
+  const [vx, vy] = [70, 300];
+  const fx = (vx + a.px) / a.cw, fy = (vy + a.py) / a.ch;
+  const b = P.viewport(P.zoomAt(v0, 3, vx, vy, w, h), w, h);
+  assert.ok(Math.abs(fx * b.cw - b.px - vx) <= 1);
+  assert.ok(Math.abs(fy * b.ch - b.py - vy) <= 1);
+  assert.equal(b.z, 3);
+});
+
+test("zoomStep goes through the steps and stops at the ends", () => {
+  assert.equal(P.zoomStep(1, 1), 1.5);
+  assert.equal(P.zoomStep(2.4, 1), 3);
+  assert.equal(P.zoomStep(8, 1), 8);
+  assert.equal(P.zoomStep(2.4, -1), 2);
+  assert.equal(P.zoomStep(1, -1), 1);
+});
+
+test("panBy moves the view and stops at the frame's edge", () => {
+  const v = P.panBy({ z: 2, cx: 0.5, cy: 0.5 }, 50, 0, 200, 200);
+  assert.equal(P.viewport(v, 200, 200).px, 150);
+  const far = P.panBy(v, 1000, -1000, 200, 200);
+  assert.deepEqual([P.viewport(far, 200, 200).px, P.viewport(far, 200, 200).py], [200, 0]);
+});
+
+test("follow moves the view only when the point nears an edge", () => {
+  const v = { z: 4, cx: 0.5, cy: 0.5 };
+  assert.deepEqual(P.follow(v, 0.52, 0.5, 200, 200), P.zoomAt(v, 4, 100, 100, 200, 200));
+  const moved = P.follow(v, 0.7, 0.5, 200, 200);
+  assert.ok(Math.abs(moved.cx - 0.7) < 0.01);
+  assert.deepEqual(P.follow({ z: 1, cx: 0.5, cy: 0.5 }, 0.9, 0.9, 200, 200), { z: 1, cx: 0.5, cy: 0.5 });
+});
+
+// ---- layout by the clip's shape (0.10.75)
+test("layoutFor: a vertical clip in a wide, short panel goes side by side and gets much bigger", () => {
+  const L = P.layoutFor(2160, 3840, 760, 480);
+  assert.equal(L.side, true);
+  assert.ok(L.h >= 380, `h ${L.h}`);
+  assert.ok(Math.abs(L.w / L.h - 9 / 16) < 0.01);
+});
+
+test("layoutFor: 16:9 in the same panel stays stacked, full width or full allowed height", () => {
+  const L = P.layoutFor(3840, 2160, 760, 480);
+  assert.equal(L.side, false);
+  assert.ok(L.w <= 760 && L.h <= 250);
+  assert.ok(Math.abs(L.w / L.h - 16 / 9) < 0.01);
+});
+
+test("layoutFor: a narrow panel always stacks; the shape is never stretched", () => {
+  for (const [fw, fh] of [[1080, 1920], [1920, 1080], [1080, 1080], [1440, 1080], [1080, 1350]]) {
+    const L = P.layoutFor(fw, fh, 300, 700);
+    assert.equal(L.side, false);
+    assert.ok(L.w <= 300);
+    assert.ok(Math.abs(L.w / L.h - fw / fh) < 0.02, `${fw}x${fh}: ${L.w}x${L.h}`);
+  }
+});
+
+test("layoutFor: a square clip in a wide panel picks the bigger picture", () => {
+  const L = P.layoutFor(1080, 1080, 1000, 700);
+  const stacked = Math.min(1000, Math.round(700 * 0.52)) ** 2;
+  assert.ok(L.w * L.h >= stacked);
+});
+
+test("aspectName names the usual shapes", () => {
+  assert.equal(P.aspectName(2160, 3840), "9:16");
+  assert.equal(P.aspectName(3840, 2160), "16:9");
+  assert.equal(P.aspectName(1080, 1080), "1:1");
+  assert.equal(P.aspectName(1440, 1080), "4:3");
+  assert.equal(P.aspectName(1080, 1350), "4:5");
+  assert.equal(P.aspectName(1000, 300), "3.33:1");
+});
+
+test("layoutFor: landscape stacks even in a big panel (the timeline keeps the full width)", () => {
+  assert.equal(P.layoutFor(1920, 1080, 1000, 640).side, false);
+  assert.equal(P.layoutFor(1440, 1080, 1400, 900).side, false);
+});

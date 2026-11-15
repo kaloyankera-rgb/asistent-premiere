@@ -5,6 +5,7 @@
 const ppro = require("premierepro");
 const P = require("./premiere.js");
 const store = require("./store.js");
+const PB = require("./premiere-blur.js");
 
 const { UserError, transaction, maybe, debug, secs } = P;
 const RECORD = "asistent.keyframer.v1";
@@ -50,8 +51,11 @@ async function readSelection(project) {
   const chain = await clip.ti.getComponentChain();
   const n = await chain.getComponentCount();
   const rec = records()[clipKey(clip)] || {};
+  // 0.10.78: Asistent's own motion blur Transform is not one of the clip's animations (its keys are the blur's)
+  const own = await PB.findOwn(chain, rec.__blur, step / 4).catch(() => null);
   const props = [];
   for (let c = 0; c < n; c++) {
+    if (own && own.index === c) continue;
     const comp = await chain.getComponentAtIndex(c);
     const compMatch = (await maybe(comp, "getMatchName")) || "";
     const compName = (await maybe(comp, "getDisplayName")) || compMatch || "Effect";
@@ -74,16 +78,34 @@ async function readSelection(project) {
       props.push({ id, param, label: `${compName} › ${param.displayName}`, keys, earlier: rec[id] || null, comp: compMatch, paramName: param.displayName });
     }
   }
-  return { clip, timeline, step, props, others: picked.length - 1 };
+  const size = await maybe(timeline.sequence, "getFrameSize");
+  const frame = size && size.width > 0 ? { w: size.width, h: size.height } : { w: 1920, h: 1080 };
+  return { clip, timeline, step, props, others: picked.length - 1, frame, blurOn: !!own };
 }
 
-/** Writes one plan (keyframeplan.plan) on the clip in one Undo step, records what was added, and checks the result. */
-async function apply(project, sel, planned) {
+/**
+ * Writes one plan (keyframeplan.plan) on the clip in one Undo step, records what was added, and checks the result.
+ * opts (0.10.78): {blur: {on, amount}, curve, repeat, until}: the motion blur of the shaped Motion, carried by Asistent's own
+ * Transform (premiere-blur.js), written in the same step; blur off takes that Transform off again.
+ */
+async function apply(project, sel, planned, opts = {}) {
   const byId = new Map(sel.props.map((p) => [p.id, p]));
   const todo = planned.props.filter((p) => !p.skip && (p.add.length || p.remove.length || p.mode));
-  if (!todo.length) return { written: 0, lines: ["nothing to change"] };
+  const key = clipKey(sel.clip);
+  const blur = opts.blur ? await PB.prepare(sel, planned, opts.blur, opts.curve, { repeat: opts.repeat, until: opts.until }, (records()[key] || {}).__blur) : null;
+  if (blur && blur.fns && !blur.late) await PB.read(blur);
+  const wants = !!(blur && blur.fns && (blur.late || blur.result.total > 0));
+  const drop = !!(blur && blur.own && !wants);
+  if (!todo.length && !wants && !drop) return { written: 0, steps: 0, lines: ["nothing to change"] };
+  let steps = 1;
+  if (wants && !blur.own) {
+    await PB.addOwn(project, blur, sel.clip.ti);
+    steps++;
+  }
   const tol = sel.step / 4;
   transaction(project, "Asistent: Keyframer", (c) => {
+    if (wants && !blur.late) PB.actions(c, blur);
+    if (drop) PB.remove(c, blur);
     for (const p of todo) {
       const param = byId.get(p.id).param;
       for (const t of p.remove) {
@@ -101,9 +123,24 @@ async function apply(project, sel, planned) {
       }
     }
   });
-  const key = clipKey(sel.clip);
+  let blurLine = null;
+  if (wants && blur.late) {
+    // Premiere's ease: its values between the keys exist now; the blur goes in a step of its own
+    await PB.read(blur);
+    transaction(project, "Asistent: Keyframer motion blur", (c) => (blur.result.total ? PB.actions(c, blur) : PB.remove(c, blur)));
+    steps++;
+  }
   const all = records();
   const rec = all[key] || {};
+  if (wants && blur.result.total) {
+    rec.__blur = PB.record(blur);
+    blurLine = `Motion blur: ${Math.round(blur.result.angle)}° shutter on ${blur.result.moving} moving ${blur.result.moving === 1 ? "frame" : "frames"} ` +
+      "(Asistent's Transform, last in the clip's effects)" +
+      (blur.result.tooFast ? `; ${blur.result.tooFast} ${blur.result.tooFast === 1 ? "frame" : "frames"} left sharp: the picture grows more than 4x there within the shutter time, which Premiere's blur cannot take` : "");
+  } else if (blur && (drop || (wants && !blur.result.total))) {
+    delete rec.__blur;
+    blurLine = blur.off ? "Motion blur off: Asistent's Transform taken off." : `No motion blur: ${blur.none || "nothing moves fast enough to smear"}.`;
+  } else if (blur && blur.none) blurLine = `No motion blur: ${blur.none}.`;
   const lines = [];
   let written = 0;
   for (const p of todo) {
@@ -119,7 +156,8 @@ async function apply(project, sel, planned) {
   }
   all[key] = rec;
   saveRecords(all);
-  return { written, lines };
+  if (blurLine) lines.push(blurLine);
+  return { written, lines, steps, blur: blur && blur.result ? { angle: blur.result.angle, moving: blur.result.moving, keys: blur.result.total } : null };
 }
 
 /** Remembers keys Asistent wrote on a clip outside a Keyframer press (a stash, 0.10.37), so Undo last and a new curve treat
@@ -144,16 +182,21 @@ async function undo(project, sel) {
     const there = r.added.filter((t) => p.keys.some((k) => Math.abs(k.t - t) < tol));
     if (there.length) jobs.push({ p, there });
   }
-  if (!jobs.length) return { removed: 0 };
+  // 0.10.78: Asistent's motion blur Transform goes with the keys it blurred
+  const chain = await sel.clip.ti.getComponentChain();
+  const own = await PB.findOwn(chain, rec.__blur, tol).catch(() => null);
+  if (!jobs.length && !own) return { removed: 0 };
   transaction(project, "Asistent: Keyframer undo", (c) => {
+    if (own) c.addAction(chain.createRemoveComponentAction(own.comp));
     for (const { p, there } of jobs) {
       for (const t of there) c.addAction(p.param.createRemoveKeyframeRangeAction(ppro.TickTime.createWithSeconds(t - tol), ppro.TickTime.createWithSeconds(t + tol), true));
     }
   });
   for (const { p } of jobs) delete rec[p.id];
+  delete rec.__blur;
   all[key] = rec;
   saveRecords(all);
-  return { removed: jobs.reduce((n, j) => n + j.there.length, 0) };
+  return { removed: jobs.reduce((n, j) => n + j.there.length, 0), blur: !!own };
 }
 
 module.exports = { readSelection, apply, undo, clipKey, plain, remember };

@@ -296,6 +296,12 @@ svg .kf-pt.on { fill: var(--sel); }
 /* cards */
 .tr-card { margin-top: 8px; padding: 8px; border-radius: 6px; background-color: var(--glass); border: 1px solid var(--glass-line); }
 .tr-card.tr-work { margin-top: 0; padding: 0; overflow: hidden; }
+/* 0.10.75 side by side: the viewer card left (as wide as the picture), the timeline and the cards in a column right */
+.tr-side { align-items: flex-start; }
+.tr-side > .tr-work { flex: none; margin-right: 8px; }
+.tr-right { flex: 1; min-width: 0; }
+.tr-right > .tr-timecard { margin-top: 0; }
+.tr-timecard .tr-timearea { border-top: 0; }
 .tr-card.tr-off .tr-modes, .tr-card.tr-off .tr-opts, .tr-card.tr-off .tr-mode-d { opacity: 0.55; }
 .tr-card-h { margin-bottom: 8px; }
 .tr-card-t { flex: 1; font-size: 11px; font-weight: bold; color: var(--text); }
@@ -324,6 +330,16 @@ svg .kf-pt.on { fill: var(--sel); }
   background-color: var(--chip); white-space: nowrap; }
 .tr-hud { left: 6px; align-items: center; }
 .tr-frame { right: 6px; color: var(--text-2); }
+.tr-zoom { position: absolute; right: 6px; bottom: 8px; align-items: center; }
+.tr-zoom .btn.small.tr-zbtn { min-width: 22px; margin: 0 0 0 4px; padding: 2px 6px; font-size: 11px; line-height: 14px; text-align: center;
+  background-color: var(--chip); }
+.tr-zoom .btn.small.tr-zfit { min-width: 30px; }
+.tr-zoom .btn.small.tr-zbtn.on { color: var(--text); border-color: var(--sel); background-color: var(--ref-bg); }
+.tr-zoom .btn.small.tr-zhand { min-width: 0; padding: 2px 5px; line-height: 14px; }
+.tr-zhand svg.tr-ico { vertical-align: middle; }
+.tr-zhand.on svg.tr-ico path { fill: var(--sel); }
+.tr-view.tr-hand { cursor: move; }
+.tr-zhint { padding: 4px 8px 0 8px; font-size: 10px; line-height: 13px; color: var(--text-3); text-align: center; }
 .tr-dot { flex: none; width: 6px; height: 6px; border-radius: 3px; margin-right: 5px; }
 .tr-veil { position: absolute; left: 0; top: 0; right: 0; bottom: 0; padding-top: 45%; text-align: center; font-size: 11px;
   color: var(--text); background-color: var(--veil); }
@@ -380,6 +396,8 @@ svg.tr-ico path { fill: var(--text-2); }
   .tr-cols { display: flex; flex-direction: row; align-items: flex-start; }
   .tr-cols > .tr-card { flex: 1; min-width: 0; }
   .tr-cols > .tr-card:first-child { margin-right: 8px; }
+  .tr-cols.tr-cols-v { display: block; }
+  .tr-cols.tr-cols-v > .tr-card:first-child { margin-right: 0; }
 }
 .kf-value { min-width: 34px; margin-right: 4px; text-align: center; }
 /* 0.10.45: a check line with a time is a link (the playhead goes there) */
@@ -442,3 +460,101 @@ svg.tr-ico path { fill: var(--text-2); }
 .anchor-where { text-align: center; margin-top: 4px; }
 .anchor-num { width: 52px; }
 .anchor-xy { margin: 0 6px 0 2px; }
+/* ---------------------------------------------------------------- 0.10.71: the Brand page (the client's brand kit). Only CSS proved in
+   UXP: flex with margins (no gap, no grid), borders, radius, outline (the drop highlight, as Auto import's row). */
+#paneBrand.dropping { outline: 2px dashed var(--sel); outline-offset: -2px; }
+.bk-head { min-height: 24px; }
+.bk-head .title { flex: 1; min-width: 0; }
+.bk-click { cursor: pointer; }
+.bk-count { margin: 0 6px; padding: 0 6px; border-radius: 7px; font-size: 10px; line-height: 14px; color: var(--text-2); background-color: var(--chip); }
+.bk-pick select { flex: 1; min-width: 0; margin-right: 2px; }
+.bk-status { margin-top: 6px; font-size: 10px; line-height: 14px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bk-status.err { color: var(--err); white-space: normal; }
+.bk-warn { margin: 6px 0 0 0; font-size: 11px; line-height: 15px; }
+.bk-search, .bk-field { box-sizing: border-box; font-size: 12px; }
+.bk-search { width: 100%; margin-top: 8px; }
+.btn.bk-b { flex: none; font-size: 11px; line-height: 14px; padding: 4px 8px; margin: 0 0 0 4px; }
+.btn.bk-b.hot { background-color: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: bold; }
+.btn.bk-b.hot:hover { background-color: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.bk-b.icon { padding: 4px 6px; }
+.btn.bk-b.on { border-color: var(--sel); color: var(--sel); }
+.btn.bk-b.danger { border-color: var(--err-line); color: var(--err); background-color: var(--err-bg); }
+.bk-asset { padding: 5px 0; border-top: 1px solid var(--glass-faint); }
+.bk-head + .bk-asset { border-top-width: 0; }
+.bk-th { flex: none; width: 40px; height: 40px; margin-right: 8px; border-radius: 4px; background-color: var(--line-strong); display: flex;
+  flex-direction: row; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; }
+.bk-th.vid { background-color: var(--stage); }
+/* the thumbnail, a Quick tile and a swatch are buttons (onTap), drawn without the button face */
+.btn.bk-th { padding: 0; border: 0; border-radius: 4px; line-height: normal; background-color: var(--line-strong); }
+.btn.bk-th.vid { background-color: var(--stage); }
+.btn.bk-tile { padding: 0; border: 0; background-color: transparent; line-height: normal; }
+.btn.bk-sw { padding: 0; text-align: left; line-height: normal; border: 1px solid var(--glass-line); }
+.btn.bk-sw.on { border: 2px solid var(--sel); }
+.bk-img { max-width: 40px; max-height: 40px; }
+.bk-ext { font-size: 9px; font-weight: bold; color: var(--text-2); }
+.bk-aa { font-size: 14px; color: var(--text); }
+.bk-text { flex: 1; min-width: 0; }
+.bk-name { font-size: 12px; line-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bk-meta { font-size: 10px; line-height: 13px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bk-meta.ok { color: var(--ok); }
+.bk-more { flex-wrap: wrap; margin: 0 0 6px 48px; }
+.bk-more .btn.bk-b { margin: 4px 4px 0 0; }
+.bk-group { margin: 8px 0 4px 0; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); }
+.bk-swatches { flex-wrap: wrap; }
+.bk-sw { width: 44px; height: 30px; margin: 0 4px 4px 0; border-radius: 4px; border: 1px solid var(--glass-line); box-sizing: border-box;
+  display: flex; flex-direction: column; justify-content: flex-end; cursor: pointer; }
+.bk-sw.on { border: 2px solid var(--sel); }
+.bk-hex { font-size: 9px; line-height: 11px; padding: 0 0 2px 3px; }
+.bk-apply { margin-top: 6px; align-items: center; }
+.bk-chip { width: 16px; height: 16px; border-radius: 3px; margin-right: 6px; border: 1px solid var(--glass-line); }
+.bk-applyhex { flex: 1; font-weight: bold; }
+.bk-quick { flex-wrap: wrap; margin-top: 4px; }
+.bk-tile { width: 60px; margin: 0 6px 6px 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; }
+.bk-tile .bk-th { width: 52px; height: 52px; margin: 0; }
+.bk-tile .bk-img { max-width: 52px; max-height: 52px; }
+.bk-tname { width: 60px; margin-top: 2px; font-size: 10px; line-height: 12px; text-align: center; color: var(--text-2); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+.bk-noteline { margin-top: 4px; font-size: 11px; line-height: 15px; color: var(--text-2-soft); }
+.bk-form { margin-top: 6px; }
+.bk-flabel { flex: none; width: 52px; font-size: 10px; color: var(--text-2); }
+.bk-form .bk-field { flex: 1; min-width: 0; }
+.bk-form .bk-hexin { flex: none; width: 76px; margin-left: 4px; }
+.bk-form select { flex: 1; min-width: 0; margin-right: 0; }
+.bk-form .btn.bk-b:first-child { margin-left: 0; }
+.bk-root { margin-top: 4px; }
+.bk-path { flex: 1; min-width: 0; font-size: 10px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bk-line { margin-top: 2px; font-size: 11px; line-height: 15px; color: var(--text-2-soft); }
+.bk-note { font-size: 10px; margin-left: 4px; }
+.bk-ctl { margin: 4px 6px 0 0; }
+.bk-drop { margin-top: 8px; font-size: 10px; text-align: center; color: var(--text-3); }
+
+/* ---------------------------------------------------------------- Keyframer preview and motion blur (0.10.78)
+   The curve on the left, a small column on the right: the preview (the same motion Apply writes, played at the
+   sequence's frame rate), Play, and the motion blur switch with its amount. Under the curve when the panel is narrow. */
+.kf-stage { flex-wrap: wrap; align-items: center; }
+.kf-stage > .kf-editor { flex: none; margin-right: 10px; }
+.kf-side { flex: 1; min-width: 150px; max-width: 200px; margin-top: 6px; }
+.kf-pv { position: relative; width: 148px; height: 106px; border-radius: 6px; overflow: hidden; background-color: var(--stage);
+  border: 1px solid var(--line); }
+svg .kf-pv-path { fill: none; stroke: var(--line-strong); stroke-width: 1px; }
+svg .kf-pv-rest { fill: none; stroke: var(--line-strong); stroke-width: 1px; }
+svg .kf-pv-obj { fill: var(--sel); stroke-width: 0; }
+.kf-pv-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background-color: var(--line-faint); }
+.kf-pv-fill { height: 2px; width: 0; background-color: var(--accent); }
+.kf-pv-row { align-items: center; margin-top: 4px; }
+.btn.small.kf-play { flex: none; width: 24px; height: 20px; padding: 3px 5px; margin: 0 6px 0 0; text-align: center; }
+svg.kf-ico path { fill: var(--text-2); }
+.btn.kf-play:hover svg.kf-ico path { fill: var(--text); }
+.kf-pv-info { flex: 1; min-width: 0; font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kf-blur-head { align-items: center; margin-top: 10px; }
+.kf-blur-name { flex: 1; min-width: 0; font-size: 11px; font-weight: bold; color: var(--text); cursor: help; }
+.kf-blur-head .btn.small.sw { margin: 0; }
+.kf-blur-row { align-items: center; margin-top: 6px; }
+.kf-blur-row.off { opacity: 0.45; }
+.kf-slider { position: relative; flex: 1; min-width: 60px; height: 18px; margin-right: 8px; cursor: pointer; }
+.kf-slider-track { position: absolute; left: 0; right: 0; top: 8px; height: 2px; border-radius: 1px; background-color: var(--line-strong); }
+.kf-slider-fill { position: absolute; left: 0; top: 8px; height: 2px; width: 50%; border-radius: 1px; background-color: var(--accent); }
+.kf-slider-thumb { position: absolute; top: 3px; left: calc(50% - 6px); width: 12px; height: 12px; border-radius: 6px;
+  background-color: #ffffff; border: 1px solid var(--accent); box-sizing: border-box; }
+input.kf-num { flex: none; width: 38px; font-size: 11px; text-align: right; }
+.kf-unit { flex: none; margin-left: 3px; font-size: 11px; color: var(--text-2); }

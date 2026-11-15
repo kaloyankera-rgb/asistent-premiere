@@ -327,4 +327,95 @@ function ticks(frames, inPt) {
   return out;
 }
 
-module.exports = { motion, screenPoint, attach, lock, gaussian, runs, boxFrom, toSeq, toMedia, corners, problem, merge, ticks, usable, boxAt };
+// ---------------------------------------------------------------- the viewer's zoom (0.10.73)
+// The user (2026-11-14): "an option to zoom in/out of the preview in the tracker". The viewer keeps its size; the frame and
+// its overlay are drawn z times larger and shifted together, so a box drawn while zoomed lands on the same object. A view is
+// { z, cx, cy }: the zoom (1 = the whole frame) and the frame point in the middle (0..1), kept inside the frame.
+const ZOOMS = [1, 1.5, 2, 3, 4, 6, 8];
+const ZMAX = ZOOMS[ZOOMS.length - 1];
+
+/** The view in pixels for a viewer of w x h -> { z, cw, ch (the frame drawn), px, py (its shift), cx, cy (clamped) }. */
+function viewport(v, w, h) {
+  const z = Math.max(1, Math.min(ZMAX, Number(v && v.z) || 1));
+  const cw = Math.round(w * z);
+  const ch = Math.round(h * z);
+  const cx = Number.isFinite(v && v.cx) ? v.cx : 0.5;
+  const cy = Number.isFinite(v && v.cy) ? v.cy : 0.5;
+  const px = Math.max(0, Math.min(cw - w, Math.round(cx * cw - w / 2)));
+  const py = Math.max(0, Math.min(ch - h, Math.round(cy * ch - h / 2)));
+  return { z, cw, ch, px, py, cx: (px + w / 2) / cw, cy: (py + h / 2) / ch };
+}
+
+/** Zoom to z keeping the frame point under (vx, vy) of the viewer where it is (the mouse, or the middle). */
+function zoomAt(v, z, vx, vy, w, h) {
+  const a = viewport(v, w, h);
+  const fx = (vx + a.px) / a.cw;
+  const fy = (vy + a.py) / a.ch;
+  const nz = Math.max(1, Math.min(ZMAX, z));
+  const b = viewport({ z: nz, cx: fx + (w / 2 - vx) / (w * nz), cy: fy + (h / 2 - vy) / (h * nz) }, w, h);
+  return { z: b.z, cx: b.cx, cy: b.cy };
+}
+
+/** The next zoom step in (dir 1) or out (dir -1). */
+function zoomStep(z, dir) {
+  if (dir > 0) return ZOOMS.find((s) => s > z + 0.01) || ZMAX;
+  return [...ZOOMS].reverse().find((s) => s < z - 0.01) || 1;
+}
+
+/** Shift the view by (dx, dy) viewer pixels (a scroll, a drag). */
+function panBy(v, dx, dy, w, h) {
+  const a = viewport(v, w, h);
+  const b = viewport({ z: a.z, cx: (a.px + dx + w / 2) / a.cw, cy: (a.py + dy + h / 2) / a.ch }, w, h);
+  return { z: b.z, cx: b.cx, cy: b.cy };
+}
+
+/** Keeps the frame point (fx, fy) in sight: the view moves to it only when it is nearer an edge than `margin` of the viewer. */
+function follow(v, fx, fy, w, h, margin = 0.2) {
+  const a = viewport(v, w, h);
+  if (a.z <= 1 || !Number.isFinite(fx) || !Number.isFinite(fy)) return { z: a.z, cx: a.cx, cy: a.cy };
+  const x = fx * a.cw - a.px;
+  const y = fy * a.ch - a.py;
+  const out = x < margin * w || x > (1 - margin) * w || y < margin * h || y > (1 - margin) * h;
+  if (!out) return { z: a.z, cx: a.cx, cy: a.cy };
+  const b = viewport({ z: a.z, cx: fx, cy: fy }, w, h);
+  return { z: b.z, cx: b.cx, cy: b.cy };
+}
+
+// ---------------------------------------------------------------- layout by the clip's shape (0.10.75)
+// The user (2026-11-14): "automatic aspect ratio detection and adaptive layouts". A vertical clip in a wide panel got a
+// 140 x 248 viewer between black bars (stacked under the clip line, at most half the panel tall). Two layouts are sized and
+// the one with the larger picture wins: stacked (viewer on top, timeline and the cards under it) and side by side (viewer on
+// the left as tall as the panel allows, timeline and cards in a column on the right). Sizes always keep the frame's shape.
+const SIDE_COL = 268;                                 // the right column (timeline, Track, Apply) at its narrowest, with the gap
+const SIDE_GAIN = 1.25;                               // side by side only when the picture gets at least this much bigger
+
+/** -> { side, w, h, aspect } for a frame fw x fh in a page W wide, H tall (top: what is above the viewer, foot: under it). */
+function layoutFor(fw, fh, W, H, top = 70, foot = 20) {
+  const a = fw > 0 && fh > 0 ? fw / fh : 16 / 9;
+  const fit = (mw, mh) => {
+    const w = Math.max(40, Math.min(mw, mh * a));
+    return [Math.round(w), Math.round(w / a)];
+  };
+  // stacked: the timeline and Track stay in sight under it; a vertical clip may take a little more of the height
+  const sh = Math.max(200, Math.min(620, Math.round(H * (a < 0.8 ? 0.62 : 0.52))));
+  const [w0, h0] = fit(W, sh);
+  const mw = W - SIDE_COL;
+  if (a < 1.2 && mw >= 140) {                         // landscape (16:9, 4:3, wider) always gets the wide, stacked layout
+    const [w1, h1] = fit(mw, Math.max(200, Math.min(1000, H - top - foot)));
+    if (w1 * h1 > SIDE_GAIN * w0 * h0) return { side: true, w: w1, h: h1, aspect: a };
+  }
+  return { side: false, w: w0, h: h0, aspect: a };
+}
+
+/** The shape's usual name ("9:16", "16:9", "1:1", "4:5", "4:3", "2.39:1"), else the ratio to one. */
+function aspectName(fw, fh) {
+  if (!(fw > 0 && fh > 0)) return "";
+  const a = fw / fh;
+  const NAMES = [["9:16", 9 / 16], ["16:9", 16 / 9], ["1:1", 1], ["4:5", 4 / 5], ["5:4", 5 / 4], ["4:3", 4 / 3], ["3:4", 3 / 4],
+    ["3:2", 3 / 2], ["2:3", 2 / 3], ["2:1", 2], ["2.39:1", 2.39], ["1.85:1", 1.85], ["21:9", 64 / 27]];
+  for (const [n, r] of NAMES) if (Math.abs(a / r - 1) < 0.02) return n;
+  return a >= 1 ? `${a.toFixed(2)}:1` : `1:${(1 / a).toFixed(2)}`;
+}
+
+module.exports = { motion, screenPoint, attach, lock, gaussian, runs, boxFrom, toSeq, toMedia, corners, problem, merge, ticks, usable, boxAt,
+  ZOOMS, viewport, zoomAt, zoomStep, panBy, follow, layoutFor, aspectName };

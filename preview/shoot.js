@@ -8,8 +8,10 @@ const path = require("node:path");
 const { chromium } = require("playwright-core");
 
 const ROOT = path.resolve(__dirname, "..");                 // tools/asistent: /panel and /preview are served from here
-const SCENARIOS = ["idle", "offline", "busy", "done", "error", "log", "color", "beforeafter", "captions", "review", "search", "learned", "open", "update", "nudge", "exports", "afterexport", "keyframer", "keyframer-elastic", "keyframer-bounce", "keyframer-custom", "keyframer-stash", "tracker", "tracker-lock", "tracker-empty", "tracker-box", "tracker-busy", "tracker-range", "anchor", "row-open", "settings", "log-page"];
+const SCENARIOS = ["idle", "offline", "busy", "done", "error", "log", "color", "beforeafter", "captions", "review", "search", "learned", "open", "update", "nudge", "exports", "afterexport", "keyframer", "keyframer-elastic", "keyframer-blur", "keyframer-bounce", "keyframer-custom", "keyframer-stash", "tracker", "tracker-lock", "tracker-empty", "tracker-box", "tracker-zoom", "tracker-wide", "tracker-square", "tracker-busy", "tracker-range", "anchor", "brand", "brand-manage", "brand-offline", "row-open", "settings", "log-page"];
 const WIDTHS = [240, 300, 420];
+// --only a,b: just those scenarios (0.10.71)
+const ONLY = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1].split(",") : null;
 const HEIGHT = Number(process.env.HEIGHT) || 760;
 const NOISE = 250;                                           // run-to-run anti-aliasing differs by up to ~150 pixels                                          // tall enough to see most of the Tools view at once
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json" };
@@ -40,7 +42,7 @@ async function main() {
   for (const w of WIDTHS) {
     const page = await browser.newPage({ viewport: { width: w, height: HEIGHT }, deviceScaleFactor: 2 });
     page.on("pageerror", (e) => errors.push(`${w}px: ${e.message}`));
-    for (const s of SCENARIOS) {
+    for (const s of ONLY ? SCENARIOS.filter((x) => ONLY.includes(x)) : SCENARIOS) {
       await page.goto(`${base}?s=${s}`);
       await page.waitForSelector("html[data-ready='1']", { timeout: 5000 });
       await page.waitForTimeout(250);

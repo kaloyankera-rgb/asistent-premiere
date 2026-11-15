@@ -12,6 +12,14 @@ const POINTS = [[0, 0, "Top left"], [0.5, 0, "Top centre"], [1, 0, "Top right"],
   [1, 0.5, "Middle right"], [0, 1, "Bottom left"], [0.5, 1, "Bottom centre"], [1, 1, "Bottom right"]];
 const CUTOFFS = [1, 10, 25, 50, 75, 90];
 
+// 0.10.77: let go of a captured pointer by hand (UXP seemed to keep it after the release, and the next presses on the
+// page's buttons went here)
+const release = (node, e) => {
+  try {
+    if (e && e.pointerId !== undefined) node.releasePointerCapture(e.pointerId);
+  } catch (err) { /* not captured */ }
+};
+
 function mount({ $, el, button, enable, bindTips, premiere }) {
   const root = $("paneAnchor");
   const AP = require("./premiere-anchor.js");
@@ -45,7 +53,10 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   host.appendChild(brief("Moves the anchor point; the picture stays where it is.", "Select one or more clips, then click one of the nine " +
     "points (or drag between them): the anchor point of each clip goes there and Position is compensated, so nothing moves on " +
     "screen, but Scale and Rotation now work around that point. Relative to: each clip's own picture, the sequence frame, or " +
-    "the box around all selected clips. Use alpha: the visible part of a PNG, TIFF or WebP (not its transparent margin). " +
+    "the box around all selected clips. A text or shape made in Premiere: Clip and Selection use the letters' own box, found " +
+    "by rendering the frame once as it is and once with the text hidden for a moment (Sequence: the frame). " +
+    "With animated Scale or Rotation, the picture is kept where it is at the playhead. " +
+    "Use alpha: the visible part of a PNG, TIFF or WebP (not its transparent margin). " +
     "One Cmd/Ctrl+Z takes it back."));
   const selLine = el("div", "muted", "Select clips, then click a point.");
   host.appendChild(selLine);
@@ -226,7 +237,11 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     say("Moving the anchor…");
     const r = await AP.apply(request);
     say(`Done: ${r.count} ${r.count === 1 ? "clip" : "clips"}, ${r.target === "transform" ? "Transform" : "Motion"}` +
-      `${r.alpha ? ", visible pixels" : ""}${r.keys ? `, ${r.keys} Position keyframes moved with it` : ""}. Cmd/Ctrl+Z takes it back.`, "ok");
+      `${r.alpha ? ", visible pixels" : ""}${r.keys ? `, ${r.keys} Position keyframes moved with it` : ""}. Cmd/Ctrl+Z takes it back.` +
+      `${r.animated ? " Scale or Rotation is animated: the picture is kept where it is at the playhead, the animation now grows and turns around the new point." : ""}` +
+      `${r.measured && r.rendered ? ` The text's own box${r.box ? ` (${Math.round(r.box.width)} × ${Math.round(r.box.height)} px)` : ""} was found from two renders: Premiere also lists ` +
+        `two steps that hid it for a moment and showed it again; one Cmd/Ctrl+Z takes the anchor back. Next clicks on this text are instant.` : ""}` +
+      `${r.measured && !r.rendered ? " On the text's own box." : ""}`, "ok");
     const info = await AP.inspect({ target: state.target }).catch(() => null);
     if (info) selLine.textContent = info.clips.length === 1 ? `${info.clips[0].name} · ${info.frame[0]} × ${info.frame[1]}` : `${info.clips.length} clips · ${info.frame[0]} × ${info.frame[1]}`;
   }
@@ -274,8 +289,14 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     dragging = false;
     place(state.point);
   };
-  board.addEventListener("pointerup", letGo);
-  board.addEventListener("pointercancel", () => { dragging = false; });
+  board.addEventListener("pointerup", (e) => {
+    release(board, e);
+    letGo();
+  });
+  board.addEventListener("pointercancel", (e) => {
+    release(board, e);
+    dragging = false;
+  });
 
   draw();
   bindTips(root);

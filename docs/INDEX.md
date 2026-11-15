@@ -23,6 +23,7 @@ Read in this order when continuing the project (the first four are the whole han
 | 9c | [ROLLBACK.md](ROLLBACK.md) | The protected backup of 2026-11-08, the ReShape guard/baseline/golden checks, and per feature how to switch off, revert and restore. |
 | 9d | [NATIVE_GRAPHICS.md](NATIVE_GRAPHICS.md) | What Premiere 26.0.2 lets a script do with native text graphics (probed 2026-11-08): no text or style write; the manual steps. |
 | 9e | [BENCHMARK.md](BENCHMARK.md) | Bulgarian recognition benchmark: what is measured, the private reference sets, how to verify a reference, results. |
+| 9f | [BRAND_KIT.md](BRAND_KIT.md) | The Brand tab (0.10.71): where kits are, how the client is found, what each press does and what Premiere allows, cache and offline, the Premiere checks still to do. |
 | 10 | [../LICENSES.md](../LICENSES.md) | Licences of dependencies and the bundled face model. |
 | 11 | [dev-workflow/DEV_WORKFLOW.md](dev-workflow/DEV_WORKFLOW.md) | Which model/agent does what; snapshot of the four agent definitions in [dev-workflow/agents/](dev-workflow/agents/). |
 

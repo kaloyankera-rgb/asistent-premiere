@@ -53,9 +53,23 @@ function paramsOf(component, target) {
   const rotation = byName('rotation') || params[4];
   return { position, anchor, scale, scaleWidth, uniform, rotation };
 }
-async function sourceSize(item, name) {
+// A text or shape made in Premiere (Type tool, Essential Graphics) has no project item: its layer is the sequence frame
+// (Motion Anchor 0.5, 0.5 shows as 1080, 1920 in a 2160 x 3840 sequence, measured 2026-11-15). Premiere does not tell a script
+// where the text sits inside that layer (Source Text reads back as binary, there is no box).
+const GRAPHIC = ['AE.ADBE Graphic Group', 'AE.ADBE Text', 'AE.ADBE Shape'];
+async function nativeGraphic(item) {
+  const chain = await item.getComponentChain();
+  for (let i = 0; i < chain.getComponentCount(); i++) {
+    if (GRAPHIC.indexOf(await chain.getComponentAtIndex(i).getMatchName()) >= 0) return true;
+  }
+  return false;
+}
+async function sourceSize(item, name, frame) {
   const projectItem = await item.getProjectItem();
-  if (!projectItem) throw new Error(name + ': source media is unavailable.');
+  if (!projectItem) {
+    if (frame && await nativeGraphic(item)) return frame.slice();
+    throw new Error(name + ': source media is unavailable.');
+  }
   const clip = ppro.ClipProjectItem.cast(projectItem);
   if (clip && await clip.isSequence()) {
     const nested = await clip.getSequence();
@@ -107,22 +121,26 @@ async function snapshot(request) {
     const time = ppro.TickTime.createWithSeconds(inPoint.seconds + seqTime - start.seconds);
     // Validate the chosen effect before requesting PNG file access.
     let motion = await componentOf(item, target);
-    const source = await sourceSize(item, name);
+    const source = await sourceSize(item, name, dimensions);
     let bounds = null;
     if (request && request.alpha && (request.mode === 'clip' || request.mode === 'selection')) {
-      const projectItem = ppro.ClipProjectItem.cast(await item.getProjectItem());
+      const raw = await item.getProjectItem();
+      const projectItem = raw ? ppro.ClipProjectItem.cast(raw) : null;
+      if (!raw) { /* a text made in Premiere: always measured from two renders (measureDrawn), Use alpha or not */ } else {
       if (!projectItem || await projectItem.isSequence()) throw new Error(name + ': Use alpha needs a still image with transparency (PNG, TIFF, WebP).');
       const path = await projectItem.getMediaFilePath();
       if (!/\.(png|tiff?|webp)$/i.test(path)) throw new Error(name + ': Use alpha works on still images with transparency (PNG, TIFF, WebP) only.');
       const interpretation = await projectItem.getFootageInterpretation();
       if (interpretation.getIgnoreAlpha()) throw new Error(name + ': Premiere is ignoring the source alpha. Enable its alpha interpretation first.');
       bounds = await require('./anchoralpha.js').bounds(path, source, request.threshold, interpretation.getInvertAlpha(), request.onProgress);
+      }
     }
     if (bounds) motion = await componentOf(item, target);
     const params = paramsOf(motion.component, target);
-    for (const p of [params.anchor, params.scale, params.scaleWidth, params.uniform, params.rotation]) {
-      if (p.isTimeVarying()) throw new Error(name + ': animated Anchor, Scale or Rotation needs a more advanced compensation pass.');
-    }
+    if (params.anchor.isTimeVarying()) throw new Error(name + ': animated Anchor Point is not supported. Remove its keyframes first.');
+    // Animated Scale / Rotation (0.10.89): the picture is kept where it is at the playhead (Position moves by one fixed
+    // amount, read with Scale and Rotation at that moment), and from then on the animation grows and turns around the new point.
+    const animated = [params.scale, params.scaleWidth, params.uniform, params.rotation].some(p => p.isTimeVarying());
     if (target === 'transform') {
       if (params.skew.isTimeVarying() || params.skewAxis.isTimeVarying() || Math.abs(Number(await value(params.skew, time))) > 0.00001) {
         throw new Error(name + ': Transform Skew must be zero and unanimated in this version.');
@@ -136,6 +154,16 @@ async function snapshot(request) {
     if (uniform !== true && uniform !== false && uniform !== 0 && uniform !== 1) throw new Error(name + ': unexpected Uniform Scale value.');
     const sx = uniform ? sy : Number(await value(params.scaleWidth, time)) / 100;
     let matrix = math.matrix(sx, sy, Number(await value(params.rotation, time)));
+    if (animated) {
+      // the playhead is the moment whose picture stays put: it must be on the clip (a clamped start is often a pop's
+      // Scale 0, measured 2026-11-15) and the picture must be visible there (Scale 0 moves nothing, then every other frame would)
+      if (playhead.seconds < start.seconds || playhead.seconds >= end.seconds) {
+        throw new Error(name + ': Scale or Rotation is animated. Put the playhead on this clip, at the moment whose picture should stay where it is. No clips were changed.');
+      }
+      if (Math.abs(sx) < 0.005 || Math.abs(sy) < 0.005) {
+        throw new Error(name + ': Scale is 0 at the playhead, so the picture is not there to keep. Move the playhead to where the picture is visible (for a pop, its end). No clips were changed.');
+      }
+    }
     let outer = null;
     if (target === 'transform') {
       const outerMotion = await componentOf(item, 'motion'), outerParams = paramsOf(outerMotion.component);
@@ -169,7 +197,8 @@ async function snapshot(request) {
       }
     }
     const identity = [await item.getTrackIndex(), start.seconds, end.seconds, inPoint.seconds, name];
-    clips.push({ name, item, params, motion, target, outer, positionDimensions, identity, size: source, bounds, anchor, position, matrix, positionKeys,
+    clips.push({ name, item, params, motion, target, outer, positionDimensions, identity, size: source, bounds, anchor, position, matrix, positionKeys, animated,
+      at: seqTime, graphic: !(await item.getProjectItem()),
       positionAnimated: params.position.isTimeVarying() });
   }
   return { project, sequence, dimensions, clips, target, sequenceName: sequence.name };
@@ -187,15 +216,142 @@ function fingerprint(state) {
     frame: state.dimensions, target: state.target, clips: state.clips.map(c => ({ identity: c.identity, effectIndex: c.motion.index, size: c.size, anchor: c.anchor,
       position: c.position, matrix: c.matrix, keys: c.positionKeys.map(k => [k.time.seconds, k.value, k.interpolation]) })) });
 }
+// What a text made in Premiere draws (0.10.91, the user's screen recording 2026-11-15: selecting the letters should anchor on the
+// letters). Premiere tells no script where they sit, so the frame is rendered as it is and once more with the clip hidden for
+// a moment (its Opacity 0, then put back exactly): the pixels that differ are the clip (two renders of one moment are
+// identical, measured in NEW TEST; about one second). Two extra Undo steps that cancel out; the anchor is the last one.
+async function hideTarget(item, name) {
+  const chain = await item.getComponentChain();
+  const found = [];
+  let layers = [];
+  for (let i = 0; i < chain.getComponentCount(); i++) {
+    const c = chain.getComponentAtIndex(i), match = await c.getMatchName();
+    for (let j = 0; j < c.getParamCount(); j++) {
+      const p = c.getParam(j);
+      if (!/^opacity$/i.test(String(p.displayName).trim())) continue;
+      if (match === 'AE.ADBE Opacity') { if (!p.isTimeVarying()) found.push({ comp: i, param: j }); break; }
+      if (GRAPHIC.indexOf(match) >= 0 && !p.isTimeVarying()) layers.push({ comp: i, param: j });
+    }
+  }
+  const list = found.length ? found : layers;
+  if (!list.length) throw new Error(name + ': its Opacity is animated, so Asistent cannot hide it for a moment to see where the text sits. No clips were changed.');
+  for (const t of list) t.value = Number(unwrap(await chain.getComponentAtIndex(t.comp).getParam(t.param).getStartValue()));
+  return list;
+}
+function setOpacity(project, item, targets, show, label) {
+  return item.getComponentChain().then(chain => {
+    let ok = false;
+    project.lockedAccess(() => {
+      ok = project.executeTransaction(compound => {
+        for (const t of targets) {
+          const p = chain.getComponentAtIndex(t.comp).getParam(t.param);
+          compound.addAction(p.createSetValueAction(p.createKeyframe(show ? t.value : 0), true));
+        }
+      }, label);
+    });
+    return ok;
+  });
+}
+// 0.10.92 (the user: "it needs to be instant like before"): a text's box is kept per clip in the layer's own pixels, so it stays
+// right when the anchor, Position, Scale or Rotation change; the next clicks on the same text need no render and no extra Undo
+// step. It is measured again when the clip or anything readable inside the graphic changes (its layers' transforms, the
+// text's length); Premiere gives no script the words or the font, so a same-length rewording keeps the old box until the
+// clip is selected anew (Selecting it again in the timeline does not clear it: moving or trimming it does).
+const drawnCache = new Map();
+async function graphicKey(clip) {
+  const chain = await clip.item.getComponentChain();
+  const parts = [clip.identity];
+  for (let i = 0; i < chain.getComponentCount(); i++) {
+    const c = chain.getComponentAtIndex(i), match = await c.getMatchName();
+    if (GRAPHIC.indexOf(match) < 0) continue;
+    const values = [match];
+    for (let j = 0; j < c.getParamCount(); j++) {
+      const p = c.getParam(j);
+      if (/^opacity$/i.test(String(p.displayName).trim())) continue;
+      let v = null;
+      try { v = p.isTimeVarying() ? ['keys', p.getKeyframeListAsTickTimes().map(t => t.seconds), unwrap(await p.getValueAtTime(ppro.TickTime.createWithSeconds(clip.at)))] : unwrap(await p.getStartValue()); } catch (e) { v = 'unread'; }
+      values.push(v);
+    }
+    parts.push(values);
+  }
+  return JSON.stringify(parts);
+}
+async function measureDrawn(state, clip, onProgress) {
+  const key = await graphicKey(clip);
+  if (drawnCache.has(key)) return Object.assign({ cached: true }, drawnCache.get(key));
+  const box = await renderDrawn(state, clip, onProgress);
+  if (drawnCache.size > 200) drawnCache.clear();
+  drawnCache.set(key, box);
+  return Object.assign({}, box);
+}
+async function renderDrawn(state, clip, onProgress) {
+  const engine = require('./engine.js');
+  const dir = (await engine.status()).frames_dir;
+  const at = ppro.TickTime.createWithSeconds(clip.at);
+  const [w, h] = state.dimensions;
+  // half a 4K frame is enough for a pivot (an edge within 1 px of the sequence's own pixels) and renders and compares
+  // about three times faster (0.7 -> 0.3 s a frame, 0.40 -> 0.07 s the comparison, timed in NEW TEST)
+  const k = Math.min(1, 1920 / Math.max(w, h)), ew = Math.max(1, Math.round(w * k)), eh = Math.max(1, Math.round(h * k));
+  const shot = async tag => {
+    const name = 'anchor_' + Date.now().toString(36) + '_' + tag + '.png';
+    await ppro.Exporter.exportSequenceFrame(state.sequence, at, name, dir, ew, eh);
+    const got = await engine.waitFrame(dir + '/' + name, 20, true);
+    if (!got || !got.path) throw new Error('Premiere did not render the frame to measure. No clips were changed.');
+    return got.path;
+  };
+  if (onProgress) onProgress('Finding where ' + clip.name + ' draws…');
+  const targets = await hideTarget(clip.item, clip.name);
+  const before = await shot('as_is');
+  if (!await setOpacity(state.project, clip.item, targets, false, 'Asistent: hide ' + clip.name + ' to measure it')) {
+    throw new Error('Premiere declined to hide the clip for the measurement. No clips were changed.');
+  }
+  let after;
+  try { after = await shot('hidden'); } finally {
+    if (!await setOpacity(state.project, clip.item, targets, true, 'Asistent: show ' + clip.name + ' again')) {
+      throw new Error(clip.name + ' is still hidden (Opacity 0): Premiere declined to show it again. Use Edit > Undo once.');
+    }
+  }
+  const r = await engine.anchorDrawn(before, after);
+  if (r.width !== ew || r.height !== eh) throw new Error('The measured frame has another size than asked for. No clips were changed.');
+  // rendered pixels -> sequence pixels -> the clip's own picture (through Motion, and Transform when that is the target)
+  const fx = w / ew, fy = h / eh;
+  const pts = r.hull.map(p => math.toSource(clip, [p[0] * fx, p[1] * fy]));
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const m = clip.matrix, scale = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2])) || 1;
+  const pad = 0.5 * Math.max(fx, fy) / scale;                 // half a rendered pixel, in the layer's pixels
+  const x0 = Math.max(0, Math.min.apply(null, xs) - pad), y0 = Math.max(0, Math.min.apply(null, ys) - pad);
+  const x1 = Math.min(clip.size[0], Math.max.apply(null, xs) + pad), y1 = Math.min(clip.size[1], Math.max.apply(null, ys) + pad);
+  if (!(x1 > x0 && y1 > y0)) throw new Error(clip.name + ': nothing of it is inside its own picture. No clips were changed.');
+  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+}
 async function apply(request) {
   // Snapshot and validate every selected clip before creating any write action.
   let state = await snapshot(request);
-  if (state.clips.some(c => Boolean(c.bounds))) {
+  const measure = (request.mode === 'clip' || request.mode === 'selection') && state.clips.some(c => c.graphic);
+  if (measure) {
+    if (state.clips.filter(c => c.graphic).length > 8) throw new Error('Select up to 8 texts made in Premiere at a time. No clips were changed.');
+    let rendered = 0;
+    for (const c of state.clips) if (c.graphic) {
+      const box = await measureDrawn(state, c, request.onProgress);
+      if (!box.cached) rendered++;
+      delete box.cached;
+      c.bounds = box;
+    }
+    state.rendered = rendered;
+    // the hide / show steps changed nothing else: read every clip again and compare before the anchor is written
+    const fresh = await snapshot({ target: state.target });
+    if (fingerprint(state) !== fingerprint(fresh)) throw new Error('The selection or clip settings changed while the text was measured. Only the measuring steps ran. Click again.');
+    fresh.clips.forEach((c, i) => { c.bounds = state.clips[i].bounds; });
+    fresh.rendered = state.rendered;
+    state = fresh;
+  }
+  if (!measure && state.clips.some(c => Boolean(c.bounds))) {
     // File authorization may keep a modal open for a while. Revalidate the
     // entire selected target and re-read native handles before any edits.
     const fresh = await snapshot({ target: state.target });
     if (fingerprint(state) !== fingerprint(fresh)) throw new Error('The selection or clip settings changed while the image was read. No clips were changed. Click again.');
     fresh.clips.forEach((c, i) => { c.bounds = state.clips[i].bounds; });
+    fresh.rendered = state.rendered;
     state = fresh;
   }
   const plans = math.plan(state.clips, state.dimensions, request);
@@ -248,7 +404,9 @@ async function apply(request) {
     throw new Error('The edit was committed, but verification failed: ' + (error.message || String(error)) + ' Use Edit > Undo before trying again.');
   }
   return { count: state.clips.length, keys: state.clips.reduce((n, c) => n + c.positionKeys.length, 0),
-    alpha: state.clips.some(c => Boolean(c.bounds)), target: state.target };
+    alpha: state.clips.some(c => Boolean(c.bounds)), target: state.target,
+    animated: state.clips.filter(c => c.animated).length, graphics: state.clips.filter(c => c.graphic).length, measured: measure, rendered: state.rendered || 0,
+    box: measure && state.clips.length === 1 ? state.clips[0].bounds : null };
 }
 async function save(request) {
   const state = await snapshot(request);

@@ -51,6 +51,7 @@ def agent(monkeypatch):
         fake = FakeAgent(**kw)
         monkeypatch.setattr(install, "upia", lambda: "/fake/UPIA")
         monkeypatch.setattr(install.subprocess, "run", fake)
+        monkeypatch.setattr(install, "_premiere_versions", lambda: [])     # never this computer's real Premiere list
         return fake
     return make
 
@@ -98,3 +99,21 @@ def test_an_old_copy_in_one_of_two_premieres_is_still_removed(agent, tmp_path):
     fake = agent(listed=["0.10.8"], hosts=2)
     install.install_panel(str(tmp_path / "Asistent-0.10.9.ccx"), "0.10.9")
     assert fake.listed == ["0.10.9"] and any(f == "--remove" for f, _ in fake.calls)
+
+
+def test_an_old_copy_in_premieres_own_list_is_removed(agent, monkeypatch, tmp_path):
+    # 2026-11-14: Adobe listed only 0.10.71, Premiere's PluginsInfo still had 0.10.70 first and Premiere loaded it
+    fake = agent(listed=["0.10.8"], keeps_old=False)
+    monkeypatch.setattr(install, "_premiere_versions", lambda: ([] if any(f == "--remove" for f, _ in fake.calls) else ["0.10.8"]) + fake.listed)
+    install.install_panel(str(tmp_path / "Asistent-0.10.9.ccx"), "0.10.9")
+    assert fake.listed == ["0.10.9"] and any(f == "--remove" for f, _ in fake.calls)
+
+
+def test_premieres_own_list_is_read(monkeypatch, tmp_path):
+    d = tmp_path / "Library" / "Application Support" / "Adobe" / "UXP" / "PluginsInfo" / "v1"
+    d.mkdir(parents=True)
+    (d / "premierepro.json").write_text('{"plugins": [{"pluginId": "com.contentstudio.asistent", "versionString": "0.10.70"}, '
+                                        '{"pluginId": "other", "versionString": "1.0"}]}')
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Library" / "Application Support"))
+    assert install._premiere_versions() == ["0.10.70"]

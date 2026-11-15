@@ -67,14 +67,17 @@ function onTap(button, fn, opts = {}) {
   const primary = (e) => !e || typeof e.button !== "number" || e.button === 0;
   let pressed = false;
   let upAt = 0;
+  const press = (kind) => {
+    const now = Date.now();
+    if (now - downAt < 80) return;                      // the same press reported as pointerdown and as mousedown
+    downAt = now;
+    pressed = true;
+    act(kind);
+  };
+  button._press = press;                                 // a press that reached another element (strayPresses below)
   for (const kind of ["pointerdown", "mousedown"]) {
     button.addEventListener(kind, (e) => {
-      if (!primary(e)) return;
-      const now = Date.now();
-      if (now - downAt < 80) return;                    // the same press reported as pointerdown and as mousedown
-      downAt = now;
-      pressed = true;
-      act(kind);
+      if (primary(e)) press(kind);
     });
   }
   for (const kind of ["pointerup", "mouseup"]) {
@@ -92,6 +95,32 @@ function onTap(button, fn, opts = {}) {
   });
 }
 const RELEASE_MS = 300;                                  // a click comes right after the button goes up
+
+// 0.10.77 (the user's screen recording 2026-11-15 00:14:58: Track and Stop needed several clicks): the presses on Track never
+// reached it (its tooltip stayed up; a press hides it), most likely because the Tracker's picture still held the pointer from
+// drawing the box (setPointerCapture; UXP does not seem to let go on release). Every capture is now released by hand, and as a
+// safety net a press that lands on one of our buttons but is delivered to another element still presses that button (logged).
+function strayPresses() {
+  const inside = (r, x, y) => r.width > 0 && r.height > 0 && x >= r.left && x < r.right && y >= r.top && y < r.bottom;
+  document.addEventListener("pointerdown", (e) => {
+    if (e && typeof e.button === "number" && e.button !== 0) return;
+    for (let n = e.target; n && n !== document; n = n.parentNode) {
+      if (n.classList && n.classList.contains("btn")) return;      // delivered to a button: its own listeners act
+    }
+    const x = e.clientX;
+    const y = e.clientY;
+    const app = $("app");
+    for (const b of document.querySelectorAll(".btn")) {
+      if (!b._press || !inside(b.getBoundingClientRect(), x, y)) continue;
+      // a button scrolled out of the list's visible part (under the header) is not under the mouse
+      if (app && app.contains(b) && !inside(app.getBoundingClientRect(), x, y)) continue;
+      const t = e.target;
+      engine.log("info", `panel: press for "${(b.textContent || "").trim()}" arrived at ${t && t.id ? `#${t.id}` : t && t.className ? `.${t.className}` : t && t.tagName}`);
+      b._press("stray");
+      return;
+    }
+  }, true);
+}
 
 function show(id, visible) {
   $(id).hidden = !visible;
@@ -205,10 +234,12 @@ function bindTips(root) {
 // Log and the before/after pictures to Before / after (2026-11-03: they used to push the buttons away).
 const history = [];
 let trackerPage = null;                                   // the Tracker page (mounted below, 0.10.51)
+let brandPage = null;                                     // the Brand page (mounted below, 0.10.71)
+let keyframerPage = null;                                 // the Keyframer page (its info for the bridge, 0.10.72)
 
 // 0.10.59: Keyframer and Tracker share the Motion tab (a switch between them, the last one used comes back); Log and
 // Settings are icons at the right of the tab row.
-const PANES = ["paneTools", "paneKeyframer", "paneTracker", "paneAnchor", "paneLog", "panePreview", "paneCaptions", "paneSettings"];
+const PANES = ["paneTools", "paneKeyframer", "paneTracker", "paneAnchor", "paneBrand", "paneLog", "panePreview", "paneCaptions", "paneSettings"];
 const MOTION = ["paneKeyframer", "paneTracker", "paneAnchor"];
 let motionSide = "paneKeyframer";
 
@@ -226,6 +257,7 @@ function openTab(pane) {
   show("motionSwitch", motion);
   for (const b of document.querySelectorAll(".btn.mside")) b.className = `btn mside${b.getAttribute("data-tab") === pane ? " on" : ""}`;
   if (pane === "paneTracker" && trackerPage) trackerPage.relayout();
+  if (pane === "paneBrand" && brandPage) brandPage.shown();
   try {
     $("app").scrollTop = 0;
   } catch (e) {
@@ -1706,6 +1738,7 @@ function SHOT_PART_KEYS(pl) {
   return parts;
 }
 
+strayPresses();
 onTap($("shotmatch"), () => onShotMatch(null));
 onTap($("color"), () => onColor(null));
 onTap($("colorWhite"), () => onColor("white"));
@@ -2050,9 +2083,23 @@ onTap($("cancel"), () => {
 }, { repeat: true });
 
 for (const t of document.querySelectorAll(".btn.tab, .btn.mside")) onTap(t, () => openTab(t.getAttribute("data-tab")));
-require("./keyframer.js").mount({ $, el, button, enable, bindTips, premiere });     // the Keyframer page (0.10.32)
+keyframerPage = require("./keyframer.js").mount({ $, el, button, enable, bindTips, premiere });     // the Keyframer page (0.10.32)
 trackerPage = require("./tracker.js").mount({ $, el, button, enable, bindTips, premiere });   // the Tracker page (0.10.51)
 require("./anchor.js").mount({ $, el, button, enable, bindTips, premiere });     // the Anchor page (0.10.69, Anchor Studio)
+// the Brand page (0.10.71): the subtitle style it can switch is the Subtitles row's own list
+const subtitleValues = () => [...$("subtitleStyle").querySelectorAll("option")].map((o) => o.value);
+brandPage = require("./brand.js").mount({ $, el, button, enable, bindTips, premiere, hooks: {
+  toast,
+  settle,
+  subtitleValues,
+  subtitleLabel: (v) => ((([...$("subtitleStyle").querySelectorAll("option")].find((o) => o.value === v)) || {}).textContent || v),
+  setSubtitleStyle: (v) => {
+    if (!subtitleValues().includes(v)) return false;
+    $("subtitleStyle").value = v;
+    store.setItem("asistent.subtitleStyle", v);
+    return true;
+  },
+} });
 onTap($("openLog"), () => openTab("paneLog"));
 onTap($("openPreview"), () => openTab("panePreview"));
 onTap($("hideResult"), () => show("result", false));       // the full answer stays in Log
@@ -2073,6 +2120,8 @@ function applyRemembered() {
   } catch (e) {
     /* no storage: Keep and on */
   }
+  // 0.10.78: the Keyframer's motion blur and Update live, when the store loads after the page was built
+  if (keyframerPage && keyframerPage.remembered) keyframerPage.remembered();
 }
 applyRemembered();
 store.load().then((ok) => { if (ok) applyRemembered(); });
@@ -2125,7 +2174,7 @@ async function afterExport(path) {
   const sequence = await premiereCheck.exportedSequence(await premiere.activeProject());
   return { sequence, done: await engine.exportDone(path, "complete", "bridge", sequence) };
 }
-createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION, hooks: { learnFromExport, afterExport, tracker: () => trackerPage } }).loop();
+createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION, hooks: { learnFromExport, afterExport, tracker: () => trackerPage, brand: () => brandPage, keyframer: () => keyframerPage } }).loop();
 setInterval(() => {
   if (!state.busy) refreshHeader();
 }, 4000);

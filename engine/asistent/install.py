@@ -22,6 +22,7 @@ from . import config
 
 HOST_ID = "com.contentstudio.asistent.host"
 PANEL_NAME = "Asistent"
+PANEL_ID = "com.contentstudio.asistent"          # its id in Premiere's own plugin list (_premiere_versions)
 CSXS_VERSIONS = (10, 11, 12, 13)          # CEP loads an unsigned extension only with PlayerDebugMode=1 (as Quick Search)
 PARTS = ("engine", "host", "scripts", "fonts")
 FILES = ("panel.ccx", "requirements.txt", "requirements-asr.txt", "requirements-lock-mac.txt", "requirements-asr-lock-mac.txt", "requirements-align.txt", "requirements-dev.txt", "LICENSES.md",
@@ -141,6 +142,20 @@ def _only(agent: str, version: str) -> bool:
     return bool(hosts) and all(h == [version] for h in hosts)
 
 
+def _premiere_versions() -> list[str]:
+    """The Asistent versions in Premiere's OWN plugin list (UXP PluginsInfo premierepro.json), which Premiere loads from.
+    0.10.71 (2026-11-14): Adobe's installer listed only 0.10.71 while this file still held 0.10.70 first, so Premiere kept
+    loading 0.10.70 after a restart; `--remove` then `--install` cleared it. Unreadable or missing: nothing known."""
+    base = os.environ.get("APPDATA", "") if sys.platform == "win32" else os.path.expanduser("~/Library/Application Support")
+    path = os.path.join(base, "Adobe", "UXP", "PluginsInfo", "v1", "premierepro.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            plugins = json.load(f).get("plugins") or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [str(p.get("versionString")) for p in plugins if isinstance(p, dict) and p.get("pluginId") == PANEL_ID]
+
+
 def install_panel(ccx: str, version: str) -> None:
     """Install the panel so that Adobe lists exactly this version. Raises with a message.
 
@@ -154,7 +169,7 @@ def install_panel(ccx: str, version: str) -> None:
         raise RuntimeError("Adobe's plugin installer was not found (Creative Cloud): double-click " + os.path.basename(ccx))
     ccx = os.path.abspath(ccx)
     r = subprocess.run([agent, _flag("install"), ccx], capture_output=True, text=True, timeout=300)
-    if _only(agent, version):
+    if _only(agent, version) and all(v == version for v in _premiere_versions()):
         return
     for _ in range(len(_versions(agent)) + 2):
         if not _versions(agent):

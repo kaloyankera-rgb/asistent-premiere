@@ -20,6 +20,7 @@
   dev_cmd.py host ping | probe                       the CEP host (ExtendScript) inside Premiere: status / caption API names
   dev_cmd.py host captions '{"srt": "/abs/a.srt", "sequence": "name"}'   put an SRT on a caption track (what the panel does)
   dev_cmd.py host eval '{"code": "app.project.name"}'   ExtendScript expression, TEST.prproj only
+  dev_cmd.py uxp_eval '{"code": "return (await sequence.getFrameSize()).width"}'   UXP async body (ppro, premiere, project, sequence), test projects only
   dev_cmd.py host_status                             is the host polling the engine?
   dev_cmd.py css_probe                               which CSS this UXP really supports (panel redesign)
 

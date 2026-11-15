@@ -96,8 +96,8 @@ function colorAudit(record) {
   return call("POST", "/color/audit", { record });
 }
 
-function waitFrame(path, timeout = 20) {
-  return call("POST", "/frames/wait", { path, timeout });
+function waitFrame(path, timeout = 20, png = false) {
+  return call("POST", "/frames/wait", { path, timeout, png });
 }
 
 function colorProbe(report, refs, frames) {
@@ -303,6 +303,11 @@ function captionFaces(frames, project, graphics) {
 }
 
 // 0.10.69: the visible pixels of a still with transparency (the Anchor page's Use alpha)
+// 0.10.91: what one clip draws: the frame as it is (before) and with the clip hidden for a moment (after)
+function anchorDrawn(before, after) {
+  return call("POST", "/anchor/drawn", { before, after });
+}
+
 function anchorAlpha(path, threshold, invert) {
   return call("POST", "/anchor/alpha", { path, threshold, invert: !!invert });
 }
@@ -320,9 +325,64 @@ function playStop(from, until) {
   return call("POST", "/subtitles/play", { stop: true, from, until });
 }
 
+// 0.10.71: brand kits (the Brand page)
+const q = encodeURIComponent;
+function brandKits(project) {
+  return call("GET", `/brand/kits?project=${q(project || "")}`);
+}
+
+function brandKit(id, project, sig) {
+  return call("GET", `/brand/kit?id=${q(id)}&project=${q(project || "")}${sig ? `&sig=${q(sig)}` : ""}`);
+}
+
+function brandThumbs(id, rels, project) {
+  return call("POST", "/brand/thumbs", { id, rels, project });
+}
+
+function brandResolve(id, rel, project) {
+  return call("POST", "/brand/resolve", { id, rel, project });
+}
+
+function brandFavorite(id, rel, on) {
+  return call("POST", "/brand/favorite", { id, rel, on: !!on });
+}
+
+function brandCopy(text) {
+  return call("POST", "/brand/copy", { text });
+}
+
+function brandReveal(id, rel, project) {
+  return call("POST", "/brand/reveal", { id, rel: rel || "", project });
+}
+
+function brandOpen(id, rel, project) {
+  return call("POST", "/brand/open", { id, rel, project });
+}
+
+function brandFont(id, family, project) {
+  return call("POST", "/brand/font", { id, family, project });
+}
+
+function brandManage(action, body) {
+  return call("POST", "/brand/manage", { ...(body || {}), action });
+}
+
+function brandAdd(id, paths, category, project) {
+  return call("POST", "/brand/add", { id, paths, category: category || "", project });
+}
+
+function brandMogrt(payload) {
+  return call("POST", "/brand/mogrt", payload);
+}
+
+function brandColor(payload) {
+  return call("POST", "/brand/color", payload);
+}
+
 function log(level, message) {
   return call("POST", "/log", { level, message }).catch(() => {});
 }
 
-module.exports = { anchorAlpha, transcript, status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
+module.exports = { brandKits, brandKit, brandThumbs, brandResolve, brandFavorite, brandCopy, brandReveal, brandOpen, brandFont,
+  brandManage, brandAdd, brandMogrt, brandColor, anchorAlpha, anchorDrawn, transcript, status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
   startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, trackerFrame, startTracking, trackerThumbs, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, exportSettings, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, stop, log };

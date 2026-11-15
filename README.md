@@ -94,6 +94,30 @@ Press **Watch Downloads** (or **Other folder…**) with a project open. From the
 
 One folder belongs to one project; a file is imported only while that project is open; a file already in the project is not imported twice; files from before switching it on are left alone. The panel must be open (it may be hidden in a tab) to import.
 
+## Brand (the client's brand kit)
+
+The **Brand** tab shows the client's brand kit: colours, logos, graphics, intros and outros, fonts, MOGRTs and references.
+The client is found from the project (a `Brand Kit` folder above it on the server, or the client's name in the project's
+name or folders); pick another one in the list at the top, and the choice is remembered for that project.
+
+- **Add** puts a logo, graphic or clip at the playhead, on the track just above everything there, so nothing is covered or
+  cut (a track is added on top when none is free). **At end** puts an outro after the last clip. **Import** only puts it in
+  the bin `Brand Kit - <client>`. One Cmd/Ctrl+Z takes a placement off.
+- **Colours**: click one to copy its HEX. **Apply to selected** colours the selected logos and graphic files with a Tint
+  (transparency kept) and MOGRTs in their colour control. Text made in Premiere cannot be coloured by a script: paste the
+  copied HEX in Essential Graphics.
+- **Fonts**: **Install** copies the kit's TTF / OTF files into your fonts (Premiere shows them after a restart); **Copy**
+  copies the name.
+- **Presets**: **Add** places a MOGRT; **Use** sets the Subtitles style to the client's own. Effect presets are shown in
+  Finder (import them once in the Effects panel).
+- **Quick** (at the top): the files you starred (☆ under ⋯) and the ones you use most.
+- **Manage**: where the kits are (**Library folder…**, **Client folder…**), new kit, rename, other names of the client, add
+  colours, add files (or drop them from Finder on the page: they are copied), duplicate, delete (moved to `_Deleted kits`,
+  nothing erased).
+
+The kit refreshes by itself when its files change. Files from the server that you use often are copied to this computer, so
+they still work when the server is away (the tab says so). Details: `docs/BRAND_KIT.md`.
+
 ## How the sync offset is found
 - Each audio channel is looked at on its own (L and R separately, quiet and duplicated channels skipped), plus a temporarily levelled mix.
 - The sound is filtered to 150–4000 Hz and searched across the whole recording with GCC-PHAT and with a curve of sound onsets (more robust when the two microphones sound different).

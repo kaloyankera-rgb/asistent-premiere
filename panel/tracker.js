@@ -26,13 +26,24 @@ const ICONS = {                                      // 14 x 14, filled with the
   last: "M10.4 2H12v10h-1.6z M2 2.5v9L9 7z",
   probPrev: "M6 3v8L1.5 7z M9 2h2v6.5H9z M9 10h2v2H9z",
   probNext: "M8 3v8l4.5-4z M3 2h2v6.5H3z M3 10h2v2H3z",
+  move: "M7 0.5L9.6 3.4H7.8V6.2H10.6V4.4L13.5 7L10.6 9.6V7.8H7.8V10.6H9.6L7 13.5L4.4 10.6H6.2V7.8H3.4V9.6L0.5 7L3.4 4.4V6.2H6.2V3.4H4.4Z",   // 0.10.74 Move
+};
+
+// 0.10.77: let go of a captured pointer by hand (UXP seemed to keep it after the release, and the next presses on the
+// page's buttons went here)
+const release = (node, e) => {
+  try {
+    if (e && e.pointerId !== undefined) node.releasePointerCapture(e.pointerId);
+  } catch (err) { /* not captured */ }
 };
 
 function mount({ $, el, button, enable, bindTips, premiere }) {
   const root = $("paneTracker");
   const state = { source: null, preview: null, box: null, boxAt: -1, track: null, thumbs: [], cur: 0, timer: null, job: null,
     busy: false, loading: false, live: null, liveLo: -1, liveHi: -1, progress: 0, part: null, mode: "attach", sync: true,
-    lastSeek: 0, timelineW: 0, viewW: 0, range: null, rangeDrag: -1 };
+    lastSeek: 0, timelineW: 0, viewW: 0, range: null, rangeDrag: -1, zoom: { z: 1, cx: 0.5, cy: 0.5 }, hand: false };
+  let vp = null;
+  let lay = null;                                                      // the layout as last drawn: { side, w, h, aspect, key } (0.10.75)                                                       // the viewer's zoom in pixels, as last drawn (0.10.73)
   const checks = {};
   const optWrap = {};
 
@@ -66,6 +77,13 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   const clipLine = div(clipText, "tr-clipmeta", "");
   const top = div(clipBar, "row tr-clipact");
 
+  // ---- 0.10.75 side by side (a vertical clip in a wide panel): the viewer card left, timeline and the cards in a column right;
+  // the same nodes are moved between the two layouts, nothing is built twice
+  const sideRow = div(root, "row tr-side");
+  sideRow.hidden = true;
+  const rightCol = div(sideRow, "tr-right");
+  const timeCard = div(rightCol, "tr-card tr-work tr-timecard");
+
   // ---- the workspace: viewer, transport, timeline
   const work = div(root, "tr-card tr-work");
   const stage = div(work, "row tr-stage");
@@ -87,7 +105,12 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   const sbar = div(view, "tr-sbar");
   const sfill = div(sbar, "tr-sfill");
   sbar.hidden = true;
+  // 0.10.73 zoom: − / Fit / + (and Move, 0.10.74) in the viewer's corner; Alt + click zooms there, Alt-drag pans (0.10.74)
+  const zoomBar = div(view, "row tr-zoom");
 
+  // 0.10.74: the one-line guide while zoomed in
+  const zoomHint = div(work, "tr-zhint", "Alt + click: zoom  ·  Alt + drag: move");
+  zoomHint.hidden = true;
   const timeArea = div(work, "tr-timearea");
   const transport = div(timeArea, "row tr-transport");
   const navGroup = div(transport, "row");
@@ -142,21 +165,53 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     return w > 40 ? w : 260;
   }
 
-  // the tallest the viewer may be: about half the panel's height, so the timeline and Track stay in sight
-  function maxHeight() {
+  // the page's room: its width, and the scrolling area's height (0.10.75: the layout is chosen from these, never from the
+  // viewer's own box, which depends on the layout)
+  function room() {
+    let W = 0;
     let H = 0;
+    let top = 70;
     try {
-      H = root.parentElement.getBoundingClientRect().height;
-    } catch (e) { /* no parent yet */ }
-    if (!(H > 120)) return 360;
-    return Math.max(200, Math.min(620, Math.round(H * 0.52)));
+      W = root.getBoundingClientRect().width;
+      H = root.parentElement.getBoundingClientRect().height - 22;      // #app's padding
+      top = steps.getBoundingClientRect().height + clipBar.getBoundingClientRect().height + 16;
+    } catch (e) { /* hidden page */ }
+    return { W: W > 40 ? W : 260, H: H > 120 ? H : 700, top };
+  }
+
+  // which layout and how big the viewer is, for the loaded frame's real shape (the file's size, read by the engine)
+  function plan() {
+    const p = state.preview;
+    const r = room();
+    const L = TP.layoutFor(p.width, p.height, r.W - 2, r.H, r.top, 44);   // 44: the zoom line and the card edges under the picture
+    return { ...L, key: `${Math.round(r.W)}x${Math.round(r.H)}|${p.width}x${p.height}` };
   }
 
   function size() {
-    const p = state.preview;
-    const W = stageWidth();
-    const ww = Math.min(W, (maxHeight() * p.width) / p.height);
-    return [Math.round(ww), Math.round((ww * p.height) / p.width)];
+    if (!lay) lay = plan();
+    return [lay.w, lay.h];
+  }
+
+  // puts the cards where the layout wants them (moving the same nodes)
+  function applyLayout(side) {
+    const now = !sideRow.hidden;
+    if (side === now) return false;
+    if (side) {
+      sideRow.insertBefore(work, rightCol);
+      timeCard.appendChild(timeArea);
+      rightCol.appendChild(cols);
+      sideRow.hidden = false;
+    } else {
+      root.insertBefore(work, sideRow);
+      work.appendChild(timeArea);
+      root.insertBefore(cols, status);
+      sideRow.hidden = true;
+      work.style.width = "";
+      stage.style.width = "";
+    }
+    flag(cols, "tr-cols-v", side);
+    flag(root, "tr-sidewise", side);
+    return true;
   }
 
   // ---------------------------------------------------------------- drawing
@@ -216,27 +271,42 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     empty.hidden = !!p;
     view.hidden = !p;
     if (!p) {
+      lay = null;
+      applyLayout(false);
       stage.style.height = "";
       emptyTitle.textContent = state.loading ? "Loading frame" : "No frame loaded";
       emptyText.hidden = state.loading;
       return;
     }
-    const [w, h] = size();
+    lay = plan();
+    const moved = applyLayout(lay.side);
+    const [w, h] = [lay.w, lay.h];
     state.viewW = stageWidth();
     stage.style.height = `${h}px`;
-    for (const e of [view, img]) {
-      e.style.width = `${w}px`;
-      e.style.height = `${h}px`;
+    stage.style.width = lay.side ? `${w}px` : "";                       // side by side: the card is exactly the picture, no bars
+    work.style.width = lay.side ? `${w + 2}px` : "";
+    if (moved) setTimeout(drawTimeline, 0);                             // the timeline's width changed with its place
+    view.style.width = `${w}px`;
+    view.style.height = `${h}px`;
+    vp = TP.viewport(state.zoom, w, h);
+    state.zoom = { z: vp.z, cx: vp.cx, cy: vp.cy };
+    // the frame and its overlay: one size, one shift, so the box always sits on the object
+    for (const e of [img, svg]) {
+      e.style.width = `${vp.cw}px`;
+      e.style.height = `${vp.ch}px`;
+      e.style.left = `${-vp.px}px`;
+      e.style.top = `${-vp.py}px`;
     }
-    svg.setAttribute("width", w);
-    svg.setAttribute("height", h);
+    svg.setAttribute("width", vp.cw);
+    svg.setAttribute("height", vp.ch);
+    drawZoom();
     const src = frameSrc();
     if (src && img.getAttribute("data-src") !== src.slice(-40)) {
       img.src = `data:image/jpeg;base64,${src}`;
       img.setAttribute("data-src", src.slice(-40));
     }
     while (svg.firstChild) svg.removeChild(svg.firstChild);
-    const k = w / p.width;
+    const k = vp.cw / p.width;
     const t = state.track;
     // the path: every tracked point, coloured by run
     if (t && !state.job) {
@@ -256,11 +326,11 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       drawBox(TP.corners(f, box).map(([x, y]) => [x * k, y * k]), COLORS[f.state] || COLORS.sure, false);
       crosshair(f.x * k, f.y * k);
     } else if (f && f.state === "lost") {
-      svgEl(svg, "rect", { x: 1, y: 1, width: w - 2, height: h - 2 }, `fill:none;stroke:${COLORS.lost};stroke-width:2px`);
+      svgEl(svg, "rect", { x: vp.px + 1, y: vp.py + 1, width: w - 2, height: h - 2 }, `fill:none;stroke:${COLORS.lost};stroke-width:2px`);
     }
     // a box the editor is drawing (a first box, or a fix on the frame shown)
     if (state.box && !state.job && (!t || state.boxAt === state.cur)) {
-      const [x, y, bw, bh] = [state.box[0] * w, state.box[1] * h, state.box[2] * w, state.box[3] * h];
+      const [x, y, bw, bh] = [state.box[0] * vp.cw, state.box[1] * vp.ch, state.box[2] * vp.cw, state.box[3] * vp.ch];
       drawBox([[x, y], [x + bw, y], [x + bw, y + bh], [x, y + bh]], ACCENT, !!t);
     }
     // readouts: the state of this frame (left), the frame number (right), a thin progress line while tracking
@@ -410,12 +480,11 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   // stays on the object: the picture and its overlay share one size in pixels)
   function relayoutIfResized() {
     if (root.hidden) return;
-    const w = stageWidth();
     let tw = 0;
     try {
       tw = timeline.getBoundingClientRect().width;
     } catch (e) { /* hidden */ }
-    if ((state.preview && Math.abs(w - state.viewW) > 1) || (tw > 40 && Math.abs(tw - state.timelineW) > 1)) {
+    if ((state.preview && (!lay || plan().key !== lay.key)) || (tw > 40 && Math.abs(tw - state.timelineW) > 1)) {
       drawView();
       drawTimeline();
     }
@@ -466,6 +535,10 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     const t = state.track;
     if (!t) return;
     state.cur = Math.max(0, Math.min(t.frames.length - 1, i));
+    const f = t.frames[state.cur];
+    if (state.zoom.z > 1 && vp && TP.usable(f) && state.preview) {                     // zoomed in: the view follows the object
+      state.zoom = TP.follow(state.zoom, f.x / state.preview.width, f.y / state.preview.height, ...size());
+    }
     drawView();
     drawTimeline();
     drawControls();
@@ -574,12 +647,14 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     if (scrubbing) scrubTo(e, false);
   });
   timeline.addEventListener("pointerup", (e) => {
+    release(timeline, e);
     if (!scrubbing) return;
     scrubbing = false;
     scrubTo(e, true);
     state.rangeDrag = -1;
   });
-  timeline.addEventListener("pointercancel", () => {
+  timeline.addEventListener("pointercancel", (e) => {
+    release(timeline, e);
     scrubbing = false;
     state.rangeDrag = -1;
   });
@@ -605,26 +680,68 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       return [e.offsetX, e.offsetY];
     }
   };
+  // a point on the frame as drawn now (zoomed and shifted), from the viewer's pixels
+  const onFrame = ([x, y]) => (vp ? [x + vp.px, y + vp.py] : [x, y]);
+  const inZoomBar = (node) => {
+    for (let n = node; n && n !== view; n = n.parentNode) if (n === zoomBar) return true;
+    return false;
+  };
+  let pan = null;                                                    // Alt-drag: the last mouse point
+  // 0.10.74 (the user: "I can't move around the frame", then "a little guide, minimal"): Alt (or Move, or the middle button)
+  // drags the view; Alt + click zooms in where clicked (Alt + Shift + click out). Measured in Premiere 26.5.3: Alt and the
+  // drag reach the panel, a scroll never does (no wheel / mousewheel on the viewer, the page or the document), so no scroll zoom.
+  let panFrom = null;                                                // where an Alt press began, to tell a click from a drag
   view.addEventListener("pointerdown", (e) => {
-    if (state.busy || !state.preview) return;
+    if (!state.preview || inZoomBar(e.target)) return;
+    let r = null;
+    try {
+      r = view.getBoundingClientRect();
+    } catch (err) { /* older UXP: no check */ }
+    if (r && r.width > 0 && (e.clientX < r.left || e.clientY < r.top || e.clientX > r.right || e.clientY > r.bottom)) {                     // a press elsewhere delivered here (still captured)
+      release(view, e);
+      return;
+    }
+    if (e.altKey || ((state.hand || e.button === 1) && state.zoom.z > 1)) {
+      pan = local(e);
+      panFrom = e.altKey ? { at: pan.slice(), out: !!e.shiftKey } : null;
+      try {
+        view.setPointerCapture(e.pointerId);
+      } catch (err) { /* follows inside */ }
+      return;
+    }
+    if (state.busy) return;
     stopPlay();
-    drag = local(e);
+    drag = onFrame(local(e));
     try {
       view.setPointerCapture(e.pointerId);
     } catch (err) { /* follows inside */ }
   });
   view.addEventListener("pointermove", (e) => {
-    if (!drag) return;
-    const [w, h] = size();
-    const [x, y] = local(e);
-    const b = TP.boxFrom(drag[0], drag[1], x, y, w, h);
+    if (pan) {
+      const [x, y] = local(e);
+      if (panFrom && Math.hypot(x - panFrom.at[0], y - panFrom.at[1]) > 4) panFrom.moved = true;
+      if (state.zoom.z > 1) {
+        state.zoom = TP.panBy(state.zoom, pan[0] - x, pan[1] - y, ...size());
+        drawView();
+      }
+      pan = [x, y];
+      return;
+    }
+    if (!drag || !vp) return;
+    const [x, y] = onFrame(local(e));
+    const b = TP.boxFrom(drag[0], drag[1], x, y, vp.cw, vp.ch);
     if (b) {
       state.box = b;
       state.boxAt = state.track ? state.cur : -1;
       drawView();
     }
   });
-  const endDraw = () => {
+  const endDraw = (e) => {
+    release(view, e);
+    const click = pan && panFrom && !panFrom.moved ? panFrom : null;
+    pan = null;
+    panFrom = null;
+    if (click) zoomTo(TP.zoomStep(state.zoom.z, click.out ? -1 : 1), click.at);       // Alt + click: zoom here
     if (!drag) return;
     drag = null;
     if (!state.box) return;
@@ -634,11 +751,53 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   view.addEventListener("pointerup", endDraw);
   view.addEventListener("pointercancel", endDraw);
 
+  // ---------------------------------------------------------------- zoom (0.10.73)
+  function zoomTo(z, at) {
+    if (!state.preview) return;
+    const [w, h] = size();
+    if (state.zoom.z <= 1 && z > 1 && !at) {                        // from the whole frame: zoom in on the object
+      const f = state.track && state.track.frames[state.cur];
+      const focus = TP.usable(f) ? [f.x / state.preview.width, f.y / state.preview.height]
+        : state.box ? [state.box[0] + state.box[2] / 2, state.box[1] + state.box[3] / 2] : null;
+      if (focus) state.zoom = { z: 1, cx: focus[0], cy: focus[1] };
+      state.zoom = { z, cx: state.zoom.cx, cy: state.zoom.cy };
+    } else {
+      state.zoom = TP.zoomAt(state.zoom, z, at ? at[0] : w / 2, at ? at[1] : h / 2, w, h);
+    }
+    drawView();
+  }
+  const zoomOut = button("small tr-zbtn", "−", "Zoom out.", () => zoomTo(TP.zoomStep(state.zoom.z, -1)));
+  const zoomFit = button("small tr-zbtn tr-zfit", "Fit", "Shows the whole frame again. Alt + click zooms in where you click (Alt + Shift + click: out); zoomed in, Move or Alt + drag moves around.", () => zoomTo(1));
+  const zoomIn = button("small tr-zbtn", "+", "Zoom in (on the object when there is a box). Alt + click zooms in where you click; Move or Alt + drag moves around.", () => zoomTo(TP.zoomStep(state.zoom.z, 1)));
+  const handBtn = button("small tr-zbtn tr-zhand", "", "Move: while on, dragging the picture moves around it instead of drawing a box. Alt + drag does the same without it.", () => {
+    state.hand = !state.hand;
+    drawZoom();
+  });
+  handBtn.id = "trZoomMove";
+  handBtn.innerHTML = `<svg class="tr-ico" width="14" height="14" viewBox="0 0 14 14"><path d="${ICONS.move}"/></svg>`;
+  zoomBar.appendChild(handBtn);
+  zoomOut.id = "trZoomOut";
+  zoomFit.id = "trZoomFit";
+  zoomIn.id = "trZoomIn";
+  for (const b of [zoomOut, zoomFit, zoomIn]) zoomBar.appendChild(b);
+  function drawZoom() {
+    const z = state.zoom.z;
+    zoomFit.textContent = z <= 1 ? "Fit" : `${Math.round(z * 10) / 10}×`;
+    enable(zoomOut, z > 1);
+    enable(zoomIn, z < TP.ZOOMS[TP.ZOOMS.length - 1]);
+    flag(view, "tr-zoomed", z > 1);
+    zoomHint.hidden = z <= 1;
+    if (z <= 1) state.hand = false;                                   // nothing to move at Fit: dragging draws again
+    handBtn.hidden = z <= 1;
+    flag(handBtn, "on", state.hand);
+    flag(view, "tr-hand", state.hand);
+  }
   function boxHint() {
     const px = Math.round(state.box[2] * state.preview.width);
     const py = Math.round(state.box[3] * state.preview.height);
     boxMeta.textContent = `Box ${px} × ${py} px`;
-    hint.textContent = (px < 24 || py < 24 ? "Small box: a bigger one with more detail tracks better. " : "") +
+    // 0.10.76: small boxes are tracked on the file's own pixels; the hint only helps drawing them tight
+    hint.textContent = (px < 24 || py < 24 ? "Small box: zoom in (Alt + click) to draw it tight around the object. " : "") +
       (state.track ? "Track from here (or back from here) redoes only that part; Track starts again from this frame." : "");
   }
 
@@ -755,10 +914,11 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     try {
       const project = await premiere.activeProject();
       const s = await TR.readSource(project);
-      const p = await engine.trackerFrame({ path: s.clip.path, t: s.t0, width: 640 });
-      Object.assign(state, { source: s, preview: p, box: null, boxAt: -1, track: null, thumbs: [], cur: 0, range: null });
+      // 0.10.73: 1280 px on the long side (was 640), so the frame stays sharp zoomed in
+      const p = await engine.trackerFrame({ path: s.clip.path, t: s.t0, width: 1280 });
+      Object.assign(state, { source: s, preview: p, box: null, boxAt: -1, track: null, thumbs: [], cur: 0, range: null, zoom: { z: 1, cx: 0.5, cy: 0.5 }, hand: false });
       clipName.textContent = s.clip.name;
-      clipLine.textContent = `${s.at.toFixed(2)} s  ·  V${s.clip.track + 1}${Math.abs(s.clip.speed - 1) > 0.01 ? `  ·  speed ${Math.round(s.clip.speed * 100)} %` : ""}  ·  ${p.width} × ${p.height}`;
+      clipLine.textContent = `${s.at.toFixed(2)} s  ·  V${s.clip.track + 1}${Math.abs(s.clip.speed - 1) > 0.01 ? `  ·  speed ${Math.round(s.clip.speed * 100)} %` : ""}  ·  ${p.width} × ${p.height}  ·  ${TP.aspectName(p.width, p.height)}`;
       boxMeta.textContent = "";
       hint.textContent = "Drag a box around something with detail (a logo, a face, an edge), not a plain area.";
       say("");
@@ -899,7 +1059,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     },
     info() {
       const t = state.track;
-      return { source: state.source, box: state.box, boxAt: state.boxAt, cur: state.cur, mode: state.mode, busy: state.busy, range: state.range, rangeText: rangeText.textContent,
+      return { zoom: state.zoom, viewport: vp, layout: lay && { side: lay.side, w: lay.w, h: lay.h, aspect: TP.aspectName(state.preview.width, state.preview.height), room: room() }, source: state.source, box: state.box, boxAt: state.boxAt, cur: state.cur, mode: state.mode, busy: state.busy, range: state.range, rangeText: rangeText.textContent,
         preview: state.preview && { w: state.preview.w, h: state.preview.h, width: state.preview.width, height: state.preview.height },
         thumbs: state.thumbs.filter(Boolean).length, hud: hud.textContent, frame: frameChip.textContent, svg: svg.childNodes.length,
         view: { w: Number(svg.getAttribute("width")) || 0, h: Number(svg.getAttribute("height")) || 0, stage: Math.round(stageWidth()) },
@@ -918,7 +1078,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       Object.assign(state, d);
       if (d.source) {
         clipName.textContent = d.source.clip.name;
-        clipLine.textContent = `${d.source.at.toFixed(2)} s  ·  V${d.source.clip.track + 1}  ·  ${d.preview ? `${d.preview.width} × ${d.preview.height}` : ""}`;
+        clipLine.textContent = `${d.source.at.toFixed(2)} s  ·  V${d.source.clip.track + 1}  ·  ${d.preview ? `${d.preview.width} × ${d.preview.height}  ·  ${TP.aspectName(d.preview.width, d.preview.height)}` : ""}`;
       }
       redraw();
     },

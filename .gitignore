@@ -47,3 +47,6 @@ Thumbs.db
 # Claude Code: personal settings and symlinks into the vault
 .claude/agents/
 .claude/settings.local.json
+
+# Reference videos and screen recordings (client footage): never commit
+references/

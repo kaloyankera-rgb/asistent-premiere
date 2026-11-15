@@ -1,6 +1,53 @@
 // The panel states the preview can show (?s=name). Texts are copied from what main.js and the plan modules really
 // write, so a screenshot shows real lengths; numbers and clip names are made up (no client material).
 
+// a made-up brand kit for the Brand page (0.10.71)
+function brandKits() {
+  return { kits: [{ id: "k1", name: "Northwind", folder: "/Volumes/Production/Brand Kits/Northwind", source: "library", online: true, remote: true },
+    { id: "k2", name: "Harbor Coffee", folder: "/Volumes/Production/Brand Kits/Harbor Coffee", source: "library", online: true, remote: true }],
+  detected: "k1", why: "the folder \"Northwind\"", roots: ["/Volumes/Production/Brand Kits"], missing: [] };
+}
+function brandKit() {
+  const img = (rel, extra) => ({ rel, name: rel.replace(/^.*\//, "").replace(/\.[^.]+$/, ""), ext: rel.split(".").pop(), kind: "image", importable: true, folder: rel.replace(/\/[^/]*$/, ""), uses: 0, fav: false, ...extra });
+  return { id: "k1", name: "Northwind", folder: "/Volumes/Production/Brand Kits/Northwind", source: "library", online: true, remote: true,
+    sig: "s1", read_at: "2026-11-14 12:01", status: "draft-2", deletable: true, aliases: ["NW"],
+    colors: [{ group: "Primary", items: [{ hex: "#1F6FEB", name: "Northwind Blue" }, { hex: "#0B1F3A", name: "Deep Navy" }, { hex: "#FFFFFF", name: "White" }] },
+      { group: "Accents", items: [{ hex: "#F2B705", name: "Signal Yellow" }, { hex: "#E5533D", name: "Coral" }, { hex: "#3FB950", name: "Leaf" }] },
+      { group: "Subtitles", items: [{ hex: "#FFFFFF", name: "Subtitle text" }, { hex: "#F2B705", name: "Subtitle keyword" }] }],
+    fonts: [{ family: "Inter", role: "brand", installed: "yes", files: [{ style: "Regular", usable: true, installed: true }, { style: "Bold", usable: true, installed: true }] },
+      { family: "Fraunces", role: "secondary", installed: "no", files: [{ style: "SemiBold", usable: true, installed: false }] },
+      { family: "Montserrat", role: "subtitles", installed: "yes", files: [] }],
+    assets: {
+      logos: [img("assets/logo/northwind-horizontal.png", { fav: true, uses: 6, alts: [{ ext: "svg" }] }), img("assets/logo/northwind-horizontal-white.png", { variant: "for dark backgrounds", uses: 3 }),
+        img("assets/logo/northwind-mark.png"), { ...img("assets/logo/northwind-mark.svg"), kind: "vector", importable: false, why: "Premiere does not import SVG: use the PNG version." }],
+      graphics: [img("assets/graphics/price-tag.png"), img("assets/graphics/lower-third-frame.png")],
+      video: [{ rel: "assets/intro-outro/Northwind intro.mov", name: "Northwind intro", ext: "mov", kind: "video", importable: true, role: "intro", duration: 3.2, has_audio: true, uses: 2 },
+        { rel: "assets/intro-outro/Northwind outro.mov", name: "Northwind outro", ext: "mov", kind: "video", importable: true, role: "outro", duration: 4.5, has_audio: true, uses: 0 }],
+      audio: [], other: [],
+      presets: [{ rel: "assets/presets/Price callout.mogrt", name: "Price callout", ext: "mogrt", kind: "mogrt", importable: false, cat: "presets", uses: 0 }],
+      references: [{ rel: "assets/reference/Brand book 2026.pdf", name: "Brand book 2026", ext: "pdf", kind: "doc", importable: false, cat: "references", uses: 0 }],
+    },
+    subtitle: { preset: "gstroy", name: "Northwind", font: "Montserrat Black 52", case: "UPPERCASE" },
+    notes: ["Name: Northwind (never \"the Northwind\")", "Prices only after checking the site on the day"],
+    counts: { logos: 4, graphics: 2, video: 2, audio: 0, presets: 1, references: 1, other: 0, fonts: 3 } };
+}
+function brandThumb(rel) {
+  if (!/\.(png|mov)$/.test(rel)) return null;
+  const c = document.createElement("canvas");
+  c.width = 80;
+  c.height = 80;
+  const g = c.getContext("2d");
+  if (/\.mov$/.test(rel)) {
+    g.fillStyle = "#0B1F3A";
+    g.fillRect(0, 0, 80, 80);
+  }
+  g.fillStyle = /white/.test(rel) ? "#FFFFFF" : /price|lower/.test(rel) ? "#F2B705" : "#1F6FEB";
+  g.beginPath();
+  g.arc(40, 40, 22, 0, Math.PI * 2);
+  g.fill();
+  return c.toDataURL("image/png");
+}
+
 // presses buttons of the Keyframer page by their label, in order (a click with no press before it acts, like a test click)
 function kfPress(labels) {
   const pane = document.getElementById("paneKeyframer");
@@ -12,20 +59,23 @@ function kfPress(labels) {
 
 // the Tracker page with a drawn clip: a court, a ball bouncing across it (no footage)
 // variant "box": a frame with a box drawn, not yet tracked; "busy": the first track running (live frame, 40 % done)
-function trackerDemo(api, cur, variant) {
-  const W = 1080, H = 1920, N = 120;
-  const pos = (i) => [300 + 5 * i, 1150 + 420 * Math.abs(Math.sin(i / 7))];
+// 0.10.75: shape "wide" (16:9) or "square" (1:1) instead of the vertical 9:16 court, for the adaptive layouts
+function trackerDemo(api, cur, variant, shape) {
+  const [W, H] = shape === "wide" ? [1920, 1080] : shape === "square" ? [1080, 1080] : [1080, 1920];
+  const N = 120;
+  const pos = (i) => [W * 0.28 + 5 * i, H * 0.6 + H * 0.22 * Math.abs(Math.sin(i / 7))];
   const pic = (i) => {
     const c = document.createElement("canvas");
-    c.width = 270;
-    c.height = 480;
+    const [cw, ch] = [W / 4, H / 4];
+    c.width = cw;
+    c.height = ch;
     const g = c.getContext("2d");
     g.fillStyle = "#2f4a2c";
-    g.fillRect(0, 0, 270, 300);
+    g.fillRect(0, 0, cw, ch * 0.625);
     g.fillStyle = "#8c3b2a";
-    g.fillRect(0, 300, 270, 180);
+    g.fillRect(0, ch * 0.625, cw, ch * 0.375);
     g.strokeStyle = "#3a7ca5";
-    for (let x = 10; x < 270; x += 60) g.strokeRect(x, 20, 50, 270);
+    for (let x = 10; x < cw; x += 60) g.strokeRect(x, 20, 50, ch * 0.56);
     const [x, y] = pos(i);
     g.fillStyle = "#d9772b";
     g.beginPath();
@@ -40,7 +90,7 @@ function trackerDemo(api, cur, variant) {
   });
   const p = api.tracker();
   const source = { clip: { name: "C0412.MP4", path: "/x/C0412.MP4", track: 0, start: 10, inPt: 2, speed: 1 }, step: 1 / 30, t0: 2 + 20 / 30, from: 2, to: 6, at: 10.67 };
-  const preview = { jpeg: pic(20), width: W, height: H, w: 270, h: 480 };
+  const preview = { jpeg: pic(20), width: W, height: H, w: W / 4, h: H / 4 };
   const box = [(pos(20)[0] - 60) / W, (pos(20)[1] - 60) / H, 120 / W, 120 / H];
   if (variant === "box") {
     p.demo({ source, preview });
@@ -154,6 +204,8 @@ window.PREVIEW_SCENARIOS = (function () {
     },
     // 0.10.55: the Tracker page with a made-up track of a bouncing ball (an unsure and a lost stretch), on frame 52
     tracker: { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 52); } },
+    "tracker-wide": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 52, null, "wide"); } },
+    "tracker-square": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 52, null, "square"); } },
     // 0.10.59: a Tools row opened (Rough cut), Settings, the Log icon's page
     "row-open": { run: (api) => { const b = document.querySelector('#secRough .btn.more'); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); } },
     settings: { run: (api) => { api.openTab("paneSettings"); } },
@@ -161,9 +213,23 @@ window.PREVIEW_SCENARIOS = (function () {
     "tracker-empty": { run: (api) => { api.openTab("paneTracker"); } },
     "tracker-range": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 90, "range"); } },
     "tracker-box": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 0, "box"); } },
+    // 0.10.73: zoomed in twice on the tracked point (the path and the box move with the frame)
+    "tracker-zoom": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 52); for (const id of ["trZoomIn", "trZoomIn", "trZoomIn", "trZoomMove"]) document.getElementById(id).dispatchEvent(new MouseEvent("click", { bubbles: true })); } },
     "tracker-busy": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 0, "busy"); } },
     "tracker-lock": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 75); const b = [...document.querySelectorAll("#paneTracker .tr-mode")].pop(); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); } },
+    // 0.10.71: the Brand page with a made-up client (no client material): colours, logos, video, fonts, presets
+    brand: { engine: { brandKits: brandKits(), brandKit: brandKit() }, thumb: brandThumb, run: (api) => api.openTab("paneBrand") },
+    "brand-manage": { engine: { brandKits: brandKits(), brandKit: brandKit() }, thumb: brandThumb,
+      run: (api) => { api.openTab("paneBrand"); setTimeout(() => { const b = [...document.querySelectorAll("#paneBrand .btn")].find((x) => x.textContent === "Manage"); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); }, 120); } },
+    "brand-offline": { engine: { brandKits: brandKits(), brandKit: { ...brandKit(), online: false, note: "The kit's folder is not reachable (/Volumes/Production/Brand Kits/Northwind): showing what this computer read last (2026-11-14 12:01). Files with a copy here still work." } },
+      thumb: brandThumb, run: (api) => api.openTab("paneBrand") },
     anchor: { run: (api) => api.openTab("paneAnchor") },
+    // 0.10.78: the preview and the motion blur switched on (Overshoot+ sample move)
+    "keyframer-blur": { run: (api) => {
+      api.openTab("paneKeyframer");
+      kfPress(["Overshoot+"]);
+      document.getElementById("kfBlurSwitch").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    } },
     "keyframer-custom": { run: (api) => { api.openTab("paneKeyframer"); kfPress(["Bounce", "Edit as points"]); } },
     "keyframer-bounce": { run: (api) => { api.openTab("paneKeyframer"); kfPress(["Bounce", "Both", "Loop", "+"]); } },
     review: {
