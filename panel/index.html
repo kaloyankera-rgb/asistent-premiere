@@ -44,16 +44,93 @@
       <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg></span><div class="fname" data-tip="Lines up the cameras by their shared sound in a new SYNC sequence, in recording order. Your sequence is not touched.">Sync</div><div id="sync" class="btn action" data-tip="Select the clips in the timeline (all of them is fine) and press. Makes a new SYNC sequence with each camera on its own track; clips without a pair stay in their place in time.">Sync cameras</div><span class="fghost"></span></div>
     </div>
     <div class="feat" id="secRough">
-      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88"/><path d="M14.47 14.48 20 20"/><path d="M8.12 8.12 12 12"/></svg></span><div class="fname" data-tip="Select the cameras and the microphones. The silences and dead spaces are cut out of every selected clip at once (the cameras stay in sync), in a new sequence; the original is not touched. No speech recognition: it listens to each microphone's level, and Silero keeps quiet speech.">Silences</div><div id="rough" class="btn action" data-tip="Listens to every selected sound clip (its own noise floor and voice level, or your threshold), keeps every moment anyone is heard plus a margin around it, and builds a new sequence without the silences. Each press is a new version; the original and older versions are not touched.">Cut silences</div><div class="btn more" data-more="optRough" data-tip="Options for Silences."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88"/><path d="M14.47 14.48 20 20"/><path d="M8.12 8.12 12 12"/></svg></span><div class="fname" data-tip="Cuts silences out of every selected camera and microphone at once, so they stay in sync.&#10;Also, if you choose: voices away from the microphone and repeated takes.&#10;Where: a new sequence. Yours is not touched.">Silences</div><div id="rough" class="btn action" data-tip="Cuts the selected clips into a new sequence in the bin &quot;No silence&quot;.&#10;After a Preview: cuts exactly what it showed, with your changes.&#10;Each press: a new version. Your sequence and older versions are not touched.">Cut silences</div><div class="btn more" data-more="optRough" data-tip="Options for Silences."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
       <div id="optRough" class="fopts" hidden>
-      <p id="aboutRough" class="desc">Select the cameras and the microphones. Silences are cut from every selected clip at once; each microphone counts, so nobody who speaks is cut. A camera microphone you do not want to count: mute its track first.</p>
-      <div class="row options">
-        <label for="roughTempo" class="muted" data-tip="Which pauses go. Calm: pauses over 0.8 s, 0.20 s kept before speech and 0.30 s after. Normal: over 0.5 s, 0.15 / 0.22 s kept. Tight: over 0.3 s, 0.15 / 0.20 s kept (on a very quiet microphone it can touch the soft start of a word).">Pauses</label>
-        <select id="roughTempo"><option value="calm">Calm (over 0.8 s)</option><option value="normal" selected>Normal (over 0.5 s)</option><option value="tight">Tight (over 0.3 s)</option></select>
+      <p id="aboutRough" class="desc">Select the cameras and the microphones. What goes is cut from every selected clip at once, in a new sequence; each microphone is listened to on its own, so nobody who speaks into one is cut. Preview shows what would go before anything is made.</p>
+      <div class="row options sl-row">
+        <label for="roughMode" class="muted sl-l" data-tip="What goes.&#10;Silences only: dead air only. Every voice stays, even a quiet one.&#10;Silences + off-mic: also voices away from the microphone (talk between takes, people across the room). Unsure parts stay and show yellow in Preview.&#10;AI rough cut: also repeated takes and false starts, found from the recognised words. Slower.">Cut</label>
+        <select id="roughMode"><option value="silence">Silences only</option><option value="offmic" selected>Silences + off-mic</option><option value="ai">AI rough cut</option></select>
       </div>
-      <div class="row options">
-        <label for="roughThreshold" class="muted" data-tip="Auto: each microphone's own threshold from its noise floor and voice level, with Silero keeping quiet speech and dropping clicks. A dB value: everything under it is silence, on every microphone (nothing else decides).">Level</label>
-        <select id="roughThreshold"><option value="auto" selected>Auto (each microphone)</option><option value="-30">-30 dB</option><option value="-35">-35 dB</option><option value="-40">-40 dB</option><option value="-45">-45 dB</option><option value="-50">-50 dB</option><option value="-55">-55 dB</option><option value="-60">-60 dB</option></select>
+      <div class="row options sl-row">
+        <label for="roughMethod" class="muted sl-l" data-tip="How speech is found.&#10;Automatic: measures each microphone&#x27;s own noise and voice level. The best start.&#10;Manual dB: your level decides, on every microphone. What stays under it goes, speech or not.&#10;AI-assisted: Automatic plus speech recognition. Needed for hesitation sounds and repeated takes. Slower.">Detect</label>
+        <select id="roughMethod"><option value="auto" selected>Automatic</option><option value="manual">Manual dB</option><option value="ai">AI-assisted</option></select>
+      </div>
+      <div class="row options" id="roughDbRow" hidden>
+        <label for="roughDb" class="muted sl-l" data-tip="Manual dB only: sound that stays under this level goes, speech included.&#10;Typical: speech into a lavalier is about -12 to -20 dB.&#10;Measured: short-term loudness, not single peaks.&#10;Suggest: proposes a level from your clips.">Below dB</label>
+        <input type="text" id="roughDb" class="kf-num sl-num" value="-30" />
+        <div id="roughSuggest" class="btn small sl-btn" data-tip="Proposes a level from the selected clips.&#10;How: 8 dB under the main voice of the quietest microphone.&#10;Then: check it in Preview and change it if needed.">Suggest</div>
+      </div>
+      <div class="row options sl-row">
+        <label for="roughSensitivity" class="muted sl-l" data-tip="How easily a quiet voice away from the microphone goes.&#10;Careful: a voice must be 12 dB under the main voice to go. Least is cut.&#10;Normal: 8 dB under.&#10;Aggressive: 5 dB under. Most is cut.&#10;Manual dB: here it sets how long the level is averaged, so one loud laugh does not keep a quiet conversation.">Sensitivity</label>
+        <select id="roughSensitivity"><option value="1">Careful</option><option value="2">Rather careful</option><option value="3" selected>Normal</option><option value="4">Rather aggressive</option><option value="5">Aggressive</option></select>
+      </div>
+      <div class="row options sl-row">
+        <label for="roughPacing" class="muted sl-l" data-tip="Which pauses go, and how much stays before / after speech.&#10;Calm: pauses from 1.3 s go. Keeps 0.20 / 0.30 s.&#10;Measured: from 0.87 s. Keeps 0.15 / 0.22 s.&#10;Paced: from 0.65 s. Keeps 0.15 / 0.20 s.&#10;Energetic: from 0.4 s. Keeps 0.10 / 0.14 s and trims short pauses too.&#10;Custom: your own numbers.">Pacing</label>
+        <select id="roughPacing"><option value="calm">Calm</option><option value="measured" selected>Measured</option><option value="paced">Paced</option><option value="energetic">Energetic</option><option value="custom">Custom</option></select>
+      </div>
+      <div id="roughCustom" hidden>
+      <div class="row options sl-row">
+        <label for="roughMinSilence" class="muted sl-l" data-tip="The shortest pause that is cut, in seconds, padding included.&#10;Shorter: stays as it is.">Silence from</label>
+        <input type="text" id="roughMinSilence" class="kf-num sl-num" value="0.87" /><span class="muted sl-u">s</span>
+      </div>
+      <div class="row options sl-row">
+        <label for="roughMinSpeech" class="muted sl-l" data-tip="A sound shorter than this is not speech (a click, a bump).&#10;Automatic: drops it only when Silero hears no voice in it.&#10;Manual dB: drops every one.">Speech from</label>
+        <input type="text" id="roughMinSpeech" class="kf-num sl-num" value="0.15" /><span class="muted sl-u">s</span>
+      </div>
+      <div class="row options sl-row">
+        <label for="roughBefore" class="muted sl-l" data-tip="Kept before speech starts, in seconds.&#10;Why: the breath and the soft start of the first word.">Pad before</label>
+        <input type="text" id="roughBefore" class="kf-num sl-num" value="0.15" /><span class="muted sl-u">s</span>
+      </div>
+      <div class="row options sl-row">
+        <label for="roughAfter" class="muted sl-l" data-tip="Kept after speech ends, in seconds.&#10;Why: the fade of the last word.">Pad after</label>
+        <input type="text" id="roughAfter" class="kf-num sl-num" value="0.22" /><span class="muted sl-u">s</span>
+      </div>
+      </div>
+      <div class="row options sl-row">
+        <input type="checkbox" id="roughShort" /><label for="roughShort" class="muted" data-tip="Trims the small pauses the pacing leaves alone down to 0.12 s, for a tighter edit.&#10;Which: pauses between the two numbers below.&#10;Kept: a pause with a breath in it.">Remove short pauses</label>
+      </div>
+      <div class="row options sl-row sl-wrap">
+        <label for="roughShortMin" class="muted sl-l" data-tip="Which pauses count as short, in seconds: from the first number to the second.&#10;Limit: the second is never more than the pacing&#x27;s shortest cut pause.">Pauses of</label>
+        <input type="text" id="roughShortMin" class="kf-num sl-num" value="0.25" /><span class="muted sl-u sl-to">to</span>
+        <input type="text" id="roughShortMax" class="kf-num sl-num" value="0.5" /><span class="muted sl-u">s</span>
+      </div>
+      <div class="row options sl-row">
+        <input type="checkbox" id="roughFillers" /><label for="roughFillers" class="muted" data-tip="Cuts sounds that are not words (ъъъ, ъм, um, uh) standing alone between two pauses.&#10;Kept: words like ами, значи, така.&#10;Needs: Detect set to AI-assisted.&#10;Note: the speech model often misses such sounds, so some stay.">Remove hesitation sounds</label>
+      </div>
+      <div class="row options sl-row">
+        <label for="roughRange" class="muted sl-l" data-tip="Which part is cut.&#10;Selected clips: the clips you selected in the timeline.&#10;In to Out: between the sequence&#x27;s In and Out points. Clips are cut at the points.&#10;Whole sequence: every clip.">Range</label>
+        <select id="roughRange"><option value="selection" selected>Selected clips</option><option value="inout">In to Out</option><option value="all">Whole sequence</option></select>
+      </div>
+      <div class="row options sl-row">
+        <label for="roughAction" class="muted sl-l" data-tip="What happens to the parts that go. Always in a new sequence; yours is not touched.&#10;Remove, close the gaps: taken out and the rest moved together. A shorter video.&#10;Remove, keep the spaces: taken out, everything else stays in place.&#10;Split only: cut at every edge, nothing removed.&#10;Mute the sound: the picture stays whole, the sound is taken out. Same length.">Result</label>
+        <select id="roughAction"><option value="remove" selected>Remove, close the gaps</option><option value="gaps">Remove, keep the spaces</option><option value="split">Split only</option><option value="mute">Mute the sound</option></select>
+      </div>
+      <div class="row options sl-row">
+        <div id="roughPreview" class="btn small" data-tip="Shows what would go, without making anything.&#10;Tap a part: keep it or cut it.&#10;Change an option: the picture updates.&#10;Then: Cut silences cuts exactly what the preview shows.">Preview</div>
+        <span id="roughPreviewNote" class="muted sl-note"></span>
+      </div>
+      <div id="silPreview" class="sl-box" hidden>
+        <div id="silSummary"></div>
+        <div id="silWave" class="sl-wave"></div>
+        <div class="row sl-nav">
+          <div id="silOut" class="btn small sl-step" data-tip="Zoom out: more of the recording at once.">−</div>
+          <div id="silIn" class="btn small sl-step" data-tip="Zoom in, around the part you tapped last.">+</div>
+          <div id="silLeft" class="btn small sl-step" data-tip="Move to earlier in the recording.">◀</div>
+          <div id="silRight" class="btn small sl-step" data-tip="Move to later in the recording.">▶</div>
+          <span id="silSpan" class="muted sl-span"></span>
+        </div>
+        <div class="row wrap sl-legend">
+          <div class="row sl-leg"><span class="sl-key k-keep"></span><span class="muted">kept</span></div>
+          <div class="row sl-leg"><span class="sl-key k-silence"></span><span class="muted">silence</span></div>
+          <div class="row sl-leg"><span class="sl-key k-offmic"></span><span class="muted">off-mic</span></div>
+          <div class="row sl-leg"><span class="sl-key k-short"></span><span class="muted">short pause</span></div>
+          <div class="row sl-leg"><span class="sl-key k-take"></span><span class="muted">take / um</span></div>
+          <div class="row sl-leg"><span class="sl-key k-flag"></span><span class="muted">not sure</span></div>
+        </div>
+        <div id="silInfo" class="hint">Tap a marked part to keep it or cut it.</div>
+        <div id="silTracks" class="row wrap sl-tracks"></div>
+        <div id="silMics"></div>
+        <div id="silFlags"></div>
       </div>
       </div>
     </div>
@@ -133,10 +210,10 @@
     <div class="fgroup">Automatic</div>
     <div class="list">
     <div class="feat auto" id="secImport">
-      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></span><div class="fname2"><div class="fname" data-tip="Watches a folder and imports new files into the project, sorted by type.">Auto import</div><div id="importStatus" class="fstatus" data-tip="Off.">Off</div></div><div id="importToggle" class="btn small sw" data-tip="Turns watching the folder (Downloads unless you picked another) on or off."><span class="knob"></span></div><div class="btn more" data-more="optImport" data-tip="Options for Auto import."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></span><div class="fname2"><div class="fname" data-tip="Watches a folder and imports new files into the project, sorted by type.">Auto import</div><div id="importStatus" class="fstatus" data-tip="Off.">Off</div></div><div id="importToggle" class="btn small sw" data-tip="Turns watching the folder on or off. On by itself for every project, watching the folder the project is saved in; off stays off for that project."><span class="knob"></span></div><div class="btn more" data-more="optImport" data-tip="Options for Auto import."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
       <div id="optImport" class="fopts" hidden>
-      <p id="aboutImport" class="desc">Watches a folder and imports new files into the project, sorted by type. To watch another folder, drop it from Finder onto this row, or pick it.</p>
-      <div class="row buttons"><div id="importFolder" class="btn small" data-tip="Picks another folder to watch instead of Downloads.">Other folder…</div></div>
+      <p id="aboutImport" class="desc">Watches the folder the project is saved in and imports new files into the project, sorted by type: download your assets there and they appear in Premiere. On by itself for every project; files that were there before, Premiere's previews and auto-saves, Asistent's own folders and your exports are left alone. To watch another folder, drop it from Finder onto this row, or pick it.</p>
+      <div class="row buttons"><div id="importFolder" class="btn small" data-tip="Picks another folder to watch instead of the project's folder.">Other folder…</div></div>
       <div id="importRecent"></div>
       </div>
     </div>
@@ -219,6 +296,10 @@
     <div id="previews"></div>
   </div>
   </div>
+
+  <!-- 0.10.111 (the user: "Apply ... always visible"): the Keyframer's Apply, Undo last and Update live stay here, under the
+       scrolling page, while the presets and settings above scroll -->
+  <div id="kfDock" class="dock" hidden></div>
 
   <!-- the current operation and the answer of the last one -->
   <div id="bottom">

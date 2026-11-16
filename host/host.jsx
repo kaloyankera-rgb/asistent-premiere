@@ -1,7 +1,7 @@
 ﻿// Asistent host: the ExtendScript (ES3) side. main.js evaluates this file for every command and calls as_run(name, args).
 // Every function answers with a JSON string {ok, msg, ...}; nothing here throws out of as_run.
 
-var AS_HOST_VERSION = "0.10.93";
+var AS_HOST_VERSION = "0.10.115";
 
 function as_json(v) {
     if (v === null || v === undefined) return "null";
@@ -583,17 +583,18 @@ function as_colour_controls(mgt) {
 }
 
 // The colour goes into one colour control (index: 0 = the first) of every selected MOGRT. Native text (Premiere's Type
-// tool, captions upgraded to graphics) has no scriptable colour in 26.x: those are counted, not touched.
+// tool, captions upgraded to graphics) has no scriptable colour in 26.x: those are counted and listed (name, start), and
+// the panel puts a Tint on the text ones (0.10.111).
 function as_brand_color(a) {
     var tg = as_target(a);
     if (tg.error) return as_result(false, tg.error);
     var seq = tg.seq, sel = seq.getSelection(), rgb = as_hex_rgb(a.hex), idx = Math.max(0, a.index | 0);
-    var out = { mogrts: 0, set: 0, other: 0, skipped: [], controls: [] };
+    var out = { mogrts: 0, set: 0, other: 0, others: [], skipped: [], controls: [] };
     for (var i = 0; i < sel.length; i++) {
         var ti = sel[i], mgt = null;
         if (ti.mediaType && String(ti.mediaType) !== "Video") continue;
         try { mgt = ti.getMGTComponent(); } catch (e) { mgt = null; }
-        if (!mgt) { out.other++; continue; }
+        if (!mgt) { out.other++; out.others.push({ name: String(ti.name), start: ti.start.seconds }); continue; }
         out.mogrts++;
         var cols = as_colour_controls(mgt);
         if (!out.controls.length) for (var c = 0; c < cols.length; c++) out.controls.push(String(cols[c].displayName));
@@ -606,6 +607,202 @@ function as_brand_color(a) {
         out.set++;
     }
     return as_result(true, "ok", out);
+}
+
+// ---------------------------------------------------------------- 0.10.108: the rough cut made in a DUPLICATE of the sequence
+// The user (2026-11-15): Cut silences crashed Premiere 26.5.3 on a five-minute selection. The crash is inside Premiere's
+// UXP layer while it hands the panel a copy of a clip (about 60 runs in NEW TEST; 2 of 8 still crashed after every panel-side
+// change), so the panel no longer copies clips. The host duplicates the editor's sequence, razors the DUPLICATE at the cut
+// frames, removes from it what is not a kept piece and moves the pieces together. The editor's own sequence is never
+// touched: every phase after "start" works only on the sequence whose id AND name are the ones "start" made (approved by
+// the user 2026-11-15: removing clips in Asistent's own duplicate).
+// Probed in NEW TEST (2026-11-15): Sequence.clone() makes "<name> Copy" in the project; QE's sequence razor(timecode) cuts
+// every unlocked track frame exact (drop-frame timecode from Time.getFormatted); QE's TRACK razor is not usable (QE hides a
+// track that has the same name as another one); removing a TrackItem (remove with false, false) and move(Time) change that one item only,
+// linked partners stay, and a move is exact to the tick.
+// One call does one phase for at most AS_CUT_BUDGET ms and says where it stopped; the panel calls again.
+var AS_CUT_BUDGET = 15000;
+
+function as_cut_frame(time, tpf) {
+    return Math.round(Number(time.ticks) / tpf);
+}
+
+// the duplicate "start" made: found by its id, and it must still carry the name it was given
+function as_cut_target(a) {
+    var tg = as_target({ project: a.project, guid: a.cut });
+    if (tg.error) return { error: "The new sequence \"" + a.name + "\" was not found any more. Nothing else was changed." };
+    if (String(tg.seq.name) !== String(a.name) || tg.seq.sequenceID !== a.cut) return { error: "The new sequence \"" + a.name + "\" is not the one that was made. Nothing else was changed." };
+    if (!tg.front) return { error: "Another project is in front in Premiere: bring this one to the front and press again." };
+    return tg;
+}
+
+function as_cut_lock(tracks, on) {
+    for (var t = 0; t < tracks.numTracks; t++) {
+        try { tracks[t].setLocked(on ? 1 : 0); } catch (e) { /* a track that cannot be locked is cut with the others */ }
+    }
+}
+
+// every clip of the duplicate: [{k: "v"|"a", t: track, f: start frame, e: end frame, c: the clip}]
+function as_cut_clips(seq, tpf) {
+    var out = [], kinds = [["v", seq.videoTracks], ["a", seq.audioTracks]];
+    for (var n = 0; n < kinds.length; n++) {
+        var tracks = kinds[n][1];
+        for (var t = 0; t < tracks.numTracks; t++) {
+            var clips = tracks[t].clips;
+            for (var k = 0; k < clips.numItems; k++) {
+                var c = clips[k];
+                out.push({ k: kinds[n][0], t: t, f: as_cut_frame(c.start, tpf), e: as_cut_frame(c.end, tpf), c: c });
+            }
+        }
+    }
+    return out;
+}
+
+// pieces by "kind|track|from|to"; a clip that lies off the frame grid may round one frame away, so the neighbours count too
+function as_cut_index(pieces, at) {
+    var map = {};
+    for (var i = 0; i < pieces.length; i++) {
+        var p = pieces[i], f = at ? p.at : p.f, e = at ? p.at + (p.e - p.f) : p.e;
+        map[p.k + "|" + p.t + "|" + f + "|" + e] = i + 1;
+    }
+    return map;
+}
+
+function as_cut_lookup(map, k, t, f, e) {
+    var exact = map[k + "|" + t + "|" + f + "|" + e];
+    if (exact) return exact;
+    for (var df = -1; df <= 1; df++) {
+        for (var de = -1; de <= 1; de++) {
+            var hit = map[k + "|" + t + "|" + (f + df) + "|" + (e + de)];
+            if (hit) return hit;
+        }
+    }
+    return 0;
+}
+
+function as_cut_start(a) {
+    var tg = as_target(a);
+    if (tg.error) return as_result(false, tg.error);
+    if (!tg.front) return as_result(false, "Another project is in front in Premiere: bring this one to the front and press again. Nothing was made.");
+    var proj = tg.project, src = tg.seq, before = {}, i, made = null;
+    for (i = 0; i < proj.sequences.numSequences; i++) {
+        before[proj.sequences[i].sequenceID] = 1;
+        if (String(proj.sequences[i].name) === String(a.name)) return as_result(false, "The project already has a sequence named \"" + a.name + "\". Nothing was made: rename or delete it and press again.");
+    }
+    if (!src.clone()) return as_result(false, "Premiere did not duplicate the sequence. Nothing was made.");
+    for (i = 0; i < proj.sequences.numSequences; i++) if (!before[proj.sequences[i].sequenceID]) made = proj.sequences[i];
+    if (!made || made.sequenceID === src.sequenceID) return as_result(false, "The duplicate of the sequence did not appear in the project. Nothing else was changed.");
+    made.name = a.name;
+    try {
+        var bin = as_find_bin(a.bin || "No silence", true, proj);
+        if (bin && made.projectItem) made.projectItem.moveBin(bin);
+    } catch (e) { /* it stays next to the original */ }
+    proj.openSequence(made.sequenceID);
+    return as_result(true, "ok", { cut: made.sequenceID, tpf: Number(made.timebase), source: String(src.name) });
+}
+
+function as_cut_razor(a, tg, until) {
+    var seq = tg.seq, proj = tg.project, tpf = Number(seq.timebase), cuts = a.cuts || [], i = Number(a.i) || 0;
+    if (!app.project.activeSequence || app.project.activeSequence.sequenceID !== seq.sequenceID) proj.openSequence(seq.sequenceID);
+    if (!app.project.activeSequence || app.project.activeSequence.sequenceID !== seq.sequenceID) return as_result(false, "Premiere did not open the new sequence \"" + a.name + "\", so nothing was cut. It can be deleted.");
+    app.enableQE();
+    var qs = qe.project.getActiveSequence();
+    // the razor works on the sequence in front: it must be the duplicate, never the editor's own sequence
+    if (!qs || String(qs.name) !== String(a.name)) return as_result(false, "The new sequence \"" + a.name + "\" is not the one in front, so nothing was cut. It can be deleted.");
+    var st = seq.getSettings(), zero = Number(seq.zeroPoint) || 0, state = null, refused = 0;
+    for (; i < cuts.length; i++) {
+        if (new Date().getTime() > until) break;
+        var only = cuts[i].only || "";
+        if (only !== state) {
+            as_cut_lock(seq.videoTracks, only === "a");
+            as_cut_lock(seq.audioTracks, only === "v");
+            state = only;
+        }
+        var tm = new Time();
+        tm.ticks = String(cuts[i].f * tpf + zero);
+        if (!qs.razor(tm.getFormatted(st.videoFrameRate, st.videoDisplayFormat))) refused++;
+    }
+    as_cut_lock(seq.videoTracks, false);
+    as_cut_lock(seq.audioTracks, false);
+    return as_result(true, "ok", { i: i, done: i >= cuts.length, refused: refused });
+}
+
+function as_cut_clean(a, tg, until) {
+    var seq = tg.seq, tpf = Number(seq.timebase), pieces = a.pieces || [], map = as_cut_index(pieces, false);
+    var all = as_cut_clips(seq, tpf), matched = 0, extra = [], n;
+    for (n = 0; n < all.length; n++) {
+        if (as_cut_lookup(map, all[n].k, all[n].t, all[n].f, all[n].e)) matched++; else extra.push(all[n]);
+    }
+    // nothing is where a piece should be: the razor did not cut as asked, so nothing is removed
+    if (pieces.length && !matched) return as_result(false, "Premiere did not cut the new sequence \"" + a.name + "\" where it was asked to, so nothing was removed from it. It can be deleted; your own sequence was not changed.");
+    as_cut_lock(seq.videoTracks, false);
+    as_cut_lock(seq.audioTracks, false);
+    var removed = 0, refused = 0;
+    for (n = extra.length - 1; n >= 0; n--) {                 // from the end of each track backwards
+        if (new Date().getTime() > until) break;
+        try { if (extra[n].c.remove(false, false) === false) refused++; else removed++; } catch (e) { refused++; }
+    }
+    return as_result(true, "ok", { done: n < 0, removed: removed, refused: refused, matched: matched, left: n + 1 });
+}
+
+function as_cut_move(a, tg, until) {
+    var seq = tg.seq, tpf = Number(seq.timebase), pieces = a.pieces || [], i = Number(a.i) || 0;
+    var all = as_cut_clips(seq, tpf), here = {}, n, moved = 0, missing = [];
+    for (n = 0; n < all.length; n++) here[all[n].k + "|" + all[n].t + "|" + all[n].f + "|" + all[n].e] = n + 1;
+    for (; i < pieces.length; i++) {
+        if (new Date().getTime() > until) break;
+        var p = pieces[i], d = p.at - p.f;
+        if (!d) continue;
+        var hit = as_cut_lookup(here, p.k, p.t, p.f, p.e);
+        if (!hit) {
+            if (!as_cut_lookup(here, p.k, p.t, p.at, p.at + (p.e - p.f))) missing.push(i);   // not where it was and not where it goes
+            continue;
+        }
+        var tm = new Time();
+        tm.ticks = String(d * tpf);
+        try { all[hit - 1].c.move(tm); moved++; } catch (e) { missing.push(i); }
+    }
+    return as_result(true, "ok", { i: i, done: i >= pieces.length, moved: moved, missing: missing.length });
+}
+
+function as_cut_finish(a, tg) {
+    var seq = tg.seq, tpf = Number(seq.timebase), marks = a.marks || [], n, cleared = 0, added = 0;
+    if (a.i) {                                              // the pieces moved: the duplicate's own markers point at the old places
+        try {
+            var old = [], m = seq.markers.getFirstMarker();
+            while (m) { old.push(m); m = seq.markers.getNextMarker(m); }
+            for (n = 0; n < old.length; n++) { seq.markers.deleteMarker(old[n]); cleared++; }
+        } catch (e) { /* the markers stay */ }
+    }
+    for (n = 0; n < marks.length; n++) {
+        try {
+            var mk = seq.markers.createMarker(marks[n].frame * tpf / 254016000000);
+            mk.name = String(marks[n].name || "Review");
+            mk.comments = String(marks[n].comment || "");
+            added++;
+        } catch (e2) { /* a marker less */ }
+    }
+    // the duplicate came with the editor's In and Out, which mean nothing in the cut sequence: it is whole again (In at
+    // the start, Out at the end; measured in NEW TEST 2026-11-15: an In to Out cut of 33 s kept In 40.5 and Out 200.25)
+    try { seq.setInPoint(0); seq.setOutPoint(Number(seq.end) / 254016000000); } catch (e5) { /* the marks stay */ }
+    try { as_deselect_all(seq); } catch (e3) { /* nothing selected */ }
+    try { seq.setPlayerPosition("0"); } catch (e4) { /* the playhead stays */ }
+    var all = as_cut_clips(seq, tpf), map = as_cut_index(a.pieces || [], true), there = 0;
+    for (n = 0; n < all.length; n++) if (as_cut_lookup(map, all[n].k, all[n].t, all[n].f, all[n].e)) there++;
+    return as_result(true, "ok", { clips: all.length, there: there, markers_cleared: cleared, markers: added });
+}
+
+function as_rough_cut(a) {
+    if (!a.name) return as_result(false, "The new sequence has no name.");
+    if (a.phase === "start") return as_cut_start(a);
+    var tg = as_cut_target(a);
+    if (tg.error) return as_result(false, tg.error);
+    var until = new Date().getTime() + AS_CUT_BUDGET;
+    if (a.phase === "razor") return as_cut_razor(a, tg, until);
+    if (a.phase === "clean") return as_cut_clean(a, tg, until);
+    if (a.phase === "move") return as_cut_move(a, tg, until);
+    if (a.phase === "finish") return as_cut_finish(a, tg);
+    return as_result(false, "Unknown phase: " + a.phase);
 }
 
 function as_eval(a) {
@@ -626,6 +823,7 @@ function as_run(name, args) {
         if (name === "add_tracks") return as_add_tracks(args || {});
         if (name === "brand_mogrt") return as_brand_mogrt(args || {});
         if (name === "brand_color") return as_brand_color(args || {});
+        if (name === "rough_cut") return as_rough_cut(args || {});
         if (name === "eval") return as_eval(args || {});
         if (name === "play") return as_play(args || {});
         if (name === "play_stop") return as_play_stop(args || {});

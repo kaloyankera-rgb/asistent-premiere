@@ -38,7 +38,7 @@ import unicodedata
 import uuid
 
 from . import config, filecheck, reveal
-from .importer import AUDIO, VIDEO
+from .importer import AUDIO, PREMIERE_DIRS, VIDEO
 from .settle import Settle, is_temp, opens, probe
 
 log = logging.getLogger("asistent")
@@ -63,8 +63,7 @@ HINT = 30.0
 # Mac only, and only through file events, never scanned: FSEvents reports only what THIS Mac writes, so a colleague's export
 # on the shared drive is never shown. Windows' share notifications include other computers' writes, so no trees there.
 ROOT_CHILDREN = 3
-IGNORED = ("adobe premiere pro video previews", "adobe premiere pro audio previews", "adobe premiere pro auto-save",
-           "media cache files", "media cache", "adobe premiere pro captured audio", "analysis files")
+IGNORED = PREMIERE_DIRS                # previews, auto-saves, caches (shared with Auto import since 0.10.113)
 
 
 BOXED = (".mp4", ".mov", ".m4v", ".m4a", ".3gp")
@@ -703,6 +702,22 @@ class ExportWatcher:
         self.settle.drop(path)
         self.retry[path] = now
         return {"ok": True, "counted": True}
+
+    def is_export(self, path: str) -> bool:
+        """0.10.113, for Auto import watching the project's folder: is `path` an export from Premiere? The file Premiere's
+        preferences name (written when an export starts), a file an export event named, or one already recorded."""
+        p = same(os.path.normpath(path))
+        try:
+            state, _ = self.premiere.read()
+        except Exception:
+            state = self.premiere.state
+        named = state.get("file")
+        if named and same(os.path.normpath(named)) == p:
+            return True
+        with self.lock:
+            if any(same(c) == p for c in self.confirmed):
+                return True
+        return any(same(os.path.normpath(it.get("path") or "")) == p for it in self.settings.data.get("recent", []))
 
     def again(self, item_id: str) -> dict:
         """Show an earlier export again (from the Log). Only files this watcher recorded: never a path a request sends."""

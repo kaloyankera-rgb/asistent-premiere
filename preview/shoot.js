@@ -8,7 +8,7 @@ const path = require("node:path");
 const { chromium } = require("playwright-core");
 
 const ROOT = path.resolve(__dirname, "..");                 // tools/asistent: /panel and /preview are served from here
-const SCENARIOS = ["idle", "offline", "busy", "done", "error", "log", "color", "beforeafter", "captions", "review", "search", "learned", "open", "update", "nudge", "exports", "afterexport", "keyframer", "keyframer-elastic", "keyframer-blur", "keyframer-bounce", "keyframer-custom", "keyframer-stash", "tracker", "tracker-lock", "tracker-empty", "tracker-box", "tracker-zoom", "tracker-wide", "tracker-square", "tracker-busy", "tracker-range", "anchor", "brand", "brand-manage", "brand-offline", "row-open", "settings", "log-page"];
+const SCENARIOS = ["idle", "silences", "silences-preview", "silences-custom", "offline", "busy", "done", "error", "log", "color", "beforeafter", "captions", "review", "search", "learned", "open", "update", "nudge", "exports", "afterexport", "keyframer", "keyframer-elastic", "keyframer-blur", "keyframer-bounce", "keyframer-custom", "keyframer-stash", "tracker", "tracker-lock", "tracker-empty", "tracker-box", "tracker-zoom", "tracker-wide", "tracker-square", "tracker-busy", "tracker-range", "anchor", "brand", "brand-manage", "brand-offline", "row-open", "settings", "log-page"];
 const WIDTHS = [240, 300, 420];
 // --only a,b: just those scenarios (0.10.71)
 const ONLY = process.argv.includes("--only") ? process.argv[process.argv.indexOf("--only") + 1].split(",") : null;

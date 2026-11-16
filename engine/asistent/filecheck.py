@@ -237,10 +237,53 @@ def span(a: float, b: float) -> str:
     return f"{clock(a)}-{clock(b)}"
 
 
+# What to do about each kind of finding (0.10.111, the user: "more clear and organized warnings if something is wrong"): every
+# "check" is also an issue {topic, title, places, fix}, one per kind, its places together, so the panel shows a short heading,
+# where, and what to look at in Premiere. `lines` stays the plain report (Log, older panels).
+FIX = {
+    "bars": "A clip there does not fill the frame (its Scale or Position, or a different shape), or that edge is very dark. "
+            "Jump to the time and check the clip's Motion.",
+    "bars_all": "The picture does not fill the frame anywhere: check the export's frame size against the sequence, or the "
+                "clips' Scale (Set to Frame Size).",
+    "black_start": "The first frame is the reel's cover: trim the black or move the first clip to the very start.",
+    "black_middle": "A gap in the timeline or a clip without picture: close the gap or check the clip there.",
+    "black_end": "Fine if it is a fade out; otherwise trim the end of the sequence.",
+    "freeze": "Fine for a still on purpose; otherwise a clip froze (a Frame Hold, or media that did not play): play it there.",
+    "hdr": "Export in Rec.709 (Export > Video > colour space), as phones and the platforms expect.",
+    "no_video": "The export preset has no video: choose H.264 in the Export tab.",
+    "shape": "Export > Video: set the frame size to the sequence's.",
+    "fps": "Export > Video: set the frame rate to the sequence's.",
+    "length": "Export > Range: Entire Sequence, or set In and Out where the video starts and ends.",
+    "unmeasured": "Asistent could not measure the file: play it through once yourself.",
+    "no_audio": "The export has no sound: tick Audio in the Export tab.",
+    "silent": "The audio tracks are muted or the export's Audio is off: check the track M buttons and the Export tab.",
+    "one_side": "A one-sided microphone: Fix audio puts it on both sides (or the clip's Audio Channels).",
+    "true_peak": "Lower the gain where it is loudest (the main microphone peaks at -6 dBFS).",
+    "full_scale": "Something hits 0 dBFS: lower its gain and listen there for distortion.",
+    "silent_start": "The first second is the hook: trim the silence or start the sound earlier.",
+}
+TOPIC = {"bars": "Picture", "bars_all": "Picture", "black_start": "Picture", "black_middle": "Picture", "black_end": "Picture",
+         "freeze": "Picture", "hdr": "Picture", "no_video": "File", "shape": "File", "fps": "File", "length": "File",
+         "unmeasured": "File", "no_audio": "Sound", "silent": "Sound", "one_side": "Sound", "true_peak": "Sound",
+         "full_scale": "Sound", "silent_start": "Sound"}
+
+
 def report(f: dict, m: dict | None, expect: dict | None = None) -> dict:
-    """{status: fine|look, summary, lines: [{level: ok|info|check, text}]}."""
+    """{status: fine|look, summary, lines: [{level: ok|info|check, text}], issues: [{kind, topic, title, places, fix}]}."""
     lines = []
+    issues = []
     add = lambda level, text: lines.append({"level": level, "text": text})   # noqa: E731
+
+    def look(kind: str, title: str, text: str | None = None, place: list[float] | None = None, line: bool = True):
+        """A "check" line, and the issue it belongs to: the same kind and title gather their places in one issue."""
+        if line:
+            add("check", text or title)
+        hit = next((i for i in issues if i["kind"] == kind and i["title"] == title), None)
+        if hit is None:
+            hit = {"kind": kind, "topic": TOPIC[kind], "title": title, "places": [], "fix": FIX[kind]}
+            issues.append(hit)
+        if place is not None:
+            hit["places"].append([round(place[0], 2), round(place[1], 2)])
     v, a, dur = f["video"], f["audio"], f["duration"]
     mb = f["size"] / 1e6
     add("ok", f"The file is complete: {clock(dur)}, {mb:.1f} MB.")
@@ -251,34 +294,40 @@ def report(f: dict, m: dict | None, expect: dict | None = None) -> dict:
         add("info", f"{v['width']}x{v['height']}, {rate} fps, {v['codec'].upper()}" + (f", {br / 1e6:.1f} Mb/s" if br else "") +
             (f", {v['transfer']}" if v["transfer"] else ""))
         if v["transfer"] in HDR:
-            add("check", f"The colour is HDR ({v['transfer']}): phones and the platforms show it differently from Rec.709.")
+            look("hdr", f"The colour is HDR ({v['transfer']})",
+                 f"The colour is HDR ({v['transfer']}): phones and the platforms show it differently from Rec.709.")
     else:
-        add("check", "There is no picture in the file (sound only).")
+        look("no_video", "No picture in the file", "There is no picture in the file (sound only).")
 
     if expect:
         name = expect.get("name") or "the sequence"
         ew, eh, efps = expect.get("width"), expect.get("height"), expect.get("fps")
         if v and ew and eh and v["width"] and v["height"]:
             if abs(v["width"] / v["height"] - ew / eh) > 0.01:
-                add("check", f"The file is {v['width']}x{v['height']}, “{name}” is {ew}x{eh}: a different shape.")
+                look("shape", "A different shape than the sequence",
+                     f"The file is {v['width']}x{v['height']}, “{name}” is {ew}x{eh}: a different shape.")
             elif (v["width"], v["height"]) != (ew, eh):
                 add("info", f"“{name}” is {ew}x{eh}: the file is scaled to {v['width']}x{v['height']}.")
         if v and efps and v["fps"] and abs(v["fps"] - efps) > 0.01:
-            add("check", f"The file plays at {fps_text(v['fps'])} fps, “{name}” at {fps_text(efps)} fps.")
+            look("fps", "A different frame rate than the sequence",
+                 f"The file plays at {fps_text(v['fps'])} fps, “{name}” at {fps_text(efps)} fps.")
         want = [x for x in (expect.get("duration"), expect.get("range")) if x]
         frame = 1.5 / (v["fps"] if v and v["fps"] else 30)
         if want and all(abs(dur - x) > max(0.1, frame) for x in want):
-            add("check", f"The file is {clock(dur)} long, “{name}” {clock(want[0])}" +
-                (f" (In to Out {clock(want[1])})" if len(want) > 1 else "") + ".")
+            look("length", "A different length than the sequence", f"The file is {clock(dur)} long, “{name}” {clock(want[0])}" +
+                 (f" (In to Out {clock(want[1])})" if len(want) > 1 else "") + ".")
 
     if m is None:
-        add("check", "The picture and sound could not be measured (FFmpeg stopped).")
+        look("unmeasured", "Not measured", "The picture and sound could not be measured (FFmpeg stopped).")
     else:
         if v:
             if m["bars"]:
-                for b in m["bars"][:4]:
-                    where = "the whole video" if b["start"] <= 0.2 and b["end"] >= dur - 0.2 else span(b["start"], b["end"])
-                    add("check", f"{bar_sides(b['sides'])}: {where} (or a very dark edge).")
+                for n, b in enumerate(m["bars"]):
+                    whole = b["start"] <= 0.2 and b["end"] >= dur - 0.2
+                    where = "the whole video" if whole else span(b["start"], b["end"])
+                    # past the fourth the Log says "… and N more"; the issue still lists every place
+                    look("bars_all" if whole else "bars", bar_sides(b["sides"]) + (" through the whole video" if whole else ""),
+                         f"{bar_sides(b['sides'])}: {where} (or a very dark edge).", None if whole else [b["start"], b["end"]], line=n < 4)
                 if len(m["bars"]) > 4:
                     add("check", f"… and {len(m['bars']) - 4} more places with bars.")
             else:
@@ -288,7 +337,8 @@ def report(f: dict, m: dict | None, expect: dict | None = None) -> dict:
                 for b in black[:4]:
                     n = b[1] - b[0]
                     what = "at the start" if b[0] <= 0.01 else "at the end (a fade?)" if b[1] >= dur - 0.1 else "in the middle"
-                    add("check", f"Black picture {what}: {span(b[0], b[1])} ({n:.2f} s).")
+                    kind = "black_start" if b[0] <= 0.01 else "black_end" if b[1] >= dur - 0.1 else "black_middle"
+                    look(kind, f"Black picture {what.replace(' (a fade?)', '')}", f"Black picture {what}: {span(b[0], b[1])} ({n:.2f} s).", b)
                 if len(black) > 4:
                     add("check", f"… and {len(black) - 4} more black places.")
             else:
@@ -296,45 +346,47 @@ def report(f: dict, m: dict | None, expect: dict | None = None) -> dict:
             freeze = [r for r in m["freeze"] if not any(b[0] <= r[0] and r[1] <= b[1] + 0.05 for b in m["black"])]
             if freeze:
                 for r in freeze[:4]:
-                    add("check", f"The picture stands still {span(r[0], r[1])} ({r[1] - r[0]:.1f} s): a still on purpose, "
-                                 "or a frozen clip?")
+                    look("freeze", "The picture stands still", f"The picture stands still {span(r[0], r[1])} ({r[1] - r[0]:.1f} s): "
+                         "a still on purpose, or a frozen clip?", r)
             else:
                 add("ok", "No frozen picture.")
 
         if not a:
-            add("check", "There is no sound in the file.")
+            look("no_audio", "No sound in the file", "There is no sound in the file.")
         else:
             ch = m["channels"]
             rms = m["overall_rms"]
             if rms is None or rms == -math.inf or rms < SILENT_DB:
-                add("check", "The sound is silent.")
+                look("silent", "The sound is silent", "The sound is silent.")
             else:
                 if len(ch) == 2 and all(c["rms"] is not None for c in ch):
                     l, r = ch[0]["rms"], ch[1]["rms"]
                     if r == -math.inf or (l != -math.inf and l - r > ONE_CHANNEL):
-                        add("check", "Sound only on the left channel: the right is silent.")
+                        look("one_side", "Sound only on the left", "Sound only on the left channel: the right is silent.")
                     elif l == -math.inf or r - l > ONE_CHANNEL:
-                        add("check", "Sound only on the right channel: the left is silent.")
+                        look("one_side", "Sound only on the right", "Sound only on the right channel: the left is silent.")
                 tp = m["true_peak"]
                 if tp is not None and tp > TRUE_PEAK_MAX:
-                    add("check", f"True peak {tp:+.1f} dBFS: above {TRUE_PEAK_MAX:.0f} dBFS, the platforms' encoding may distort it.")
+                    look("true_peak", f"True peak {tp:+.1f} dBFS, above {TRUE_PEAK_MAX:.0f}",
+                         f"True peak {tp:+.1f} dBFS: above {TRUE_PEAK_MAX:.0f} dBFS, the platforms' encoding may distort it.")
                 elif tp is not None:
                     add("ok", f"True peak {tp:.1f} dBFS.")
                 if any(c["peak"] is not None and c["peak"] >= FULL_SCALE for c in ch):
-                    add("check", "The sound reaches full scale (0 dBFS): it is probably clipped somewhere.")
+                    look("full_scale", "The sound reaches 0 dBFS", "The sound reaches full scale (0 dBFS): it is probably clipped somewhere.")
                 lu = m["loudness"]
                 if lu is not None and lu != -math.inf:
                     add("info", f"Loudness {lu:.1f} LUFS ({lu - LUFS_TARGET:+.1f} LU from {LUFS_TARGET:.0f}, the usual platform level; "
                                 "information only).")
                 for s in m["silence"]:
                     if s[0] <= 0.01 and s[1] - s[0] >= SILENT_START and s[1] < dur - 0.1:
-                        add("check", f"Silence for the first {s[1]:.1f} s.")
+                        look("silent_start", f"Silence for the first {s[1]:.1f} s", f"Silence for the first {s[1]:.1f} s.", s)
                     elif s[1] >= dur - 0.1 and s[1] - s[0] >= SILENT_END and s[0] > 0.01:
                         add("info", f"Silence for the last {s[1] - s[0]:.1f} s.")
 
-    checks = sum(1 for x in lines if x["level"] == "check")
+    # the summary counts issues (one per kind), so two places with the same bar are one thing to look at, in two places
+    checks = len(issues)
     summary = "everything measured looks fine" if not checks else f"{checks} {'thing' if checks == 1 else 'things'} to look at"
-    return {"status": "look" if checks else "fine", "summary": summary, "lines": lines}
+    return {"status": "look" if checks else "fine", "summary": summary, "lines": lines, "issues": issues}
 
 
 def run(path: str, expect: dict | None = None, cancelled=None) -> dict:

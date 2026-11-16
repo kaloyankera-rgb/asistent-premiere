@@ -3,6 +3,39 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
+## V96. Verify 0.10.96 (2026-11-15): Cut silences rebuilt
+- [ ] 0.10.115: the tab row: names readable, the open tab clearly marked, no yellow box; the page fades in when you switch.
+- [ ] 0.10.115: Keyframer: open presets and settings, scroll: Apply, Undo last and Update live stay at the bottom.
+- [ ] 0.10.115: select a text you made in Premiere (white), Brand > a colour > Apply to selected: the letters take the colour, a
+      black outline stays black. One Cmd+Z per step (a new Tint is two).
+- [ ] 0.10.115: a NEW project: Auto import says "Watching <its folder>" by itself; download an asset into that folder (or a
+      subfolder): it is imported; export into the same folder: the export is not imported. Switch it off: it stays off.
+- [ ] 0.10.115: the next export: Export check shows each thing to look at in a card (where, what to check), passes in one line.
+- [ ] 0.10.110: run Cut silences again on the same sequence (Remove, or keep the spaces and close the gaps): no little clips and no
+      1-frame gaps between the clips. Hover the Silences options: a short summary, then one row per choice with its name in bold.
+- [ ] 0.10.109: Cut silences on the whole 5-minute POV sequence in NEW TEST (your recording's case), Remove: no crash; the new
+      sequence (bin "No silence") is your own clips cut, with effects, rotation and links; your sequence is unchanged. Passed 17 of
+      17 runs through the bridge on SYNC – кам2 (4); not yet pressed by you.
+- [ ] Look: Silences > options at your panel width (rows, the dB field with Suggest, Custom's four numbers). Seen only in Chrome.
+- [ ] Preview on IMG_9422 (Lokali), Silences + off-mic, Automatic: red parts orange (go), green kept, one yellow part; tap a
+      part: it turns and the numbers follow; + / − / ◀ / ▶; Cut silences then cuts exactly that.
+- [ ] Manual dB: Suggest, then Preview; move the dB and the picture follows.
+- [ ] Result: keep the spaces, split only, mute (picture whole, sound gone in the cut parts); Range: In to Out, whole sequence.
+- [ ] AI rough cut on a recording with repeated takes (slow the first time: it reads the speech): takes cut or listed.
+- [ ] Remove short pauses on a talking head: does it sound natural; Energetic.
+- [ ] Open: audio crossfades / J-L cuts need a probe in Premiere (QE addTransition through the host), not built.
+
+## V95. Verify 0.10.95 (2026-11-15)
+- [ ] Cut silences, Auto, on IMG_9422 (Lokali): the red-labelled parts are gone, the green ones stay, the result says how many
+      seconds of quieter voices went. Same on the "Lokali" IMG_9423 clip: no error, no crash; if Premiere refuses a piece the
+      result names it.
+- [ ] Make subtitles on the Lokali pieces: „Карал ли си някога реална кола? Не. А карал ли си на симулатор? Да.“
+
+## V94. Verify 0.10.94 (2026-11-15)
+- [ ] Cut silences at -30 dB on the 8-minute IMG_9423.MOV (4a1a ALPHA "Lokali"): no crash, 204 pieces placed and linked, the
+      result names the batches.
+- [ ] Make subtitles on the same Lokali clip again: „карал“ instead of „Кара“, „съседание“ kept and marked instead of „съседни“.
+
 ## N. The user's tweaks of 2026-11-12 (night)
 - [x] Tracker: range, Stop that keeps, go on (0.10.64). USER: drag the golden handles on a real clip, Stop mid-way, go on.
 - [x] Tracker: small, blurry, low-detail, fast objects (0.10.76, engine on the 4K test clip).

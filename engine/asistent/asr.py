@@ -233,7 +233,7 @@ def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[
     return box["words"]
 
 
-def score_texts(audio: np.ndarray, texts: list[str], language: str = LANGUAGE) -> list[float]:
+def score_texts(audio: np.ndarray, texts: list[str], language: str = LANGUAGE, counts: bool = False) -> list:
     """How well each text fits the same audio (at most 30 s): the sum of the log probabilities Whisper gives its tokens
     when it is made to read that text (CTranslate2 `align`, the call faster-whisper times words with). Only differences
     between texts for the same audio mean anything. Measured 2026-11-04 on 26 fixes (audiocheck.py): Whisper prefers its
@@ -248,7 +248,8 @@ def score_texts(audio: np.ndarray, texts: list[str], language: str = LANGUAGE) -
     out = []
     for text in texts:
         res = model.model.align(enc, tok.sot_sequence, [tok.encode(" " + text.strip())], frames // 2)
-        out.append(float(np.log(np.maximum(np.asarray(res[0].text_token_probs, dtype=np.float64), 1e-9)).sum()))
+        lp = np.log(np.maximum(np.asarray(res[0].text_token_probs, dtype=np.float64), 1e-9))
+        out.append((float(lp.sum()), max(1, len(lp))) if counts else float(lp.sum()))   # counts (0.10.95): (sum, tokens)
     _state["last"] = time.time()
     _schedule_free()
     return out

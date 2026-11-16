@@ -31,6 +31,155 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.111-0.10.115 - Tabs, Keyframer dock, brand colour on text, Auto import on the project's folder, clearer Export check (2026-11-15, installed: 0.10.115)
+The user's requests of 2026-11-15, after testing 0.10.110.
+- **Tabs** ("clearly readable", "a distinct, modern" open tab, "avoid overly bright borders"): every tab name light grey
+  (#c4c6ce instead of #9a9ca6); the open tab is a soft amethyst pill with white bold text; a faint fill under the pointer and on
+  press. The old yellow underline (a one-side border colour) showed in Premiere as a yellow box round the whole tab: only
+  whole-box borders now (`--tab-*` tokens). UXP runs no CSS transitions (css_probe 0.9.71), so the page that opens fades in from
+  a script (four opacity steps, about 100 ms). Same tabs, ids and behaviour.
+- **Keyframer: Apply always in view**: Apply, Undo last, Update live and the answer sit in a dock under the page (`#kfDock`, shown
+  only with the Keyframer); the presets and settings above scroll. Measured in NEW TEST: the dock at the panel's bottom (49 px),
+  the page scrolling above it (857 px of content in 425 px).
+- **Brand colour on text made in Premiere** (the user: "the colour presets ... should be able to be applied to text"): Premiere
+  26.5.3 still exposes no fill, font or size on its own text (probed again: the Text component has Position, Scale, Rotation,
+  Opacity; Source Text null), so Apply to selected now puts a Tint on it: Map White To the colour, Map Black To black, Amount
+  100 %, so white letters take the colour and a dark outline or shadow stays dark. Found on the way: a Tint APPENDED to a
+  graphic's effects lands after its Text layer and draws nothing (0 pixels changed); inserted before the Graphic group it does
+  (`createInsertComponentAction`). Measured on the MASTERHAUS text in NEW TEST with #ED1C24: the letters' most-changed pixels
+  232,28,40 after (about 210,203,200 before); a second press reuses the Tint (one Undo step). The host lists the clips without a
+  MOGRT (`others`), the panel tints those with Premiere's Text component; a nested sequence or a colour matte is left alone and
+  said. Also measured: `ppro.Color` takes 0-1 values (`brandplan.COLOR_RANGE` = 1 is right; the Tint reads back 236,27,40).
+  Captions on a caption track are not clips and cannot be coloured. The Colours tooltip says all this as rows.
+- **Auto import on by default, watching the project's folder** (the user: "automatically on and ... link to the folder where the
+  project is saved ... most of the time it's the folder where I download the assets"; the user chose Auto import, not Show
+  exports): a project with no folder of its own and not switched off watches the folder its .prproj is in from the panel's first
+  status call (`Store.auto_bind`); switching it off is remembered per project (`off`), even when another project in the same
+  folder takes the folder over; Other folder… / a dropped folder still win. Existing projects keep the folders they had. Left
+  alone in the watched folder: Premiere's previews, auto-saves, caches and Asistent_* folders (`importer.PREMIERE_DIRS`,
+  shared with exports.py), and the editor's own exports (`ExportWatcher.is_export`: the file Premiere's preferences name, one an
+  export event named, one already recorded), listed as "your export from Premiere, not imported". Found in NEW TEST: while
+  Premiere auto-saves, the open project reads for a moment as its recovery copy (…/Adobe Premiere Pro Auto-Save/RecoveryProjects/
+  NEW TEST--<id>.prproj); such a copy never gets a folder, and a binding made for one is dropped when the engine starts
+  (0.10.114-0.10.115). NEW TEST now watches Ludi Glavi/Projects, steady over a restart.
+- **Export check, organised** (the user: "more clear and organized warnings if something is wrong"): the engine adds `issues` to
+  the report, one per kind with its places together, a topic (Picture, Sound, File) and what to check in Premiere (`FIX`); the
+  summary counts issues ("Black bar at the bottom" at two times is one thing to look at, in 2 places). The panel shows the file
+  and the verdict, then each issue in a warning card (heading, "2 places: 0:28.4-0:28.9, 0:30.4-0:31.3", what to check), then
+  what passed in one green line and the numbers to know in one grey line (`exportcheck.afterSections`, pure). A report from
+  before gathers its lines the same way (seen in the panel on the user's ASP_EDIT_V1.mp4: one issue, 2 places).
+- Versions: 0.10.111 had the tabs, dock, Export check and the appended Tint; 0.10.112 the Tint before the Graphic group (a
+  reinstall under the same version is skipped by Adobe's installer); 0.10.113 Auto import; 0.10.114-0.10.115 the recovery copy.
+- Tests: node 383 (afterSections, the dock wiring, whole-box tab borders), pytest 834 (issues and fixes, auto_bind, the working
+  folders, exports skipped, the recovery copy, is_export).
+
+## 0.10.110 - Cut silences: no 1-frame slivers or gaps; tooltips as a summary and one row per choice (2026-11-15, installed)
+- The user's test of 0.10.109 (2026-11-15): after closing the gaps of a "keep the spaces" result, little clips and 1-frame gaps
+  were left between the clips. Measured in their sequences: a 1-frame clip on V1 and a 1-frame gap on V2, A3 and A4 at the same
+  moments. Cause: the silence plan is timed on a 10 ms grid, so "no sound clip here" could end a fraction of a frame before the
+  sound clip really starts (168.93 s against a clip at 168.935 s = frame 5062.98); rounded down, the kept part started one frame
+  early, and the camera without sound kept a frame the others did not. Remove had the same 1-frame hole (v86).
+- `edl.align_to_edges`: a cut edge within 1 frame of a clip's own edge is moved onto it (`run_silence`, before the pieces).
+  "Remove, keep the spaces" now drops a camera's few-frame flashes like Remove does (`MIN_PIECE_FRAMES` + `drop_flashes`).
+- Tooltips (the user: "more clear instructions and more organized"): `panel/tiptext.js` (pure) reads a tip as a summary line and
+  "Name: what it does" rows; `showTip` shows the names in bold. Every Silences tip rewritten that way (Cut, Detect, Below dB,
+  Suggest, Sensitivity, Pacing, the four Custom numbers, short pauses, hesitation sounds, Range, Result, Preview, the button).
+  The Brand tab's tips that already had line breaks now show them as rows too.
+- Checked in NEW TEST through the bridge after a restart: "keep the spaces" on the user's v83 (84 pieces, shared gaps closed in
+  the check like Premiere's Close Gap), Remove on v83 and on SYNC – кам2 (4): no clip and no gap under 15 frames on any track,
+  every piece verified, no crash. The tooltip shows its rows in the panel (DOM read); its look is not yet seen by the user.
+- Tests: `test_a_cut_edge_a_frame_off_a_clip_edge_lands_on_it` (the user's numbers), keep-the-spaces drops what Remove drops,
+  `tests/tiptext.test.js`. 827 Python + 379 node pass.
+
+## 0.10.108-0.10.109 - Cut silences: the cut is made by the host in a duplicate of the sequence; the crash is gone (2026-11-15, installed: 0.10.109)
+The user approved (2026-11-15, "Yes") the one removal this needs: clips removed by the host in Asistent's OWN duplicate, never in the editor's sequence.
+- **How.** The engine's pieces now carry where they lie in the source sequence (`seq_in`, `seq_out`, frames; `edl.pieces` / `pieces_in_place`) and the result carries the review markers (`marks`). The panel turns them into a plan (`premiere-roughcut.js hostPlan`, pure: the frames to razor, only where a piece ends inside its clip; Mute razors the sound tracks only) and calls the host through `POST /roughcut/cut` one phase at a time (`host.jsx as_rough_cut`: start = `Sequence.clone()`, renamed, into the bin "No silence", opened; razor = QE sequence razor at drop-frame timecode with the other kind's tracks locked where only one kind is cut; clean = remove every clip that is not a kept piece; move = each piece by its frame offset; finish = review markers, In / Out reset to the whole cut, playhead to 0). Each call stops after 15 s and says where; the panel calls again. Every phase after start works only on the sequence whose id AND name start made, and the razor checks the sequence in front is that one.
+- **Probed in NEW TEST before building:** `clone()` makes "<name> Copy"; QE track razor is unusable (QE hides tracks with a duplicate name), the sequence razor cuts every unlocked track frame exact; `TrackItem.remove(false, false)` and `move(Time)` change that one item only (a linked partner stays).
+- **Measured in NEW TEST (bridge, "SYNC – кам2 (4)", 52 clips):** 17 runs, 0 crashes (was 2 of 8 at 0.10.107, 4 of 4 before): Remove ×7 (38 cuts, 84 of 84 pieces), Keep the spaces ×2 (85), Split only ×2 (178), Mute ×2 (68), In to Out inside clips ×3 (20). Every piece checked by the panel (place, file, source frame): "as written". The cut takes about 1 s. The source sequence: the same clip counts before and after. The pieces keep their effects and their video-audio links (the old way had to link them again).
+- **0.10.109:** the duplicate came with the editor's In and Out (an In to Out cut of 33 s kept In 40.5 / Out 200.25): reset to the whole cut.
+- The copies way (0.10.45-0.10.107) stays only as the fallback when the host is not running AND the pieces are at most 40; otherwise the editor is told the host is needed.
+- Tests: `tests/hostroughcut.test.js` (the host cut against a model of Premiere: Remove, Mute, a sequence that starts at another timecode, a razor that did not cut, a phase pointed at the editor's sequence, the time budget), `hostPlan` in `roughcutclones.test.js`, `wiring.test.js`: `.remove(` in the host only once, in `as_cut_clean`.
+
+## 0.10.99-0.10.107 - Cut silences crash on many clips: reduced, NOT fixed (2026-11-15, installed: 0.10.107)
+Reproduced through the bridge in NEW TEST (`ASISTENT_LANE=26`; "SYNC – кам2 (4)", 52 clips, 85 pieces, Keep the spaces), about 60 runs, with breadcrumbs written to disk (`P.trace` -> plugin-data:/trace.txt).
+- **What it is.** Premiere 26.5.3 crashes in its own scripting layer while it makes an object for the script (`v8impl::Reference` constructor: `napi_wrap`, a callback's argument, once even a text buffer for a file write), on the script's thread ("dvascripting::Engine3P"). Seventeen crash reports, the same place. With the breadcrumbs: always inside the project lock of the COPY step (`SequenceEditor.getEditor` + `createCloneTrackItemAction`), never in the trim / move step.
+- **Second face of the same thing:** handles Premiere calls "no longer valid" a moment after it handed them out. It hands the script the same object for a clip each time it is asked, also when that object is already dead.
+- **Kept (each measured):** actions made inside the lock before the transaction (outside the lock every `create...Action` is refused: probed); no clip handle kept between steps, the editor's clips located by numbers and read again for every batch; trim and move in ONE transaction with one handle (2 steps per batch instead of 3; 85 of 85 placed); a stale handle is read again and retried (4 tries); 1 s of doing nothing before every step; a batch is at most 20 pieces.
+- **Result:** before: 4 of 4 runs crashed. Now: 2 of 8 runs crash (0.10.104, 0.10.105 and 0.10.107 alike), and some sessions refuse many pieces instead (reported, not crashed). Longer waits (0.45 -> 1 s) and collecting dropped handles did not change the rate.
+- **Not the cause:** batch size alone (0.10.98), time since the last edit, which clips.
+- **Decided:** the cutting moved to the host (0.10.108, above).
+
+## 0.10.98 - Cut silences crashed Premiere on many short clips: a batch of copies is at most 20 pieces (the user 2026-11-15) - installed, NOT yet run in Premiere
+- The user (NEW TEST, recording 15.33.44): "crashes when I select a sequence of POVs around 5 minutes; on a short selected clip it didn't". Crash reports 15:32:40 and 15:33:57: a bad pointer where UXP calls back into the script inside a transaction, the same place as the 204-copy crash of 05:09.
+- Cause: 0.10.94 limited a batch by timeline length only (two hours of scratch). Many short clips all fit, so 94 and 133 copies went into ONE transaction. Every run in the log that worked had at most 58 copies in one transaction (41, 9, 58; batched runs 14-20 per batch, up to 202 pieces in all); every crash had 94 or more (94, 133, 204). The engine had finished in 1.7-1.8 s both times; the crash was in the placing.
+- Fix: a batch is also at most 20 pieces (`BATCH_PIECES`). Test: 49 short clips, 146 pieces -> 8 batches, no transaction over 40 actions.
+- Not reproduced in Premiere by me: the panel did not answer the test bridge, so the fix rests on the log's pattern.
+
+## 0.10.97 - Cut silences: Manual dB failed on a clip of a few frames (the user's first run, 2026-11-15) - installed
+- The user, In to Out + Manual dB -24: "operands could not be broadcast together with shapes (3,) (10,)". The Out point lay one frame into the next clip (IMG_9424), so that clip was 30 ms long, shorter than Manual dB's 0.1 s averaging window, and the averaged level came back longer than the clip. `silence.smooth_db` now never averages over more than the clip; In to Out leaves out a clip that reaches less than 0.07 s into the range. Tests: a 0 / 1 / 3 / 9-frame clip in every method; the one-frame sliver.
+
+## 0.10.96 - Cut silences rebuilt after AutoCut: three modes, three detection methods, pacing presets, preview with review, four results (the user 2026-11-15) - installed, NOT yet run in Premiere
+The user's brief: "review and significantly improve Cut Silences, using AutoCut Silences as the primary reference ... first audit, do not rebuild what works".
+- **Audit.** Before: one mode (level + Silero per microphone, 0.10.65) plus the quieter-voices rule (0.10.95); the words-and-takes engine (Whisper, `takes.py`) existed but was hidden since 0.10.65; no preview, three fixed pacings, one result (remove and close). Kept: the per-microphone listening, Silero, the main-voice rule, `takes.py`, the clone-based sequence. No new library: pyannote was not added (no diarisation needed for these rules, and it would be a new model download).
+- **Engine (`silence.py`): measuring and deciding are apart.** `measure` reads a clip once (level per 10 ms, Silero) and remembers it; `label_item` + `plan` decide from that with `settings`. A preview after a changed setting takes 0.15-0.2 s (measured on real clips), the first one as long as listening did before.
+- **Modes (what goes):** Silences only (every voice stays) · Silences + off-mic (the 0.10.95 rule; a phrase within 2 dB above the line is kept and flagged "not sure") · AI rough cut (also repeated takes from the recognised words).
+- **Detection (how speech is found):** Automatic · Manual dB (the editor's number alone: what stays under it goes, speech or not; short-term loudness, no Silero, no main voice) · AI-assisted (Automatic + Whisper's words, for hesitation sounds and takes). Sensitivity 1-5: Auto 12 / 10 / 8 / 6.5 / 5 dB under the main voice; Manual: the averaging time 0.01-0.4 s. Suggest proposes a dB (8 dB under the quietest microphone's main voice).
+- **Pacing:** Calm, Measured, Paced, Energetic, Custom (minimum silence, minimum speech, padding before / after). Calm, Measured and Paced cut exactly what Calm, Normal and Tight cut before (a test compares them with the old rule); the labels now show the real pause length (1.3 / 0.87 / 0.65 s: the old "over 0.5 s" was 0.5 s left after the margins).
+- **Remove short pauses** (own switch, on in Energetic): a pause between two numbers that the pacing leaves alone is trimmed to 0.12 s; one with a breath in it stays. **Remove hesitation sounds** (AI-assisted): ъъъ, ъм, um… only as a stretch of their own between two pauses; ами, значи, така are words and stay.
+- **Repeated takes** go as whole stretches of speech between pauses, never into a neighbour (Whisper's times were 1.6 s early on the Lokali interview), and only when the take that stays is itself kept; otherwise they are listed.
+- **Preview** (new button): the waveform with every part marked by kind (silence, off-mic, short pause, take / um, not sure), zoom and scroll, a tap keeps or cuts a part, the unsure parts also as lines with a Cut button, which tracks are listened to, each microphone's levels. A changed option updates it. Cut silences after a preview cuts exactly that, with the editor's choices; if the clips changed since, nothing is cut and it says so.
+- **Range:** selected clips, In to Out, or the whole sequence. **Result:** remove and close the gaps · remove, keep the spaces · split only · mute the sound (picture whole, sound only where kept); always a new sequence, never a track muted or an item removed in the editor's own.
+- **Measured.** Lokali IMG_9422 with the user's labels: Silences only keeps all speech (red 131.1 of 131.3 s stays); Silences + off-mic: green 22.7 / 22.7 s kept, red left 2.7 s, 1 part flagged; Manual -28 / -30 / -32 dB: green lost 2.3 / 1.2 / 0 s, red left 3.1 / 9.7 / 24.5 s; AI: green lost 0. Masterhaus C0728: the real quiet line (7 dB under) is kept and flagged. Tried and NOT used, because they did not separate the labels: Whisper word confidence (red 0.60-0.96, green 0.90-0.94), spectral tilt, and the level's range inside a phrase (it follows the recording's noise, not the distance).
+- **Not built:** audio crossfades at the cuts and J / L cuts (UXP 26 has no audio-transition action; the host route needs a probe in Premiere, which was not reachable); filler removal inside a run of words; speaker diarisation.
+- Files: `silence.py`, `roughcut_job.py`, `edl.py` (pieces in place), new `panel/silenceplan.js` (pure) and `panel/silences.js` (options, preview, cut), `roughcutplan.js` (ranges, result text), `premiere-roughcut.js` (In / Out, options), `index.html`, `style.css`. Tests: pytest 848 (+11), node 369 (+5); browser preview scenarios `silences*`.
+
+## 0.10.95 - Cut silences cuts the quieter voices; clone errors no longer half-run; subtitles keep the reading that fits the sound (the user 2026-11-15) - installed, NOT yet run in Premiere
+- **Quieter voices** (the user's recording 2026-11-15 5.54.05 and the red/green labels on "NO SILENCE – Lokali v10"): Auto kept
+  people talking further from the phone, because they are speech. Measured on the labelled pieces of IMG_9422: green phrases
+  0.0-0.2 dB under the clip's main voice, red 7.2-22 dB under, the guest's „Не.“ / „Да.“ 3-6 dB under; a single speaker's real
+  softer line (Masterhaus C0728) 6.6 dB under. Auto now cuts a phrase (speech joined over gaps under 0.5 s) whose loudness (90th
+  percentile) is more than 8 dB under the main voice (the level the loudest phrases reach that make up 10 % of the speech, at
+  least 3 s), per microphone (`silence.drop_quiet`). IMG_9422: green 22.7 of 22.7 s kept, red 130.7 -> 2.7 s; ReShape export and
+  Ludi Glavi IMG_5421: nothing cut. Options > Quieter voices: Cut (default) / Keep every voice; a fixed dB never drops voices.
+  The result says how many seconds of quieter voices went and each microphone's main voice level.
+- **Clone errors on the "Lokali" clip** (engine log 05:52, crash report 05:52:40): "Illegal Parameter type" from addAction and
+  "The script object is no longer valid" on a trim threw out of the middle of a transaction; the actions before it stayed (whole
+  copies left after the end of v7 and v8, no audio) and the next press crashed Premiere. Every piece's actions are now made and
+  added one at a time inside the transaction; a piece Premiere refuses is skipped and named in the result, the rest is placed.
+  The cause of the refusal itself was not reproduced (the user's Premiere held the client project).
+- **Subtitles on fast speech** (Lokali: „а карал ли си с асимилатор“): the job's own second opinion had heard „Карал ли си някога
+  реална кола? Не. А карал ли си на симулатор? Да.“, but the dictionary had already turned the first reading's „асимулатор“
+  into the real „асимилатор“, so the two looked equally sure and the first stayed. Whisper also flips on fast speech with the
+  level alone (3 of 6 gains each way). In every style but ReShape's, a piece with a word the dictionary does not know (before
+  repairs) is read three ways (as is, alone with 2 s of context, the window +6 dB) and the reading whose text Whisper scores
+  highest over the piece's sound is kept (at least 2 points better in total and per token; `asr.score_texts(counts=True)`).
+  Lokali now: „Карал ли си някога реална кола? Не. А карал ли си на симулатор? Да.“ Whisper prefers „на симулатор“ to „със
+  симулатор“ (-2.2 / -9.6). „ако ви биеш на съседание“ is heard so in every reading and level; Hunspell does not suggest
+  „състезание“; it stays marked unsure (Names and terms fixes it). ReShape golden run identical.
+- Tests: 837 pytest (+7), 364 node (+1).
+
+## 0.10.94 - Cut silences no longer crashes Premiere on a long clip; dictionary repairs keep the syllables (the user 2026-11-15) - installed, NOT yet run in Premiere
+- **Cut silences crash** (the user's screen recording 2026-11-15 5.10.12, three crash reports 05:09-05:10): at -30 dB an
+  8-minute iPhone clip gave 101 cuts, 204 pieces with its audio. Every piece is first cloned as the WHOLE clip into its own
+  slot after the end, so the copies reached 28.6 hours of timeline (the run before: 58 pieces, 4.1 hours, fine) and Premiere
+  crashed inside the clone transaction (UXP `executeTransaction`, a freed object turned into JavaScript). The pieces now go in
+  batches whose scratch area stays within 2 hours after the end (`SCRATCH_SPAN`); each batch is trimmed and moved into place
+  before the next reuses the same empty area. Undo: 3 steps per batch (the result says how many). New
+  `tests/roughcutclones.test.js` replays the case on a faked timeline (old code fails it).
+- **Subtitles: the dictionary no longer turns a heard word into a different word** (the user: "the transcribing of the
+  Bulgarian talking is very inaccurate"). In the 4a1a „Lokali“ run Whisper heard close to right, then `lexicon.repair` changed
+  4 of 26 words for the worse: „съседание“ -> „съседни“ (said „състезание“), „Карао“ / „карао“ -> „Кара“ (said „карал“),
+  „асимулатор“ -> „асимилатор“. A repair may no longer add or drop a syllable, except a vowel next to я / ю (одяло -> одеяло);
+  the colloquial -л said as о / у (карао, карау) is written -л before the dictionary is asked. On the 16 repairs of all 30
+  earlier runs this removes the 6 wrong or doubtful ones and keeps every right one; the 2 left (асимилатор, туни) cannot be told
+  apart by any rule or by the sound check (measured, DECISIONS). The step and its ties are decided as before and only then is a
+  word with a syllable more or less dropped, so the rule can only take a repair away (a first version let a looser step reach
+  „хирурги“ -> „хирурга“; the ReShape golden run caught it). **The ReShape style keeps the old rules** (the user: "leave
+  ReShape as it is"): its golden run is byte-identical. Correction lines match the spellings of both rule sets.
+- Measured on the Lokali clip with the new rules: Whisper itself varies between runs („Карао“ once, „Кара“ the next); with two
+  terms in Names and terms („симулатор, състезание“) the whole clip came out right except a doubtful „ви“. ReShape's accuracy
+  comes from clean lavalier speech and its projects' correction lines (subtitle_settings.json), not from the style.
+
 ## 0.10.93 - Anchor on a text: instant again (the user 2026-11-15: "it needs to be instant like before") - installed
 - **Kept box**: a text's measured box is kept per clip in the layer's own pixels, so later clicks on the same text need no
   render and no hide / show step (one Undo step, as fast as before 0.10.91), also after the anchor, Position, Scale or

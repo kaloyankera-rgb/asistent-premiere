@@ -71,7 +71,7 @@ test("describeResult: counts, uncertain words, skipped clips, first captions, fi
   assert.match(all, /Corrected by the dictionary .*: "одяло" → "одеяло"\./);                       // repairs are named, once each
   assert.match(all, /Comma added .*"евро"/);
   assert.match(all, /Listen to 1 place with speech without a word .*: 0:00\.3–0:00\.8/);
-  assert.match(all, /A second reading of 2 pieces .*the better one was taken for 1/);
+  assert.match(all, /More readings of 2 doubtful pieces; a better one was taken for 1/);
   assert.match(all, /Timing: from Whisper, may be off by up to 0\.3 s \(the aligner is not installed\)/);
   assert.match(all, /Skipped: B \(дублира A1\)/);
   assert.match(all, /C9013\.MP4 and fx39013\.MP4 hear the same: fx39013\.MP4 was taken \(cleaner sound, 45 dB against 20 dB; 4 s of C9013\.MP4 are kept/);

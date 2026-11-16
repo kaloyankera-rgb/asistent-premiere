@@ -125,9 +125,9 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     async fill(a) {
       // the notes box, and (0.10.34) the Track names options, so a test can choose colours and the auto switch
       // 0.10.65: and Remove silences' Pauses / Threshold
-      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughTempo", "roughThreshold", "tr_scale", "tr_rotation", "tr_centre", "tr_smooth", "tr_zoom", "kfBlurAmount"].includes(a.id)) throw new Error("fill: notes, the Track names options, Remove silences' options and the Tracker's options and the Keyframer's blur amount only.");
+      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughMode", "roughMethod", "roughDb", "roughPacing", "roughMinSilence", "roughMinSpeech", "roughBefore", "roughAfter", "roughSensitivity", "roughShort", "roughShortMin", "roughShortMax", "roughFillers", "roughRange", "roughAction", "tr_scale", "tr_rotation", "tr_centre", "tr_smooth", "tr_zoom", "kfBlurAmount"].includes(a.id)) throw new Error("fill: notes, the Track names options, Remove silences' options and the Tracker's options and the Keyframer's blur amount only.");
       const e = doc.getElementById(a.id);
-      const box = a.id === "labelsAuto" || a.id.startsWith("tr_");
+      const box = a.id === "labelsAuto" || a.id === "roughShort" || a.id === "roughFillers" || a.id.startsWith("tr_");
       if (box) e.checked = !!a.value;
       else e.value = String(a.value);
       if (a.id !== "notes") {

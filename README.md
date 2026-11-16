@@ -86,13 +86,13 @@ Fix a wrong word in the **Captions** tab and press **Apply and rebuild**: the fi
 
 ## Auto import
 
-Press **Watch Downloads** (or **Other folder…**) with a project open. From then on every file that is downloaded or copied into the folder (and its subfolders) goes into the project by itself:
+It is on by itself for every project and watches the folder the project is saved in (since 0.10.113): download your assets there, or into a subfolder, and they go into the project. To watch another folder press **Other folder…** or drop a folder on the row; switch it off with its switch (it stays off for that project). Every file that is downloaded or copied into the folder (and its subfolders) goes into the project by itself:
 
 1. The engine waits until the file is ready: no browser temp files (.crdownload, .part, Safari .download), a size that stopped growing, and FFprobe can read it.
 2. It picks a category: first by the subfolder (MUSIC, SFX, B-roll, …), then by the name (whoosh, hit, riser → SFX; music, bpm → music; overlay, logo, lower third → graphics), the tags (artist), the length (up to 8 s → SFX; long with an artist → music) and transparency (video with alpha → graphics). If unclear: OTHER.
 3. The panel imports it **in place** (no copy, no rename) into the bin MUSIC / SFX / BROLL / IMAGES / GRAPHICS / OTHER and checks it is there. Nothing is put on the timeline.
 
-One folder belongs to one project; a file is imported only while that project is open; a file already in the project is not imported twice; files from before switching it on are left alone. The panel must be open (it may be hidden in a tab) to import.
+One folder belongs to one project (the project open now takes it over); a file is imported only while that project is open; a file already in the project is not imported twice; files from before switching it on are left alone, and so are Premiere's previews and auto-saves, Asistent's own folders and your exports. The panel must be open (it may be hidden in a tab) to import.
 
 ## Brand (the client's brand kit)
 

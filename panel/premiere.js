@@ -16,11 +16,28 @@ async function activeProject() {
   return project;
 }
 
+// 0.10.100: breadcrumbs written to disk at once (plugin-data:/trace.txt), so after a crash of Premiere the last line says
+// what the panel was doing; the engine's log is sent over HTTP and loses the last lines.
+let crumbs = [];
+function trace(msg) {
+  try {
+    crumbs.push(`${new Date().toISOString().slice(11, 23)} ${msg}`);
+    if (crumbs.length > 500) crumbs = crumbs.slice(-400);
+    require("fs").writeFileSync("plugin-data:/trace.txt", crumbs.join("\n"));
+  } catch (e) {
+    /* tracing never gets in the way */
+  }
+}
+
 function transaction(project, label, build) {
   let ok = false;
+  trace(`tx> ${label}`);
   project.lockedAccess(() => {
-    ok = project.executeTransaction((compound) => build(compound), label);
+    ok = project.executeTransaction((compound) => {
+      build(compound);
+    }, label);
   });
+  trace(`tx< ${label}`);
   if (!ok) throw new Error(`Premiere refused the operation: ${label}`);
 }
 
@@ -331,4 +348,4 @@ async function buildSyncSequence(project, timeline, lay) {
 }
 
 module.exports = { UserError, activeProject, readTimeline, readItems, buildSyncSequence, transaction, has, maybe,
-  secs, debug, ensureBin, frameRate };
+  secs, debug, ensureBin, frameRate, trace };

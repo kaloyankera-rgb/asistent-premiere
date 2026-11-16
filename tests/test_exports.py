@@ -596,3 +596,18 @@ def test_checking_off_checks_nothing(setup):
     out = video(folder / "Video 11.mp4")
     run(w, time.time(), E.STABLE + E.QUIET + 3)
     assert shown == [out] and CHECKED == [] and "check" not in w.recent()[0]
+
+
+def test_is_export_knows_the_file_premiere_named_and_the_ones_events_named(setup, tmp_path):
+    # 0.10.113: Auto import watches the project's folder and must leave the editor's own exports alone
+    project_dir, w, _ = setup
+    named = project_dir / "EDIT_V2.mp4"
+    pf = tmp_path / "Adobe Premiere Pro Prefs"
+    prefs(pf, project_dir, named)
+    w.premiere = E.PremierePrefs(files=lambda: [str(pf)])
+    assert w.is_export(str(named))
+    assert not w.is_export(str(project_dir / "whoosh.wav"))
+    w.confirmed.add(str(project_dir / "EDIT_V1.mp4"))
+    assert w.is_export(str(project_dir / "EDIT_V1.mp4"))
+    w.settings.data["recent"] = [{"path": str(project_dir / "OLD.mp4")}]
+    assert w.is_export(str(project_dir / "OLD.mp4"))

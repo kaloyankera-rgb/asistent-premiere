@@ -125,3 +125,37 @@ test("markers: one per timed problem, never twice at the same place", () => {
   assert.deepStrictEqual(m.map((x) => [x.name, x.at]), [["Check: Offline media", 1], ["Check: Black gaps", 10]]);
   assert.deepStrictEqual(X.markers(parts, [{ name: "Check: Black gaps", at: 10.001 }], 30).map((x) => x.at), [1]);
 });
+
+// 0.10.111 (the user: "more clear and organized warnings if something is wrong")
+test("after-export check: issues first with their places together and what to check, then what passed and the numbers", () => {
+  const check = {
+    status: "look", summary: "1 thing to look at",
+    lines: [
+      { level: "ok", text: "The file is complete: 0:45.8, 108.7 MB." },
+      { level: "info", text: "1080x1920, 30 fps, H264, 18.6 Mb/s, bt709" },
+      { level: "check", text: "Black bar at the bottom: 0:28.4-0:28.9 (or a very dark edge)." },
+      { level: "check", text: "Black bar at the bottom: 0:30.4-0:31.3 (or a very dark edge)." },
+      { level: "ok", text: "No black frames." },
+      { level: "ok", text: "True peak -5.4 dBFS." },
+      { level: "info", text: "Loudness -22.9 LUFS (-8.9 LU from -14, the usual platform level; information only)." },
+    ],
+    issues: [{ kind: "bars", topic: "Picture", title: "Black bar at the bottom", places: [[28.4, 28.9], [30.4, 31.3]], fix: "Check the clip's Motion." }],
+  };
+  const s = X.afterSections(check);
+  assert.deepStrictEqual(s.issues, [{ topic: "Picture", title: "Black bar at the bottom", where: "2 places: 0:28.4-0:28.9, 0:30.4-0:31.3", fix: "Check the clip's Motion." }]);
+  assert.deepStrictEqual(s.fine, ["The file is complete: 0:45.8, 108.7 MB", "No black frames", "True peak -5.4 dBFS"]);
+  assert.strictEqual(s.info.length, 2);
+  // one place: "At …"; no place (the whole file): no where line
+  const one = X.afterSections({ lines: [], issues: [{ title: "Black picture at the start", places: [[0, 0.5]] }, { title: "No sound in the file", places: [] }] });
+  assert.deepStrictEqual(one.issues.map((i) => i.where), ["At 0:00.0-0:00.5", ""]);
+});
+
+test("after-export check from before 0.10.111 (no issues): its lines become issues, one heading's places together", () => {
+  const s = X.afterSections({ lines: [{ level: "check", text: "The sound is silent." }, { level: "ok", text: "No black bars." },
+    { level: "check", text: "Black bar at the bottom: 0:28.4-0:28.9 (or a very dark edge)." },
+    { level: "check", text: "Black bar at the bottom: 0:30.4-0:31.3 (or a very dark edge)." }] });
+  assert.deepStrictEqual(s.issues, [{ topic: "", title: "The sound is silent", where: "", fix: "" },
+    { topic: "", title: "Black bar at the bottom", where: "2 places: 0:28.4-0:28.9, 0:30.4-0:31.3", fix: "" }]);
+  assert.deepStrictEqual(s.fine, ["No black bars"]);
+  assert.deepStrictEqual(X.afterSections(null), { issues: [], fine: [], info: [] });
+});

@@ -5,6 +5,46 @@
   not saved). Bridge only; the editor clicking a box is not affected. Fix: dispatch in try/catch or call the handler.
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
+## FIXED (0.10.112): a Tint on text made in Premiere drew nothing
+- Appended to the clip's effects it lands after the graphic's Text layer, where Premiere does not draw it; inserted before the
+  Graphic group it colours the text. CHANGELOG 0.10.111-0.10.115.
+
+## Premiere names its recovery copy as the open project for a moment (2026-11-15, Premiere 26.5.3)
+- While it auto-saves, `Project.getActiveProject().path` can read …/Adobe Premiere Pro Auto-Save/RecoveryProjects/<name>--<id>.prproj.
+  Auto import ignores such a path (0.10.114); other features that key on the project path (Show exports, Subtitle Learning) may
+  see it for one poll.
+
+## FIXED (0.10.110): Cut silences left 1-frame slivers and gaps between the clips
+- The 10 ms plan edges rounded to the frame before a sound clip's first frame: one camera kept a frame the others did not. Cut
+  edges now snap onto clip edges within a frame; keep-the-spaces drops flashes. CHANGELOG 0.10.110.
+
+## FIXED (0.10.108): Cut silences crashed Premiere 26.5.3 on many clips (52 clips, 85 pieces)
+- The crash was inside Premiere's UXP layer while it handed the panel a copy of a clip. The host now cuts a duplicate of the sequence instead (no copies): 17 runs, 0 crashes. CHANGELOG 0.10.108-0.10.109. The copies way remains only as a fallback without the host for at most 40 pieces.
+- NEW TEST now holds about 75 "NO SILENCE – SYNC – кам2 (4) vN" sequences and one "HOSTPROBE" from these runs (the user may delete them); it held about 60 "NO SILENCE – SYNC – кам2 (4) vN" sequences from these runs: delete them.
+
+## Superseded: the 0.10.98 batch limit (kept, harmless)
+- Many short clips (49 clips, 94 and 133 pieces) went into one batch; Premiere 26.5.3 crashed in UXP's transaction callback. Batches are now at most 20 pieces. The exact limit is not known (58 worked, 94 crashed).
+
+## Limits of Cut silences 0.10.96 (known, by design or not built)
+- No audio crossfade at the cuts and no J / L cuts: UXP 26 has no audio-transition action; the host (QE) route is not probed.
+- Manual dB is one number for every microphone: with two microphones recorded at different levels it cannot fit both; Automatic can.
+- Hesitation sounds go only when they stand alone between two pauses, and only those Whisper writes down (it often leaves them out).
+- A repeated take said again without a pause is listed, never cut. Takes more than 90 s apart are not matched (`takes.WINDOW_S`).
+- The preview's dynamic checkboxes and text-field `change` events were never run in UXP (browser preview only).
+
+## Fixed in 0.10.95, not yet confirmed: Cut silences kept people talking further away; clone errors half-ran
+See CHANGELOG 0.10.95. The 0.10.94 crash fix worked (05:49: 202 pieces in 15 batches); three later presses on the "Lokali" clip
+hit "Illegal Parameter type" / "script object is no longer valid" and then a crash (05:52:40). The refusal's cause is unknown;
+a refused piece is now skipped and named. Still open: „съседание“ for „състезание“ (Whisper hears it so every time).
+
+## Fixed in 0.10.94, not yet confirmed by the user: Cut silences crashed Premiere on a long clip with many cuts
+Three crashes 2026-11-15 05:09-05:10 (4a1a ALPHA, IMG_9423.MOV 492.8 s, -30 dB, 101 cuts): the whole-clip clones reached 28.6
+hours of timeline. Now in batches within 2 hours (CHANGELOG 0.10.94). The exact limit was not reproduced (the user's Premiere was
+open; no crash test there): if it happens again with batches, the next suspect is the number of clones per transaction.
+
+## Fixed in 0.10.94: the dictionary turned heard words into different words („съседни“, „Кара“)
+See CHANGELOG 0.10.94. Still possible: a same-syllable near-miss (асимулатор -> асимилатор), listed among the changed words.
+
 ## Fixed in 0.10.90: Anchor refused a text made in Premiere ("source media is unavailable") and animated Scale / Rotation
 - A Type-tool graphic has no project item; it now counts as the sequence frame. Limit: Premiere gives no script the text's box
   (Source Text is null / binary), 0.10.91 measures the letters from two renders instead (two extra Undo steps that cancel out; refused when every Opacity is animated).

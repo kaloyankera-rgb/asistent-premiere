@@ -1,5 +1,45 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.115 (2026-11-15, installed): tabs restyled (light names, the open one an amethyst pill, a scripted fade; look not yet seen by
+the user); Keyframer's Apply, Undo last and Update live in a dock that stays in view (measured); Brand > Apply to selected colours
+text made in Premiere with a Tint before its Graphic group (measured on the MASTERHAUS text: 232,28,40 for #ED1C24); Auto import on
+by default, watching the project's folder, exports and Premiere's folders left alone (NEW TEST watches Ludi Glavi/Projects; an
+import through it not yet tried by the user); Export check shows issues in cards with places and what to check (seen in the
+panel's DOM). CHANGELOG 0.10.111-0.10.115.
+
+0.10.110 (2026-11-15, installed): Cut silences leaves no 1-frame slivers or gaps (cut edges snap onto clip edges within a frame;
+keep-the-spaces drops flashes like Remove); checked in NEW TEST on the user's sequence. Silences tooltips are a summary plus one
+bold-named row per choice (look not yet seen by the user). CHANGELOG 0.10.110.
+
+0.10.109 (2026-11-15, installed): Cut silences is made by the Asistent host in a DUPLICATE of the editor's sequence (clone,
+razor, remove what goes, move the pieces together; the user approved the removal in the duplicate). 17 runs on 52 clips in NEW
+TEST, 0 crashes, every piece verified, about 1 s for the cut; effects and links stay. CHANGELOG 0.10.108-0.10.109.
+
+0.10.107 (2026-11-15, installed): Cut silences on many clips still crashes Premiere 26.5.3 in about 1 run of 4 (85 pieces of 52
+clips, measured through the bridge; was 4 of 4). Short selections work. Cause inside Premiere's scripting layer; CHANGELOG
+0.10.99-0.10.107. Open decision: cut through the host (razor + remove in the new sequence).
+
+0.10.98 (2026-11-15, installed, NOT yet run in Premiere): Cut silences no longer puts more than 20 copies into one transaction
+(Premiere crashed with 94 and 133: many short clips; every working run had at most 58).
+
+0.10.97 (2026-11-15, installed): Manual dB no longer fails on a clip of a few frames (In to Out with the Out one frame into the
+next clip; the user's first run of 0.10.96 in Premiere 2026, where the new options showed and ran).
+
+0.10.96 (2026-11-15, installed, NOT yet run in Premiere; the panel's new options and preview were only seen in the browser
+preview): Cut silences rebuilt after AutoCut. Modes Silences only / Silences + off-mic / AI rough cut (repeated takes);
+detection Automatic / Manual dB / AI-assisted; pacing Calm, Measured, Paced, Energetic, Custom; Remove short pauses; Remove
+hesitation sounds; sensitivity; range selection / In to Out / whole sequence; result remove / keep spaces / split only / mute;
+Preview with waveform, parts by kind, tap to keep or cut, unsure parts kept and flagged. Engine measured on Lokali IMG_9422,
+Masterhaus C0728 and GStroy fx39024 (CHANGELOG). Not built: crossfades, J / L cuts.
+
+0.10.95 (2026-11-15, installed, NOT yet run in Premiere): Cut silences Auto cuts quieter voices (8 dB under the main voice,
+option Keep); clone errors skip the refused piece instead of half-running; subtitles in every style but ReShape's keep the
+reading whose text fits the sound best (Lokali line 2 now right).
+
+0.10.94 (2026-11-15, installed, NOT yet run in Premiere): Cut silences clones in batches (scratch area at most 2 hours after the
+end; the 101-cut clip reached 28.6 hours and crashed Premiere 3 times); dictionary repairs keep the syllables, карао -> карал
+(every style but ReShape's, whose golden run stays byte-identical).
+
 0.10.93 (2026-11-15, installed): the text's box is kept, so later clicks are instant; the first click measures in ~0.3 s.
 
 0.10.91 (2026-11-15, installed, measured in NEW TEST): on a text made in Premiere, Clip / Selection use the letters' own box

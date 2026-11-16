@@ -421,7 +421,7 @@ def test_a_piece_with_an_unrepairable_unknown_word_gets_a_second_opinion_and_the
     f, its = two_pieces(home)
     known = {"ако", "това", "е", "острова", "под", "одяло", "струва", "евро"}
     monkeypatch.setattr(subtitle_job.lexicon, "known", lambda w: True if consensus_norm(w) in known else (False if consensus_norm(w) else None))
-    monkeypatch.setattr(subtitle_job.lexicon, "repair", lambda w, doubt=True, prefer=frozenset(): None)
+    monkeypatch.setattr(subtitle_job.lexicon, "repair", lambda w, doubt=True, prefer=frozenset(), strict=True: None)
     calls = []
 
     def fake(audio, prompt, progress, cancelled, **k):
@@ -433,13 +433,15 @@ def test_a_piece_with_an_unrepairable_unknown_word_gets_a_second_opinion_and_the
     res = subtitle_job.run(body(home, items=its[:1]), lambda f, m: None, lambda: False)
     text = " ".join(c["text"].replace("\n", " ") for c in res["captions"])
     assert "одяло струва" in text and "одял," not in text and res["readings"]["second_opinions"] == [(0.0, "B")]
-    assert calls[0][1] is None and calls[1][1] == subtitle_job.SECOND_BEAM          # the second opinion uses the cheaper decode
+    assert calls[0][1] is None                                                      # the main reading
+    # the second opinion uses the cheaper decode; 0.10.95: the window is also read louder (same decode as the main reading)
+    assert sorted((c[0] > 10, c[1] or 0) for c in calls[1:]) == [(False, subtitle_job.SECOND_BEAM), (True, 0)]
 
 
 def test_a_second_opinion_that_is_no_better_changes_nothing_and_clean_pieces_ask_for_none(home, monkeypatch):
     f, its = two_pieces(home)
     monkeypatch.setattr(subtitle_job.lexicon, "known", lambda w: False if consensus_norm(w) == "десом" else (True if consensus_norm(w) else None))
-    monkeypatch.setattr(subtitle_job.lexicon, "repair", lambda w, doubt=True, prefer=frozenset(): None)
+    monkeypatch.setattr(subtitle_job.lexicon, "repair", lambda w, doubt=True, prefer=frozenset(), strict=True: None)
     n = []
     def same_words(audio, *a, **k):
         n.append(len(audio))
@@ -447,7 +449,10 @@ def test_a_second_opinion_that_is_no_better_changes_nothing_and_clean_pieces_ask
         return [_w("да", 5.0 + off, 5.2 + off), _w("десом.", 5.3 + off, 5.8 + off)]
     monkeypatch.setattr(asr, "transcribe", same_words)
     res = subtitle_job.run(body(home, items=its[:1]), lambda f, m: None, lambda: False)
-    assert res["readings"]["second_opinions"] == [(0.0, "A")] and len(n) == 2
+    assert res["readings"]["second_opinions"] == [(0.0, "A")] and len(n) == 3          # + the louder reading (0.10.95)
+    n.clear()
+    subtitle_job.run(body(home, items=its[:1], preset="reshape", terms=["ReShape"]), lambda f, m: None, lambda: False)   # a new prompt: read again
+    assert len(n) == 2                                                                # ReShape: as before, no louder reading
     monkeypatch.setattr(subtitle_job.lexicon, "known", lambda w: True)
     n.clear()
     subtitle_job.run(body(home, items=its[:1], terms=["друго"]), lambda f, m: None, lambda: False)
@@ -600,3 +605,44 @@ def test_the_alignment_pool_reports_a_worker_error_and_keeps_going(tmp_path, mon
         with pytest.raises(RuntimeError):
             pool.run(str(d), 60)
     pool.close()
+
+
+def test_the_reading_that_fits_the_sound_best_wins_when_the_dictionary_hid_the_doubt(home, monkeypatch):
+    """0.10.95, Lokali: the first reading „Кара ли с асимулатор“ was repaired to the real „асимилатор“, so it looked as sure as the
+    second opinion („карал ли си на симулатор“); Whisper's score of each text over the sound tells them apart."""
+    f, its = two_pieces(home)
+    known = {"кара", "карал", "ли", "си", "с", "на", "симулатор", "асимилатор"}
+    monkeypatch.setattr(subtitle_job.lexicon, "known", lambda w: True if consensus_norm(w) in known else (False if consensus_norm(w) else None))
+    monkeypatch.setattr(subtitle_job.lexicon, "repair",
+                        lambda w, doubt=True, prefer=frozenset(), strict=True: "асимилатор?" if consensus_norm(w) == "асимулатор" else None)
+
+    def fake(audio, prompt, progress, cancelled, **k):
+        if len(audio) / 16000 > 10 and float(np.max(np.abs(audio))) < 0.6:        # the main reading of the wide window
+            return [_w("А", 4.2, 4.3), _w("кара", 4.4, 4.7), _w("ли", 4.8, 4.9), _w("с", 5.0, 5.1), _w("асимулатор?", 5.2, 6.0, 0.6)]
+        off = 0.0 if len(audio) / 16000 > 10 else -2.0
+        return [_w("А", 4.2 + off, 4.3 + off), _w("карал", 4.4 + off, 4.7 + off), _w("ли", 4.8 + off, 4.9 + off),
+                _w("си", 4.9 + off, 5.0 + off), _w("на", 5.0 + off, 5.1 + off), _w("симулатор?", 5.2 + off, 6.0 + off)]
+    monkeypatch.setattr(asr, "transcribe", fake)
+    scored = []
+
+    def score(audio, texts, language="bg", counts=False):
+        scored.append(texts)
+        return [(-12.0, 12) if "асимулатор" in t else (-2.3, 14) for t in texts]
+    monkeypatch.setattr(asr, "score_texts", score)
+    res = subtitle_job.run(body(home, items=its[:1]), lambda f, m: None, lambda: False)
+    text = " ".join(c["text"].replace("\n", " ") for c in res["captions"])
+    assert "карал ли си на симулатор" in text and "асимилатор" not in text
+    assert res["readings"]["second_opinions"][0][1] in ("B", "C") and scored
+
+
+def test_another_reading_needs_a_clear_margin_and_is_not_better_for_leaving_words_out(monkeypatch):
+    y = np.zeros(16000 * 5, dtype=np.float32)
+    table = {}
+    monkeypatch.setattr(asr, "score_texts", lambda audio, texts, language="bg", counts=False: [table[t] for t in texts])
+    table.update({"а б в": (-6.0, 6), "а б г": (-5.0, 6)})
+    assert subtitle_job._best_by_sound(y, 0.5, 3.0, ["а б в", "а б г"]) == 0           # 1 point better: not enough
+    table.update({"а б": (-3.0, 2)})
+    assert subtitle_job._best_by_sound(y, 0.5, 3.0, ["а б в", "а б"]) == 0             # higher sum, worse per token: a word left out
+    table.update({"а б д е": (-2.0, 8)})
+    assert subtitle_job._best_by_sound(y, 0.5, 3.0, ["а б в", "а б г", "а б д е"]) == 2
+    assert subtitle_job._best_by_sound(y, 0.5, 40.0, ["а б в", "а б д е"]) == 0        # too long to score: the first stays

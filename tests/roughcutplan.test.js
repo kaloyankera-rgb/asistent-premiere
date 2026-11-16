@@ -124,19 +124,61 @@ test("rough cut: a switched-off clip or a hidden video track is left out and nam
   assert.ok(p.skipped.some((s) => /B \(switched off/.test(s)) && p.skipped.some((s) => /C \(on V3, whose output is off/.test(s)));
 });
 
-test("Remove silences (0.10.65): the result says what was cut, how it listened and each microphone's levels", () => {
+test("Cut silences: the result says what went, how it listened and each microphone's levels", () => {
   const R = require("../panel/roughcutplan.js");
-  const r = { mode: "silence", tempo: "normal", tempo_label: "normal", threshold: null, settings: { min_silence: 0.5, before: 0.15, after: 0.22 },
+  const r = { mode: "silence", what: "offmic", method: "auto", action: "remove", tempo: "measured", tempo_label: "measured", threshold: null,
+    settings: { min_silence: 0.87, before: 0.15, after: 0.22 }, by_kind: { silence: 18, offmic: 12 }, flagged: 1, restored: 2, takes: [],
+    quiet: { cut: true, under_db: 8, seconds: 12 },
     before_s: 100, after_s: 70, saved_s: 30, name: "NO SILENCE – SYNC v1", counts: { cuts: 12 }, no_sound_s: 4.2, flashes_dropped: 0,
-    speech: { asr: false, vad: true, listened: [{ name: "C0737.MP4", floor: -63, voice: -33, open: -46, speech_s: 51.2 }] }, skipped: [] };
+    speech: { asr: false, vad: true, listened: [{ name: "C0737.MP4", floor: -63, voice: -33, open: -46, main: -22.3, speech_s: 51.2 }] }, skipped: [] };
   const d = R.describeResult(r, { notes: [], problems: [] });
   assert.match(d.text, /^Done: 1:40 → 1:10 \(−30 %\)\. Sequence: NO SILENCE – SYNC v1\.$/);
   const all = d.lines.map((l) => l.text).join("\n");
-  assert.match(all, /12 silences cut, 30\.0 s taken out\. Pauses normal \(over 0\.5 s; 0\.15 s kept before speech, 0\.22 s after\)/);
+  assert.match(all, /12 parts taken out, 30\.0 s\. Cut: silences and off-mic voices\. Pacing measured \(pauses from 0\.87 s; 0\.15 s kept before speech, 0\.22 s after\)/);
+  assert.match(all, /silence 18\.0 s · off-mic voices 12\.0 s/);
   assert.match(all, /each with its own threshold; Silero kept quiet speech/);
-  assert.match(all, /C0737\.MP4: noise -63 dB, voice -33 dB, speech from -46 dB/);
+  assert.match(all, /C0737\.MP4: noise -63 dB, voice -33 dB, speech from -46 dB, main voice -22\.3 dB/);
+  assert.match(all, /12\.0 s of off-mic voices cut \(more than 8 dB under the main voice/);
+  assert.match(all, /1 part was not sure and kept/);
+  assert.match(all, /2 parts kept by your choice in the preview/);
   assert.match(all, /4\.2 s with no selected sound/);
-  assert.ok(!/\btakes?\b|recogni|\bwords?\b/i.test(all), all);
-  const fixed = R.describeResult({ ...r, threshold: -45 }, null);
-  assert.match(fixed.lines.map((l) => l.text).join("\n"), /Threshold -45 dB on all 1 sound clip: under it is silence\./);
+  assert.ok(!/recogni|\bwords?\b/i.test(all), all);
+  // Silences only says that every voice stayed; Manual dB says the number decided
+  const plain = R.describeResult({ ...r, what: "silence", quiet: { cut: false, seconds: 0 }, by_kind: { silence: 30 }, flagged: 0, restored: 0 }, null);
+  assert.match(plain.lines.map((l) => l.text).join("\n"), /Every voice was kept, also the quiet ones/);
+  const fixed = R.describeResult({ ...r, threshold: -30, method: "manual", by_kind: { silence: 10, below: 20 }, quiet: { cut: false, seconds: 0 } }, null);
+  const ft = fixed.lines.map((l) => l.text).join("\n");
+  assert.match(ft, /Threshold -30 dB on all 1 sound clip: what stays under it goes, speech or not\./);
+  assert.match(ft, /silence 10\.0 s · under your dB 20\.0 s/);
+  // the three results that move nothing say so instead of a shorter length
+  assert.match(R.describeResult({ ...r, action: "mute", after_s: 100 }, null).text, /^Done: 1:40, muted, the timing unchanged\. Sequence:/);
+  assert.match(R.describeResult({ ...r, action: "split", after_s: 100 }, null).lines[0].text, /12 parts cut apart, nothing removed/);
+  // AI rough cut: a take that went and one only listed
+  const ai = R.describeResult({ ...r, what: "ai", method: "ai", speech: { ...r.speech, asr: true, words: 420 }, takes: [
+    { kind_label: "repeated take", applied: true, safe: true, recommended: 1, cut_s: 3.2, out_at: 12, takes: [{ text: "Добър ден" }, { text: "Добър ден на всички" }] },
+    { kind_label: "repeated take (nearly the same)", applied: false, safe: false, recommended: 1, cut_s: 0, out_at: 40, takes: [{ text: "под 200 евро" }, { text: "под 300 евро" }] }] }, null);
+  const at = ai.lines.map((l) => l.text).join("\n");
+  assert.match(at, /420 words recognised/);
+  assert.match(at, /0:12: repeated take ×2; kept #2 "Добър ден на всички", the other was cut \(3\.2 s\)/);
+  assert.match(at, /0:40: repeated take \(nearly the same\) ×2: nothing cut \(said differently\), review it/);
+});
+
+test("Cut silences (0.10.96): the range is the selection, In to Out, or the whole sequence", () => {
+  const R = require("../panel/roughcutplan.js");
+  const items = [{ kind: "video", track: 0, path: "/a.mp4", start: 0, end: 10, inPt: 5, name: "a", selected: false, ti: { id: 1 } },
+    { kind: "audio", track: 0, path: "/a.mp4", start: 0, end: 10, inPt: 5, name: "a", selected: true, ti: { id: 2 } },
+    { kind: "audio", track: 1, path: "/b.wav", start: 12, end: 20, inPt: 0, name: "b", selected: false, ti: { id: 3 } }];
+  assert.strictEqual(R.planRoughCut(items).layout.length, 1);                                  // only the selected clip, as before
+  assert.strictEqual(R.planRoughCut(items, { kind: "selection" }).layout.length, 1);
+  const all = R.planRoughCut(items, { kind: "all" });
+  assert.strictEqual(all.layout.length, 3);
+  assert.strictEqual(all.dialogue.length, 2);
+  const io = R.planRoughCut(items, { kind: "inout", from: 4, to: 14 });
+  assert.deepStrictEqual(io.layout.map((x) => [x.kind, x.start, x.end, x.inPt]), [["video", 4, 10, 9], ["audio", 4, 10, 9], ["audio", 12, 14, 0]]);
+  assert.deepStrictEqual(io.dialogue.map((x) => [x.start, x.end, x.at]), [[9, 15, 4], [0, 2, 12]]);     // the sound is read from the edge on
+  assert.strictEqual(io.refs[0].ti.id, 1);                                                       // the copies are made from the editor's own clips
+  assert.strictEqual(items[0].start, 0);                                                         // the timeline's items are not changed
+  assert.strictEqual(R.planRoughCut(items, { kind: "inout", from: 10.5, to: 11.5 }).selected, 0);
+  // one frame of the next clip under the Out point is left out (it was a 30 ms clip the engine choked on)
+  assert.deepStrictEqual(R.planRoughCut(items, { kind: "inout", from: 2, to: 12.033 }).layout.map((x) => x.name), ["a", "a"]);
 });

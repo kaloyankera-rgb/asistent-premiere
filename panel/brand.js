@@ -432,7 +432,7 @@ function mount({ $, el, button, bindTips, premiere, hooks = {} }) {
       chip.style.backgroundColor = state.hex;
       r.appendChild(chip);
       r.appendChild(el("span", "bk-applyhex", state.hex));
-      r.appendChild(btn("Apply to selected", "Select clips in the timeline first. Logo and graphic files: a Tint in this colour (transparency kept). MOGRTs: their first colour control. Text made in Premiere cannot be coloured by a script: paste the copied HEX in Essential Graphics.", () => applyHex(0), "hot"));
+      r.appendChild(btn("Apply to selected", "Puts this colour on the clips selected in the timeline.\nLogos and graphic files: a Tint, the whole picture in this colour, transparency kept.\nText made in Premiere: a Tint, white letters in exactly this colour, a dark outline or shadow stays dark.\nMOGRTs: their first colour control; the others appear as buttons after the first press.\nCaptions on a caption track cannot be coloured: the HEX is copied for Properties.", () => applyHex(0), "hot"));
       c.appendChild(r);
       if (state.controls.length) {
         const r2 = el("div", "row wrap bk-more");

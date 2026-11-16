@@ -229,4 +229,51 @@ function markers(parts, existing = [], fps = 30) {
   return out;
 }
 
-module.exports = { report, gaps, span, markers, timecode, overlaps, unsafe, loud, offline, usedChannel, SAFE, MIC_CEILING };
+// A check from before 0.10.111: its "check" lines, those with the same heading and a time span ("Black bar at the bottom:
+// 0:28.4-0:28.9 (or a very dark edge).") gathered into one issue with its places
+function legacyIssues(lines) {
+  const out = [];
+  for (const l of lines.filter((x) => x.level === "check")) {
+    const m = /^(.*?): (\d+:\d{2}\.\d-\d+:\d{2}\.\d)\b/.exec(l.text);
+    const title = m ? m[1] : l.text.replace(/\.$/, "");
+    let hit = m ? out.find((i) => i.title === title && i.places) : null;
+    if (!hit) {
+      hit = { topic: "", title, where: "", fix: "", places: m ? [] : null };
+      out.push(hit);
+    }
+    if (m) hit.places.push(m[2]);
+  }
+  return out.map((i) => ({ topic: i.topic, title: i.title, fix: i.fix,
+    where: i.places && i.places.length ? `${i.places.length > 1 ? `${i.places.length} places: ` : "At "}${i.places.join(", ")}` : "" }));
+}
+
+/**
+ * The after-export check, organised for reading (0.10.111, the user: "more clear and organized warnings if something is
+ * wrong"): the issues first (one per kind, its places together, what to look at), then what passed in one line, then the
+ * numbers to know. A check from before 0.10.111 has no issues: each of its "check" lines becomes one, without a fix.
+ * -> {issues: [{topic, title, where, fix}], fine: [text], info: [text]}
+ */
+function afterSections(check) {
+  const lines = (check && check.lines) || [];
+  const clockOf = (t) => {
+    const v = Math.max(0, Number(t) || 0);
+    const m = Math.floor(v / 60);
+    const r = v - 60 * m;
+    return `${m}:${r < 10 ? "0" : ""}${r.toFixed(1)}`;
+  };
+  const issues = check && Array.isArray(check.issues)
+    ? check.issues.map((i) => {
+      const places = (i.places || []).map((p) => `${clockOf(p[0])}-${clockOf(p[1])}`);
+      const where = places.length ? `${places.length > 1 ? `${places.length} places: ` : "At "}${places.join(", ")}` : "";
+      return { topic: i.topic || "", title: i.title, where, fix: i.fix || "" };
+    })
+    : legacyIssues(lines);
+  const strip = (t) => String(t).replace(/\.$/, "");
+  return {
+    issues,
+    fine: lines.filter((l) => l.level === "ok").map((l) => strip(l.text)),
+    info: lines.filter((l) => l.level === "info").map((l) => strip(l.text)),
+  };
+}
+
+module.exports = { report, gaps, span, markers, timecode, overlaps, unsafe, loud, offline, usedChannel, afterSections, SAFE, MIC_CEILING };

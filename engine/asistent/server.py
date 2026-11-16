@@ -88,8 +88,9 @@ drive the engine. The Host header is checked against DNS rebinding.
                              -> Lumetri parameter responses + capability table, saved to lumetri_capabilities.json
   POST /frames/wait          {"path", "timeout"?} -> {"path": file|null} once Premiere finished writing the frame
                              (exportSequenceFrame only queues the export); paths inside the frames folder only
-  GET  /import/status?project=P[&wait=s]   folder, queue, last imports; wait: return as soon as a file is ready
-  POST /import/bind          {"project", "folder"?}  switch on (default folder: ~/Downloads)
+  GET  /import/status?project=P[&wait=s]   folder, queue, last imports; wait: return as soon as a file is ready. A project
+                             never switched off watches its own folder from the first call (0.10.113)
+  POST /import/bind          {"project", "folder"?}  switch on (default folder: the project's, else ~/Downloads)
   POST /import/unbind        {"project"}
   POST /import/result        {"id", "ok", "note"?}   the panel reports each import
   GET  /exports/settings     {enabled, project, folders: [{path, why: project|added|learned}], app: Finder|Explorer}
@@ -392,6 +393,11 @@ class Handler(BaseHTTPRequestHandler):
             project = (q.get("project") or [""])[0]
             if not project:
                 return self._send(400, {"error": "No project."})
+            # 0.10.113: Auto import is on by default, watching the project's own folder (until the editor switches it off)
+            if _store().auto_bind(project):
+                log.info("import: watching %s for %s (the project's folder, by default)", os.path.dirname(project), os.path.basename(project))
+                if WATCHER:
+                    WATCHER.refresh()
             wait = float((q.get("wait") or ["0"])[0] or 0)
             if wait > 0:                       # long poll: answer as soon as a file is ready for this project
                 _store().wait_queue(project, wait)
@@ -547,6 +553,23 @@ class Handler(BaseHTTPRequestHandler):
                 res = hostbridge.run("link", {"groups": body["groups"][:2000], "sequence": seq, "project": proj, "guid": _guid(body)},
                                      wait=60.0 + 0.5 * len(body["groups"]))
                 log.info("roughcut/link: %s", {k: v for k, v in res.items() if k != "groups"})
+                return self._send(200, res)
+            if self.path == "/roughcut/cut":
+                # 0.10.108: the cut made by the host in a DUPLICATE of the editor's sequence (host.jsx as_rough_cut), one
+                # phase per call: start, razor, clean, move, finish. The panel repeats a phase until the host says done.
+                seq = body.get("sequence")
+                if not isinstance(seq, str) or not seq or not isinstance(body.get("name"), str) or not body.get("name"):
+                    raise ValueError("The sequence or the new name is missing.")
+                if body.get("phase") not in ("start", "razor", "clean", "move", "finish"):
+                    raise ValueError("Unknown phase.")
+                args = {k: body.get(k) for k in ("phase", "name", "cut", "i", "tpf")}
+                args.update({"sequence": seq, "project": body.get("project") if isinstance(body.get("project"), str) else None,
+                             "guid": _guid(body), "bin": "No silence",
+                             "pieces": (body.get("pieces") or [])[:20000] if isinstance(body.get("pieces"), list) else [],
+                             "cuts": (body.get("cuts") or [])[:20000] if isinstance(body.get("cuts"), list) else [],
+                             "marks": (body.get("marks") or [])[:500] if isinstance(body.get("marks"), list) else []})
+                res = hostbridge.run("rough_cut", args, wait=150.0)
+                log.info("roughcut/cut %s: %s", body.get("phase"), {k: v for k, v in res.items() if k not in ("pieces", "missing_list")})
                 return self._send(200, res)
             if self.path == "/audio/route":
                 seq = body.get("sequence")
@@ -834,7 +857,9 @@ class Handler(BaseHTTPRequestHandler):
                 project = body.get("project")
                 if not isinstance(project, str) or not project:
                     raise ValueError("No project open.")
-                info = _store().bind(body.get("folder") or os.path.expanduser("~/Downloads"), project)
+                # 0.10.113: by default the folder the project is saved in (Downloads when that is not known)
+                here = os.path.dirname(os.path.abspath(project))
+                info = _store().bind(body.get("folder") or (here if os.path.isdir(here) else os.path.expanduser("~/Downloads")), project)
                 if WATCHER:
                     WATCHER.refresh()
                 log.info("import: %s -> %s", info["folder"], os.path.basename(project))
@@ -908,7 +933,7 @@ def main():
     httpd.daemon_threads = True
     global WATCHER
     try:
-        WATCHER = Watcher(_store())
+        WATCHER = Watcher(_store(), exported=lambda path: _exports().is_export(path))
         WATCHER.start()
     except Exception:
         log.exception("folder watching could not start")

@@ -108,8 +108,8 @@ function describeResult(r) {
   if ((rd.commas || []).length) lines.push({ cls: "line", text: `Comma added after the end of the conditional clause: ${rd.commas.map((x) => `"${strip(x)}"`).join(", ")}.` });
   const second = rd.second_opinions || [];
   if (second.length) {
-    const better = second.filter((x) => x[1] === "B").length;
-    lines.push({ cls: "hint", text: `A second reading of ${second.length} ${second.length === 1 ? "piece" : "pieces"} with unknown words${better ? `; the better one was taken for ${better}` : ""}.` });
+    const better = second.filter((x) => x[1] !== "A").length;       // "C" (0.10.95): the louder reading fitted the sound best
+    lines.push({ cls: "hint", text: `More readings of ${second.length} doubtful ${second.length === 1 ? "piece" : "pieces"}${better ? `; a better one was taken for ${better}` : ""}.` });
   }
   for (const d of r.duplicates || []) {
     const rest = d.kept_rest_seconds ? `; ${d.kept_rest_seconds} s of ${d.dropped} are kept, the other does not hear there` : "";

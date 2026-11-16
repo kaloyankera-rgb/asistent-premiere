@@ -32,6 +32,11 @@ scripts. MOGRTs are not used as a substitute (the user's rule). The existing ReS
 The probe graphic in NEW TEST ("SYNC – кам2", V1 at 390 s, "Your Title Here") now draws nothing: three Source Text writes.
 Edit > Undo three times in NEW TEST should bring it back (not checked: Claude does not press Undo in Premiere); or delete it, it was only a probe.
 
+## Re-probed 2026-11-15 (Premiere 26.5.3)
+Unchanged: the Text component exposes only Source Text (null in UXP), Position, Scale, Rotation, Opacity, Anchor and unnamed flags.
+New: an effect on the clip can colour the graphic, but only inserted BEFORE the Graphic group (`createInsertComponentAction`); an
+appended effect lands after the Text layer and draws nothing. Brand > Apply to selected uses this (a Tint, 0.10.112).
+
 ## When to probe again
 A Premiere update (the published UXP types start at 26.2 and may add text graphics). Re-run the P1 write probe (see the
 JSON) on a fresh title on black in NEW TEST and compare lit pixels before/after; until a write changes the drawn text to

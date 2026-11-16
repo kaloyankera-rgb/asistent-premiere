@@ -111,6 +111,17 @@ class Store:
                     self.data = json.load(f)
             except (OSError, ValueError):
                 log.warning("import store unreadable, starting empty")
+        # 0.10.114: a binding made for one of Premiere's own copies (it names its recovery project as the open one for a
+        # moment while it auto-saves: …/Adobe Premiere Pro Auto-Save/RecoveryProjects/<name>--<id>.prproj) is dropped
+        junk = [f for f, b in self.data.get("bindings", {}).items() if premiere_work(b.get("project", "")) or premiere_work(f)]
+        for f in junk:
+            del self.data["bindings"][f]
+        if junk:
+            log.info("import: dropped %d binding(s) of Premiere's recovery copies", len(junk))
+            try:
+                self.save()
+            except OSError:
+                log.warning("import store: could not save after dropping the recovery bindings")
 
     def save(self):
         with self.lock:
@@ -132,6 +143,8 @@ class Store:
             for f in [f for f, b in self.data["bindings"].items() if b["project"] == project and f != folder]:
                 del self.data["bindings"][f]
             self.data["bindings"][folder] = {"project": project, "since": time.time(), "enabled": True}
+            if project in self.data.get("off", []):
+                self.data["off"].remove(project)
             self.save()
         return {"folder": folder, "previous_project": old["project"] if old and old["project"] != project else None}
 
@@ -140,7 +153,25 @@ class Store:
             for b in self.data["bindings"].values():
                 if b["project"] == project:
                     b["enabled"] = False
+            # 0.10.113: remembered apart from the bindings, which another project in the same folder may take over
+            off = self.data.setdefault("off", [])
+            if project not in off:
+                off.append(project)
             self.save()
+
+    def switched_off(self, project: str) -> bool:
+        return project in self.data.get("off", [])
+
+    def auto_bind(self, project: str) -> dict | None:
+        """0.10.113 (the user: Auto import "automatically on" and "link to the folder where the project is saved"): a project
+        with no folder of its own yet, and not switched off by the editor, watches the folder its .prproj is in. A folder
+        another project watched passes to this one (one project per folder; the one open now). -> bind()'s answer or None."""
+        if not project or self.switched_off(project) or self.binding_for(project) or premiere_work(project):
+            return None
+        folder = os.path.dirname(os.path.abspath(project))
+        if not os.path.isfile(project) or not os.path.isdir(folder):
+            return None
+        return self.bind(folder, project)
 
     def binding_for(self, project: str) -> tuple[str, dict] | None:
         for folder, b in self.data["bindings"].items():
@@ -210,6 +241,20 @@ class Store:
 # filed under MUSIC) were imported; bound to a client project, the vault's renders and frames would have gone there.
 MAX_DEPTH = 3
 SKIP_DIRS = {".git", "node_modules", "venv", ".venv", "__pycache__", ".cache"}
+# 0.10.113: the project's own folder is watched by default, so Premiere's working folders there (previews, auto-saves,
+# caches) and Asistent's own (Asistent_subtitles, Asistent_roughcut, …) never count as downloads; exports.py skips the same
+PREMIERE_DIRS = ("adobe premiere pro video previews", "adobe premiere pro audio previews", "adobe premiere pro auto-save",
+                 "media cache files", "media cache", "adobe premiere pro captured audio", "analysis files")
+
+
+def premiere_work(path: str) -> bool:
+    """Is `path` inside one of Premiere's own working folders (auto-saves and recovery projects, previews, caches)?"""
+    return any(p.lower() in PREMIERE_DIRS or p.lower() == "recoveryprojects" for p in os.path.normpath(path).split(os.sep))
+
+
+def _work_dir(part: str) -> bool:
+    low = part.lower()
+    return part in SKIP_DIRS or low in PREMIERE_DIRS or low.startswith("asistent_")
 
 
 def _repo_root(path: str, top: str, cache: dict) -> bool:
@@ -237,7 +282,7 @@ def wanted(path: str, top: str, cache: dict | None = None) -> bool:
     skipped folder or a git repository (a work folder, not a download)."""
     rel = os.path.relpath(path, top)
     parts = rel.split(os.sep)
-    if rel.startswith("..") or len(parts) - 1 > MAX_DEPTH or any(p in SKIP_DIRS for p in parts[:-1]):
+    if rel.startswith("..") or len(parts) - 1 > MAX_DEPTH or any(_work_dir(p) for p in parts[:-1]):
         return False
     return not _repo_root(path, top, {} if cache is None else cache)
 
@@ -245,8 +290,11 @@ def wanted(path: str, top: str, cache: dict | None = None) -> bool:
 class Watcher:
     """Watches every enabled folder and turns finished downloads into queue items."""
 
-    def __init__(self, store: Store):
+    def __init__(self, store: Store, exported=None):
         self.store = store
+        # 0.10.113: is this file an export from Premiere? (exports.py: the file Premiere's preferences name, one an export
+        # event named, one already recorded) An export into the watched project folder is not a download.
+        self.exported = exported
         self.settle = Settle()
         self.fails: dict[str, int] = {}            # path -> unreadable attempts
         self.observer = None
@@ -297,7 +345,7 @@ class Watcher:
         for root, dirs, files in os.walk(folder):
             depth = 0 if root == folder else os.path.relpath(root, folder).count(os.sep) + 1
             # 0.10.70: not into work folders, repositories or deeper than a download goes (faster on a big Downloads too)
-            dirs[:] = [d for d in dirs if d not in SKIP_DIRS and depth < MAX_DEPTH and not os.path.isdir(os.path.join(root, d, ".git"))]
+            dirs[:] = [d for d in dirs if not _work_dir(d) and depth < MAX_DEPTH and not os.path.isdir(os.path.join(root, d, ".git"))]
             for n in files:
                 p = os.path.join(root, n)
                 try:
@@ -345,6 +393,18 @@ class Watcher:
                             "category": "OTHER", "why": "", "state": "failed", "done_at": time.time(),
                             "note": "FFprobe cannot read the file (damaged or incomplete)."})
             return
+        if self.exported is not None:
+            try:
+                mine = self.exported(path)
+            except Exception:                           # never let the export side stop an import
+                log.exception("import: export check of %s failed", os.path.basename(path))
+                mine = False
+            if mine:
+                self.store.add({"key": key, "path": path, "name": os.path.basename(path), "project": binding["project"],
+                                "category": "OTHER", "why": "", "state": "skipped", "done_at": time.time(),
+                                "note": "your export from Premiere, not imported"})
+                log.info("import: %s skipped (an export from Premiere)", os.path.basename(path))
+                return
         category, why = classify(path, folder, probe)
         item = self.store.add({"key": key, "path": path, "name": os.path.basename(path), "project": binding["project"],
                                "category": category, "why": why, "state": "pending", "found_at": time.time()})

@@ -1,4 +1,5 @@
 const store = require("./store.js");
+const { tipLines } = require("./tiptext.js");
 const engine = require("./engine.js");
 const premiere = require("./premiere.js");
 const layout = require("./layout.js");
@@ -25,7 +26,6 @@ const premiereCheck = require("./premiere-exportcheck.js");
 const exportcheck = require("./exportcheck.js");
 const premiereLearn = require("./premiere-colorlearn.js");
 const tracknames = require("./tracknames.js");
-const roughcutplan = require("./roughcutplan.js");
 const exportEvents = require("./exportevents.js");
 
 const $ = (id) => document.getElementById(id);
@@ -200,7 +200,20 @@ function overNative(x, y, w, h) {
 
 function showTip(node) {
   const box = $("tip");
-  box.textContent = node.getAttribute("data-tip");
+  // 0.10.110: a summary line, then one row per choice with its name in bold (tiptext.js)
+  while (box.firstChild) box.removeChild(box.firstChild);
+  for (const l of tipLines(node.getAttribute("data-tip"))) {
+    const row = document.createElement("div");
+    row.className = l.lead ? "tip-lead" : "tip-row";
+    if (l.label) {
+      const k = document.createElement("span");
+      k.className = "tip-k";
+      k.textContent = `${l.label}: `;
+      row.appendChild(k);
+    }
+    row.appendChild(document.createTextNode(l.text));
+    box.appendChild(row);
+  }
   box.hidden = false;
   const r = node.getBoundingClientRect();
   const W = document.body.clientWidth || window.innerWidth;
@@ -235,6 +248,7 @@ function bindTips(root) {
 const history = [];
 let trackerPage = null;                                   // the Tracker page (mounted below, 0.10.51)
 let brandPage = null;                                     // the Brand page (mounted below, 0.10.71)
+let silencesPage = null;                                  // Cut silences: options and preview (mounted below, 0.10.96)
 let keyframerPage = null;                                 // the Keyframer page (its info for the bridge, 0.10.72)
 
 // 0.10.59: Keyframer and Tracker share the Motion tab (a switch between them, the last one used comes back); Log and
@@ -243,12 +257,31 @@ const PANES = ["paneTools", "paneKeyframer", "paneTracker", "paneAnchor", "paneB
 const MOTION = ["paneKeyframer", "paneTracker", "paneAnchor"];
 let motionSide = "paneKeyframer";
 
+// 0.10.111 (the user: "smooth transitions when switching tabs"): Premiere's UXP runs no CSS transitions (css_probe 0.9.71),
+// so the page that opens fades in from a script: four opacity steps over about 100 ms
+let fadeTimer = null;
+function fadeIn(node) {
+  clearTimeout(fadeTimer);
+  const steps = [0.35, 0.6, 0.85, 1];
+  let i = 0;
+  node.style.opacity = String(steps[0]);
+  const next = () => {
+    i++;
+    node.style.opacity = String(steps[Math.min(i, steps.length - 1)]);
+    if (i < steps.length - 1) fadeTimer = setTimeout(next, 28);
+  };
+  fadeTimer = setTimeout(next, 28);
+}
+
 function openTab(pane) {
   hideTip();
   if (pane === "motion") pane = motionSide;
   const motion = MOTION.includes(pane);
   if (motion) motionSide = pane;
+  const was = PANES.find((p) => !$(p).hidden);
   for (const p of PANES) show(p, p === pane);
+  show("kfDock", pane === "paneKeyframer");
+  if (was !== pane) fadeIn($(pane));
   for (const t of document.querySelectorAll(".btn.tab")) {
     const tab = t.getAttribute("data-tab");
     const on = tab === pane || (tab === "motion" && motion);
@@ -1305,41 +1338,10 @@ async function onExportCheck() {
   }
 }
 
-// ---------------------------------------------------------------- Remove silences (was the rough cut, Phase 8; 0.10.65)
-
-// One press: the engine finds the pauses and writes an XML, Premiere imports it as a NEW sequence (the source sequence
-// is only read), and the new sequence is checked against the engine's list before it is opened.
-async function onRoughCut() {
-  if (state.busy) return;
-  if (!state.online) {
-    finish("No connection to the engine. See README.", false);
-    return;
-  }
-  show("result", false);
-  setBusy(true);
-  progress(0, "Reading the selected clips…");
-  try {
-    const project = await premiere.activeProject();
-    // 0.10.65 (the user: "focus only on removing silences"): no recognition, no takes; which pauses go and the threshold
-    const th = $("roughThreshold").value;
-    const opts = { mode: "silence", tempo: $("roughTempo").value, threshold: th === "auto" ? null : Number(th) };
-    const input = await premiereRough.readInput(project, opts);
-    const { payload, meta } = input;
-    const { job } = await engine.startRoughcut(payload);
-    const result = await runJob(job);
-    progress(0.92, "Importing the new sequence…");
-    const placed = await premiereRough.place(project, result, meta, input);
-    const out = roughcutplan.describeResult(result, placed);
-    const named = placed.problems.length ? "" : await autoLabels(project);
-    finish(out.text + named, !placed.problems.length, out.lines.map((l) => el("div", l.cls, l.text)));
-  } catch (e) {
-    finish(e.message || String(e), false);
-    if (!(e instanceof premiere.UserError)) engine.log("error", `roughcut: ${e && e.stack ? e.stack : e}`);
-  } finally {
-    state.jobId = null;
-    setBusy(false);
-  }
-}
+// ---------------------------------------------------------------- Cut silences (was the rough cut, Phase 8; 0.10.65)
+// 0.10.96: its options, preview and cut live in silences.js (mounted below); the engine finds what goes and writes an XML,
+// Premiere imports it as a NEW sequence (the source sequence is only read), and the new sequence is checked against the
+// engine's list before it is opened.
 
 // The user pressed a button that names the size: this is the confirmation (SUBTITLES_PLAN.md, downloads).
 async function onSubtitleDownload() {
@@ -1759,7 +1761,7 @@ const short = (p) => (p || "").replace(/^.*[\\/](.*[\\/].*)$/, "…/$1");
 function renderImport(st, project) {
   imp.enabled = !!st.enabled;
   $("importToggle").className = st.enabled ? "btn small sw on" : "btn small sw";
-  const name = (st.folder || "").split(/[\\/]/).filter(Boolean).pop() || "Downloads";
+  const name = (st.folder || "").split(/[\\/]/).filter(Boolean).pop() || "the project's folder";
   $("importStatus").textContent = st.enabled ? `Watching ${name}` + (st.pending.length ? ` · ${st.pending.length} waiting` : "") : "Off";
   $("importStatus").className = st.enabled ? "fstatus live" : "fstatus";
   $("importStatus").setAttribute("data-tip", st.enabled
@@ -1768,6 +1770,10 @@ function renderImport(st, project) {
   const box = $("importRecent");
   box.innerHTML = "";
   for (const r of (st.recent || []).slice(0, 5)) {
+    if (r.state === "skipped") {                       // 0.10.113: an export into the watched folder, left alone on purpose
+      box.appendChild(el("div", "muted", `– ${r.name}${r.note ? ` (${r.note})` : ""}`));
+      continue;
+    }
     const ok = r.state === "imported";
     box.appendChild(el("div", ok ? "line" : "warn", `${ok ? "✓" : "✗"} ${r.name} → ${CAT[r.category] || r.category}` +
       (r.note ? ` (${r.note})` : "")));
@@ -1907,14 +1913,29 @@ function renderExportList(items) {
   }));
 }
 
-// After export card: the newest export's check, line by line (✓ measured fine, ! to look at, plain: a number to know)
+// After export card (0.10.111, the user: "more clear and organized warnings"): the file and the verdict, then each thing to
+// look at in a card of its own (what, where, what to check), then what passed in one line and the numbers to know.
 function afterBlocks(it) {
-  const box = el("div", "group");
-  box.appendChild(el("div", "name", `${it.name}: ${checkWords(it.check)}`));
-  for (const l of (it.check && it.check.lines) || []) {
-    box.appendChild(el("div", l.level === "check" ? "warn" : l.level === "ok" ? "line" : "muted",
-      `${l.level === "check" ? "! " : l.level === "ok" ? "✓ " : ""}${l.text}`));
+  const box = el("div", "group xc");
+  const sec = exportcheck.afterSections(it.check);
+  const look = it.check && it.check.status === "look" && sec.issues.length > 0;
+  const fine = it.check && it.check.status === "fine";
+  const n = sec.issues.length;
+  const head = el("div", "row xc-head");
+  head.appendChild(el("div", "name xc-file", it.name));
+  // the heading counts the issues shown (a check from before 0.10.111 counted each place)
+  head.appendChild(el("div", `xc-verdict ${look ? "look" : fine ? "fine" : ""}`,
+    look ? `! ${n} ${n === 1 ? "thing" : "things"} to look at` : fine ? `✓ ${checkWords(it.check)}` : checkWords(it.check)));
+  box.appendChild(head);
+  for (const i of sec.issues) {
+    const card = el("div", "xc-issue");
+    card.appendChild(el("div", "xc-title", `${i.topic ? `${i.topic} · ` : ""}${i.title}`));
+    if (i.where) card.appendChild(el("div", "xc-where", i.where));
+    if (i.fix) card.appendChild(el("div", "xc-fix", i.fix));
+    box.appendChild(card);
   }
+  if (sec.fine.length) box.appendChild(el("div", "xc-fine", `✓ ${sec.fine.join(" · ")}`));
+  if (sec.info.length) box.appendChild(el("div", "xc-info", sec.info.join(" · ")));
   return box;
 }
 
@@ -2063,13 +2084,9 @@ onTap($("learnedHead"), () => {
   learnedView.open = !learnedView.open;
   if (learnedView.path) loadLearned(learnedView.path);
 });
-onTap($("rough"), onRoughCut);
-// the choices stay between sessions (the panel's store survives updates)
-for (const id of ["roughTempo", "roughThreshold"]) {
-  const v = store.getItem(`asistent.${id}`);
-  if (v && [...$(id).options].some((o) => o.value === v)) $(id).value = v;
-  $(id).addEventListener("change", () => store.setItem(`asistent.${id}`, $(id).value));
-}
+// Cut silences (0.10.96): the button, the options (kept between sessions in the panel's store) and the preview
+silencesPage = require("./silences.js").mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough, state, setBusy, progress, finish, show,
+  runJob, autoLabels });
 onTap($("subtitleDownload"), onSubtitleDownload);
 onTap($("translatorDownload"), onTranslatorDownload);
 onTap($("updateGo"), onUpdate);
@@ -2122,6 +2139,7 @@ function applyRemembered() {
   }
   // 0.10.78: the Keyframer's motion blur and Update live, when the store loads after the page was built
   if (keyframerPage && keyframerPage.remembered) keyframerPage.remembered();
+  if (silencesPage) silencesPage.remembered();              // 0.10.96: Cut silences' options, when the store loads late
 }
 applyRemembered();
 store.load().then((ok) => { if (ok) applyRemembered(); });
@@ -2181,5 +2199,5 @@ setInterval(() => {
 
 // browser preview only (preview/boot.js sets this; inside Premiere it never exists): sample results fill the views
 if (typeof window !== "undefined" && typeof window.__asistentPreview === "function") {
-  window.__asistentPreview({ tracker: () => trackerPage, finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab, renderSpeakers, renderLearned, learnedView, filterCaptions, runSearch });
+  window.__asistentPreview({ tracker: () => trackerPage, silences: () => silencesPage, finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab, renderSpeakers, renderLearned, learnedView, filterCaptions, runSearch });
 }

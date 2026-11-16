@@ -11,6 +11,8 @@ const BP = require("./brandplan.js");
 const { UserError, transaction, maybe, debug, secs } = P;
 const TPS = 254016000000;
 const TINT = "AE.ADBE Tint";
+const TEXT = "AE.ADBE Text";                             // the component of text made in Premiere (0.10.111-0.10.112)
+const GROUP = "AE.ADBE Graphic Group";                   // the layers of a graphic made in Premiere start here
 const norm = (p) => String(p || "").replace(/\\/g, "/").toLowerCase();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -187,6 +189,19 @@ async function lastTint(chain) {
   return comp;
 }
 
+// A graphic made in Premiere lists its own layers after Opacity and Motion: the Graphic group, then each layer (Text, a shape).
+// Premiere draws the clip's effects only when they come BEFORE that group: a Tint appended at the end lands after the Text
+// layer and draws nothing (measured 2026-11-15 in NEW TEST, Premiere 26.5.3: 0 pixels changed appended, 578 inserted before
+// the group, the white letters turned red). -> the group's index, or -1 for a clip without one (a file: append as before).
+async function graphicGroupAt(chain) {
+  const n = await chain.getComponentCount();
+  for (let i = 0; i < n; i++) {
+    const co = await chain.getComponentAtIndex(i);
+    if (((await maybe(co, "getMatchName")) || "") === GROUP) return i;
+  }
+  return -1;
+}
+
 function makeColor(hex) {
   const a = BP.colorArgs(hex);
   return new ppro.Color(a[0], a[1], a[2], a[3]);
@@ -195,7 +210,9 @@ function makeColor(hex) {
 // Logos and graphics that are files: Premiere's Tint (Map Black To and Map White To the colour, Amount 100 %) turns the
 // picture one colour and keeps its transparency, the "colour a logo" of the Cockpit probe (P-A3). A Tint already on the clip
 // is reused; a new one needs its own step first (a detached effect shows no parameters).
-async function tint(project, clips, hex) {
+// keepDark (0.10.111, text made in Premiere): only Map White To takes the colour and Map Black To stays black, so white
+// letters become exactly the colour while a dark outline or shadow stays dark.
+async function tint(project, clips, hex, { keepDark = false } = {}) {
   const targets = [];
   const lines = [];
   for (const c of clips) {
@@ -210,9 +227,12 @@ async function tint(project, clips, hex) {
   const fresh = targets.filter((t) => t.isNew);
   let steps = 0;
   if (fresh.length) {
-    for (const t of fresh) t.comp = await ppro.VideoFilterFactory.createComponent(TINT);
+    for (const t of fresh) {
+      t.comp = await ppro.VideoFilterFactory.createComponent(TINT);
+      t.at = await graphicGroupAt(t.chain);
+    }
     transaction(project, "Asistent: brand colour (Tint)", (c) => {
-      for (const t of fresh) c.addAction(t.chain.createAppendComponentAction(t.comp));
+      for (const t of fresh) c.addAction(t.at >= 0 ? t.chain.createInsertComponentAction(t.comp, t.at) : t.chain.createAppendComponentAction(t.comp));
     });
     steps++;
     for (const t of fresh) t.comp = await lastTint(t.chain);
@@ -229,13 +249,13 @@ async function tint(project, clips, hex) {
     const white = ps.byName["Map White To"] || ps.list[1];
     const amount = ps.byName["Amount to Tint"] || ps.list[2];
     const keyed = [];
-    for (const [p, v] of [[black, "colour"], [white, "colour"], [amount, 100]]) {
+    for (const [p, v] of [[black, keepDark ? "#000000" : hex], [white, hex], [amount, 100]]) {
       if (!p) continue;
       if (await maybe(p, "isTimeVarying")) {
         keyed.push(p.displayName);
         continue;
       }
-      acts.push(() => p.createSetValueAction(p.createKeyframe(v === "colour" ? makeColor(hex) : v), true));
+      acts.push(() => p.createSetValueAction(p.createKeyframe(typeof v === "string" ? makeColor(v) : v), true));
     }
     if (keyed.length) lines.push(`${t.c.name}: ${keyed.join(", ")} has keyframes, left alone.`);
     done++;
@@ -250,9 +270,24 @@ async function tint(project, clips, hex) {
   return { done, fresh: fresh.length, steps, lines };
 }
 
+// Text made in Premiere (Type tool, Essential Graphics, captions upgraded to graphics): its clip carries Premiere's Text
+// component. Premiere 26.5.3 still exposes no fill, font or size on it (probed again 2026-11-15, NATIVE_GRAPHICS.md), but a
+// Tint on the clip colours what it draws (0.10.111, the user: "the colour presets ... should be able to be applied to text").
+async function isNativeText(ti) {
+  const chain = await maybe(ti, "getComponentChain");
+  if (!chain) return false;
+  const n = await chain.getComponentCount();
+  for (let i = 0; i < n; i++) {
+    const co = await chain.getComponentAtIndex(i);
+    if (((await maybe(co, "getMatchName")) || "") === TEXT) return true;
+  }
+  return false;
+}
+
 /**
  * The colour on the selected clips: image and video files get a Tint, MOGRTs get the colour in a colour control (the host),
- * native text and captions cannot be coloured by script in Premiere 26 (counted and said). The hex is copied as well.
+ * text made in Premiere gets a Tint that colours its light letters and keeps a dark outline (0.10.111-0.10.112). Captions on a caption
+ * track are not clips and stay as they are. The hex is copied as well.
  * -> {lines, steps, controls}
  */
 async function applyColor(project, hex, opts = {}) {
@@ -283,10 +318,20 @@ async function applyColor(project, hex, opts = {}) {
       lines.push(`${r.set} MOGRT${r.set > 1 ? "s" : ""}: ${controls[Math.min(opts.index || 0, controls.length - 1)] || "colour"} set to ${hex}.`);
     }
     for (const s of r.skipped || []) lines.push(s);
-    if (r.other) {
-      lines.push(`${r.other} text or graphic clip${r.other > 1 ? "s" : ""} made in Premiere: their colour cannot be set by a script. ` +
-        `${hex} is copied: paste it in Essential Graphics > Appearance > Fill.`);
+    // the clips the host found without a MOGRT: the text ones get the Tint, anything else (a nested sequence, a colour
+    // matte) is left alone and said
+    const others = graphics.filter((x) => (r.others || []).some((o) => o.name === x.name && Math.abs(o.start - x.start) < 0.002));
+    const texts = [];
+    for (const x of others) if (await isNativeText(x.ti)) texts.push(x);
+    if (texts.length) {
+      const t = await tint(project, texts, hex, { keepDark: true });
+      steps += t.steps;
+      coloured += t.done;
+      if (t.done) lines.push(`${t.done} text${t.done > 1 ? "s" : ""} made in Premiere coloured ${hex} with a Tint: white letters take the colour exactly, a dark outline or shadow stays dark.`);
+      lines.push(...t.lines);
     }
+    const rest = (r.other || 0) - texts.length;
+    if (rest > 0) lines.push(`${rest} graphic clip${rest > 1 ? "s" : ""} without text or a colour control left alone (${hex} is copied).`);
   }
   if (picked.some((x) => x.adjustment)) lines.push("Adjustment layers were left alone.");
   return { coloured, steps, lines, controls };

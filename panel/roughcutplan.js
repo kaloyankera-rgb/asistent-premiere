@@ -6,11 +6,31 @@ const { planDialogue } = require("./subtitleplan.js");
 const MODE_LABEL = { safe: "safe", smart: "smart" };
 
 /**
+ * 0.10.96: what is cut. range: { kind: "selection" } (the selected clips, as before), { kind: "all" } (every clip of the
+ * sequence) or { kind: "inout", from, to } (what lies between the sequence's In and Out: clips that reach over an edge
+ * are taken from the edge on, the rest of them is not touched or listened to).
+ */
+function inRange(items, range) {
+  if (!range || range.kind === "selection" || !range.kind) return items;
+  if (range.kind === "all") return items.map((x) => ({ ...x, selected: true }));
+  const { from, to } = range;
+  const out = [];
+  for (const x of items) {
+    const s = Math.max(x.start, from);
+    const e = Math.min(x.end, to);
+    if (!(e - s > 0.07)) continue;                     // a frame or two of the next clip under the Out point is not a clip to cut
+    out.push({ ...x, selected: true, start: s, end: e, inPt: (x.inPt || 0) + (s - x.start) });
+  }
+  return out;
+}
+
+/**
  * items: panel items from premiere.readTimeline(). Every SELECTED video and audio item with a media file, speed 1 and
  * not reversed is cut by the same ranges (the cameras and the microphones). Audio on a muted track or switched off (`unused`) is left out of the cut and of the speech, as if it were deleted. Returns
  * { layout: [{kind, track, path, start, end, inPt, name}], dialogue: [...] (planDialogue's audio items), skipped, selected }.
  */
-function planRoughCut(items) {
+function planRoughCut(items, range) {
+  items = inRange(items, range);
   const picked = items.filter((x) => x.selected);
   const skipped = [];
   const unused = {};                                 // audio on a muted track or switched off: not used, left out like a deleted clip
@@ -67,30 +87,63 @@ function takeLines(r) {
   return lines;
 }
 
-/** Remove silences (0.10.65): what was cut, how it listened, each microphone's levels in the tooltip-free lines. */
+const WHAT_LABEL = { silence: "silences", offmic: "silences and off-mic voices", ai: "AI rough cut" };
+const DONE_LABEL = { remove: "taken out", gaps: "taken out, the spaces kept", split: "cut apart, nothing removed", mute: "muted, the timing unchanged" };
+const KIND_WORDS = [["silence", "silence"], ["nosound", "no sound clip"], ["offmic", "off-mic voices"], ["below", "under your dB"],
+  ["short", "short pauses"], ["filler", "hesitation sounds"], ["take", "repeated takes"]];
+
+/** Cut silences (0.10.65; 0.10.96 modes, methods, actions): what went, how it listened, each microphone's levels. */
 function describeSilences(r, placed) {
   const c = r.counts || {};
   const pct = r.before_s > 0 ? Math.round((100 * (r.before_s - r.after_s)) / r.before_s) : 0;
   const st = r.settings || {};
+  const action = r.action || "remove";
   const lines = [];
-  lines.push({ cls: "line", text: `${c.cuts} ${c.cuts === 1 ? "silence" : "silences"} cut, ${r.saved_s.toFixed(1)} s taken out. Pauses ${r.tempo_label || r.tempo}` +
-    (st.min_silence ? ` (over ${st.min_silence} s; ${st.before} s kept before speech, ${st.after} s after)` : "") + "." });
+  lines.push({ cls: "line", text: `${c.cuts} ${c.cuts === 1 ? "part" : "parts"} ${DONE_LABEL[action]}, ${r.saved_s.toFixed(1)} s. ` +
+    `${r.what ? `Cut: ${WHAT_LABEL[r.what] || r.what}. ` : ""}Pacing ${r.tempo_label || r.tempo}` +
+    (st.min_silence ? ` (pauses from ${st.min_silence} s; ${st.before} s kept before speech, ${st.after} s after)` : "") + "." });
+  const by = r.by_kind || {};
+  const kinds = KIND_WORDS.filter(([k]) => by[k] > 0.05).map(([k, w]) => `${w} ${by[k].toFixed(1)} s`);
+  if (kinds.length > 1 || (kinds.length === 1 && !by.silence)) lines.push({ cls: "reason", text: kinds.join(" · ") });
   const sp = r.speech || {};
   const mics = sp.listened || [];
-  lines.push({ cls: "line", text: r.threshold === null || r.threshold === undefined
-    ? `Listened to ${mics.length} sound ${mics.length === 1 ? "clip" : "clips"}, each with its own threshold${sp.vad ? "; Silero kept quiet speech and dropped clicks" : " (Silero is not available: the level alone)"}.`
-    : `Threshold ${r.threshold} dB on all ${mics.length} sound ${mics.length === 1 ? "clip" : "clips"}: under it is silence.` });
+  const manual = r.threshold !== null && r.threshold !== undefined;
+  lines.push({ cls: "line", text: !manual
+    ? `Listened to ${mics.length} sound ${mics.length === 1 ? "clip" : "clips"}, each with its own threshold${sp.vad ? "; Silero kept quiet speech and dropped clicks" : " (Silero is not available: the level alone)"}` +
+      `${r.method === "ai" && sp.asr ? `; ${sp.words} words recognised` : ""}.`
+    : `Threshold ${r.threshold} dB on all ${mics.length} sound ${mics.length === 1 ? "clip" : "clips"}: what stays under it goes, speech or not.` });
+  if (r.method === "ai" && !sp.asr) lines.push({ cls: "warn", text: sp.note || "No speech model: detected without recognition." });
   for (const m of mics.slice(0, 6)) {
     if (m.floor === null || m.floor === undefined) continue;
-    lines.push({ cls: "reason", text: `${m.name}: noise ${m.floor} dB, voice ${m.voice} dB, speech from ${m.open} dB; ${m.speech_s} s of speech heard.` });
+    lines.push({ cls: "reason", text: `${m.name}: noise ${m.floor} dB` + (m.voice !== null && m.voice !== undefined ? `, voice ${m.voice} dB` : "") +
+      `, ${manual ? "kept" : "speech"} from ${m.open} dB` +
+      (m.main !== null && m.main !== undefined ? `, main voice ${m.main} dB` : "") + `; ${m.speech_s} s of speech kept.` });
   }
   if (mics.length > 6) lines.push({ cls: "reason", text: `…and ${mics.length - 6} more.` });
+  // the voices away from the microphone: cut (0.10.95), or kept because the editor chose Silences only
+  const q = r.quiet;
+  if (q && q.cut && q.seconds > 0.05) lines.push({ cls: "line", text: `${q.seconds.toFixed(1)} s of off-mic voices cut (more than ${q.under_db} dB under the main voice of their microphone). To keep them: Options > Cut > Silences only.` });
+  else if (r.what === "silence" && !manual) lines.push({ cls: "line", text: "Every voice was kept, also the quiet ones (Options > Cut > Silences + off-mic cuts voices away from the microphone)." });
+  if (r.flagged > 0) lines.push({ cls: "warn", text: `${r.flagged} ${r.flagged === 1 ? "part was" : "parts were"} not sure and kept (a voice near the line, or takes that differ): Preview shows them in yellow.` });
+  if (r.restored > 0) lines.push({ cls: "line", text: `${r.restored} ${r.restored === 1 ? "part" : "parts"} kept by your choice in the preview.` });
+  // AI rough cut: the repeated takes that went, and the ones only listed (said differently, or no pause to cut at)
+  const found = r.takes || [];
+  for (const g of found.slice(0, TAKE_LINES)) {
+    const best = g.takes[g.recommended];
+    const n = g.takes.length;
+    const said = best.text.length > 70 ? `${best.text.slice(0, 70)}…` : best.text;
+    lines.push(g.applied
+      ? { cls: "reason", text: `${clock(g.out_at)}: ${g.kind_label} ×${n}; kept #${g.recommended + 1} "${said}", ${n === 2 ? "the other was cut" : "the others were cut"} (${g.cut_s.toFixed(1)} s).` }
+      : { cls: "warn", text: `${clock(g.out_at)}: ${g.kind_label} ×${n}: nothing cut (${!g.safe ? "said differently" : "no clean pause to cut at"}), review it. Best is #${g.recommended + 1} "${said}".` });
+  }
+  if (found.length > TAKE_LINES) lines.push({ cls: "reason", text: `…and ${found.length - TAKE_LINES} more repeated takes.` });
   for (const s of r.skipped || []) lines.push({ cls: "warn", text: `Skipped: ${s}.` });
   if (r.no_sound_s > 0.05) lines.push({ cls: "line", text: `${r.no_sound_s.toFixed(1)} s with no selected sound at all were taken out (for example a camera rolling before anyone speaks, or empty timeline).` });
   if (r.flashes_dropped > 0) lines.push({ cls: "line", text: `${r.flashes_dropped} pieces of a few frames taken out at the end of a clip while the other camera goes on.` });
   for (const l of (placed && placed.notes) || []) lines.push(l);
   if (placed && placed.problems && placed.problems.length) for (const p of placed.problems) lines.push({ cls: "warn", text: p });
-  return { text: `Done: ${clock(r.before_s)} → ${clock(r.after_s)} (−${pct} %). Sequence: ${r.name}.`, lines };
+  const head = action === "remove" ? `Done: ${clock(r.before_s)} → ${clock(r.after_s)} (−${pct} %).` : `Done: ${clock(r.before_s)}, ${DONE_LABEL[action]}.`;
+  return { text: `${head} Sequence: ${r.name}.`, lines };
 }
 
 /** The engine's /roughcut result -> { text, lines: [{cls, text}] }. */
@@ -165,4 +218,4 @@ function verifyPieces(pieces, items, fps, limit = 5) {
   return bad;
 }
 
-module.exports = { planRoughCut, describeResult, verify, verifyPieces, clock, MODE_LABEL };
+module.exports = { planRoughCut, inRange, describeResult, verify, verifyPieces, clock, MODE_LABEL };

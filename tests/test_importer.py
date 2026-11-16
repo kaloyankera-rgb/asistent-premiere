@@ -302,3 +302,64 @@ def test_catch_up_skips_repositories_and_deep_folders(tmp_path):
         f.write_bytes(b"x")
     w.catch_up(str(dl))
     assert sorted(seen) == ["a.mp4", os.path.join("shoot", "day", "b.mov")]
+
+
+# ---------------------------------------------------------------- 0.10.113: on by default, the project's own folder
+
+def test_a_new_project_watches_its_own_folder_until_switched_off(tmp_path):
+    # the user (2026-11-15): Auto import "automatically on", linked to "the folder where the project is saved"
+    folder = tmp_path / "Client X"
+    folder.mkdir()
+    project = folder / "Edit.prproj"
+    project.write_text("x")
+    store = I.Store(str(tmp_path / "import.json"))
+    info = store.auto_bind(str(project))
+    assert info and info["folder"] == str(folder)
+    assert store.binding_for(str(project))[1]["enabled"]
+    assert store.auto_bind(str(project)) is None                  # already watching: nothing changes
+    store.unbind(str(project))                                    # the editor switched it off: it stays off
+    assert store.auto_bind(str(project)) is None and not store.binding_for(str(project))[1]["enabled"]
+    # another project in the same folder takes the folder over; the first one is still off when it is opened again
+    other = folder / "Other.prproj"
+    other.write_text("x")
+    assert store.auto_bind(str(other))["folder"] == str(folder)
+    assert store.binding_for(str(project)) is None and store.auto_bind(str(project)) is None
+    store.bind(str(folder), str(project))                         # switched on by hand: no longer "off"
+    assert not store.switched_off(str(project))
+    assert store.auto_bind("") is None and store.auto_bind(str(tmp_path / "missing.prproj")) is None
+
+
+def test_premieres_and_asistents_working_folders_are_not_downloads(tmp_path):
+    top = str(tmp_path)
+    for sub in ("Adobe Premiere Pro Video Previews", "Adobe Premiere Pro Auto-Save", "Asistent_roughcut", "Media Cache Files"):
+        assert not I.wanted(os.path.join(top, sub, "a.mov"), top), sub
+    assert I.wanted(os.path.join(top, "Assets", "SFX", "whoosh.wav"), top)
+
+
+def test_an_export_into_the_watched_folder_is_not_imported(tmp_path):
+    folder = tmp_path / "Client X"
+    folder.mkdir()
+    store = I.Store(str(tmp_path / "import.json"))
+    store.bind(str(folder), "/projects/A.prproj")
+    export = str(folder / "EDIT_V1.mp4")
+    w = I.Watcher(store, exported=lambda p: p == export)
+    settle(w, video(export))
+    settle(w, wav(folder / "music.wav", 1, {"artist": "x"}))
+    assert [i["name"] for i in store.queue("/projects/A.prproj")] == ["music.wav"]
+    skipped = [i for i in store.recent("/projects/A.prproj") if i["state"] == "skipped"]
+    assert [i["name"] for i in skipped] == ["EDIT_V1.mp4"] and "export" in skipped[0]["note"]
+
+
+def test_premieres_recovery_copy_never_gets_a_folder(tmp_path):
+    # seen 2026-11-15: while Premiere auto-saves, the open project reads for a moment as its recovery copy
+    rec = tmp_path / "Projects" / "Adobe Premiere Pro Auto-Save" / "RecoveryProjects"
+    rec.mkdir(parents=True)
+    copy = rec / "NEW TEST--8f4f.prproj"
+    copy.write_text("x")
+    store = I.Store(str(tmp_path / "import.json"))
+    assert store.auto_bind(str(copy)) is None
+    # a binding an earlier version made for such a copy is dropped when the store loads
+    store.bind(str(rec), str(copy))
+    assert I.Store(str(tmp_path / "import.json")).binding_for(str(copy)) is None
+    import json
+    assert not json.loads((tmp_path / "import.json").read_text(encoding="utf-8"))["bindings"]   # and written back to disk

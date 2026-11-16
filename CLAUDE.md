@@ -25,6 +25,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `tracknames.js` which name each track gets (pure) · `premiere-labels.js` Track names: renames and camera colours in one step (0.10.34)
   - `captionedit.js` (what a typed caption correction becomes: correction lines for the engine) · `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
   - `brand.js` the Brand page (0.10.71, docs/BRAND_KIT.md) · `premiere-brand.js` import into the client's bin, place at the playhead / the end above everything, MOGRT through the host, Tint · `brandplan.js` its decisions (pure)
+  - `silenceplan.js` Cut silences' options, preview columns and review choices (pure) · `silences.js` its options, preview and cut in the panel (0.10.96; engine `silence.py`: measure / label / plan)
   - `cssprobe.js` which CSS this UXP really supports (measured, run by the bridge's `css_probe`) · `devbridge.js` test bridge executor · `exportevents.js` Premiere's export events → the engine (0.10.7) · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging
 - **Asistent host** `host/` (since 0.9.45): an invisible CEP extension (`CSXS/manifest.xml`, `main.js`, `host.jsx`) installed by
   `engine/asistent/install.py` (called by `setup_mac.sh` / `setup_win.ps1`, so by `release_mac.sh` and by updates). It long-polls `GET /host/poll` and runs ExtendScript inside Premiere,
@@ -139,7 +140,7 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 - Independent of the user's own CEP extension Quick Search (`com.contentstudio.barzo`, ports 47231–47234):
   never import, call or modify it.
 - One button press = one Undo step wherever Premiere allows; when it cannot, the panel says how many.
-- Never remove track items through UXP (crashed Premiere 26.0.2, see `DECISIONS.md`); the host never removes anything either unless the user approves a specific deletion.
+- Never remove track items through UXP (crashed Premiere 26.0.2, see `DECISIONS.md`); the host never removes anything either unless the user approves a specific deletion (approved 2026-11-15: Cut silences removes clips only in its own duplicate sequence, `host.jsx as_rough_cut`, DECISIONS).
   The one approved exception (the user, 2026-11-04, 0.9.97): the lines of Asistent's OWN earlier caption pair (signature match,
   read again just before) are removed after a new pair is placed (`premiere-captions.js` `removeLines`, one step); tested in
   NEW TEST under ExtendScript load without a crash. Nothing else, and never a track the editor changed (0.10.6: every line's time

@@ -141,3 +141,25 @@ def test_a_tie_between_real_words_is_broken_only_by_a_word_the_recording_says_el
     assert lexicon.repair("Взиваме", True, frozenset({"взимаме"})) == "Взимаме"
     assert lexicon.repair("Взиваме", True, frozenset({"взимаме", "вливаме"})) is None     # two preferred: still no guess
     assert lexicon.repair("Взиваме", False, frozenset({"взимаме"})) is None                # a word Whisper is sure of: no wide repair
+
+
+def test_a_repair_never_adds_or_drops_a_syllable_except_next_to_ya():
+    # 0.10.94, the 4a1a „Lokali“ run (2026-11-15) and the 16 repairs of the earlier runs: every repair that changed the
+    # number of syllables was a different word; the colloquial -л said as a vowel is written as -л
+    pytest.importorskip("spylls")
+    if not lexicon.available():
+        pytest.skip("bg_BG dictionary not installed")
+    lexicon.reset()
+    assert lexicon.repair("съседание.") is None                     # was „съседни.“ (said „състезание“): left and reported
+    assert lexicon.repair("Карао", True, frozenset({"кара"})) == "Карал"     # was „Кара“ (said „кара“ elsewhere in the clip)
+    assert lexicon.repair("карао", False) == "карал" and lexicon.repair("карау") == "карал"
+    assert lexicon.repair("тямо") is None and lexicon.repair("тавила") is None
+    assert lexicon.repair("случава?") is None                       # said that way: kept as said
+    assert lexicon.repair("одяло") == "одеяло" and lexicon.repair("одялоце") == "одеялце"     # next to я: still repaired
+    assert lexicon.repair("глядаш") == "гледаш" and lexicon.repair("пусока.") == "посока."
+    assert lexicon.repair("водяло?", False) == "видяло?" and lexicon.repair("Пълка") == "Палка"
+    assert lexicon.repair("видео") is None and lexicon.repair("какао") is None               # real words ending in -о
+    assert lexicon.repair("хирурги?") is None and lexicon.repair("Клиник,") is None          # a tie still protects a word
+    # the ReShape style keeps the rules from before 0.10.94 (the user: "leave ReShape as it is")
+    assert lexicon.repair("съседание.", True, strict=False) == "съседни." and lexicon.repair("Карао", True, frozenset({"кара"}), strict=False) == "Кара"
+    assert lexicon.repair("масна", True, strict=False) == "масона" and lexicon.repair("масна", True) is None

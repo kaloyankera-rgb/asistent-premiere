@@ -171,15 +171,23 @@ test("COLOR: the separate buttons run the same analysis and the same apply as Au
 test("ROUGH CUT: the source sequence is only read; the result is imported as a new sequence and checked", () => {
   const rough = fs.readFileSync(path.join(panel, "premiere-roughcut.js"), "utf8");
   assert.match(html, /<div id="rough" class="btn action" data-tip="[^"]+">Cut silences<\/div>/);
-  assert.match(main, /onTap\(\$\("rough"\), onRoughCut\)/);
+  // 0.10.96: the button, the options and the preview live in silences.js, mounted by main.js
+  const sil = fs.readFileSync(path.join(panel, "silences.js"), "utf8");
+  assert.match(main, /silencesPage = require\("\.\/silences\.js"\)\.mount\(/);
+  assert.match(sil, /onTap\(\$\("rough"\), cut\)/);
+  assert.match(sil, /onTap\(\$\("roughPreview"\), \(\) => preview\(true\)\)/);
+  // a preview never places anything: only the cut calls place, and a cut after a preview is refused when the clips changed
+  assert.strictEqual((sil.match(/premiereRough\.place\(/g) || []).length, 1);
+  assert.match(sil, /SP\.signature\(input\.payload\) !== pv\.sig/);
+  assert.doesNotMatch(sil, /createRemove|removeItem|deleteSequence|createOverwrite|createInsert|setMute|createSetMute/);
   assert.match(rough, /project\.importFiles\(\[result\.xml\]/);
   assert.match(rough, /verify\(result\.check, got\)/);
   assert.doesNotMatch(rough, /createRemove|removeItem|deleteSequence|createOverwrite|createInsert/);
   // 0.10.45: trims and moves only ever touch the copies in the NEW sequence, never a source clip (ref.ti is only read and cloned)
   for (const m of rough.matchAll(/([\w.]+)\.(createSetInPointAction|createSetOutPointAction|createMoveAction)\(/g)) assert.match(m[1], /^(j\.copy\.ti|lead\.ti|x\.ti)$/, m[0]);
   assert.doesNotMatch(rough, /ref\.ti\.create(?!CloneTrackItemAction)/);
-  assert.match(rough, /createCloneTrackItemAction\(j\.ref\.ti/);
-  assert.match(fs.readFileSync(path.join(__dirname, "..", "scripts", "package_ccx.sh"), "utf8"), /roughcutplan\.js premiere-roughcut\.js/);
+  assert.match(rough, /ed\.createCloneTrackItemAction\(j\.src, /);
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "scripts", "package_ccx.sh"), "utf8"), /roughcutplan\.js premiere-roughcut\.js silenceplan\.js silences\.js/);
 });
 
 test("SUBTITLES: the caption editor is a hidden tab that appears after a run; Apply goes through onTap and re-runs with a new track allowed", () => {
@@ -200,7 +208,19 @@ test("SUBTITLES: the panel puts a caption track (restyled all at once in Propert
   assert.doesNotMatch(place, /placeGraphics/);
   assert.match(cap, /async function placeGraphics\([\s\S]*engine\.placeGraphics\(/);
   assert.match(host, /if \(name === "graphics"\) return as_graphics/);
-  assert.doesNotMatch(host.slice(host.indexOf("function as_graphics"), host.indexOf("function as_run")), /\.remove\(|removeItem|deleteSequence/);
+  // 0.10.108: the one removal the user approved (2026-11-15, "Yes") is the rough cut's, in Asistent's own duplicate
+  // (as_cut_clean, which works only on the sequence as_cut_target confirms by id and name); nothing else in the host removes
+  const cutFrom = host.indexOf("// ---------------------------------------------------------------- 0.10.108: the rough cut");
+  const cutTo = host.indexOf("function as_eval");
+  assert.ok(cutFrom > 0 && cutTo > cutFrom);
+  const rest = host.slice(host.indexOf("function as_graphics"), cutFrom) + host.slice(cutTo, host.indexOf("function as_run"));
+  assert.doesNotMatch(rest, /\.remove\(|removeItem|deleteSequence/);
+  const cut = host.slice(cutFrom, cutTo);
+  assert.doesNotMatch(cut, /removeItem|deleteSequence/);
+  const clean = cut.slice(cut.indexOf("function as_cut_clean"), cut.indexOf("function as_cut_move"));
+  assert.strictEqual((cut.match(/\.remove\(/g) || []).length, 1);
+  assert.match(clean, /\.remove\(false, false\)/);
+  assert.match(cut, /function as_rough_cut[\s\S]*as_cut_target\(a\)[\s\S]*phase === "clean"/);
 });
 
 test("Exposure −0.5 / +0.5 add a fixed step; in a hand-set Lumetri only Exposure moves and it stays the editor's (0.10.1)", () => {
@@ -410,4 +430,28 @@ test("Captions: Export transcript is a button of its own, wired to the engine (0
   assert.match(html, /id="captionTranscriptTimes"/);
   assert.match(main, /onTap\(\$\("captionTranscript"\), onTranscript\)/);
   assert.match(main, /engine\.transcript\(r\.json, \$\("captionTranscriptTimes"\)\.checked\)/);
+});
+
+// 0.10.111 (the user: the Keyframer's Apply "always visible ... without scrolling")
+test("the Keyframer's Apply sits in a dock outside the scrolling page, shown only with the Keyframer", () => {
+  const app = html.indexOf('<div id="app">');
+  const dock = html.indexOf('<div id="kfDock"');
+  const bottom = html.indexOf('<div id="bottom">');
+  assert.ok(app > 0 && dock > app && bottom > dock, "kfDock between #app and #bottom");
+  // #app closes before the dock: count the divs opened and closed between them
+  const between = html.slice(app, dock);
+  assert.strictEqual((between.match(/<div\b/g) || []).length, (between.match(/<\/div>/g) || []).length, "kfDock is not inside #app");
+  assert.match(main, /show\("kfDock", pane === "paneKeyframer"\)/);
+  const kf = fs.readFileSync(path.join(panel, "keyframer.js"), "utf8");
+  assert.match(kf, /const dock = \$\("kfDock"\) \|\| host;/);
+  assert.match(kf, /dock\.appendChild\(actions\)/);
+});
+
+// 0.10.111 (the user: "avoid overly bright borders"): the open tab is a filled pill; a one-side border colour showed as a
+// yellow box round the whole tab in Premiere
+test("the open tab is drawn with whole-box borders, never a one-side colour", () => {
+  const css = fs.readFileSync(path.join(panel, "style.css"), "utf8");
+  const tabRules = css.split("\n").filter((l) => /\.btn\.tab/.test(l)).join("\n");
+  assert.doesNotMatch(tabRules, /border-(bottom|top|left|right)(-color)?\s*:/);
+  assert.match(css, /\.btn\.tab\.on \{[^}]*background-color: var\(--tab-on\)/);
 });

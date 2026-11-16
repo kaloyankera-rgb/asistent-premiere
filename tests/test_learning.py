@@ -264,8 +264,8 @@ def test_the_sound_check_compares_the_heard_and_the_fixed_words_with_one_word_ar
 
 
 def test_a_correction_written_from_the_captions_matches_any_repair_the_dictionary_may_show(monkeypatch):
-    monkeypatch.setattr(lexicon, "repair", lambda w, *a: None)
-    monkeypatch.setattr(lexicon, "candidates", lambda w: ["месната", "мастната"] if w == "масната" else [])
+    monkeypatch.setattr(lexicon, "repair", lambda w, *a, **k: None)
+    monkeypatch.setattr(lexicon, "candidates", lambda w, strict=True: ["месната", "мастната"] if w == "масната" else [])
     assert {"масната", "месната", "мастната"} <= T.subtitle_job._variants("масната")
 
 

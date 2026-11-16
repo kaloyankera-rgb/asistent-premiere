@@ -152,6 +152,37 @@ window.PREVIEW_SCENARIOS = (function () {
     ]);
   }
 
+  // a made-up recording for the Cut silences preview: speech, pauses, a quiet conversation between two takes
+  function silencesDemo(api, set) {
+    document.getElementById("optRough").hidden = false;
+    for (const [id, v] of Object.entries(set)) {
+      const e = document.getElementById(id);
+      if (e.type === "checkbox") e.checked = !!v;
+      else e.value = v;
+      e.dispatchEvent(new Event("change"));
+    }
+    const db = [];
+    const regions = [];
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const plan = [[2.5, "silence"], [14, "speech"], [1.6, "silence"], [9, "speech"], [0.3, "short"], [6, "speech"], [2, "silence"], [18, "offmic"], [1.4, "silence"],
+      [3, "flag"], [1.2, "silence"], [4, "take"], [0.8, "silence"], [16, "speech"], [0.7, "filler"], [8, "speech"], [3, "silence"]];
+    let t = 12;
+    for (const [len, kind] of plan) {
+      const level = { speech: -18, offmic: -31, flag: -25, take: -19, filler: -24 }[kind] || -62;
+      for (let i = 0; i < Math.round(len / 0.05); i++) db.push(Math.round(level + (level > -50 ? (rnd() - 0.6) * 22 : rnd() * 4)));
+      if (kind !== "speech") {
+        const text = { silence: "silence", short: "short pause", offmic: "a voice 13 dB under the main voice", flag: "a voice 7 dB under the main voice: kept, not sure",
+          take: "repeated take", filler: "hesitation sound" }[kind];
+        regions.push({ start: t, end: t + len, kind: kind === "flag" ? "offmic" : kind, cut: kind !== "flag", flag: kind === "flag", text });
+      }
+      t += len;
+    }
+    api.silences().showResult({ preview: true, t_start: 12, t_end: t, before_s: t - 12, action: "remove", method: set.roughMethod || "auto", mode: "ai",
+      env: { hop: 0.05, db }, regions, tracks: [0, 1], suggest_db: -30,
+      speech: { asr: true, vad: true, listened: [{ name: "C0731.MP4", track: 0, floor: -61, main: -19.4, open: -45.2 }, { name: "Lav 2.WAV", track: 1, floor: -66, main: -22.1, open: -48 }] } });
+  }
+
   function colorProposal(api) {
     const blocks = [];
     const previews = [];
@@ -188,6 +219,10 @@ window.PREVIEW_SCENARIOS = (function () {
     update: { engine: { update: { current: "0.9.87", latest: "0.9.88", newer: true, notes: "## 0.9.88 - Example" } } },
     busy: { run: (api) => { api.setBusy(true); api.progress(0.42, "Recognising the speech: piece 3 of 8…"); } },
     done: { run: roughDone },
+    // 0.10.96 Cut silences: the options open, and a preview of a made-up interview (off-mic talk between two takes)
+    silences: { run: (api) => { document.getElementById("optRough").hidden = false; } },
+    "silences-preview": { run: (api) => silencesDemo(api, {}) },
+    "silences-custom": { run: (api) => silencesDemo(api, { roughPacing: "custom", roughMethod: "manual", roughShort: true }) },
     error: { run: (api) => api.finish("Select at least one clip with sound in the timeline (its video or its audio).", false) },
     log: { run: (api) => { roughDone(api); api.openTab("paneLog"); } },
     color: { run: colorProposal },

@@ -1,5 +1,44 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-15: Auto import is on by default and watches the project's own folder (0.10.113)
+The user asked for "auto export" to be on by itself and linked to the folder the project is saved in, "cause most of the time
+it's the folder where I download the assets"; asked which row, the user chose Auto import (not Show exports, which left the
+project's folder in 0.10.5 because sound effects downloaded there were shown as exports). So a project with no folder of its
+own watches its .prproj's folder from the start; an editor's off is remembered per project; a folder the editor picked or
+dropped still wins, and existing projects keep their folders. One folder still belongs to one project: the project open now
+takes it over. What lives in a project folder and is not a download is skipped: Premiere's previews, auto-saves and caches,
+Asistent's own Asistent_* folders, and the editor's exports (named by Premiere's preferences or an export event). Files from
+before switching on are left alone, as before.
+
+## 2026-11-15: brand colour on Premiere's own text is a Tint before the Graphic group (0.10.112)
+Premiere 26.5.3 exposes no fill, font or size on its own text to scripts (probed again), so the only way to colour it is an
+effect on the clip. A Tint with Map White To the colour and Map Black To black turns white letters exactly into the colour and
+keeps a dark outline or shadow (logos keep Black To = the colour too: one flat colour). It must be inserted before the Graphic
+group: appended after the Text layer Premiere does not draw it (measured). Coloured, non-white text becomes a darker shade, not
+the exact colour; captions on caption tracks cannot be coloured.
+
+## 2026-11-15: Auto Cut silences cuts voices 8 dB under the main voice; subtitles choose readings by Whisper's score (0.10.95)
+The user's red/green labels on Lokali v10: everything kept was at the main voice level, everything rejected 7.2+ dB under, the
+guest's answers 3-6 dB under; a single speaker's softer real line elsewhere was 6.6 dB under. 8 dB sits between; it is a default
+with an option (Keep every voice), because the user said it is not the case for every client. Subtitles: in every style but
+ReShape's, a piece with an unknown heard word is read three ways and Whisper's own score of each text over the sound decides
+(2 points, also per token so a shorter text does not win by leaving words out). Measured on Lokali (-12.0 / -2.3). Earlier the
+sound check was rejected for single dictionary repairs (2026-11-15 below); here it chooses between whole readings Whisper made
+itself, which it separated clearly. Protected ReShape files touched (asr.py: optional counts; subtitle_job.py: the strict
+branch only); `scripts/reshape_golden.py check` identical.
+
+## 2026-11-15: a dictionary repair keeps the number of syllables; no sound check for dictionary repairs (0.10.94)
+Measured on all 16 dictionary repairs of the 30 subtitle runs on this Mac: the 6 that changed the number of syllables were wrong
+or doubtful (съседни, Кара x2, тям, отавила, случва), all right ones kept it, except the vowel next to я / ю the step was made for.
+Whisper's sound check (audiocheck.margin) was measured on the same repairs and does not separate them (right +2.4 … -15, wrong
++8.8 … -19.9), so it stays on learned fixes and speaker forms only. The ReShape style was never the reason for its accuracy:
+the style only cuts lines; its recordings are clean lavalier speech in standard Bulgarian, and its projects carry the editor's
+correction lines. The ReShape style keeps the pre-0.10.94 repair rules (`strict=False`, the user: "leave ReShape as it is").
+
+## 2026-11-15: Cut silences clones in batches within 2 hours of scratch timeline (0.10.94)
+Each clone is the whole clip until it is trimmed; slots one after another reached 28.6 hours on a 101-cut 8-minute clip and
+Premiere crashed. Batches keep the timeline short at the cost of 3 Undo steps per batch (the user's rule: say how many).
+
 ## 2026-11-11: the rough cut is built from clones, the XML only makes the sequence (0.10.45)
 An imported XML makes new master clips, and Premiere re-interprets them (26.5.2: rotation flag off, S-Log3 gone, L/R copies
 plain stereo). Clones of the editor's own track items keep everything. The clones' trims and moves touch only the copies in
@@ -564,3 +603,22 @@ against hand-marked positions it put 7-11 keys in wrong places (court corners, t
 ball, the shadowed court and the skin share one colour. Wrong keys are worse than red frames (the user's rule: say unsure or
 lost rather than guess), so it was not kept. Tuning on the one clip was chaotic (a 1 % change of one threshold moved the result
 a lot): settings were chosen for what they prevent, then checked on synthetic colour scenes over six seeds.
+
+## 2026-11-15: Cut silences decides in regions the editor can turn around; Manual dB is the level alone (0.10.96)
+- The engine measures once and decides per setting, so the preview is cheap and the cut is the preview (same code path, the
+  editor's choices sent back as time ranges). Nothing unsure is cut: a voice within 2 dB above the off-mic line and takes that
+  are not a plain repeat are kept and flagged.
+- Manual dB uses no Silero and no main voice, in every mode: the brief's priority is that it is predictable. So "Silences
+  only" keeps every voice in Automatic and AI-assisted, and in Manual the number decides.
+- Minimum silence is the whole pause (AutoCut's meaning). The three old pacings keep their results under new numbers
+  (1.3 / 0.87 / 0.65 s) instead of silently cutting more.
+- Mute and "keep the spaces" are done in the NEW sequence by leaving the sound or the piece out: Asistent still never mutes
+  a track or removes an item in the editor's sequence (permanent rules).
+- Off-mic classification stays on loudness relative to each microphone's main voice + Silero: word confidence, spectral tilt
+  and in-phrase dynamics were measured on the user's labels and did not separate them. pyannote not added.
+- The default mode is Silences + off-mic (what 0.10.95 did by default and what the user asked for that morning).
+
+## 2026-11-15: Cut silences is cut by the host in a duplicate; the host may remove clips THERE only (0.10.108)
+- **Why:** the copies way crashed Premiere 26.5.3 inside its UXP layer on long selections (2 of 8 runs after every panel-side change, CHANGELOG 0.10.99-0.10.107); ExtendScript does not go through that layer.
+- **Decision (the user, 2026-11-15: "Yes"):** the host duplicates the editor's sequence (`Sequence.clone()`), razors the duplicate, removes from it what is not a kept piece (`TrackItem.remove(false, false)`) and moves the pieces together. This is the one exception to "the host never removes anything": only in the sequence `as_rough_cut` start made, checked by id and name in every later phase, and the razor only runs when that sequence is the one in front. The editor's own sequence is never touched. `wiring.test.js` keeps every other host function free of `.remove(`.
+- **Kept:** the copies way as a fallback without the host (at most 40 pieces). Removing track items through UXP stays forbidden.

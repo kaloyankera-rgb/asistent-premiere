@@ -186,8 +186,12 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   const timesRow = el("div", "row kf-step");
   host.appendChild(timesRow);
 
+  // 0.10.111: Apply, Undo last, Update live and the answer sit in the dock under the page (#kfDock, shown with this page), so
+  // they stay in view whatever is open or scrolled above; without the dock (an older index.html) they stay in the card
+  const dock = $("kfDock") || host;
+  dock.innerHTML = dock === host ? dock.innerHTML : "";
   const actions = el("div", "row buttons spaced kf-actions");
-  host.appendChild(actions);
+  dock.appendChild(actions);
   // 0.10.72 (the user: "auto update when we change these settings"): after Apply, every change re-applies on that clip
   const liveRow = el("div", "row options");
   const liveBox = document.createElement("input");
@@ -204,9 +208,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   });
   liveRow.appendChild(liveBox);
   liveRow.appendChild(liveLabel);
-  host.appendChild(liveRow);
   const status = el("div", "kf-status");
-  host.appendChild(status);
+  dock.appendChild(status);
 
   // Stash v1 (0.10.37): the ticked properties' animation saved as data, applied to any clip at the playhead
   host = card();
@@ -819,6 +822,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     await read(true);
     say(res.removed || res.blur ? `Taken out: ${res.removed} keyframes Asistent had added${res.blur ? " and its motion blur Transform" : ""}.` : "Nothing of Asistent's to take out on this clip.");
   })));
+  actions.appendChild(el("span", "spacer"));
+  actions.appendChild(liveRow);                                             // Apply · Undo last · … · Update live, one row
 
   // ---- motion blur controls (0.10.78)
   function paintBlur() {

@@ -4,8 +4,8 @@ const { fromUri } = require("./dropfolder.js");
 
 const LABELS = { logos: "Logos", graphics: "Graphics", video: "Video", audio: "Sound", presets: "Presets", references: "References", other: "Other files" };
 const ORDER = ["logos", "graphics", "video", "audio", "presets", "references", "other"];
-// What `new ppro.Color(r, g, b, a)` takes: 1 = values 0-1, 255 = values 0-255. NOT MEASURED YET: the Tint probe in NEW TEST
-// decides it (docs/BRAND_KIT.md).
+// What `new ppro.Color(r, g, b, a)` takes: 1 = values 0-1, 255 = values 0-255. Measured 2026-11-15 in NEW TEST (Premiere 26.5.3):
+// 0-1 is right, #ED1C24 written this way reads back 236,27,40 and the tinted letters render 232,28,40.
 const COLOR_RANGE = 1;
 
 /**

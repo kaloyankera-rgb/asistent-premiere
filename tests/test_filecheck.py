@@ -128,3 +128,23 @@ def test_a_shifted_picture_reports_only_its_open_sides(tmp_path):
     r = F.run(make(tmp_path / "shift.mp4", vfilter="crop=230:420:0:0,pad=270:480:0:60:black,setsar=1"))
     bars = [c for c in checks(r) if c.startswith("Black bar")]
     assert bars and all(c.startswith("Black bars at the top and on the right") for c in bars), bars
+
+
+def test_issues_gather_the_places_of_one_kind_and_say_what_to_check():
+    # the user's export (2026-11-15): the same bar at two times was two lines and "2 things to look at"; now one issue
+    f = {"video": {"width": 1080, "height": 1920, "fps": 30, "codec": "h264", "bitrate": 18.6e6, "transfer": "bt709"},
+         "audio": {"channels": 2}, "duration": 45.8, "size": 108.7e6, "bitrate": None}
+    m = {"bars": [{"start": 28.4, "end": 28.9, "sides": "bottom"}, {"start": 30.4, "end": 31.3, "sides": "bottom"}],
+         "black": [[0.0, 0.4]], "freeze": [], "channels": [{"rms": -20, "peak": -6}, {"rms": -20, "peak": -6}],
+         "overall_rms": -20, "true_peak": -5.4, "loudness": -22.9, "silence": []}
+    r = F.report(f, m)
+    assert [(i["kind"], i["topic"], i["title"], i["places"]) for i in r["issues"]] == [
+        ("bars", "Picture", "Black bar at the bottom", [[28.4, 28.9], [30.4, 31.3]]),
+        ("black_start", "Picture", "Black picture at the start", [[0.0, 0.4]])]
+    assert all(i["fix"] for i in r["issues"])
+    assert r["summary"] == "2 things to look at"                     # one per kind, not one per place
+    assert len([x for x in r["lines"] if x["level"] == "check"]) == 3  # the Log keeps every line
+
+
+def test_every_kind_has_a_fix_and_a_topic():
+    assert set(F.FIX) == set(F.TOPIC)

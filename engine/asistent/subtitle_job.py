@@ -37,6 +37,16 @@ PAD = 4.0                  # seconds of real media around each piece, for Whispe
 MAX_WINDOW = 120.0         # a merged window is not grown past this many seconds
 SECOND_BEAM = 2            # a cheaper decode for the second opinion (beam 5 for the main reading)
 SECOND_PAD = 2.0           # the second opinion on a doubtful piece: that piece alone with this much context
+# 0.10.95 (the user, 2026-11-15, Lokali: "It needs to recognize fast talking ... other subtitle generators get them right").
+# Whisper on fast speech sits on a knife edge: the same window read 3 dB louder or quieter gave „Карал ли си някога реална
+# кола? ... А карал ли си на симулатор?“ or „Кара ли с ... кара ли с асимулатор?“ (3 of 6 levels each), and the second
+# opinion had the right line, but the dictionary had already turned „асимулатор“ into the real „асимилатор“, so both
+# readings looked equally sure and the first stayed. Whisper's own score of each reading's text over the piece's sound told
+# them apart (-12.0 against -2.3). In every style but ReShape's (frozen, scripts/reshape_golden.py) a doubtful piece is
+# also read LOUDER, and the reading whose text fits the sound best is kept.
+LOUDER = 2.0               # the third reading: the window at this gain (+6 dB)
+SOUND_MARGIN = 2.0         # another reading replaces the first when Whisper scores its text at least this much higher ...
+SOUND_MAX_S = 29.5         # ... over the piece's sound (the score reads at most 30 s; a longer piece keeps the doubt rule)
 MIN_OVERLAP = 0.4          # a word belongs to the piece when this much of it lies inside the piece
 EDGE = 0.05                # seconds: a word this close to a clip's edge and not clearly heard is a scrap the cut left
 PRESET_NAMES = ("auto", "short", "standard", "reshape", "gstroy", "credissimo", "ekopak", "beautysector", "aula")
@@ -183,7 +193,9 @@ def _inside(w: dict, lo: float, hi: float) -> bool:
 def _variants(word: str) -> set:
     """The spellings a correction line may use for a heard word: as written, and as the engine may show it (every real
     word it may be repaired to: the recording's vocabulary picks one, seen „масната“ shown as „месната“)."""
-    return {consensus.norm(word), consensus.norm(lexicon.repair(word) or word)} | {consensus.norm(c) for c in lexicon.candidates(word)}
+    # both rule sets (0.10.94: the strict one, and the one ReShape keeps): a correction line that matched before still matches
+    return ({consensus.norm(word)} | {consensus.norm(lexicon.repair(word, strict=s) or word) for s in (True, False)}
+            | {consensus.norm(c) for s in (True, False) for c in lexicon.candidates(word, s)})
 
 
 def _text_key(words: list[dict]) -> str:
@@ -275,6 +287,46 @@ def _clamp(words: list[dict], dur: float) -> list[dict]:
         a = min(max(w["start"], 0.0), dur)
         out.append(dict(w, start=a, end=min(max(w["end"], a), dur)))
     return out
+
+
+def _raw_doubt(words: list[dict]) -> bool:
+    """Doubt in what Whisper heard, before the dictionary repairs it (0.10.95): a word the dictionary does not know. A low
+    probability alone is not asked about (most pieces have one: every job would read everything three times)."""
+    return _unknown(words) > 0
+
+
+def _louder_reading(win: dict, y, prompt: str, spoken: dict, pairs, progress, cancelled, learned=None, names=()) -> list[dict]:
+    """The window read again LOUDER (0.10.95) -> its words, aligned on the window's own sound, in window seconds."""
+    z = np.clip(y * LOUDER, -1.0, 1.0).astype(np.float32)
+    key = _words_key(z, prompt)
+    entry = _cached(key) or {}
+    if "words" not in entry:
+        entry = {"words": asr.transcribe(z, prompt or None, progress, cancelled)}
+        _store(key, entry)
+    words, _ = _aligned(y, entry["words"], entry, key, spoken, pairs, learned, names)
+    return words
+
+
+def _best_by_sound(y, lo: float, hi: float, texts: list[str]) -> int:
+    """Which reading of a piece fits its sound best (0.10.95): Whisper scores each text over the piece's sound; another
+    reading replaces the first (index 0) only when it scores SOUND_MARGIN higher in all AND per token (a reading is not
+    better for leaving words out). The first when the texts are the same, a text is empty, the piece is too long to score,
+    or the check fails."""
+    a, b = max(0.0, lo - 0.3), hi + 0.3
+    if b - a > SOUND_MAX_S or len(set(texts)) == 1 or not texts[0].strip():
+        return 0
+    try:
+        scores = asr.score_texts(y[int(a * ASR_SR):int(b * ASR_SR)], [t if t.strip() else "…" for t in texts], counts=True)
+    except Exception as e:                                 # noqa: BLE001 - no check: the first reading stays
+        log.warning("subtitles: sound check of the readings failed: %s", e)
+        return 0
+    best = 0
+    for k in range(1, len(texts)):
+        s, n = scores[k]
+        bs, bn = scores[best]
+        if texts[k].strip() and s >= bs + SOUND_MARGIN and s / n > bs / bn:
+            best = k
+    return best
 
 
 def _unknown(words: list[dict]) -> int:
@@ -438,7 +490,7 @@ def _speaker_forms(checked: list[dict], gender: str, y, lo: float, entry: dict, 
 
 
 def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(), prompt="", progress=None, cancelled=None,
-                 learned=None, speakers=None, names=()) -> tuple[list[dict], dict]:
+                 learned=None, speakers=None, names=(), strict=True) -> tuple[list[dict], dict]:
     """Words of every piece in a window, in SEQUENCE seconds, plus {"cached", "aligned", "weak", "align_error"?, "changed",
     "unsure", "changes", "applied", "trimmed", "second": [(sequence second, "A"|"B")]}.
 
@@ -451,7 +503,8 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
     y, key, entry = read["y"], read["key"], read["entry"]
     words, info = _aligned(y, entry["words"], entry, key, spoken, pairs, learned, names)
     info["cached"] = read["cached"]
-    repair = lambda w, doubt=True: lexicon.repair(w, doubt, vocab)
+    # strict (0.10.94): the dictionary's syllable rule and „карао“ -> „карал“ in every style but ReShape's (lexicon.py)
+    repair = lambda w, doubt=True: lexicon.repair(w, doubt, vocab, strict)
     out: list[dict] = []
     changed = unsure = 0
     changes: list[dict] = []
@@ -462,19 +515,25 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
     # the pieces that still hold unknown words get a second opinion; those readings are independent, so they run at the same
     # time (asr.workers() at once) instead of one after another: 96 s -> about 30 s on a 6-piece ReShape window, same words
     first = {}
+    raw = {}
     for k, sg in enumerate(win["pieces"]):
         lo = sg["start"] - win["a"]
         hi = lo + (sg["end"] - sg["start"])
         mine = _clamp([dict(w, start=w["start"] - lo, end=w["end"] - lo) for w in words if _inside(w, lo, hi)], hi - lo)
         first[k] = consensus.merge(mine, [], lexicon.known, repair)
-    need = [k for k, (checked, _) in first.items() if _unknown(checked) or agreement.forms(checked)]
+        raw[k] = mine
+    need = [k for k, (checked, _) in first.items() if _unknown(checked) or agreement.forms(checked)
+            or (strict and _raw_doubt(raw[k]))]               # 0.10.95: a doubt the dictionary repaired away still counts
     alts = {}
+    louder = None
     if need:
-        with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(need)))) as pool:
+        with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(need) + (1 if strict else 0)))) as pool:
             futures = {k: pool.submit(_second_opinion, win["pieces"][k], prompt, spoken, pairs, progress, cancelled, learned, names)
                        for k in need}
+            loud = pool.submit(_louder_reading, win, y, prompt, spoken, pairs, progress, cancelled, learned, names) if strict else None
             for k, f in futures.items():
                 alts[k] = f.result()
+            louder = loud.result() if loud else None
     for k, sg in enumerate(win["pieces"]):
         lo = sg["start"] - win["a"]
         hi = lo + (sg["end"] - sg["start"])
@@ -487,7 +546,19 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
                      for w in entry["words"] if _inside(w, lo, hi)]                    # what Whisper wrote, untouched
         checked, votes = first[k]
         gender = (speakers or {}).get(str(sg.get("track", "")))           # who speaks on this piece's track, if set
-        if k in alts:
+        if k in alts and strict:
+            # 0.10.95: the reading whose text fits the piece's sound best (the first, the second opinion, the louder one)
+            options = [(raw[k], checked, votes), (alts[k], *consensus.merge(alts[k], [], lexicon.known, repair))]
+            if louder is not None:
+                lw = _clamp([dict(w, start=w["start"] - lo, end=w["end"] - lo) for w in louder if _inside(w, lo, hi)], hi - lo)
+                options.append((lw, *consensus.merge(lw, [], lexicon.known, repair)))
+            pick = _best_by_sound(y, lo, hi, [" ".join(w["word"] for w in o[0]) for o in options])
+            if pick == 0 and _doubts(options[1][1]) < _doubts(checked):
+                pick = 1                                       # the sound did not decide: the doubt rule, as before
+            second.append((round(sg["at"], 1), "ABC"[pick]))
+            other = options[1 if pick == 0 else 0][1]
+            checked, votes = options[pick][1], options[pick][2]
+        elif k in alts:
             alt_checked, alt_votes = consensus.merge(alts[k], [], lexicon.known, repair)
             better = _doubts(alt_checked) < _doubts(checked)
             second.append((round(sg["at"], 1), "B" if better else "A"))
@@ -601,7 +672,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     vocab = vocabulary(reads, [t for _, b in parsed["pairs"] for t in b.split()])
     def finish_one(i: int):
         return window_words(wins[i], reads[i], p["spoken"], parsed["pairs"], vocab, prompt, lambda f, m: None, cancelled, learned,
-                            speakers, names)
+                            speakers, names, p["preset"] != "reshape")
     progress(0.86, "Aligning the words to the sound…")
     with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(wins)))) as pool:   # pass 2: corrections, alignment, spelling
         futures = [pool.submit(finish_one, i) for i in range(len(wins))]

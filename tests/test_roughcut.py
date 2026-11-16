@@ -499,3 +499,20 @@ def test_the_shell_xml_has_the_sequence_tracks_and_markers_but_no_clips():
     assert "<clipitem" not in xml and "<file" not in xml and "<marker>" in xml
     assert xml.count("<track>") == 2 and xml.count('premiereTrackType="Stereo"') == 6     # V1-V2, A1-A3 as pairs
     assert "<width>2160</width><height>3840</height>" in xml
+
+
+def test_a_cut_edge_a_frame_off_a_clip_edge_lands_on_it():
+    # 0.10.110, the user's 2026-11-15 run: "no sound clip here" ended on the 10 ms grid at 168.93 s, a frame before the sound
+    # clip that starts at 168.935 s (frame 5062.98), so the camera without sound kept a frame the others did not: after the
+    # editor closed the gaps it was a 1-frame sliver on V1 and a 1-frame gap on V2, A3 and A4
+    fps = 30000 / 1001
+    layout = [{"kind": "video", "track": 0, "path": "v1.mp4", "start": 136.703, "end": 166.733 + 60, "inPt": 0.0},
+              {"kind": "video", "track": 1, "path": "v2.mp4", "start": 168.935, "end": 188.455, "inPt": 0.0},
+              {"kind": "audio", "track": 2, "path": "a.wav", "start": 168.935, "end": 179.446, "inPt": 0.0}]
+    cuts = edl.align_to_edges(pauses.snap([(150.0, 168.93)], fps), layout, fps)
+    assert round(cuts[0][1] * fps) == round(168.935 * fps)
+    ps = edl.pieces_in_place(layout, edl.kept_ranges(140.0, 185.0, cuts), fps, 140.0)
+    after = [p for p in ps if p["seq_in"] > round(160 * fps)]
+    assert len({p["seq_in"] for p in after}) == 1                            # every track starts on the same frame
+    # an edge further than a frame away is not touched (a cut is never moved into speech)
+    assert edl.align_to_edges([(150.0, 168.80)], layout, fps) == [(round(150.0 * fps) / fps, round(168.80 * fps) / fps)]
