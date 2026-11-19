@@ -1522,6 +1522,8 @@ async function onExposureNudge(delta) {
       engine.log("info", `exposure nudge ${step}: ${r.results.map((x) => `${x.clip.name} ${x.line}`).join(" | ")}`);
       step = state.nudgeQueued || 0;
       state.nudgeQueued = 0;
+      // a press queued while this one was written: let Premiere settle before its effects are read again (2026-11-18 crash)
+      if (step) await new Promise((r) => setTimeout(r, premiereColor.SETTLE_MS));
     }
   } catch (e) {
     state.nudgeQueued = 0;

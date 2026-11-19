@@ -31,6 +31,37 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.118 - Exposure ±0.5 pressed twice fast crashed Premiere: effects read again only after Premiere settles (2026-11-18, installed, untested in Premiere)
+- The user, 2026-11-18 11:48 (Premiere 26.5.3, GStroy КП11 Видео 8): Exposure +0.5 pressed twice fast on fx30-2-1826 and
+  fx30-2-1830 crashed Premiere. The log stops right after the selection was read (the rest of the panel's lines were lost
+  with Premiere); no crash report was written (none in DiagnosticReports or Sentry). Most likely cause: the known Premiere
+  26.5 fault of 2026-11-15 (BUGS: a freed object handed to the script when a clip's effects are read straight after an effect
+  was added), fixed then for the Keyframer only (0.10.87). The colour path added a Lumetri and read the effects at once from
+  the old chain handle, and a press queued during the first one read them again with no pause.
+- `premiere-color.js`: `attachedAll` (all four places that add a Lumetri: Auto color, Shot Match, ±0.5, rough cut colour)
+  waits 60 ms once, reads the effects from a fresh chain handle and keeps the created Lumetri referenced. `main.js`: a
+  queued ±0.5 press waits 60 ms before reading the clips again. `premiere-brand.js`: the same for the Brand Tint (the new
+  one-click Apply row). Not reproducible on demand (intermittent); not yet tried in Premiere.
+
+## 0.10.117 - Sync: short takes sync when the whole-second camera clocks wander up to 2 s (2026-11-18, installed with 0.10.118)
+- The user's GStroy КП11 Видео 8 (49 clips): 7 pairs synced, obvious pairs left out (fx30210/1819, fx30212/1820,
+  fx30216/1824, fx30226/1831, fx30231/1834, fx30232/1835). Cause: each is a short take with 2 agreeing stretches of sound, which needs
+  the learnt camera clocks as the second witness, and that rule (and the "recorded at the same time" hints) only ran when
+  the learnt clock's spread was at most 1.0 s; here it was 1.6 s (the FX30s write whole seconds).
+- `groups.CLOCK_PRECISE` 1.0 -> 2.0 s. Nothing else changed in Sync. On Видео 8: 7 -> 11 groups, 35 -> 26 unsynced,
+  fx30232/fx30233 with 1835 named as hints (the sound there is too weak). On 9 earlier shoots (GStroy brand test footage,
+  GStroy КП11 Видео 2/7/9/10, MASTERHAUS КП3 Видео 1/6, КП2 Видео 8, Pulse Fitness КП5 Видео 7) no pair that synced
+  before was lost or moved (0.00 ms); Видео 7 +1 pair, Видео 9 +5 (three of them a third clip joining an old pair).
+- Tests: two new in `test_groups.py` (spread 1.6 s confirmed, 2.8 s not); 836 Python + 383 Node pass.
+
+## 0.10.116 - Brand colours: an Apply row and a Copy row (2026-11-18, installed)
+- The user, 2026-11-18: the Colours card shows two rows per colour group. A click in the **Apply** row puts the colour on the
+  selected clips at once (same `PB.applyColor` as before: Tint for files and Premiere text, MOGRT colour control; the
+  "Into:" buttons for other MOGRT controls still appear after the first press). A click in the **Copy** row copies the HEX.
+  The separate "Apply to selected" bar under the swatches is gone. The ring marks the colour last used in the row it was used in.
+- `panel/brand.js` (`swatch`, `swatchRow`, `state.hexRow`), `panel/style.css` (`.bk-swrow`, `.bk-swlabel`; `.bk-apply`,
+  `.bk-chip`, `.bk-applyhex` removed), README and `docs/BRAND_KIT.md`. Node tests pass; seen in the browser preview at 240/300/420 px.
+
 ## 0.10.111-0.10.115 - Tabs, Keyframer dock, brand colour on text, Auto import on the project's folder, clearer Export check (2026-11-15, installed: 0.10.115)
 The user's requests of 2026-11-15, after testing 0.10.110.
 - **Tabs** ("clearly readable", "a distinct, modern" open tab, "avoid overly bright borders"): every tab name light grey

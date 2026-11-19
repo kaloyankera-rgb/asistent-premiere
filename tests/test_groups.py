@@ -120,6 +120,26 @@ def test_short_take_with_two_stretches_is_confirmed_by_learnt_clocks():
     assert e["confidence"] == "high" and e["clock_confirmed"] and "short take" in e["reasons"][0]
 
 
+def test_short_take_confirmed_when_whole_second_clocks_spread_1_6_s():
+    # GStroy КП11 Видео 8 (2026-11-18): the sure pairs' clock-vs-sound differences spread 1.6 s (whole-second clocks);
+    # fx30210 / fx30-2-1819 said +4.02 s by sound (2 stretches) and +4.2 s by the clocks: it must sync
+    strict, rec = _learn()
+    rec[3] += 1.3                                            # the second sure pair 1.6 s off the first (0.3 + 1.3)
+    e = _short(4, 5, 4.02)
+    rec += [5000.0, 5000.0 + 4.2 + 3141.3]
+    G._clock_check(_clips(6), ["/A", "/B"] * 3, True, strict + [e], rec, ["metadata"] * 6)
+    assert e["confidence"] == "high" and e["clock_confirmed"]
+
+
+def test_short_take_not_confirmed_when_the_learnt_clock_wanders_more_than_2_s():
+    strict, rec = _learn()
+    rec[3] += 2.5                                            # spread 2.8 s: the clocks are no longer a witness
+    e = _short(4, 5, 4.02)
+    rec += [5000.0, 5000.0 + 4.2 + 3141.3]
+    G._clock_check(_clips(6), ["/A", "/B"] * 3, True, strict + [e], rec, ["metadata"] * 6)
+    assert e["confidence"] == "low"
+
+
 def test_short_take_needs_learnt_clocks_not_raw_ones():
     e = _short(0, 1, 2.29)
     G._clock_check(_clips(2), ["/A", "/B"], True, [e], [1000.0, 1002.0], ["metadata"] * 2)

@@ -235,7 +235,14 @@ async function tint(project, clips, hex, { keepDark = false } = {}) {
       for (const t of fresh) c.addAction(t.at >= 0 ? t.chain.createInsertComponentAction(t.comp, t.at) : t.chain.createAppendComponentAction(t.comp));
     });
     steps++;
-    for (const t of fresh) t.comp = await lastTint(t.chain);
+    // the effects read again only after Premiere settled and from a fresh handle, the created Tint kept referenced: reading
+    // them straight after an add can hand the script a freed object and crash Premiere (premiere-color.js attached)
+    await new Promise((r) => setTimeout(r, 60));
+    for (const t of fresh) {
+      t.created = t.comp;
+      t.chain = (await maybe(t.c.ti, "getComponentChain")) || t.chain;
+      t.comp = await lastTint(t.chain);
+    }
   }
   const acts = [];
   let done = 0;

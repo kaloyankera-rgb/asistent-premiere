@@ -44,6 +44,14 @@ An imported XML makes new master clips, and Premiere re-interprets them (26.5.2:
 plain stereo). Clones of the editor's own track items keep everything. The clones' trims and moves touch only the copies in
 the new sequence; the source sequence is still only read; nothing is removed.
 
+## 2026-11-18: a learnt camera clock counts as a witness up to 2.0 s of spread (0.10.117)
+The user, 2026-11-18 ("do it, if it breaks we reverse it"): the FX30s write whole seconds, so the sure pairs' clock-vs-sound
+differences wander by up to about 2 s; at 1.0 s GStroy КП11 Видео 8 (spread 1.6 s) left 5 short-take pairs unsynced that
+agree with the clocks within 0.7 s (now synced; a sixth has too weak a sound and is only named). Checked on 9 earlier shoots: no pair that synced before was lost or moved (offsets
+identical to 0.00 ms), 7 more pairs sync, more "recorded at the same time" hints. Risk accepted: repetitive noise (drill,
+hammer) matching wrongly in both stretches AND the clocks; such pairs are named in the panel's accepted notes.
+To reverse: `CLOCK_PRECISE = 1.0` in `groups.py`.
+
 ## 2026-11-11: a short take may sync on two stretches when the learnt clocks agree (0.10.45)
 Three stretches cannot exist in a 4-12 s clip. Two agreeing stretches plus the cameras' clocks learnt from the sure pairs (never
 raw clocks) within 1.5 s is two independent witnesses; every other pair keeps the old rule.

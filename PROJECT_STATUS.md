@@ -1,5 +1,15 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.118 (2026-11-18, installed, untested in Premiere): after adding a Lumetri (colour, ±0.5) or a Tint (Brand) the effects are
+read again only after 60 ms and from a fresh handle (crash on Exposure +0.5 pressed twice fast). Not yet tried in Premiere.
+
+0.10.117 (2026-11-18, installed with 0.10.118): Sync accepts short takes
+confirmed by camera clocks that wander up to 2.0 s (was 1.0); GStroy КП11 Видео 8 7 -> 11 pairs; 9 earlier shoots unchanged
+except added pairs. Not yet tried in Premiere. To reverse: `CLOCK_PRECISE = 1.0`.
+
+0.10.116 (2026-11-18, installed): Brand > Colours has an Apply row
+(one click colours the selected clips) and a Copy row (one click copies the HEX) per colour group; not yet seen in Premiere.
+
 0.10.115 (2026-11-15, installed): tabs restyled (light names, the open one an amethyst pill, a scripted fade; look not yet seen by
 the user); Keyframer's Apply, Undo last and Update live in a dock that stays in view (measured); Brand > Apply to selected colours
 text made in Premiere with a Tint before its Graphic group (measured on the MASTERHAUS text: 232,28,40 for #ED1C24); Auto import on

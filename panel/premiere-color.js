@@ -198,7 +198,7 @@ async function target(clip, { manual = false } = {}) {
     return { skip: `already has a Lumetri with ${what} that are not from Asistent or were changed by hand: not touched`, current };
   }
   const comp = await ppro.VideoFilterFactory.createComponent(await lumetriMatch());
-  return { chain, comp, ps: null, isNew: true, current: { ...DEFAULTS }, animated: [] };
+  return { chain, comp, ps: null, isNew: true, current: { ...DEFAULTS }, animated: [], ti: clip.ti };
 }
 
 // A clip under a visible layer (a logo, a title, a safety template left on) cannot be measured on the timeline, so the
@@ -292,7 +292,7 @@ async function applyShotMatch(project, timeline, jobId, entries) {
       for (const pl of fresh) c.addAction(pl.t.chain.createAppendComponentAction(pl.t.comp));
     });
     steps++;
-    for (const pl of fresh) await attached(pl.t);
+    await attachedAll(fresh.map((pl) => pl.t));
   }
   for (const pl of prepared) {
     const miss = Object.keys(pl.values).filter((k) => !pl.t.ps[k]);
@@ -369,10 +369,25 @@ async function remember(pl) {
 }
 
 // after the append: the Lumetri as a real component of the clip (now it has parameters)
+// Premiere 26.5 can hand the script an already freed object when a clip's effects are read straight after an effect was
+// added (the Keyframer's crash, 2026-11-15, fixed in 0.10.87; the same crash on Exposure +0.5 pressed twice fast on two
+// clips without a Lumetri, 2026-11-18). So: the created Lumetri stays referenced, Premiere gets 60 ms to settle once for
+// the whole batch, and the effects are read again from a fresh chain handle.
+const SETTLE_MS = 60;
+const settle = () => new Promise((r) => setTimeout(r, SETTLE_MS));
+
+async function attachedAll(ts) {
+  await settle();
+  for (const t of ts) await attached(t);
+}
+
 async function attached(t) {
-  const count = await t.chain.getComponentCount();
+  t.created = t.comp;                                    // kept referenced until the press ends (Premiere took it over)
+  const chain = (t.ti && (await maybe(t.ti, "getComponentChain"))) || t.chain;
+  t.chain = chain;
+  const count = await chain.getComponentCount();
   for (let i = count - 1; i >= 0; i--) {
-    const comp = await t.chain.getComponentAtIndex(i);
+    const comp = await chain.getComponentAtIndex(i);
     if (/lumetri/i.test((await maybe(comp, "getMatchName")) || "")) {
       t.comp = comp;
       t.ps = await params(comp);
@@ -425,7 +440,7 @@ async function nudgeExposure(project, clips, delta) {
       for (const pl of fresh) c.addAction(pl.t.chain.createAppendComponentAction(pl.t.comp));
     });
     steps++;
-    for (const pl of fresh) await attached(pl.t);
+    await attachedAll(fresh.map((pl) => pl.t));
   }
   const ready = [];
   for (const pl of prepared) {
@@ -639,7 +654,7 @@ async function apply(project, timeline, plans) {
       for (const pl of fresh) c.addAction(pl.t.chain.createAppendComponentAction(pl.t.comp));
     });
     steps++;
-    for (const pl of fresh) await attached(pl.t);
+    await attachedAll(fresh.map((pl) => pl.t));
   }
   const missing = prepared.filter((pl) => Object.keys(pl.values).some((k) => !pl.t.ps[k]));
   for (const pl of missing) {
@@ -907,7 +922,7 @@ async function copyLumetri(project, pairs) {
     transaction(project, "Asistent: Lumetri on the rough cut", (c) => {
       for (const { t } of fresh) c.addAction(t.chain.createAppendComponentAction(t.comp));
     });
-    for (const f of fresh) await attached(f.t);
+    await attachedAll(fresh.map((f) => f.t));
     transaction(project, "Asistent: color on the rough cut", (c) => {
       for (const { pr, t } of fresh) {
         const values = {};
@@ -924,4 +939,4 @@ async function copyLumetri(project, pairs) {
   return done;
 }
 
-module.exports = { readVideoSelection, apply, fileShowsClip, nudgeExposure, exportFrame, exportFrames, timelineFrames, lumetriState, applyShotMatch, readLumetri, copyLumetri, devWrite, devChain };
+module.exports = { SETTLE_MS, readVideoSelection, apply, fileShowsClip, nudgeExposure, exportFrame, exportFrames, timelineFrames, lumetriState, applyShotMatch, readLumetri, copyLumetri, devWrite, devChain };

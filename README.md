@@ -103,9 +103,9 @@ name or folders); pick another one in the list at the top, and the choice is rem
 - **Add** puts a logo, graphic or clip at the playhead, on the track just above everything there, so nothing is covered or
   cut (a track is added on top when none is free). **At end** puts an outro after the last clip. **Import** only puts it in
   the bin `Brand Kit - <client>`. One Cmd/Ctrl+Z takes a placement off.
-- **Colours**: click one to copy its HEX. **Apply to selected** colours the selected logos and graphic files with a Tint
-  (transparency kept) and MOGRTs in their colour control. Text made in Premiere cannot be coloured by a script: paste the
-  copied HEX in Essential Graphics.
+- **Colours**: two rows per colour group. A colour in the **Apply** row goes straight onto the selected clips: logos and
+  graphic files get a Tint (transparency kept), text made in Premiere a Tint that keeps a dark outline dark, MOGRTs their
+  colour control. A colour in the **Copy** row copies its HEX.
 - **Fonts**: **Install** copies the kit's TTF / OTF files into your fonts (Premiere shows them after a restart); **Copy**
   copies the name.
 - **Presets**: **Add** places a MOGRT; **Use** sets the Subtitles style to the client's own. Effect presets are shown in

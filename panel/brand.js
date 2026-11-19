@@ -38,7 +38,7 @@ function mount({ $, el, button, bindTips, premiere, hooks = {} }) {
     open: saved.open && typeof saved.open === "object" ? saved.open : { colors: true, logos: true, video: true },
     choice: saved.choice && typeof saved.choice === "object" ? saved.choice : {},
     addCat: typeof saved.addCat === "string" ? saved.addCat : "",
-    query: "", busy: false, thumbs: {}, hex: null, controls: [], manage: false, confirmDelete: 0, expanded: null,
+    query: "", busy: false, thumbs: {}, hex: null, hexRow: null, controls: [], manage: false, confirmDelete: 0, expanded: null,
     loading: false, error: "", tick: 0, lastAnswer: null,
   };
   const keep = () => store.setItem(KEY, JSON.stringify({ open: state.open, choice: state.choice, addCat: state.addCat }));
@@ -172,6 +172,7 @@ function mount({ $, el, button, bindTips, premiere, hooks = {} }) {
 
   async function copyHex(c) {
     state.hex = c.hex;
+    state.hexRow = "copy";
     state.controls = [];
     render();
     try {
@@ -406,40 +407,46 @@ function mount({ $, el, button, bindTips, premiere, hooks = {} }) {
     c.appendChild(r);
   }
 
+  // Two rows per colour group (the user, 2026-11-18): the Apply row puts the colour on the selected clips in one click,
+  // the Copy row copies its HEX. The ring marks the colour last used and in which row.
+  const APPLY_TIP = "Puts this colour on the clips selected in the timeline.\nLogos and graphic files: a Tint, the whole picture in this colour, transparency kept.\nText made in Premiere: a Tint, white letters in exactly this colour, a dark outline or shadow stays dark.\nMOGRTs: their first colour control; the others appear as buttons after the first press.\nCaptions on a caption track cannot be coloured: the HEX is copied for Properties.";
+
+  function swatch(it, row, fn) {
+    const name = `${it.hex}${it.name && it.name !== it.hex ? ` · ${it.name}` : ""}${it.note ? `\n${it.note}` : ""}`;
+    const tip = row === "apply" ? `${name}\n\n${APPLY_TIP}` : `${name}\nClick to copy the HEX.`;
+    const sw = button(`bk-sw${state.hex === it.hex && state.hexRow === row ? " on" : ""}`, "", tip, fn);
+    sw.style.backgroundColor = it.hex;
+    const lab = el("div", "bk-hex", it.hex.slice(1));
+    lab.style.color = BP.textOn(it.hex);
+    sw.appendChild(lab);
+    return sw;
+  }
+
+  function swatchRow(items, row, label, fn) {
+    const r = el("div", "row bk-swrow");
+    r.appendChild(el("div", "bk-swlabel", label));
+    const box = el("div", "row wrap bk-swatches");
+    for (const it of items) box.appendChild(swatch(it, row, () => fn(it)));
+    r.appendChild(box);
+    return r;
+  }
+
   function renderColors(k) {
     if (!k.colors || !k.colors.length || state.query) return;
     const c = card();
     head(c, "Colours", k.colors.reduce((n, g) => n + g.items.length, 0), "colors",
-      "Click a colour to copy its HEX. Then Apply puts it on the selected clips: a logo or graphic file gets a Tint, a MOGRT gets it in its colour control.");
+      "Apply row: click a colour to put it on the selected clips (a logo or graphic file gets a Tint, a MOGRT gets it in its colour control).\nCopy row: click a colour to copy its HEX.");
     if (!state.open.colors) return;
     for (const g of k.colors) {
       c.appendChild(el("div", "bk-group", g.group));
-      const r = el("div", "row wrap bk-swatches");
-      for (const it of g.items) {
-        const sw = button(`bk-sw${state.hex === it.hex ? " on" : ""}`, "",
-          `${it.hex}${it.name && it.name !== it.hex ? ` · ${it.name}` : ""}${it.note ? `\n${it.note}` : ""}\nClick to copy.`, () => copyHex(it));
-        sw.style.backgroundColor = it.hex;
-        const lab = el("div", "bk-hex", it.hex.slice(1));
-        lab.style.color = BP.textOn(it.hex);
-        sw.appendChild(lab);
-        r.appendChild(sw);
-      }
-      c.appendChild(r);
+      c.appendChild(swatchRow(g.items, "apply", "Apply", (it) => { if (state.busy) return; state.hex = it.hex; state.hexRow = "apply"; state.controls = []; render(); applyHex(0); }));
+      c.appendChild(swatchRow(g.items, "copy", "Copy", (it) => copyHex(it)));
     }
-    if (state.hex) {
-      const r = el("div", "row wrap bk-apply");
-      const chip = el("div", "bk-chip");
-      chip.style.backgroundColor = state.hex;
-      r.appendChild(chip);
-      r.appendChild(el("span", "bk-applyhex", state.hex));
-      r.appendChild(btn("Apply to selected", "Puts this colour on the clips selected in the timeline.\nLogos and graphic files: a Tint, the whole picture in this colour, transparency kept.\nText made in Premiere: a Tint, white letters in exactly this colour, a dark outline or shadow stays dark.\nMOGRTs: their first colour control; the others appear as buttons after the first press.\nCaptions on a caption track cannot be coloured: the HEX is copied for Properties.", () => applyHex(0), "hot"));
-      c.appendChild(r);
-      if (state.controls.length) {
-        const r2 = el("div", "row wrap bk-more");
-        r2.appendChild(el("span", "muted bk-ctl", "Into:"));
-        state.controls.forEach((name, i) => r2.appendChild(btn(name, `Put ${state.hex} into the MOGRT's "${name}" instead.`, () => applyHex(i))));
-        c.appendChild(r2);
-      }
+    if (state.hex && state.controls.length) {
+      const r2 = el("div", "row wrap bk-more");
+      r2.appendChild(el("span", "muted bk-ctl", "Into:"));
+      state.controls.forEach((name, i) => r2.appendChild(btn(name, `Put ${state.hex} into the MOGRT's "${name}" instead.`, () => applyHex(i))));
+      c.appendChild(r2);
     }
   }
 
@@ -831,6 +838,7 @@ function mount({ $, el, button, bindTips, premiere, hooks = {} }) {
     },
     color: async (hex, index = 0) => {
       state.hex = hex;
+      state.hexRow = "apply";
       applyHex(index);
       while (state.busy) await new Promise((r) => setTimeout(r, 200));
       return state.lastAnswer;

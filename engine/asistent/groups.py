@@ -26,7 +26,10 @@ CLOCK_CONFIRM = 2.0    # s: recording times this close to the audio's offset con
 SHORT_MIN_WINDOWS = 2
 SHORT_RATIO = 1.25     # median peak / second peak of the two stretches (measured 1.27-2.32 on the real pairs)
 CLOCK_SHORT = 1.5      # s
-CLOCK_PRECISE = 1.0    # s: a learnt camera clock this consistent (spread) may decide a short or a two-offset pair
+# s: a learnt camera clock this consistent (spread) may decide a short or a two-offset pair. 2.0 since 0.10.117: the FX30s
+# write whole seconds, so a pair's clock-vs-sound difference wanders by up to about 2 s (GStroy КП11 Видео 8, 2026-11-18:
+# spread 1.6 s, 6 short-take pairs within 0.7 s of the clocks were left out at 1.0; the 7 sure pairs unchanged).
+CLOCK_PRECISE = 2.0
 OVERLAP_HINT = 1.0     # s: clips the clocks put together for this long are named when the sound could not confirm them
 # FFmpeg decoding and NumPy/SciPy FFTs release the GIL, so threads use several cores
 WORKERS = max(2, min(8, (os.cpu_count() or 4) - 2))

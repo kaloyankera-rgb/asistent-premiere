@@ -59,6 +59,10 @@ with -W error). `tests/conftest.py` imports it once with only that warning ignor
 See CHANGELOG 0.10.70. NEW TEST still holds the 928 imported screenshots (bin MUSIC): delete them by hand.
 
 ## Open bugs
+- **Premiere crashed on Exposure +0.5 pressed twice fast (2026-11-18 11:48, the user's GStroy project, 26.5.3):** two clips
+  without a Lumetri; no crash report written. Treated as the same Premiere fault as the Keyframer crash below; 0.10.118 settles
+  60 ms and reads the effects from a fresh handle after every Lumetri / Tint add and between queued presses. If it happens
+  again, note the time and whether the clips already had a Lumetri.
 - **Premiere crashed once while testing 0.10.86 (2026-11-15 04:07, NEW TEST, recovered on relaunch):** inside UXP, turning a
   Premiere object into JavaScript (`napi_wrap` from `CallProperty`; the pointer read was text: a freed object), right after
   the Keyframer added its motion blur Transform. The same step ran fine about ten times before and after; Lumetri and Tint
