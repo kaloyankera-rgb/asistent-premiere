@@ -41,12 +41,20 @@ MODELS = {
     TURBO: {"repo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo", "folder": "whisper-turbo", "bytes": 1_622_000_000,
             "label": "large-v3-turbo, about 1.6 GB"},                # MIT; faster-whisper's own "turbo" name points here
 }
+# 0.10.119: the same large-v3 files read with full 32-bit numbers on the processor instead of 8-bit ones. Measured on the
+# editors' finished videos (scripts/bench_subtitles.py, 2026-11-20): 8-bit costs words (315 -> 285 wrong of 2237 on the
+# tuning videos, 335 -> 326 of 1934 on the held-back ones) for about a third less reading time. A recognition profile asks
+# for it (recognition.py); the ReShape style keeps the 8-bit model it was approved with. A graphics card is not affected:
+# it reads in float16 either way. Loaded apart from the 8-bit model (about 6 GB of memory), freed when idle like it.
+LARGE_FULL = "large-v3-float32"
+MODELS[LARGE_FULL] = {**MODELS[LARGE], "label": "large-v3 float32, about 3 GB", "compute": "float32"}
 IDLE_SECONDS = 600
 LANGUAGE = "bg"
 
 _lock = threading.Lock()                   # loading and freeing the model
 _state: dict = {"model": None, "device": None, "workers": 1, "last": 0.0, "timer": None}       # large-v3 (subtitles)
-_states: dict = {LARGE: _state, TURBO: {"model": None, "device": None, "workers": 1, "last": 0.0, "timer": None}}
+_states: dict = {LARGE: _state, TURBO: {"model": None, "device": None, "workers": 1, "last": 0.0, "timer": None},
+                 LARGE_FULL: {"model": None, "device": None, "workers": 1, "last": 0.0, "timer": None}}
 
 
 class ASRError(MediaError):
@@ -124,6 +132,19 @@ def _parallelism(device: str) -> tuple[int, int]:
     return 1, max(2, cores // 2)
 
 
+FULL_MEMORY = 16 * 1024 ** 3       # LARGE_FULL holds about 6 GB: only on a computer with at least this much memory
+
+
+def full_precision() -> str:
+    """The model a profile that asks for full precision gets on this computer: LARGE_FULL, or the 8-bit LARGE where
+    the memory is too small for it (the words then come out as before 0.10.119, nothing fails)."""
+    try:
+        memory = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (ValueError, OSError, AttributeError):                 # Windows has no sysconf: its processor path keeps 8-bit
+        return LARGE
+    return LARGE_FULL if memory >= FULL_MEMORY else LARGE
+
+
 def workers() -> int:
     """How many windows can be read at the same time (the job reads that many in parallel)."""
     return _parallelism(_device()[0])[0]
@@ -150,6 +171,8 @@ def _load(kind: str = LARGE):
             return st["model"]
         from faster_whisper import WhisperModel
         device, compute = _device()
+        if device == "cpu":
+            compute = MODELS[kind].get("compute", compute)      # LARGE_FULL: float32 on the processor
         n, threads = _parallelism(device)
         t0 = time.time()
         try:
@@ -157,7 +180,7 @@ def _load(kind: str = LARGE):
         except Exception:
             if device == "cpu":
                 raise
-            device, compute = "cpu", "int8"         # no usable CUDA libraries: the processor
+            device, compute = "cpu", MODELS[kind].get("compute", "int8")     # no usable CUDA libraries: the processor
             n, threads = _parallelism(device)
             model = WhisperModel(model_dir(kind), device=device, compute_type=compute, num_workers=n, cpu_threads=threads)
         log.info("whisper %s loaded on %s/%s (%d readings x %d threads) in %.1fs", MODELS[kind]["label"].split(",")[0], device,
@@ -183,11 +206,12 @@ def _schedule_free(kind: str = LARGE) -> None:
 
 def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[[float, str], None] | None = None,
                cancelled: Callable[[], bool] | None = None, language: str = LANGUAGE, beam: int = 5,
-               model: str = LARGE, compression: float | None = None) -> list[dict]:
+               model: str = LARGE, compression: float | None = None, options: dict | None = None) -> list[dict]:
     """Words with times (seconds from the start of `audio`) and Whisper's probability. Callers may run in parallel up to
     `workers()`; more wait their turn inside the model. `model`: LARGE (subtitles, the default) or TURBO (rough cut only).
     `compression`: Whisper's compression-ratio limit (None = faster-whisper's 2.4, the subtitles' setting); the rough cut
-    passes ROUGH_COMPRESSION (0.10.45)."""
+    passes ROUGH_COMPRESSION (0.10.45). `options` (0.10.119): more of faster-whisper's own transcribe options, from a
+    recognition profile (recognition.py); None or empty = the call exactly as it has always been (the ReShape style)."""
     kind = model
     progress = progress or (lambda f, m: None)
     cancelled = cancelled or (lambda: False)
@@ -197,12 +221,16 @@ def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[
     if cancelled():
         raise Cancelled()
     extra = {} if compression is None else {"compression_ratio_threshold": compression}
+    if options:
+        extra = {**extra, **options}
     box: dict = {}
 
     def read():
         try:
-            segments, _ = model.transcribe(audio, language=language, word_timestamps=True, vad_filter=False, beam_size=beam,
-                                           initial_prompt=prompt or None, **extra)
+            # the call as it has always been; a profile's options come last, so one of them may also replace a value here
+            kw = {"language": language, "word_timestamps": True, "vad_filter": False, "beam_size": beam,
+                  "initial_prompt": prompt or None, **extra}
+            segments, _ = model.transcribe(audio, **kw)
             words: list[dict] = []
             for seg in segments:                           # a generator: the work happens here, segment by segment
                 if cancelled():
@@ -233,14 +261,14 @@ def transcribe(audio: np.ndarray, prompt: str | None = None, progress: Callable[
     return box["words"]
 
 
-def score_texts(audio: np.ndarray, texts: list[str], language: str = LANGUAGE, counts: bool = False) -> list:
+def score_texts(audio: np.ndarray, texts: list[str], language: str = LANGUAGE, counts: bool = False, kind: str = LARGE) -> list:
     """How well each text fits the same audio (at most 30 s): the sum of the log probabilities Whisper gives its tokens
     when it is made to read that text (CTranslate2 `align`, the call faster-whisper times words with). Only differences
     between texts for the same audio mean anything. Measured 2026-11-04 on 26 fixes (audiocheck.py): Whisper prefers its
     own spelling, so a fix scores a little lower or higher, a wrong word several points lower."""
     from faster_whisper.audio import pad_or_trim
     from faster_whisper.tokenizer import Tokenizer
-    model = _load()
+    model = _load(kind)                    # `kind` (0.10.119): the model that made the readings scores them (LARGE_FULL)
     tok = Tokenizer(model.hf_tokenizer, True, task="transcribe", language=language)
     feats = model.feature_extractor(audio.astype(np.float32))
     frames = min(feats.shape[-1], model.feature_extractor.nb_max_frames)
@@ -250,8 +278,8 @@ def score_texts(audio: np.ndarray, texts: list[str], language: str = LANGUAGE, c
         res = model.model.align(enc, tok.sot_sequence, [tok.encode(" " + text.strip())], frames // 2)
         lp = np.log(np.maximum(np.asarray(res[0].text_token_probs, dtype=np.float64), 1e-9))
         out.append((float(lp.sum()), max(1, len(lp))) if counts else float(lp.sum()))   # counts (0.10.95): (sum, tokens)
-    _state["last"] = time.time()
-    _schedule_free()
+    _states[kind]["last"] = time.time()
+    _schedule_free(kind)
     return out
 
 

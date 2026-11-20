@@ -264,7 +264,18 @@
   </div>
 
   <div id="paneSettings" class="pane" hidden>
-    <div class="fgroup first">Developer</div>
+    <div class="fgroup first">Subtitles</div>
+    <div class="list"><div class="fopts open">
+      <p class="desc">Recognition by ElevenLabs: far fewer wrong Bulgarian words and a much shorter wait. With a key saved, Auto and the client styles send the sound of the selected clips to ElevenLabs (sound only, deleted there after the words come back). ReShape is always recognised on this computer, and so is everything when there is no internet.</p>
+      <div id="cloudStatus" class="muted">Checking…</div>
+      <div class="row"><input type="text" id="cloudKey" class="cloud-key" placeholder="Paste the ElevenLabs API key" /></div>
+      <div class="row buttons">
+        <div id="cloudSave" class="btn small" data-tip="Saves the key on this computer only. It needs Speech to Text access.">Save key</div>
+        <div id="cloudToggle" class="btn small" data-tip="Switches recognition by ElevenLabs on or off; the key stays saved.">Turn off</div>
+        <div id="cloudRemove" class="btn small" data-tip="Removes the key from this computer. Subtitles are then recognised here.">Remove key</div>
+      </div>
+    </div></div>
+    <div class="fgroup">Developer</div>
     <div class="list"><div class="fopts open">
       <p class="desc">Tools for testing Asistent itself, in the test project only.</p>
       <div id="devTools" class="row buttons">

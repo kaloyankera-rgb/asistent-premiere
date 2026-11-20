@@ -26,8 +26,8 @@ from typing import Callable
 
 import numpy as np
 
-from . import (agreement, align, asr, audiocheck, bgnorm, config, consensus, corrections, dialoguemix, english, learning, lexicon,
-               subtitle_settings, subtitles, suspects, translate)
+from . import (agreement, align, asr, audiocheck, bgnorm, cloudasr, config, consensus, corrections, dialoguemix, english, learning, lexicon,
+               recognition, subtitle_settings, subtitles, suspects, translate)
 from .dialoguemix import ASR_SR, build_mix, read_segment
 from .sync import Cancelled
 
@@ -154,11 +154,26 @@ def _english_words(raw) -> dict:
     return {" ".join(k.lower().split()): " ".join(v.split()) for k, v in raw.items() if k.strip() and v.strip()}
 
 
-def _words_key(audio, prompt: str) -> str:
+def _words_key(audio, prompt: str, tag: str = "") -> str:
+    """The cache key of one reading. `tag` (recognition.Profile.tag) is empty for the profiles that hear and decode as
+    Asistent always has, and then the key is exactly what it was: a ReShape reading keeps its key, and a profile that
+    evens out the level or decodes differently never gets (or leaves) a reading made another way."""
     h = hashlib.sha1()
     h.update(f"{CACHE_VERSION}|{asr.MODEL_REPO}|{asr.LANGUAGE}|{ASR_SR}|{prompt}|".encode("utf-8"))
+    if tag:
+        h.update(f"{tag}|".encode("utf-8"))
     h.update(audio.tobytes())
     return h.hexdigest()
+
+
+def _heard(y, prompt: str, prof, progress, cancelled, **kw) -> list[dict]:
+    """One Whisper reading of `y` as the profile hears and decodes it (no profile: the call exactly as before 0.10.119)."""
+    options = prof.options(prompt) if prof else None
+    if options:
+        kw["options"] = options
+    if prof is not None and prof.full and asr.full_precision() != asr.LARGE:
+        kw["model"] = asr.full_precision()
+    return asr.transcribe(recognition.prepare(y, prof) if prof else y, prompt or None, progress, cancelled, **kw)
 
 
 def _cached(key: str):
@@ -236,20 +251,29 @@ def silence_between(y: np.ndarray, win: dict) -> np.ndarray:
     return (y * keep).astype(np.float32)
 
 
-def window_audio(win: dict, prompt: str) -> tuple[np.ndarray, str]:
-    """What a window's reading hears and the cache key of that reading."""
+def window_audio(win: dict, prompt: str, prof=None) -> tuple[np.ndarray, str]:
+    """What a window's reading hears (as recorded) and the cache key of that reading."""
     y, _ = read_segment({"path": win["path"], "start": win["a"], "end": win["b"]}, 0.0)
     y = silence_between(y, win)
-    return y, _words_key(y, prompt)
+    return y, _words_key(y, prompt, prof.tag if prof else "")
 
 
-def read_window(win: dict, prompt: str, progress, cancelled) -> dict:
-    """One Whisper reading of a window (cached by its audio + prompt) -> {"y", "key", "entry", "cached"}."""
-    y, key = window_audio(win, prompt)
+def read_window(win: dict, prompt: str, progress, cancelled, prof=None) -> dict:
+    """One reading of a window (cached by its audio + prompt + the profile's tag) -> {"y", "key", "entry", "cached"}, and
+    "fallback": the reason, when a cloud profile's window had to be read on this computer instead (0.10.119)."""
+    y, key = window_audio(win, prompt, prof)
     entry = _cached(key) or {}
     cached = "words" in entry
-    if not cached:
-        entry = {"words": asr.transcribe(y, prompt or None, progress, cancelled)}
+    if not cached and prof is not None and prof.cloud:
+        try:
+            # only the sound goes: no prompt, no names, no file name (cloudasr.py says what leaves the computer and why)
+            entry = {"words": cloudasr.transcribe(y, progress, cancelled, prof.cloud), "by": prof.cloud}
+        except cloudasr.CloudError as e:
+            log.warning("subtitles: %s; this window is recognised on this computer", e)
+            return {**read_window(win, prompt, progress, cancelled, recognition.local(prof)), "fallback": str(e)}
+        _store(key, entry)
+    elif not cached:
+        entry = {"words": _heard(y, prompt, prof, progress, cancelled)}
         _store(key, entry)
     return {"y": y, "key": key, "entry": entry, "cached": cached}
 
@@ -295,19 +319,19 @@ def _raw_doubt(words: list[dict]) -> bool:
     return _unknown(words) > 0
 
 
-def _louder_reading(win: dict, y, prompt: str, spoken: dict, pairs, progress, cancelled, learned=None, names=()) -> list[dict]:
+def _louder_reading(win: dict, y, prompt: str, spoken: dict, pairs, progress, cancelled, learned=None, names=(), prof=None) -> list[dict]:
     """The window read again LOUDER (0.10.95) -> its words, aligned on the window's own sound, in window seconds."""
     z = np.clip(y * LOUDER, -1.0, 1.0).astype(np.float32)
-    key = _words_key(z, prompt)
+    key = _words_key(z, prompt, prof.tag if prof else "")
     entry = _cached(key) or {}
     if "words" not in entry:
-        entry = {"words": asr.transcribe(z, prompt or None, progress, cancelled)}
+        entry = {"words": _heard(z, prompt, prof, progress, cancelled)}
         _store(key, entry)
     words, _ = _aligned(y, entry["words"], entry, key, spoken, pairs, learned, names)
     return words
 
 
-def _best_by_sound(y, lo: float, hi: float, texts: list[str]) -> int:
+def _best_by_sound(y, lo: float, hi: float, texts: list[str], prof=None) -> int:
     """Which reading of a piece fits its sound best (0.10.95): Whisper scores each text over the piece's sound; another
     reading replaces the first (index 0) only when it scores SOUND_MARGIN higher in all AND per token (a reading is not
     better for leaving words out). The first when the texts are the same, a text is empty, the piece is too long to score,
@@ -316,7 +340,8 @@ def _best_by_sound(y, lo: float, hi: float, texts: list[str]) -> int:
     if b - a > SOUND_MAX_S or len(set(texts)) == 1 or not texts[0].strip():
         return 0
     try:
-        scores = asr.score_texts(y[int(a * ASR_SR):int(b * ASR_SR)], [t if t.strip() else "…" for t in texts], counts=True)
+        kw = {"kind": asr.full_precision()} if prof is not None and prof.full and asr.full_precision() != asr.LARGE else {}
+        scores = asr.score_texts(y[int(a * ASR_SR):int(b * ASR_SR)], [t if t.strip() else "…" for t in texts], counts=True, **kw)
     except Exception as e:                                 # noqa: BLE001 - no check: the first reading stays
         log.warning("subtitles: sound check of the readings failed: %s", e)
         return 0
@@ -443,14 +468,14 @@ def _aligned(y, entry_words: list[dict], entry: dict, key: str, spoken: dict, pa
     return words, info
 
 
-def _second_opinion(sg: dict, prompt: str, spoken: dict, pairs, progress, cancelled, learned=None, names=()) -> list[dict]:
+def _second_opinion(sg: dict, prompt: str, spoken: dict, pairs, progress, cancelled, learned=None, names=(), prof=None) -> list[dict]:
     """The piece alone with SECOND_PAD seconds of context -> its words, in seconds from the start of the piece."""
     seg = {"path": sg["path"], "start": sg["start"], "end": sg["end"]}
     y, lead = read_segment(seg, SECOND_PAD)
-    key = _words_key(y, prompt)
+    key = _words_key(y, prompt, prof.tag if prof else "")
     entry = _cached(key) or {}
     if "words" not in entry:
-        entry = {"words": asr.transcribe(y, prompt or None, progress, cancelled, beam=SECOND_BEAM)}
+        entry = {"words": _heard(y, prompt, prof, progress, cancelled, beam=SECOND_BEAM)}
         _store(key, entry)
     words, _ = _aligned(y, entry["words"], entry, key, spoken, pairs, learned, names)
     dur = sg["end"] - sg["start"]
@@ -490,7 +515,7 @@ def _speaker_forms(checked: list[dict], gender: str, y, lo: float, entry: dict, 
 
 
 def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(), prompt="", progress=None, cancelled=None,
-                 learned=None, speakers=None, names=(), strict=True) -> tuple[list[dict], dict]:
+                 learned=None, speakers=None, names=(), strict=True, prof=None) -> tuple[list[dict], dict]:
     """Words of every piece in a window, in SEQUENCE seconds, plus {"cached", "aligned", "weak", "align_error"?, "changed",
     "unsure", "changes", "applied", "trimmed", "second": [(sequence second, "A"|"B")]}.
 
@@ -505,6 +530,20 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
     info["cached"] = read["cached"]
     # strict (0.10.94): the dictionary's syllable rule and „карао“ -> „карал“ in every style but ReShape's (lexicon.py)
     repair = lambda w, doubt=True: lexicon.repair(w, doubt, vocab, strict)
+    if prof is not None and prof.repair == "careful":
+        repair = lambda w, doubt=True: lexicon.repair(w, doubt, vocab, strict, careful=True)
+    elif prof is not None and prof.repair == "ear":
+        repair = lambda w, doubt=True: lexicon.repair_by_ear(w, doubt, vocab)
+    elif prof is not None and prof.repair == "steps+ear":       # the shipped steps; where they do not choose, the nearest by ear
+        repair = lambda w, doubt=True: lexicon.repair(w, doubt, vocab, strict) or lexicon.repair_by_ear(w, doubt, vocab)
+    elif prof is not None and prof.repair == "none":            # the words stand as read; an unknown word is only marked
+        repair = lambda w, doubt=True: None
+    elif prof is not None and prof.repair == "careful+ear":
+        repair = lambda w, doubt=True: lexicon.repair(w, doubt, vocab, strict, careful=True) or lexicon.repair_by_ear(w, doubt, vocab)
+    # what a doubtful piece gets (recognition.Profile.second). No profile: as before 0.10.119, by `strict` alone
+    mode = prof.second if prof is not None else ("sound" if strict else "doubts")
+    sound = mode in ("sound", "sound_only", "alone")
+    swaps: list = []
     out: list[dict] = []
     changed = unsure = 0
     changes: list[dict] = []
@@ -522,15 +561,16 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
         mine = _clamp([dict(w, start=w["start"] - lo, end=w["end"] - lo) for w in words if _inside(w, lo, hi)], hi - lo)
         first[k] = consensus.merge(mine, [], lexicon.known, repair)
         raw[k] = mine
-    need = [k for k, (checked, _) in first.items() if _unknown(checked) or agreement.forms(checked)
-            or (strict and _raw_doubt(raw[k]))]               # 0.10.95: a doubt the dictionary repaired away still counts
+    need = [] if mode == "none" else [k for k, (checked, _) in first.items() if _unknown(checked) or agreement.forms(checked)
+                                      or (sound and _raw_doubt(raw[k]))]   # 0.10.95: a doubt the dictionary repaired away still counts
     alts = {}
     louder = None
     if need:
-        with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(need) + (1 if strict else 0)))) as pool:
-            futures = {k: pool.submit(_second_opinion, win["pieces"][k], prompt, spoken, pairs, progress, cancelled, learned, names)
+        again = mode in ("sound", "sound_only")                # the whole window once more, louder ("alone": only the pieces)
+        with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(need) + (1 if again else 0)))) as pool:
+            futures = {k: pool.submit(_second_opinion, win["pieces"][k], prompt, spoken, pairs, progress, cancelled, learned, names, prof)
                        for k in need}
-            loud = pool.submit(_louder_reading, win, y, prompt, spoken, pairs, progress, cancelled, learned, names) if strict else None
+            loud = pool.submit(_louder_reading, win, y, prompt, spoken, pairs, progress, cancelled, learned, names, prof) if again else None
             for k, f in futures.items():
                 alts[k] = f.result()
             louder = loud.result() if loud else None
@@ -546,15 +586,20 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
                      for w in entry["words"] if _inside(w, lo, hi)]                    # what Whisper wrote, untouched
         checked, votes = first[k]
         gender = (speakers or {}).get(str(sg.get("track", "")))           # who speaks on this piece's track, if set
-        if k in alts and strict:
+        before = checked
+        if k in alts and sound:
             # 0.10.95: the reading whose text fits the piece's sound best (the first, the second opinion, the louder one)
             options = [(raw[k], checked, votes), (alts[k], *consensus.merge(alts[k], [], lexicon.known, repair))]
             if louder is not None:
                 lw = _clamp([dict(w, start=w["start"] - lo, end=w["end"] - lo) for w in louder if _inside(w, lo, hi)], hi - lo)
                 options.append((lw, *consensus.merge(lw, [], lexicon.known, repair)))
-            pick = _best_by_sound(y, lo, hi, [" ".join(w["word"] for w in o[0]) for o in options])
-            if pick == 0 and _doubts(options[1][1]) < _doubts(checked):
+            pick = _best_by_sound(y, lo, hi, [" ".join(w["word"] for w in o[0]) for o in options], prof)
+            if pick == 0 and mode in ("sound", "alone") and _doubts(options[1][1]) < _doubts(checked):
                 pick = 1                                       # the sound did not decide: the doubt rule, as before
+            if pick and mode == "alone" and len(options[pick][0]) < len(raw[k]):
+                # a reading with fewer words does not win: measured 2026-11-20, without this rule the second readings broke
+                # 33 words and fixed 27 (most of the broken ones simply left out), with it 10 and 19
+                pick = 0
             second.append((round(sg["at"], 1), "ABC"[pick]))
             other = options[1 if pick == 0 else 0][1]
             checked, votes = options[pick][1], options[pick][2]
@@ -570,6 +615,11 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
                 checked[i]["p"] = min(checked[i].get("p", 1.0), consensus.UNSURE_P)
                 votes["unsure"] += 1
                 disputes.append({"at": round(sg["at"] + checked[i]["start"], 2), "word": checked[i]["word"], "reason": "male or female form: the readings differ"})
+        if prof is not None and prof.log and checked is not before:
+            # another reading replaced this piece's words: both texts, so the change can be traced (the 2026-11-20 audit found
+            # these swaps were most of the difference between what Whisper first wrote and the captions, and none was listed)
+            swaps.append({"at": round(sg["at"], 2), "pick": second[-1][1], "from": " ".join(w["word"] for w in before),
+                          "to": " ".join(w["word"] for w in checked)})
         if gender in ("m", "f"):
             checked, said, doubts = _speaker_forms(checked, gender, y, lo, entry, key)
             speaker_changes += said
@@ -595,7 +645,7 @@ def window_words(win: dict, read: dict, spoken: dict, pairs=(), vocab=frozenset(
         changes += votes["changes"]
         out += [dict(w, start=round(sg["at"] + w["start"], 3), end=round(sg["at"] + w["end"], 3)) for w in checked]
     info.update(changed=changed, unsure=unsure, changes=changes, second=second, disputes=disputes, verbatim=verbatim,
-                speaker=speaker_changes)
+                speaker=speaker_changes, swaps=swaps)
     return out, info
 
 
@@ -618,6 +668,7 @@ def _warm_translator() -> None:
 def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[[], bool]) -> dict:
     p = validate(body)
     t0 = time.time()
+    prof = recognition.for_preset(p["preset"])            # how this run hears and reads: ReShape's frozen way, or the others'
     if p["english"] and translate.available():            # the translator loads while Whisper reads (it is needed at the end)
         threading.Thread(target=_warm_translator, name="translator-load", daemon=True).start()
     mix = build_mix(p["items"], lambda f, m: progress(0.1 * f, m), cancelled)
@@ -633,7 +684,13 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     prompt = subtitles.initial_prompt(names)
     # who speaks on which microphone track: the project's own choice, else the client's last one (Captions tab)
     speakers = {**(learned.plan.speakers if learned else {}), **subtitle_settings.get(p["project"]).get("speakers", {})} if p["project"] else {}
-    wins = plan_windows(segments)
+    if prof.part:
+        # a long piece read in parts cut at its quietest moments: the readers work side by side, and a mistake is not carried
+        # through two minutes of speech (the rough cut has read this way since 0.10.25; imported here: it imports this module)
+        from .roughcut_job import split_long
+        wins = plan_windows(split_long(segments, part=prof.part), max_window=prof.part + 2 * PAD)
+    else:
+        wins = plan_windows(segments)
     total = sum(w["b"] - w["a"] for w in wins) or 1.0
     words: list[dict] = []
     cached = True
@@ -655,7 +712,7 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         def on_progress(f, m):
             frac[i] = f
             progress(0.1 + 0.75 * sum(a * b for a, b in zip(frac, shares)), m)
-        return read_window(wins[i], prompt, on_progress, cancelled)
+        return read_window(wins[i], prompt, on_progress, cancelled, prof)
     # pass 1: Whisper reads every window once, several at the same time (one reading cannot use many cores, see asr.py)
     order = sorted(range(len(wins)), key=lambda i: -(wins[i]["b"] - wins[i]["a"]))        # the longest first: no long tail
     reads: list = [None] * len(wins)
@@ -671,8 +728,10 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     cached = all(r["cached"] for r in reads)
     vocab = vocabulary(reads, [t for _, b in parsed["pairs"] for t in b.split()])
     def finish_one(i: int):
+        # a window ElevenLabs could not read was read here: it gets this computer's whole profile, second readings included
+        wp = recognition.local(prof) if reads[i].get("fallback") else prof
         return window_words(wins[i], reads[i], p["spoken"], parsed["pairs"], vocab, prompt, lambda f, m: None, cancelled, learned,
-                            speakers, names, p["preset"] != "reshape")
+                            speakers, names, wp.strict, wp)
     progress(0.86, "Aligning the words to the sound…")
     with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(wins)))) as pool:   # pass 2: corrections, alignment, spelling
         futures = [pool.submit(finish_one, i) for i in range(len(wins))]
@@ -682,7 +741,9 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
             for f in futures:
                 f.cancel()
             raise
+    swaps: list = []
     for ws, info in results:
+        swaps += info["swaps"]
         second += info["second"]
         disputes += info["disputes"]
         verbatim += info["verbatim"]
@@ -700,9 +761,12 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
     asr_s = time.time() - t_asr
     words.sort(key=lambda w: (w["start"], w["end"]))
     unique: list[dict] = []
+    seam: list = []
     for w in words:                                        # pieces that touch can both claim a word at the seam
         if not any(_same_word(w, u) for u in unique[-3:]):
             unique.append(w)
+        else:
+            seam.append({"at": w["start"], "word": w["word"]})
     words, tidy = subtitles.tidy_words(unique)
     found = suspects.find(words)                           # reported and marked "?", never rewritten (guide §5)
     found += [{"i": i, "word": words[i]["word"], "at": words[i]["start"], "reason": r} for i, r in agreement.mismatches(words)]
@@ -761,12 +825,25 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         "notes": mix["notes"], "duplicates": mix["duplicates"], "skipped": p["skipped"],
         "origin": round(mix["origin"], 3), "mix_seconds": round(len(mix["audio"]) / ASR_SR, 1), "asr_seconds": round(asr_s, 1), "cached": cached,
     }
+    if prof.cloud:
+        # who read the words, for the panel's result line: a new key, only in a run that asked ElevenLabs (the ReShape
+        # run's JSON keeps exactly the keys it has). "fallback": why some or all windows were read on this computer
+        reasons = sorted({r["fallback"] for r in reads if r.get("fallback")})
+        result["recognizer"] = {"name": cloudasr.NAME, "windows": len(wins), "local": sum(1 for r in reads if r.get("fallback")),
+                                "fallback": reasons}
     with open(stem + ".json", "w", encoding="utf-8") as f:
         # the verbatim layer (what Whisper wrote) is never edited; every change to it is listed in `edits`
         edits = {"corrections": result["corrections"], "writing": norms, "english": english_words, "speaker_forms": speaker_changes, "spelling": changes, "commas": tidy["commas"],
                  "joined_tokens": tidy["joined"], "second_opinions": second, "review": review,
                  "learned": learned.used if learned else [], "learned_refused": learned.vetoed if learned else []}
-        json.dump({**result, "words": words, "verbatim": sorted(verbatim, key=lambda w: w["start"]), "edits": edits,
+        extra = {}
+        if prof.log:
+            # new keys, written only by a profile that asks for them: the ReShape run's JSON is compared whole with its
+            # baseline (scripts/reshape_golden.py) and must keep exactly the keys it has
+            edits["swapped_pieces"] = sorted(swaps, key=lambda s: s["at"])     # a piece whose words another reading replaced
+            edits["seam_duplicates"] = seam                                     # a word two touching pieces both claimed: one kept
+            extra["profile"] = prof.name
+        json.dump({**result, **extra, "words": words, "verbatim": sorted(verbatim, key=lambda w: w["start"]), "edits": edits,
                    "items": p["items"], "segments": segments}, f, ensure_ascii=False, indent=1)
     log.info("subtitles: %d captions, %d words (%d flagged) from %d pieces in %d windows (%.0f s of audio read), timing %s "
              "(%d aligned, %d weak%s), asr+align %.1f s%s, total %.1f s, preset %s -> %s", len(captions), len(words), flagged,

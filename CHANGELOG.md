@@ -31,6 +31,32 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.119 - Subtitles can be read by ElevenLabs Scribe: about 44 % fewer wrong Bulgarian words, about 14x faster (2026-11-21, installed, untested in Premiere)
+- The user's audit request (2026-11-20): Bulgarian words in Auto come out wrong on every client but ReShape and the wait is
+  long; ReShape must not change. Measured on 28 finished videos of five clients against the editors' burned-in subtitles
+  (docs/BENCHMARK.md): shipped Auto 650 wrong or missing words of 4171, the best local profile 604, **ElevenLabs Scribe v3 365**;
+  work per second of sound 3.1 s against about 0.2 s. Nearly all of Whisper's wrong words are wrong in its first reading, so
+  no local setting moved it far. The user's decision (2026-11-21): build ElevenLabs in.
+- **New: Settings > Subtitles.** Paste an ElevenLabs API key (Speech to Text access), Save key; Turn off / Turn on; Remove key.
+  With a key saved, Auto and the five client styles send the SOUND of the selected clips to ElevenLabs (nothing else: no
+  picture, names, prompt or corrections), each transcript is deleted there once its words are back, and the result says
+  "Words by ElevenLabs Scribe v3". The ReShape style is always recognised on this computer. When ElevenLabs cannot be reached
+  or refuses (no internet, key, no time left) the clip is recognised on this computer as before and the result says why.
+- Engine: `cloudasr.py` (the request, the key in `<app>/elevenlabs.key`, never returned to the panel; plain urllib),
+  `recognition.py` (one recognition profile per run: `CLASSIC` ReShape frozen, `STRICT` the 0.10.118 behaviour and still the
+  local default, `CLOUD`, `NEXT` local experiments), `/cloud` endpoint. After Scribe the dictionary repair is off (it broke 6
+  of Scribe's right words and fixed 1); corrections, learned fixes, writing rules, alignment and line cutting are unchanged.
+- Local experiments kept behind the development switch `ASISTENT_RECOGNITION` only: the model in full precision
+  (`asr.LARGE_FULL`, 285 / 326 against 315 / 335), `lexicon.repair(careful=)` and `repair_by_ear`, a second reading of the
+  doubtful piece alone that cannot win with fewer words. Nothing changes on this computer for any style.
+- Development: `scripts/bench_subtitles.py` (pick, refs, run, score, cloud) and `engine/asistent/bench/layers.py`; the office
+  share is only read.
+- ReShape: `scripts/reshape_golden.py check` identical; `tests/test_recognition_profiles.py` pins its profile, cache keys,
+  the exact call and the result's keys; `tests/test_cloudasr.py` checks a ReShape run never asks ElevenLabs.
+- Tests: 893 Python (24 skipped) + 383 Node pass. Not yet tried in Premiere. Cost: the free plan covers trying it (about 4.5 hours a
+  month, no commercial rights); client work needs Starter, about $6 a month for about 27 hours (third-party price lists,
+  2026-11: check elevenlabs.io/pricing).
+
 ## 0.10.118 - Exposure ±0.5 pressed twice fast crashed Premiere: effects read again only after Premiere settles (2026-11-18, installed, untested in Premiere)
 - The user, 2026-11-18 11:48 (Premiere 26.5.3, GStroy КП11 Видео 8): Exposure +0.5 pressed twice fast on fx30-2-1826 and
   fx30-2-1830 crashed Premiere. The log stops right after the selection was read (the rest of the panel's lines were lost

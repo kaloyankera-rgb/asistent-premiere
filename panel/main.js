@@ -1124,6 +1124,12 @@ async function onSubtitles(opts = {}) {
       out.lines = [...placed.lines, ...out.lines.filter((l) => !/^File: /.test(l.text))];
     }
     if (result.english_note) out.lines.unshift({ cls: "warn", text: result.english_note });
+    if (result.recognizer) {                                     // 0.10.119: who read the words (engine cloudasr.py)
+      const r = result.recognizer;
+      out.lines.unshift(r.local
+        ? { cls: "warn", text: `${r.local === r.windows ? "ElevenLabs did not read this" : `ElevenLabs did not read ${r.local} of ${r.windows} parts`} (${r.fallback.join("; ")}): recognised on this computer instead.` }
+        : { cls: "muted", text: `Words by ${r.name}.` });
+    }
     renderCaptionEditor(result);
     renderSpeakers(result, project.path);
     loadLearned(project.path);
@@ -1753,6 +1759,32 @@ onTap($("exposureUp"), () => onExposureNudge(0.5), { repeat: true });
 window.addEventListener("blur", () => engine.log("info", "panel: focus lost"));
 window.addEventListener("focus", () => engine.log("info", "panel: focus back"));
 onTap($("probe"), onProbeAsk);
+
+// Settings > Subtitles: ElevenLabs (0.10.119). The engine keeps the key; the panel only ever sees how it ends.
+async function refreshCloud(change) {
+  let st;
+  try {
+    st = await engine.cloud(change);
+  } catch (e) {
+    $("cloudStatus").textContent = `Not saved: ${e.message || e}`;
+    return;
+  }
+  $("cloudStatus").textContent = !st.key ? "Off: no key saved. Subtitles are recognised on this computer."
+    : st.enabled ? `On (key ending ${st.ends}): Auto and the client styles are read by ${st.name}.`
+      : `Off (key ending ${st.ends} is saved): subtitles are recognised on this computer.`;
+  $("cloudToggle").textContent = st.enabled ? "Turn off" : "Turn on";
+  enable($("cloudToggle"), st.key);
+  enable($("cloudRemove"), st.key);
+}
+onTap($("cloudSave"), async () => {
+  const key = String($("cloudKey").value || "").trim();
+  if (!key) { $("cloudStatus").textContent = "Paste the key first."; return; }
+  await refreshCloud({ key, enabled: true });
+  $("cloudKey").value = "";
+});
+onTap($("cloudToggle"), () => refreshCloud({ enabled: $("cloudToggle").textContent === "Turn on" }));
+onTap($("cloudRemove"), () => refreshCloud({ key: "" }));
+refreshCloud();
 
 // ---------------------------------------------------------------- auto import
 

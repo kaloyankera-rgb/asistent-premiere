@@ -60,6 +60,7 @@ def _load():
 def reset() -> None:
     """Forget the loaded dictionary (tests, or after the files were installed)."""
     _candidates.cache_clear()
+    _by_ear.cache_clear()
     with _lock:
         _state.update(dict=None, tried=False)
 
@@ -196,21 +197,111 @@ def _candidates(word: str, doubt: bool, strict: bool = True) -> tuple:
     return (lead, tail, core[:1].isupper(), tuple(out))
 
 
-def repair(word: str, doubt: bool = True, prefer=frozenset(), strict: bool = True) -> str | None:
+def repair(word: str, doubt: bool = True, prefer=frozenset(), strict: bool = True, careful: bool = False) -> str | None:
     """A word the dictionary does not know -> the ONE real word it is the by-ear spelling of (punctuation and capital
     letter kept), or None. `doubt`: Whisper is unsure of the word (allows step 3). `prefer`: words heard (confidently,
     and real) elsewhere in the same recording: when several real words fit at the smallest edit, exactly one of them
-    in `prefer` decides („Взиваме“ has seven neighbours; the speaker says „взимаме“ all through the recording)."""
+    in `prefer` decides („Взиваме“ has seven neighbours; the speaker says „взимаме“ all through the recording).
+    `careful` (0.10.119, a recognition profile's choice, never the ReShape style's): steps 3 and 4 are not by-ear
+    spellings, they swap a letter for any other, and a correct word the dictionary lacks then turns into its nearest
+    neighbour („интубация“ -> „инкубация“, „асимулатор“ -> „асимилатор“). With `careful` those steps repair only to a
+    word the recording itself says (`prefer`); otherwise the heard word stays and is marked for the editor."""
     c = _candidates(word, doubt, strict)
     if not c or not c[3] or not c[3][0][1]:
         return None
     lead, tail, cap, ((n, found),) = c
+    if careful and n >= 3:
+        found = [f for f in found if f in prefer]
+        if len(found) != 1:
+            return None
     if len(found) > 1:
         found = [f for f in found if f in prefer]
         if len(found) != 1:
             return None                                      # several real words fit: do not choose
     new = found[0]
     if cap:
+        new = new[:1].upper() + new[1:]
+    return lead + new + tail
+
+
+# ---------------------------------------------------------------- repair by ear (0.10.119, a recognition profile's choice)
+# The steps above stop at the first step that finds a real word and refuse to choose between two: „резумно“ stays as
+# heard because „разумно“ and „безумно“ are both one letter away, and „изобратил“ because of „изобретил“ / „изобразил“.
+# Measured on the editors' finished videos (2026-11-20, scripts/bench_subtitles.py): 35 of 200 wrong words in the final
+# text were such non-words, the mistakes a viewer sees first. But the two neighbours are not equally likely by ear: a
+# mis-heard VOWEL is the ordinary case (е for а in „резумно“), a different consonant (р for б) is another word. So every
+# real word one edit away, and every one two vowels away, gets a cost by how far it is BY EAR, and the cheapest is taken
+# when it is cheap enough and clearly cheaper than the next:
+#   a reduced vowel (е/и, о/у, а/ъ) 0.4 · another vowel 0.6 · a voiced/voiceless pair (б/п, д/т, г/к, з/с, ж/ш, в/ф) 0.5 ·
+#   a close consonant (ч/ш, ц/с, ц/т, ч/ц, щ/ш, м/н, й/и) 0.8 · any other consonant 1.6 · a letter said twice 0.3 ·
+#   a vowel added or dropped 0.9 · a consonant added or dropped 1.2
+# A word the recording itself says elsewhere (`prefer`) is 0.5 cheaper. A word Whisper is sure of (`doubt` False) or a
+# short one may only move by a vowel: a name the dictionary lacks must not become its neighbour („интубация“ / „инкубация“
+# costs 1.6 and is never taken).
+EAR_LIMIT = 1.0            # the most a repair may cost
+EAR_SURE = 0.6             # ... when Whisper is sure of the word, or the word has 4-5 letters
+EAR_MARGIN = 0.25          # the next real word must cost at least this much more
+_EAR_VOWELS = "аеиоуъ"
+_VOICED = {frozenset(p) for p in ("бп", "дт", "гк", "зс", "жш", "вф")}
+_CLOSE = {frozenset(p) for p in ("чш", "цс", "цт", "чц", "щш", "мн", "йи")}
+
+
+def _ear_sub(a: str, b: str) -> float:
+    if a in _EAR_VOWELS and b in _EAR_VOWELS:
+        return 0.4 if _REDUCED.get(a) == b else 0.6
+    pair = frozenset((a, b))
+    return 0.5 if pair in _VOICED else 0.8 if pair in _CLOSE else 1.6
+
+
+@lru_cache(maxsize=4096)
+def _by_ear(low: str) -> tuple:
+    """A lower-case unknown word -> ((cost, real word), ...) cheapest first: one edit of any kind, or two vowels."""
+    d = _load()
+    found: dict[str, float] = {}
+
+    def offer(c: str, cost: float) -> None:
+        if c != low and cost < found.get(c, 9.0) and cost <= EAR_LIMIT + 0.5 and _lookup(d, c):
+            found[c] = cost
+    if len(low) >= 3 and low[-1] in "оу" and low[-2] in _SYLLABLE:
+        offer(low[:-1] + "л", 0.2)                              # „карао“: the -л said as a vowel (step 0 above)
+    for i, ch in enumerate(low):
+        for c in _LETTERS:
+            if c != ch:
+                offer(low[:i] + c + low[i + 1:], _ear_sub(ch, c))
+        twice = (i > 0 and low[i - 1] == ch) or (i + 1 < len(low) and low[i + 1] == ch)
+        offer(low[:i] + low[i + 1:], 0.3 if twice else 0.9 if ch in _EAR_VOWELS else 1.2)
+    for i in range(len(low) + 1):
+        for c in _LETTERS:
+            offer(low[:i] + c + low[i:], 0.9 if c in _EAR_VOWELS else 1.2)
+    spots = [i for i, ch in enumerate(low) if ch in _EAR_VOWELS]
+    for a in range(len(spots)):
+        for b in range(a + 1, len(spots)):
+            i, j = spots[a], spots[b]
+            for x in _EAR_VOWELS:
+                for y in _EAR_VOWELS:
+                    if x != low[i] and y != low[j]:
+                        offer(low[:i] + x + low[i + 1:j] + y + low[j + 1:], _ear_sub(low[i], x) + _ear_sub(low[j], y))
+    return tuple(sorted((cost, c) for c, cost in found.items()))
+
+
+def repair_by_ear(word: str, doubt: bool = True, prefer=frozenset()) -> str | None:
+    """A word the dictionary does not know -> the real word it most likely is by ear (punctuation and capital kept), or
+    None when no real word is close enough or two are about equally close."""
+    d = _load()
+    if d is None or known(word) is not False:
+        return None
+    lead, core, tail = re.match(r"^([^\w]*)(.*?)([^\w]*)$", word, flags=re.UNICODE).groups()
+    low = core.lower()
+    if len(low) < 4 or not re.fullmatch(r"[а-яъь]+", low):
+        return None
+    ranked = sorted((max(0.1, cost - 0.5) if c in prefer else cost, c) for cost, c in _by_ear(low))
+    if not ranked:
+        return None
+    limit = EAR_LIMIT if doubt and len(low) >= 6 else EAR_SURE
+    cost, new = ranked[0]
+    if cost > limit or (len(ranked) > 1 and ranked[1][0] - cost < EAR_MARGIN):
+        return None
+    if core[:1].isupper():
         new = new[:1].upper() + new[1:]
     return lead + new + tail
 
@@ -227,6 +318,7 @@ def candidates(word: str, strict: bool = True) -> list[str]:
 
 def reset_cache() -> None:
     _candidates.cache_clear()
+    _by_ear.cache_clear()
 
 
 respell = repair                                             # the first version of this function (one swapped vowel)

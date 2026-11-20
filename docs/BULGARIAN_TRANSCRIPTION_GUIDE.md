@@ -175,6 +175,24 @@ Timestamps are **illustrative regression anchors**, not a universal mapping for 
   track that is not set (two people on one microphone, quotes) is only checked, as before.
 - Adjective and noun that disagree are marked for review, not changed: one ending is too little sound to decide by.
 
+## 12b. Measured recognition and profiles (Asistent 0.10.119, the audit of 2026-11-20)
+
+- **No accuracy change without a measurement.** `scripts/bench_subtitles.py` runs the whole subtitle job on the sound of the
+  editors' finished videos and scores it against the subtitles they burned in (docs/BENCHMARK.md). A change to how Bulgarian
+  is recognised or repaired is kept only if the wrong words drop on the tuning videos and do not rise on the held-back ones.
+  One recording is an example, never the proof: the second and louder readings of 0.10.95 were right on the recording they
+  were made for and gave no gain over thirty videos.
+- **Profiles** (`engine/asistent/recognition.py`): the ReShape style runs `CLASSIC`, frozen, always on this computer. Every
+  other style runs `CLOUD` when the editor saved an ElevenLabs key (Scribe v3 reads each window: about 6-12 % wrong against
+  14-17 % for large-v3 on the same videos), else `STRICT`, the 0.10.118 behaviour. `NEXT` holds the local experiments.
+- **Where the wrong words come from** (2237 reference words of 15 videos): nearly all are already wrong in Whisper's first
+  reading; the layers after it broke 13 right words and fixed 13 wrong ones. So §7 holds: fast talk between several people,
+  street sound and music under the voice decide the result far more than any setting.
+- **The dictionary repair is off for Scribe's words** (§1: the heard word is evidence, not a draft to improve): on them it
+  broke 6 right words and fixed 1. Unknown words are still marked for review. On Whisper's words the repair stays as it was.
+- **A second reading may not win by leaving words out** (`second: "alone"` in `NEXT`): without that rule the swapped readings
+  broke 33 words and fixed 27 on the tuning videos, with it 10 and 19.
+
 ## 12. Instructions for Claude Code
 
 Read this guide before changing the subtitle pipeline. Audit current code and identify where Bulgarian text corrections happen relative to forced alignment. Propose small, testable changes. Never fix the specific examples by hardcoding their replacement into general subtitles. Use the examples as regression tests, and benchmark changes on the **same** original audio. Report what was verified, what remains uncertain, and what was not tested. If a setting or a dependency is undocumented, do not claim it is in use.

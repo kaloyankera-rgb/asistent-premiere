@@ -1,5 +1,12 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.119 (2026-11-21, installed, untested in Premiere): subtitles of Auto and the five client styles are read by ElevenLabs
+Scribe v3 when a key is saved in Settings > Subtitles (on this Mac: saved, on): 365 wrong words against 650 on the 28 benchmark
+videos, about 14x faster; only the clips' sound is sent; ReShape always local (golden identical); no internet or no key =
+recognised here as in 0.10.118. Not yet tried in Premiere: the Settings card's look, one Auto run, one ReShape run. The key the
+user pasted into the chat on 2026-11-21 should be replaced by a new one. Local experiments (full precision, guarded second
+reading) stay behind a development switch; their held-back runs were stopped. To reverse: Settings > Subtitles > Remove key.
+
 0.10.118 (2026-11-18, installed, untested in Premiere): after adding a Lumetri (colour, ±0.5) or a Tint (Brand) the effects are
 read again only after 60 ms and from a fresh handle (crash on Exposure +0.5 pressed twice fast). Not yet tried in Premiere.
 

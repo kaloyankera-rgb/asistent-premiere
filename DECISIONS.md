@@ -1,5 +1,38 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-21: subtitles may be recognised by ElevenLabs; the first exception to "no cloud, no paid tools" (0.10.119)
+The user's audit of 2026-11-20: Bulgarian words in the Auto style come out wrong on every client but ReShape, and the wait is
+too long. ReShape is "perfect how it is" and out of every change.
+- **Measured first** (docs/BENCHMARK.md): the subtitles the office's editors burned into 28 finished videos of five clients
+  (made in Submagic, corrected by hand) are the reference, half for tuning, half held back. Shipped Auto leaves 650 of 4171
+  reference words wrong or missing; nearly all are already wrong in Whisper's first reading (the layers after it broke 13 right
+  words and fixed 13 of 2237). The best local profile reached 604. ElevenLabs Scribe v3 on the same sound: 365, in about a
+  twentieth of the time. The ceiling is the model, not the settings.
+- **Decision (the user, 2026-11-21: "Build it in asistent"):** every style but ReShape's is read by Scribe when the editor saved
+  an ElevenLabs key and left the switch on (Settings > Subtitles). This is the one exception to the permanent rules "no cloud,
+  nothing uploaded" and "no paid tools", made by the user after seeing the table and the price (free plan for trying; client
+  work needs the Starter plan, about $6 a month for about 27 hours).
+- **What leaves the computer:** only the sound of the windows being subtitled; never picture, file or project names, the names
+  prompt or the corrections. Never for ReShape, the rough cut, Cut silences or anything else. ElevenLabs keeps uploads by
+  default (no-retention is an enterprise feature), so each transcript is deleted there as soon as its words are back; whether
+  that also removes their copy of the sound is not stated in their docs.
+- **When it fails** (no internet, key refused, no time left): that window is read on this computer by the shipped profile and
+  the result line says why. Nothing is stored as ElevenLabs' reading in that case.
+- **The text layers after Scribe:** the dictionary repair is off (on Scribe's words it broke 6 and fixed 1; 147 / 232 with it,
+  143 / 231 without); writing rules, the editor's corrections, learned fixes, alignment and line cutting run as before.
+- **On this computer nothing changes yet** for the non-ReShape styles (`DEFAULT = STRICT`, the 0.10.118 behaviour). The local
+  experiments (`NEXT`: full precision 285 / 326 against 315 / 335; a second reading that cannot win with fewer words) are kept
+  in `recognition.py` but their held-back runs were stopped when the user chose ElevenLabs. What the audit got wrong: it blamed
+  the repair and the swapped readings for most wrong words; measured, they were about even.
+- **Rule change (approved with the plan of 2026-11-20):** for every style but ReShape's, "a speed change must give
+  bit-identical results" becomes "the wrong words must not rise on the held-back videos". For ReShape bit-identical stays.
+- **Protected ReShape files touched** (`asr.py`, `lexicon.py`, `subtitle_job.py`): every addition is an optional argument whose
+  default is the old call; ReShape's profile has an empty cache tag, no cloud, no extra options and no new result keys. Pinned
+  by `tests/test_recognition_profiles.py`, `tests/test_cloudasr.py` (a ReShape run never asks ElevenLabs) and
+  `scripts/reshape_golden.py check` (identical).
+- **The office share is only read** (the user's rule of 2026-11-20): the benchmark copies sound into a local store and refuses
+  to write under `/Volumes/`.
+
 ## 2026-11-15: Auto import is on by default and watches the project's own folder (0.10.113)
 The user asked for "auto export" to be on by itself and linked to the folder the project is saved in, "cause most of the time
 it's the folder where I download the assets"; asked which row, the user chose Auto import (not Show exports, which left the

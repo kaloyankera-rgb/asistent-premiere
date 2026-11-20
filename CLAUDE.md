@@ -42,7 +42,14 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   - `shotmatch.py` Auto Shot Match: anchors (skin from faces, neutrals, tones), Lumetri simulation, absolute fit, check
   - `asr.py` speech recognition (faster-whisper large-v3 from `<app>/models/whisper`, local only, never downloads by itself; optional `requirements-asr.txt`)
   - `subtitles.py` Phase 7 text core: captions from timed words (Bulgarian spelling `bgtext.py`, phrase grouping for 9:16, frame snap, no blink, SRT with BOM)
-  - `subtitle_job.py` + `dialoguemix.py` the `/subtitles` job: cleanest microphone per speech, per-piece recognition (3 readings), `align.py`/`align_worker.py` optional MMS_FA alignment in `venv-align`, `consensus.py` + `lexicon.py` word votes with the Bulgarian dictionary, `corrections.py` the editor's `чуто => казано` lines (applied before the alignment), `subtitle_settings.py` per-project choices; `scripts/check_subtitles.py` checks a run against the audio
+  - `subtitle_job.py` + `dialoguemix.py` the `/subtitles` job: cleanest microphone per speech, one Whisper reading per window of pieces (a doubtful piece may be read again, by the run's profile), `align.py`/`align_worker.py` optional MMS_FA alignment in `venv-align`, `consensus.py` + `lexicon.py` the Bulgarian dictionary's by-ear repair and the unsure marks (no vote: since 0.9.48 there is one main reading), `corrections.py` the editor's `чуто => казано` lines (applied before the alignment), `subtitle_settings.py` per-project choices; `scripts/check_subtitles.py` checks a run against the audio
+  - `recognition.py` (0.10.119) recognition profiles, one per run: `CLASSIC` = the ReShape style, frozen, always local; `CLOUD` =
+    every other style when an ElevenLabs key is saved (Scribe v3 reads each window, dictionary repair off); `STRICT` = those
+    styles on this computer as shipped in 0.10.95-0.10.118 (`DEFAULT`); `NEXT` = local experiments, tried with
+    `ASISTENT_RECOGNITION=next:{fields}` (development only) and scored by the benchmark before anything becomes a default
+  - `cloudasr.py` (0.10.119) ElevenLabs Scribe: the one module that sends anything off the computer, and only the sound of the
+    windows being subtitled; key in `<app>/elevenlabs.key` (never returned to the panel), switch in `<app>/cloud.json`, each
+    transcript deleted at ElevenLabs after use; a failure falls back to this computer and is named in the result
   - `learning.py` (the editors' fixes recorded per project into the client's "… Subtitle Learning" office folder, used in the next
     videos by confirmations and context), `audiocheck.py` (Whisper scores the heard and the fixed words: a learned fix that fits
     clearly worse is not used), `bgnorm.py` (Bulgarian writing rules: не знам, по-/най-, full/short article)
@@ -134,7 +141,13 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
 - adjective and noun that disagree („нов стена“) are only marked, never changed: a one-letter ending is a near-miss the
   sound check cannot hear (`agreement.mismatches`);
 - after any text change the affected words are re-aligned (corrections run before the aligner);
-- the table in guide §10 is `tests/test_guide_regressions.py`; never fix an example by hard-coding its replacement.
+- the table in guide §10 is `tests/test_guide_regressions.py`; never fix an example by hard-coding its replacement;
+- measure before changing (the user's audit, 2026-11-20): `scripts/bench_subtitles.py` runs the whole job on the editors'
+  finished videos and scores it against their burned-in subtitles, each word mistake given to the layer that made it
+  (`engine/asistent/bench/layers.py`, docs/BENCHMARK.md). A recognition change goes into the `NEXT` profile first and becomes
+  the default only when the held-out videos show fewer word errors; never tune on one recording, and never on held-out;
+- the ReShape style is out of every such change (the user, 2026-11-20: "leave ReShape out, it is perfect how it is"):
+  it runs the `CLASSIC` profile, pinned by `tests/test_recognition_profiles.py` and the golden run.
 
 ## Permanent user rules (do not break)
 - Independent of the user's own CEP extension Quick Search (`com.contentstudio.barzo`, ports 47231–47234):
@@ -157,7 +170,13 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   keyframed Exposure, and do not record it as Asistent's. "Untouched" means the whole Lumetri equals the untouched snapshot
   Asistent learns when it adds one itself (0.10.6), never just the five sliders at 0; a keyframed parameter is never written.
 - Sync works from the timeline selection and builds a new `SYNC – <sequence>`; the user's sequence is read only.
-- No AI voices, no paid tools, no cloud, nothing uploaded.
+- No AI voices, no paid tools, no cloud, nothing uploaded. The one exception (the user, 2026-11-21, 0.10.119, after the
+  benchmark of DECISIONS): subtitles of every style but ReShape's may be read by ElevenLabs Scribe when the editor saved a key
+  and left the switch on; only the sound of the selected clips goes, nothing else, and no other feature may use it.
+- The office server (`/Volumes/Production` and every office share) is read only (the user, 2026-11-20): nothing there is
+  written, renamed, moved or deleted by Claude or by a development script; ask before any touch. Benchmarks and tests that read
+  it write only on this computer, with an empty `project` and a scratch `HOME` (a real run would write `Asistent_subtitles` next
+  to the project and learning events into the client's folder).
 
 ## Version control and documentation (GitHub)
 - The repo is `tools/asistent` (own git, branch `main`). Remote `origin` is `kaloyankera-rgb/asistent-premiere`. It is PUBLIC
@@ -178,6 +197,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   `PROGRESS.md` (dated line), `DECISIONS.md` (only if a decision was made) → one descriptive commit
   (`Asistent X.Y.Z: what and why`; docs-only commits start with `Docs:`) → tell the user what is committed.
 - Speed changes must give bit-identical results: compare against the `git show HEAD:` code on real footage before keeping one.
+  The one exception (the user approved the plan of 2026-11-20): subtitle recognition in every style but ReShape's is judged by
+  the benchmark instead, word errors on the held-out videos not worse (`scripts/bench_subtitles.py`); ReShape stays bit-identical
+  (`scripts/reshape_golden.py check`).
 - Commit only completed and verified work, never half-finished code; do not commit failing tests.
   The pre-commit hook (`scripts/githooks`, enabled by `git config core.hooksPath scripts/githooks`) refuses a code
   commit that does not also stage `CHANGELOG.md` and `PROJECT_STATUS.md`.

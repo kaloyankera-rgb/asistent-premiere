@@ -645,3 +645,6 @@ input.sl-num { width: 36px; margin: 0; }
 .sl-flagrow { margin-top: 4px; align-items: flex-start; }
 .sl-flagrow .btn.small { flex: none; margin: 0 6px 0 0; padding: 1px 6px; }
 .sl-flagrow .reason { margin-top: 0; }
+
+/* Settings > Subtitles: the ElevenLabs key field (0.10.119) */
+input.cloud-key { flex: 1 1 auto; min-width: 0; font-size: 11px; }

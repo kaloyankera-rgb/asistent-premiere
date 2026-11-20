@@ -166,7 +166,7 @@ def test_missing_backend_or_model_is_an_instruction_not_a_crash(home, monkeypatc
 def test_cancelled_recognition_writes_nothing(home, monkeypatch):
     from asistent.sync import Cancelled
 
-    def boom(audio, prompt, progress, cancelled):
+    def boom(audio, prompt, progress, cancelled, **k):
         raise Cancelled()
     monkeypatch.setattr(asr, "transcribe", boom)
     b = body(home)
@@ -418,6 +418,7 @@ def _w(word, a, b, p=0.9):
 
 def test_a_piece_with_an_unrepairable_unknown_word_gets_a_second_opinion_and_the_better_reading_wins(home, monkeypatch):
     """C9025: the wide reading heard „е одял, Острова“; the narrow one heard „одяло струва“. Fewer unknown words wins."""
+    monkeypatch.setenv("ASISTENT_RECOGNITION", "strict")    # 0.10.119: second readings are the STRICT profile's (recognition.py)
     f, its = two_pieces(home)
     known = {"ако", "това", "е", "острова", "под", "одяло", "струва", "евро"}
     monkeypatch.setattr(subtitle_job.lexicon, "known", lambda w: True if consensus_norm(w) in known else (False if consensus_norm(w) else None))
@@ -439,6 +440,7 @@ def test_a_piece_with_an_unrepairable_unknown_word_gets_a_second_opinion_and_the
 
 
 def test_a_second_opinion_that_is_no_better_changes_nothing_and_clean_pieces_ask_for_none(home, monkeypatch):
+    monkeypatch.setenv("ASISTENT_RECOGNITION", "strict")    # 0.10.119: second readings are the STRICT profile's (recognition.py)
     f, its = two_pieces(home)
     monkeypatch.setattr(subtitle_job.lexicon, "known", lambda w: False if consensus_norm(w) == "десом" else (True if consensus_norm(w) else None))
     monkeypatch.setattr(subtitle_job.lexicon, "repair", lambda w, doubt=True, prefer=frozenset(), strict=True: None)
@@ -610,6 +612,7 @@ def test_the_alignment_pool_reports_a_worker_error_and_keeps_going(tmp_path, mon
 def test_the_reading_that_fits_the_sound_best_wins_when_the_dictionary_hid_the_doubt(home, monkeypatch):
     """0.10.95, Lokali: the first reading „Кара ли с асимулатор“ was repaired to the real „асимилатор“, so it looked as sure as the
     second opinion („карал ли си на симулатор“); Whisper's score of each text over the sound tells them apart."""
+    monkeypatch.setenv("ASISTENT_RECOGNITION", "strict")    # 0.10.119: second readings are the STRICT profile's (recognition.py)
     f, its = two_pieces(home)
     known = {"кара", "карал", "ли", "си", "с", "на", "симулатор", "асимилатор"}
     monkeypatch.setattr(subtitle_job.lexicon, "known", lambda w: True if consensus_norm(w) in known else (False if consensus_norm(w) else None))

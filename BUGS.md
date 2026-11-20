@@ -5,6 +5,15 @@
   not saved). Bridge only; the editor clicking a box is not affected. Fix: dispatch in try/catch or call the handler.
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
+## Limits of subtitles by ElevenLabs (0.10.119)
+- The sound of the selected clips leaves the computer. ElevenLabs keeps uploads by default; Asistent deletes each transcript
+  after use, but their docs do not say that this also removes their copy of the sound (no-retention is an enterprise feature).
+- Fast talk between several people and street sound stay hard: GStroy's held-back interviews 26.5 % wrong (36 % locally).
+- The names an editor types for a project do not reach Scribe (its "keyterms" are a paid add-on, not used); a wrongly heard
+  name is fixed with a `чуто => казано` line as before.
+- The dictionary repair is off after Scribe, so a by-ear spelling it makes stays and is only marked.
+- A window read here because ElevenLabs failed uses the 0.10.118 recognition (slow); the result line says so.
+
 ## FIXED (0.10.112): a Tint on text made in Premiere drew nothing
 - Appended to the clip's effects it lands after the graphic's Text layer, where Premiere does not draw it; inserted before the
   Graphic group it colours the text. CHANGELOG 0.10.111-0.10.115.

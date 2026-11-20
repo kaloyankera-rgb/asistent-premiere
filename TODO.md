@@ -3,6 +3,20 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
+## V119. Verify 0.10.119 (2026-11-21): subtitles by ElevenLabs
+- [ ] USER (Premiere restarted): Settings > Subtitles shows "On (key ending …)". Make subtitles in Auto on a non-ReShape clip
+      in NEW TEST: the result says "Words by ElevenLabs Scribe v3", the words and the wait against the same clip before.
+- [ ] The Lokali pieces (4a1a): „Карал ли си някога реална кола? Не. А карал ли си на симулатор? Да.“ with ElevenLabs.
+- [ ] ReShape on its own clip: the same captions as before, no "Words by" line.
+- [ ] Turn off in Settings, run Auto again: recognised on this computer as before.
+- [ ] USER: delete the API key that was pasted into the chat (ElevenLabs > Developers > API keys) and save a new one in
+      Settings > Subtitles. For client work: the Starter plan (the free plan has no commercial rights).
+- [ ] Office computers: each needs the key saved once in Settings > Subtitles (or decide on one shared key).
+- [ ] Not built: the names of a project as Scribe "keyterms" (a paid add-on, about $0.05 per hour); the rough cut and Cut
+      silences still read on this computer.
+- [ ] Local path, paused: finish the held-back runs of `NEXT` (full precision + guarded second reading; `part: 30` is 2.8x
+      faster but 18 words worse on the tuning clips) and decide whether it replaces `STRICT` as the no-internet fallback.
+
 ## V96. Verify 0.10.96 (2026-11-15): Cut silences rebuilt
 - [ ] 0.10.115: the tab row: names readable, the open tab clearly marked, no yellow box; the page fades in when you switch.
 - [ ] 0.10.115: Keyframer: open presets and settings, scroll: Apply, Undo last and Update live stay at the bottom.
@@ -100,7 +114,7 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [x] **Colour on S-Log3 under a LUT adjustment layer** (0.10.25-0.10.28, verified in Premiere 26.5.2 on Pulse IVO7V9795).
 - [ ] **0.10.29 overshoot step back:** USER: Cmd+Z the +2.15 on IVO7V9795, press Auto color again: expect "the brightness
   went 0.7 stops past the target: exposure lowered to ~1.56" and a result near the target. Also IVO7V9798.
-- [ ] **Subtitles faster (the user's decision):** a long window is read by one reader of three (ReShape 93 s in one window:
+- [ ] **Subtitles faster (2026-11-21: with ElevenLabs about 0.2 s per second of sound, 0.10.119; the note below is the local path):** a long window is read by one reader of three (ReShape 93 s in one window:
   94.6 s). Measured reading in ~30 s parts at the quietest moments: GStroy C9036 189 -> 87 s (the long reading looped and lost
   ~80 words), Beauty Sector fx30-2-1304 137 -> 45 s (without the names prompt "бюти сектор" for "beauty sector"). The words
   change, so: behind a switch, compared on the ReShape golden at the office before it is offered.
@@ -431,7 +445,7 @@ Left, each needs the user's decision:
 0.9.72: own buttons (div.btn), probe done. USER: send a screenshot of 0.9.72+ (main buttons blue, line icons, tabs as text); then commit the redesign. Older note: open the panel (any project is fine for looking): the cards, the ⓘ toggles, Developer, a run's answer at the bottom and Hide, the icons (an empty square means UXP does not draw inline SVG). Then, with TEST.prproj open: `python3 scripts/dev_cmd.py css_probe`; if inline SVG is missing switch the icons to PNG; if `gap`/transitions work, they may replace the margins and add 120 ms colour fades (only on approval). Say anything that looks worse than before.
 
 ## S. Subtitles editor (0.9.67)
-USER: press Subtitles on a clip, open the Captions tab, correct a word and press Apply and rebuild; check the new track and that the old one has to be deleted by hand. Say if a faster way to replace the old track is wanted. Optional: a Bulgarian fine-tuned Whisper (3 GB download, needs the user's OK).
+USER: press Subtitles on a clip, open the Captions tab, correct a word and press Apply and rebuild; check the new track and that the old one has to be deleted by hand. Say if a faster way to replace the old track is wanted. A Bulgarian fine-tuned Whisper was tried 2026-11-20 (BuzzASR/bulgarian): clearly worse on the benchmark (367 against 315), removed.
 
 ## L. English UI (0.9.66)
 USER: open the panel and check every text reads well in English; report anything still Bulgarian or unclear.

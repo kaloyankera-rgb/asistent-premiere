@@ -30,6 +30,7 @@ drive the engine. The Host header is checked against DNS rebinding.
                              graphic on a new video track (Asistent's After Effects template, built on first use)
   POST /captions/place       {"srt", "sequence", "project"?, "bin"?} -> puts the SRT on a caption track of the active
                              sequence through the host; {"ok", "msg", ...} (503 with the reason when the host is away)
+  GET  /cloud                {key: bool, ends, enabled, on, name}: ElevenLabs for subtitles (cloudasr.py); POST {key?, enabled?}
   GET  /subtitles/settings?project=   {text}: the corrections and names text (per project)
   POST /subtitles/settings   {project, text} -> saved + {errors} of the text; /subtitles also takes "text"
   POST /subtitles/speakers   {project, speakers: {track: "m"|"f"|""}} -> saved per project, the client's default (learning.py)
@@ -114,7 +115,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
-from . import config
+from . import cloudasr, config
 from .jobs import JobManager
 from .audio import analyze_items
 from . import color as COLOR
@@ -447,6 +448,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, captionstate.get((q.get("project") or [""])[0], (q.get("sequence") or [""])[0]) or {})
         if url.path == "/host/status":
             return self._send(200, hostbridge.status())
+        if url.path == "/cloud":                          # ElevenLabs for subtitles: is a key saved, is it on (never the key)
+            return self._send(200, cloudasr.status())
         if url.path == "/exports/settings":
             return self._send(200, _exports().status())
         if url.path == "/exports/recent":
@@ -596,6 +599,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, learning.set_removed(str(body.get("project") or ""), key, action == "remove"))
             if self.path == "/subtitles/review":         # what to check, line by line (reads the job's JSON, changes nothing)
                 return self._send(200, review.load(str(body.get("json") or "")))
+            if self.path == "/cloud":                    # {"key"?, "enabled"?}: save or remove the key, switch it
+                try:
+                    return self._send(200, cloudasr.save(body))
+                except ValueError as e:
+                    return self._send(400, {"error": str(e)})
             if self.path == "/panel/store":             # the panel's settings, kept outside the installed panel
                 v = body.get("value")
                 return self._send(200, panelstore.put(str(body.get("key") or ""), v if v is None else str(v)))
