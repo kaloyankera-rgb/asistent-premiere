@@ -1,5 +1,9 @@
 # Project status — Asistent 0.10.32 (2026-11-10, branch feature/keyframer off improvements/2026-11)
 
+0.10.120 (2026-11-21, installed, untested in Premiere): the freeze at "Aligning the words to the sound…" of the user's first
+0.10.119 run is fixed (ElevenLabs wrote a shout as a 1000-letter word; the dictionary's neighbour search hung on it): such a
+word is cut to three letters and words over 40 letters are not searched. The same clip: 8 s outside Premiere.
+
 0.10.119 (2026-11-21, installed, untested in Premiere): subtitles of Auto and the five client styles are read by ElevenLabs
 Scribe v3 when a key is saved in Settings > Subtitles (on this Mac: saved, on): 365 wrong words against 650 on the 28 benchmark
 videos, about 14x faster; only the clips' sound is sent; ReShape always local (golden identical); no internet or no key =

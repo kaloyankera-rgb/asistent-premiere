@@ -5,6 +5,11 @@
   not saved). Bridge only; the editor clicking a box is not affected. Fix: dispatch in try/catch or call the handler.
 > Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
 
+## FIXED (0.10.120): subtitles froze at "Aligning the words to the sound…"
+- ElevenLabs wrote a shout as one 1000-letter word and the dictionary's neighbour search (used when the project has learned
+  fixes or correction lines) ran for minutes, holding the whole engine. CHANGELOG 0.10.120. Still true: a long pure-Python
+  step in a job keeps the engine from answering the panel until it ends.
+
 ## Limits of subtitles by ElevenLabs (0.10.119)
 - The sound of the selected clips leaves the computer. ElevenLabs keeps uploads by default; Asistent deletes each transcript
   after use, but their docs do not say that this also removes their copy of the sound (no-retention is an enterprise feature).

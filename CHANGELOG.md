@@ -31,6 +31,17 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.120 - Subtitles froze at "Aligning the words to the sound…" on a clip with a shout (2026-11-21, installed, untested in Premiere)
+- The user's first run of 0.10.119 in Premiere (NEW TEST, 6 pieces of IMG_9423, 29 s): the bar stood at "Aligning the words
+  to the sound…" for minutes and the engine stopped answering. Cause: ElevenLabs wrote a shout as one word of 1000 letters
+  („Оооо…“). The project has learned fixes, so every heard word is compared with the dictionary's neighbours
+  (`_variants` -> `lexicon._candidates`), and that search grows with the square of the word's length: minutes of pure Python,
+  which also kept the engine from answering the panel. Reproduced outside Premiere with a stack dump.
+- `cloudasr.words_of`: a letter written more than three times in a row is cut to three („Оооо“). `lexicon._candidates`: a
+  "word" of more than 40 letters is not searched (no Bulgarian word is that long; shorter words are untouched, ReShape golden
+  identical). The same run now takes 8 s. Saved ElevenLabs readings holding such a word were removed on this Mac.
+- Tests: one new (the 1000-letter word); 894 Python + 383 Node pass.
+
 ## 0.10.119 - Subtitles can be read by ElevenLabs Scribe: about 44 % fewer wrong Bulgarian words, about 14x faster (2026-11-21, installed, untested in Premiere)
 - The user's audit request (2026-11-20): Bulgarian words in Auto come out wrong on every client but ReShape and the wait is
   long; ReShape must not change. Measured on 28 finished videos of five clients against the editors' burned-in subtitles

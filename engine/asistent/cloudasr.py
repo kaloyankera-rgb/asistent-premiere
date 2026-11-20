@@ -24,6 +24,7 @@ import json
 import logging
 import math
 import os
+import re
 import threading
 import urllib.error
 import urllib.request
@@ -170,11 +171,16 @@ def forget(transcription_id: str, k: str | None = None) -> bool:
         return False
 
 
+_DRAWN_OUT = re.compile(r"(.)\1{3,}")
+
+
 def words_of(data: dict) -> list[dict]:
-    """Scribe's answer -> the words as asr.transcribe gives them ({"word", "start", "end", "p"})."""
+    """Scribe's answer -> the words as asr.transcribe gives them ({"word", "start", "end", "p"}). A shout Scribe writes
+    out letter by letter („Оооооо…“, 1000 letters on a racing clip, 2026-11-21) is cut to three of the letter: nobody
+    reads the rest, and such a "word" froze the dictionary."""
     out = []
     for w in data.get("words") or []:
-        text = str(w.get("text") or "").strip()
+        text = _DRAWN_OUT.sub(lambda m: m.group(1) * 3, str(w.get("text") or "").strip())
         if w.get("type") != "word" or not text or w.get("start") is None or w.get("end") is None:
             continue
         lp = w.get("logprob")

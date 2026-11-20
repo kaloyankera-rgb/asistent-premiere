@@ -163,6 +163,10 @@ def _any_edit(w):
     return out
 
 
+# 0.10.119: a "word" longer than any Bulgarian word is a shout written out („Ооооо…“, 1000 letters from ElevenLabs on a
+# racing clip, 2026-11-21). Looking for its neighbours took minutes of pure Python and froze the whole engine: no repair.
+MAX_REPAIR_LEN = 40
+
 @lru_cache(maxsize=4096)
 def _candidates(word: str, doubt: bool, strict: bool = True) -> tuple:
     """-> (lead, tail, capital, [(step, [real words])...] in the order they are tried) for an unknown word, else None.
@@ -175,6 +179,8 @@ def _candidates(word: str, doubt: bool, strict: bool = True) -> tuple:
     low = core.lower()
     if not re.fullmatch(r"[а-яъь]+", low):
         return None
+    if len(low) > MAX_REPAIR_LEN:
+        return None                    # not a word: the edits below grow with the square of the length (see MAX_REPAIR_LEN)
     step1, step2 = _swap(low), _vowel_edit(low)
     tiers = [(0, _vocalised_l(low))] if strict else []
     tiers += [(1, step1), (2, step2)]

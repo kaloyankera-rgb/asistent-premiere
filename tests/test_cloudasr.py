@@ -60,6 +60,17 @@ def test_scribes_answer_becomes_words_like_whispers():
                                        {"word": "приятели.", "start": 1.5, "end": 2.123, "p": 1.0}]
 
 
+def test_a_shout_written_out_letter_by_letter_is_cut_short_and_never_reaches_the_dictionarys_search():
+    """2026-11-21, the user's first run in Premiere: Scribe wrote „Ооо…“ with 1000 letters and the engine froze for minutes."""
+    import time
+    from asistent import lexicon
+    data = {"words": [{"text": "О" + "о" * 999 + "!", "type": "word", "start": 0.0, "end": 3.0, "logprob": -0.2}]}
+    assert cloudasr.words_of(data)[0]["word"] == "Оооо!"                       # the capital and three of the letter
+    t = time.time()
+    assert lexicon._candidates("о" * 300, True, True) is None and lexicon._candidates("о" * 300, True, False) is None
+    assert time.time() - t < 1.0
+
+
 def test_what_is_sent_is_the_sound_alone(home, monkeypatch):
     cloudasr.save({"key": KEY})
     sent = []
