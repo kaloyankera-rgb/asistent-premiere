@@ -13,6 +13,15 @@ It has no connection to the Quick Search extension: a different ID (`com.content
 
 ## Installation (once per computer)
 
+**Easiest on a Mac (nothing to set up first):** download
+[Asistent-Mac-Installer.zip](https://github.com/kaloyankera-rgb/asistent-premiere/releases/download/installer-mac/Asistent-Mac-Installer.zip),
+open it and follow `Read me first.txt`: quit Premiere, double-click `Install Asistent.command` (the first time macOS blocks a
+file from the internet: System Settings > Privacy & Security > Open Anyway) and wait until the window says Done (5 to 15
+minutes). It needs no Homebrew and no administrator password: it puts Python 3.12 and FFmpeg into Asistent's own folder (each
+download checked against a pinned SHA-256; a Homebrew Python 3.12 or FFmpeg is used instead when present), downloads the newest
+release below and runs its Mac installer. On an Intel Mac everything but Subtitles is installed (onnxruntime has no Intel Mac
+build). Source: `installer/mac/` (`build.sh` packs the zip).
+
 Download `Asistent-<version>.zip` from the newest release on GitHub (Releases, kaloyankera-rgb/asistent-premiere), unzip it and
 double-click the installer for your system. It needs Python 3.12 and FFmpeg first:
 

@@ -1,0 +1,28 @@
+Asistent for Premiere Pro: install on a Mac
+===========================================
+
+You need: a Mac with Premiere Pro 2026 or newer, and the internet. Nothing else.
+
+1. Quit Premiere Pro if it is open.
+
+2. Double-click "Install Asistent.command".
+
+   The first time, macOS stops it with a message like "Apple could not verify..." or
+   "cannot be opened because it is from an unidentified developer". That is normal for a free tool. Then:
+   - click Done (or OK), not Move to Trash,
+   - open System Settings > Privacy & Security,
+   - scroll down to "Install Asistent.command was blocked" and click Open Anyway,
+   - enter your Mac password if asked, and click Open Anyway again.
+   (On an older macOS: right-click the file, choose Open, then Open.)
+
+3. A Terminal window opens and installs everything by itself (5 to 15 minutes, about 600 MB).
+   If macOS asks whether Terminal may access a folder, click Allow.
+   Wait until it says "Done".
+
+4. Open Premiere Pro, then Window > UXP Plugins > Asistent.
+
+5. For subtitles: in Asistent's Subtitles card, press the button that downloads the speech model (about 3 GB) once.
+
+New versions install from the Update button at the top of the panel. You do not need this installer again.
+
+If something goes wrong, the window says so. Send a photo of it to the person who gave you Asistent.
