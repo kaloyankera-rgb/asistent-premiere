@@ -43,8 +43,8 @@ finish() {
 }
 fail() {
   say "Something went wrong: $*"
-  say "Nothing in Premiere was changed. Check the internet connection and run the installer again."
-  say "If it fails again, send a photo of this window to the person who gave you Asistent."
+  say "Run the installer again (what is already done is kept). If it fails again, send a photo of this window"
+  say "to the person who gave you Asistent."
   finish 1
 }
 
@@ -70,17 +70,30 @@ echo "  This takes 5 to 15 minutes and downloads about 600 MB. Keep this window 
 # ------------------------------------------------------------------ checks
 if [ "$(sysctl -in hw.optional.arm64 2>/dev/null)" = "1" ]; then ARCH=arm64; else ARCH=x86_64; fi
 
-PREMIERE=""
-for d in "/Applications/Adobe Premiere Pro 20"[2-9][0-9] "/Applications/Adobe Premiere Pro (Beta)"; do
-  [ -d "$d" ] || continue
-  y="${d##* }"
-  if [ "$y" = "(Beta)" ] || [ "$y" -ge 2026 ]; then PREMIERE="$d"; fi
-done
+# The panel needs Premiere 26 (2026) or newer: without one, Adobe's plugin installer refuses it (status -411, a friend's
+# Mac 2026-11-20) after the long part of the setup. Found by its app id through Spotlight (any folder), then Applications.
+PREMIERE=""; FOUND=""
+while IFS= read -r app; do
+  case "$app" in *.app) ;; *) continue ;; esac
+  case "$app" in /Applications/*) ;; *) continue ;; esac   # a copy elsewhere is not one Adobe installs into
+  v="$(defaults read "$app/Contents/Info" CFBundleShortVersionString 2>/dev/null)" || continue
+  FOUND="$FOUND    $(basename "$app" .app), version $v
+"
+  major="${v%%.*}"
+  if [[ "$major" =~ ^[0-9]+$ ]] && [ "$major" -ge 26 ]; then PREMIERE="$app"; fi
+done < <({ mdfind "kMDItemCFBundleIdentifier == 'com.adobe.PremierePro*'" 2>/dev/null
+           ls -d /Applications/Adobe\ Premiere\ Pro*/*.app 2>/dev/null; } | sort -u)
 if [ -z "$PREMIERE" ]; then
-  say "Premiere Pro 2026 or newer was not found in Applications. Asistent needs it."
-  read -r -p "  Install anyway? Type y and press Enter, or just press Enter to stop: " ans
-  [ "$ans" = "y" ] || [ "$ans" = "Y" ] || finish 1
+  if [ -n "$FOUND" ]; then
+    say "Asistent needs Premiere Pro 2026 (version 26) or newer. This Mac has:"
+    printf '%s' "$FOUND"
+  else
+    say "Asistent needs Premiere Pro 2026 (version 26) or newer, and no Premiere Pro was found on this Mac."
+  fi
+  say "Open the Creative Cloud app, install or update Premiere Pro to the newest version, then run this installer again."
+  finish 1
 fi
+echo "  Premiere: $(basename "$PREMIERE" .app)"
 
 if [ ! -d "/Library/Application Support/Adobe/Adobe Desktop Common/RemoteComponents/UPI/UnifiedPluginInstallerAgent" ]; then
   say "Adobe's plugin installer is missing. Open the Creative Cloud app once (it comes with Premiere), then run this again."
@@ -107,7 +120,7 @@ if [ -n "$PYBIN" ]; then
 else
   eval "set -- \$PY_$ARCH"
   echo "  Downloading Python 3.12 ($ARCH)..."
-  fetch "$PY_BASE/${1//+/%2B}" "$WORK/python.tar.gz" "$2" || fail "the Python download"
+  fetch "$PY_BASE/${1//+/%2B}" "$WORK/python.tar.gz" "$2" || fail "the Python download (check the internet connection)"
   rm -rf "$APP/python"
   tar -xzf "$WORK/python.tar.gz" -C "$APP" || fail "unpacking Python"
   PYBIN="$APP/python/bin/python3.12"
@@ -130,8 +143,8 @@ else
     eval "set -- \$FF_$ARCH"
     mkdir -p "$APP/ffmpeg/bin"
     echo "  Downloading FFmpeg ($ARCH)..."
-    fetch "$FF_BASE/$1/ffmpeg.zip" "$WORK/ffmpeg.zip" "$2" || fail "the FFmpeg download"
-    fetch "$FF_BASE/$1/ffprobe.zip" "$WORK/ffprobe.zip" "$3" || fail "the FFprobe download"
+    fetch "$FF_BASE/$1/ffmpeg.zip" "$WORK/ffmpeg.zip" "$2" || fail "the FFmpeg download (check the internet connection)"
+    fetch "$FF_BASE/$1/ffprobe.zip" "$WORK/ffprobe.zip" "$3" || fail "the FFprobe download (check the internet connection)"
     unzip -o -q "$WORK/ffmpeg.zip" -d "$APP/ffmpeg/bin" && unzip -o -q "$WORK/ffprobe.zip" -d "$APP/ffmpeg/bin" \
       || fail "unpacking FFmpeg"
     chmod +x "$APP/ffmpeg/bin/ffmpeg" "$APP/ffmpeg/bin/ffprobe"
@@ -143,13 +156,13 @@ fi
 # ------------------------------------------------------------------ 3. the newest Asistent release
 step 3/4 "Asistent"
 curl -fsSL --retry 3 --connect-timeout 20 -o "$WORK/latest.json" "https://github.com/$REPO/releases/latest/download/latest.json" \
-  || fail "could not reach GitHub"
+  || fail "could not reach GitHub (check the internet connection)"
 read -r VER NAME SHA < <("$PYBIN" -I -c 'import json, sys
 b = json.load(open(sys.argv[1]))
 print(b["version"], b["bundle"]["name"], b["bundle"]["sha256"])' "$WORK/latest.json") || fail "reading latest.json"
 [[ "$NAME" =~ ^Asistent-[0-9.]+\.zip$ ]] || fail "unexpected release file name: $NAME"
 echo "  Downloading Asistent $VER..."
-fetch "https://github.com/$REPO/releases/download/v$VER/$NAME" "$WORK/$NAME" "$SHA" || fail "the Asistent download"
+fetch "https://github.com/$REPO/releases/download/v$VER/$NAME" "$WORK/$NAME" "$SHA" || fail "the Asistent download (check the internet connection)"
 mkdir -p "$WORK/release" && unzip -q "$WORK/$NAME" -d "$WORK/release" || fail "unpacking Asistent"
 REL="$WORK/release/${NAME%.zip}"            # build_release.py packs everything under Asistent-<version>/
 [ -f "$REL/scripts/setup_mac.sh" ] || REL="$WORK/release"
@@ -166,7 +179,15 @@ else
   echo "  This is an Intel Mac: everything is installed except Subtitles (one of its parts exists only for Apple Silicon)."
 fi
 export PATH="$(dirname "$PYBIN"):$APP/ffmpeg/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
-bash "$REL/scripts/setup_mac.sh" ${FLAGS[@]+"${FLAGS[@]}"} || fail "the Asistent setup (see the lines above)"
+if ! bash "$REL/scripts/setup_mac.sh" ${FLAGS[@]+"${FLAGS[@]}"} 2>&1 | tee "$WORK/setup.log"; then
+  if grep -q "status = -411" "$WORK/setup.log"; then
+    say "Adobe's plugin installer found no Premiere Pro it can add the panel to (error -411)."
+    say "Open the Creative Cloud app, update Premiere Pro to the newest version (2026 or newer), open Premiere once,"
+    say "quit it, and run this installer again. Everything downloaded so far is kept."
+    finish 1
+  fi
+  fail "the Asistent setup (see the lines above)"
+fi
 
 # The engine is started by a LaunchAgent whose PATH holds only the Homebrew folders: add Asistent's own FFmpeg to it and
 # start the engine again so it reads the new PATH. (An Update keeps the LaunchAgent as it is.)
