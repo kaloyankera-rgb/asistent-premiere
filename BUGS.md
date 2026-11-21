@@ -58,6 +58,21 @@
 - A repeated take said again without a pause is listed, never cut. Takes more than 90 s apart are not matched (`takes.WINDOW_S`).
 - The preview's dynamic checkboxes and text-field `change` events were never run in UXP (browser preview only).
 
+## Stray presses and the scroll boxes (0.10.130, open, not fixed; found in review of the fix)
+- The stray-press net (`strayPresses()` in `panel/main.js`) skips a button under a hidden pane (fixed in 0.10.130), but it checks
+  scrolled-out buttons only against `#app`. `#work` and `#result` (max-height 240 px, scrolling, outside `#app`) can still have a
+  scrolled-out button pressed by a stray press.
+- Platform limit (Premiere 26.5.3 UXP): a button inside a hidden pane keeps the rectangle it had when the pane was last shown, so
+  rectangle tests alone cannot tell what is on screen. The net therefore also reads the `hidden` property up the tree.
+
+## In & Out preview (0.10.130, limits)
+- Seen once through the bridge (0.10.131): on the very first visit to In & Out after the panel loads, the preview with remembered picks did not start; later visits did. A pointer move over the page or a new pick starts it. Not reproduced, cause not looked into (possibly the pane has no width yet when `openTab` wakes it).
+- The bridge has no hook for the page's `preview.info()`; the 0.10.131 test read the DOM instead.
+- 0.10.130 crashed Premiere 26.5.3 in the SVG painter (`SvgGeometryNode::prePaint`) while the preview looped. Rule since 0.10.131: a looping SVG animation in the panel never removes or creates nodes per frame, it only changes attributes. The Keyframer preview still recreates nodes but plays once per press; no crash from it is known.
+- The preview frame is a fixed 148 x 104 px with a 52 x 36 px box: it shows the motion, not the clip's real size.
+- The preview does not draw motion blur (the blur is applied by Premiere only).
+- UXP can report a hidden pane as visible for a while (stale sizes): the loop then runs up to 8 plays before it rests.
+
 ## Open bugs
 - **Limit (0.10.88):** motion blur leaves a frame sharp when the picture grows more than 4x within the shutter time (Premiere
   then blends every frame's blur straight from start to end); typically the first frame of a pop from scale 0.

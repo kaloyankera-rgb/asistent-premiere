@@ -102,6 +102,13 @@ const RELEASE_MS = 300;                                  // a click comes right 
 // safety net a press that lands on one of our buttons but is delivered to another element still presses that button (logged).
 function strayPresses() {
   const inside = (r, x, y) => r.width > 0 && r.height > 0 && x >= r.left && x < r.right && y >= r.top && y < r.bottom;
+  // Measured 2026-11-21 (Premiere 26.5.3): a button inside a hidden pane keeps the rectangle from when the pane was last laid
+  // out (63 of 296 buttons, offsetParent and offsetWidth non-zero too), so a click on a label or a card pressed a button of
+  // another page: it jumped tabs, and once placed a Brand clip. Only the `hidden` property up the tree says what is on screen.
+  const shown = (n) => {
+    for (; n && n !== document; n = n.parentNode) if (n.hidden) return false;
+    return true;
+  };
   document.addEventListener("pointerdown", (e) => {
     if (e && typeof e.button === "number" && e.button !== 0) return;
     for (let n = e.target; n && n !== document; n = n.parentNode) {
@@ -111,7 +118,7 @@ function strayPresses() {
     const y = e.clientY;
     const app = $("app");
     for (const b of document.querySelectorAll(".btn")) {
-      if (!b._press || !inside(b.getBoundingClientRect(), x, y)) continue;
+      if (!b._press || !shown(b) || !inside(b.getBoundingClientRect(), x, y)) continue;
       // a button scrolled out of the list's visible part (under the header) is not under the mouse
       if (app && app.contains(b) && !inside(app.getBoundingClientRect(), x, y)) continue;
       const t = e.target;
@@ -247,6 +254,7 @@ function bindTips(root) {
 // Log and the before/after pictures to Before / after (2026-11-03: they used to push the buttons away).
 const history = [];
 let trackerPage = null;                                   // the Tracker page (mounted below, 0.10.51)
+let inoutPage = null;                                     // the In & Out page (mounted below, Phase 3)
 let brandPage = null;                                     // the Brand page (mounted below, 0.10.71)
 let silencesPage = null;                                  // Cut silences: options and preview (mounted below, 0.10.96)
 let keyframerPage = null;                                 // the Keyframer page (its info for the bridge, 0.10.72)
@@ -292,6 +300,7 @@ function openTab(pane) {
   for (const b of document.querySelectorAll(".btn.mside")) b.className = `btn mside${b.getAttribute("data-tab") === pane ? " on" : ""}`;
   if (pane === "paneTracker" && trackerPage) trackerPage.relayout();
   if (pane === "paneBrand" && brandPage) brandPage.shown();
+  if (pane === "paneInOut" && inoutPage) inoutPage.wake();     // its preview stops while the page is hidden
   try {
     $("app").scrollTop = 0;
   } catch (e) {
@@ -2140,7 +2149,7 @@ for (const t of document.querySelectorAll(".btn.tab, .btn.mside")) onTap(t, () =
 keyframerPage = require("./keyframer.js").mount({ $, el, button, enable, bindTips, premiere });     // the Keyframer page (0.10.32)
 trackerPage = require("./tracker.js").mount({ $, el, button, enable, bindTips, premiere });   // the Tracker page (0.10.51)
 require("./anchor.js").mount({ $, el, button, enable, bindTips, premiere });     // the Anchor page (0.10.69, Anchor Studio)
-const inoutPage = require("./inout.js").mount({ $, el, button, enable, bindTips, premiere });   // the In & Out page (Phase 3)
+inoutPage = require("./inout.js").mount({ $, el, button, enable, bindTips, premiere });   // the In & Out page (Phase 3)
 // the Brand page (0.10.71): the subtitle style it can switch is the Subtitles row's own list
 const subtitleValues = () => [...$("subtitleStyle").querySelectorAll("option")].map((o) => o.value);
 brandPage = require("./brand.js").mount({ $, el, button, enable, bindTips, premiere, hooks: {

@@ -29,6 +29,9 @@ keys so the object stays put on screen ("Lock to it"). Each frame is marked sure
   One run tracks at most 9000 frames (`tracker.py` `MAX_FRAMES`).
 - Premiere passes no scroll to panels (no scroll zoom). A press that reaches another element still presses the button
   under it; pointer capture is released by hand (0.10.77). Panel CSS limits apply (no grid, gap, transitions).
+- The stray-press net (`strayPresses()` in `main.js`) skips any button with a `hidden` ancestor (0.10.130): in Premiere 26.5.3 a
+  button in a hidden pane keeps its old rectangle, so clicks on labels in the open page pressed buttons of other pages. It does not
+  yet check scroll boxes `#work` and `#result` outside `#app` (BUGS.md).
 - Layout is chosen by the clip's real shape (`trackplan.layoutFor`); nodes are moved, not rebuilt, so handlers stay.
 - One point with scale and turn only. No corner pin: a flat sign turning in depth stays within about 1 to 2 px.
 
@@ -48,7 +51,7 @@ keys so the object stays put on screen ("Lock to it"). Each frame is marked sure
 
 ## Status
 - Since 0.10.51 (engine, Attach), 0.10.54 Lock, 0.10.55-0.10.58 the page, 0.10.64 range and Stop, 0.10.73-0.10.75 zoom
-  and layout, 0.10.76 hard cases, 0.10.77 colour. Current build 0.10.120.
+  and layout, 0.10.76 hard cases, 0.10.77 colour, 0.10.130 the stray-press net skips hidden panes. Current build 0.10.130.
 - Tried in Premiere 26.5.2 through the test bridge on a synthetic 4K clip: within 0.5 px in Premiere's own frames, scale
   and rotation right, Detach and the refusal over the editor's keys checked. The user ran it on a real clip (their ball
   recording, 2026-11-15); the engine scored 13 of 57 hand-marked ball frames followed, 4 off, 40 lost. Latest status

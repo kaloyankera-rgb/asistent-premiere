@@ -469,14 +469,27 @@ test("the In & Out page: pane, Motion button, dock, mount line and packed files"
   assert.match(main, /show\("ioDock", pane === "paneInOut"\)/);
   assert.match(main, /require\("\.\/inout\.js"\)\.mount\(\{ \$, el, button, enable, bindTips, premiere \}\)/);
   assert.match(main, /inoutPage\.remembered\(\)/);
-  for (const f of ["inout.js", "inoutui.js", "inoutplan.js", "premiere-inout.js"]) assert.match(pack, new RegExp(`\\b${f.replace(".", "\\.")}\\b`));
+  for (const f of ["inout.js", "inoutui.js", "inoutplan.js", "premiere-inout.js", "inoutpreview.js"]) assert.match(pack, new RegExp(`\\b${f.replace(".", "\\.")}\\b`));
   const page = fs.readFileSync(path.join(panel, "inout.js"), "utf8");
   assert.match(page, /const dock = \$\("ioDock"\) \|\| host;/);
   assert.match(page, /store\.setItem\(KEY, /);
   assert.match(page, /const KEY = "asistent\.inout\.ui";/);
   // only Apply and Remove write anything, and both go through a pressed button
   assert.strictEqual((page.match(/IO\.(apply|remove)\(/g) || []).length, 2);
-  assert.doesNotMatch(page, /setTimeout|setInterval/);                            // nothing runs by itself
+  assert.doesNotMatch(page, /setTimeout|setInterval/);                            // nothing runs by itself (the preview's timer is in inoutpreview.js)
   // every button of the page is made with button() (a div.btn) and carries a tip
   assert.doesNotMatch(page, /createElement\("button"\)/);
+});
+
+// In & Out preview (Phase 4): it only draws; it never reaches Premiere, stops its timer when the pane is hidden, and the page wakes it
+test("the In & Out preview draws only, stops when hidden and is mounted by the page", () => {
+  const pv = fs.readFileSync(path.join(panel, "inoutpreview.js"), "utf8");
+  assert.doesNotMatch(pv, /premiere|require\("\.\/store|engine\.js/);               // no Premiere, no store, no engine
+  assert.strictEqual((pv.match(/setTimeout\(/g) || []).length, 1);                  // one chain, started by tick()
+  assert.match(pv, /if \(!visible\(\)\) return;/);                                  // a hidden pane ends the chain
+  assert.doesNotMatch(pv, /setInterval|requestAnimationFrame/);
+  const page = fs.readFileSync(path.join(panel, "inout.js"), "utf8");
+  assert.match(page, /PV\.mount\(\{ host: card\(\), el, visible: \(\) => !root\.hidden && root\.offsetWidth > 0/);
+  assert.match(page, /preview\.set\(v\);/);
+  assert.match(page, /root\.addEventListener\("pointerover", preview\.wake\)/);
 });

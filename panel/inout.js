@@ -7,6 +7,7 @@ const store = require("./store.js");
 const IO = require("./premiere-inout.js");
 const I = require("./inoutplan.js");
 const U = require("./inoutui.js");
+const PV = require("./inoutpreview.js");
 
 const KEY = "asistent.inout.ui";
 const EDGES = [["left", "Left"], ["top", "Top"], ["bottom", "Bottom"], ["right", "Right"]];
@@ -50,6 +51,12 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     "and press Apply. Each clip gets one Asistent Transform effect with a keyframe on every frame, so the motion is as smooth as in After Effects; your own Motion " +
     "and effects are not touched. Apply again to change it, Remove takes it off. The first Apply is two Cmd/Ctrl+Z steps (Premiere adds an effect in a step of " +
     "its own), a re-apply and Remove are one."));
+
+  // ---- the preview (Phase 4): the picked animations played on a sample box from the rows Apply bakes (inoutpreview.js). It draws
+  // only; its timer stops while this pane is hidden and starts again on the next pointer move over the pane (wake) or choice.
+  const preview = PV.mount({ host: card(), el, visible: () => !root.hidden && root.offsetWidth > 0, debug: premiere.debug });
+  root.addEventListener("pointerover", preview.wake);
+  root.addEventListener("mousemove", preview.wake);
 
   // ---- the two preset lists
   const sides = {};                                          // side -> {row of None + presets' buttons}
@@ -237,6 +244,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     strengthRow.r.setAttribute("data-tip", v.strengthTip);
     strengthRow.l.setAttribute("data-tip", v.strengthTip);
     blurSw.className = state.blur ? "btn small sw on" : "btn small sw";
+    if (busy) preview.stop();                                  // no redrawing while Apply or Remove writes
+    else preview.set(v);
     enable(applyBtn, v.canApply && !busy);
     enable(removeBtn, !busy);
     showStatus();
@@ -257,7 +266,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       Object.assign(state, U.restore(readSaved()));
       paint();
     },
-    info: () => ({ ...U.snapshot(state), view: U.view(state), busy, status: [...status.children].map((c) => c.textContent) }),
+    wake: () => preview.wake(),                              // main.js openTab: the page is on screen again
+    info: () => ({ ...U.snapshot(state), view: U.view(state), busy, preview: preview.info(), status: [...status.children].map((c) => c.textContent) }),
   };
 }
 

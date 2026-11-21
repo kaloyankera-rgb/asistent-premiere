@@ -30,8 +30,14 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
       next / previous part in a long preview, Scribe speakers and laughter. Dead code to remove: Safe / Smart, the Fast switch.
 - [ ] Each clip is decoded three times on the words path; the final check reads the whole new sequence through UXP again.
 
+## SP. Stray-press net (0.10.130, from the review of the fix)
+- [ ] `strayPresses()` (`panel/main.js`) checks scrolled-out buttons only against `#app`. `#work` and `#result` (max-height 240 px,
+      scrolling, outside `#app`) can still have a scrolled-out button pressed by a stray press. Give each scroll box the same
+      visible-part test as `#app`, then add a test.
+- [ ] USER: click the Motion and Brand settings labels and card backgrounds in real use: no other tab opens, nothing is placed.
+
 ## IO. In & Out animations (`docs/IN_OUT_PLAN.md`, the user's approval 2026-11-21; 0.10.124 = Phase 0 desk + Phase 1 maths)
-0.10.127 = Phase 2 (`panel/premiere-inout.js`): built and bridge-tested. 0.10.129 = Phase 3, the page (`panel/inout.js`, `panel/inoutui.js`): bridge-tested on 0.10.128, awaiting the user's look.
+0.10.127 = Phase 2 (`panel/premiere-inout.js`): built and bridge-tested. 0.10.129 = Phase 3, the page (`panel/inout.js`, `panel/inoutui.js`): bridge-tested on 0.10.128, awaiting the user's look. 0.10.130 = Phase 4, the preview card (`panel/inoutpreview.js`): built, Node-tested, not installed. Phase 5 remains.
 - [x] Live probes P1-P9 ran in NEW TEST 2026-11-21 (`docs/probes/inout-phase0.md`); test sequence "Asistent probe – In Out" kept.
 - [x] Decision recorded: owned Transform (DECISIONS 2026-11-21).
 - [ ] Probe a type-tool text clip (only a Basic Title MOGRT was measured) and the Keyframer on a trimmed + sped-up clip (BUGS).
@@ -57,7 +63,10 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
       on the nine presets where it changes nothing.
 - [ ] USER: the look in Premiere, next to the reference: the page (card layout, greyed rows, dock, the four Motion buttons at narrow
       widths, tooltips) and the playback, blur on and off. The bridge reads the DOM and cannot see either.
-- [ ] Phase 4: a small preview of the picked preset (reuse the Keyframer's preview). The motion blur toggle is in since Phase 3.
+- [x] Phase 4 (0.10.130): the preview card on the page, built and Node-tested (14 tests); rules-reviewer PASS. The motion blur toggle is in since Phase 3.
+- [ ] Install 0.10.130 and bridge-test the preview: the timer stops when the pane is hidden, after 8 plays, during Apply / Remove, and
+      after a draw failure; `openTab` wakes it. Not run yet.
+- [ ] USER: the preview's drawing, its layout in the card and its loop speed in Premiere (the bridge reads the DOM only).
 - [ ] In & Out page small things: the bridge's `fill` allowlist lacks `ioInFrames`, `ioOutFrames`, `ioStrength` (tests set them
       through `uxp_eval`); `remembered()` after a late store load was not exercised live.
 - [ ] Phase 5 (later): per-property curve editor (reuse `keyframer.js`) and "Save as new preset" into `asistent.inout.presets`.

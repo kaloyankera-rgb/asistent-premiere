@@ -124,7 +124,7 @@ first apply on a clip is 2 Undo steps and a re-apply is 1. The panel says the nu
    in + out longer than the clip, key cap).
 2. `premiere-inout.js`: apply, re-apply, remove, record. Live test through the bridge.
 3. The page, the hooks, packaging, wiring tests. One look by the user in Premiere.
-4. Motion blur toggle and a small preview of the picked preset (reuse the Keyframer's preview).
+4. **Built in 0.10.130:** the motion blur toggle (since Phase 3) and a small preview of the picked preset (`panel/inoutpreview.js`, the Keyframer's technique). Not yet installed or bridge-tested.
 5. **Later:** per-property curve editor (reuse the Keyframer's editor in `keyframer.js`) and
    "Save as new preset" into store key `asistent.inout.presets`, same shape as
    `asistent.keyframer.curves`.

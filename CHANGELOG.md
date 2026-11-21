@@ -31,6 +31,46 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.131 - The In & Out preview no longer crashes Premiere (2026-11-21, installed, not released, awaiting the user's look)
+- **Crash:** 0.10.130 was installed at 18:17 and Premiere 26.5.3 crashed at 18:18:44 during the bridge test, six seconds after the
+  In & Out page was opened with the preview looping. Crash report: EXC_BAD_ACCESS on the main thread in UXP's SVG painter
+  (`torq::ui::SvgGeometryNode::prePaint` -> `NodeImpl::hasAttribute`). It is the only crash report with that signature.
+- **Likely cause (not proven by a second crash):** the preview removed its box and created a new one on every frame at 30 fps,
+  and the painter still held the removed node. The Keyframer's preview draws the same way but plays once on a press.
+- **Fix:** `panel/inoutpreview.js` creates its two shapes once and never takes them out of the tree; a frame only changes the
+  `points` attribute and the opacity. Also from the review of 0.10.130: the loop rests after 8 plays without a pointer move or a
+  new pick, stops while Apply or Remove writes, and does not retry after a draw failure.
+- **Tests:** a new test runs the real `mount` on a fake tree for 400 frames and asserts no node is created or removed after the
+  build. Node 487 pass. Pytest at 0.10.130: 954 passed, 24 skipped (no Python changed since).
+- **Bridge test in NEW TEST (0.10.131):** three rounds of the tab sequence that crashed 0.10.130 and about five minutes of looping, Premiere stayed up and no new crash report appeared; the preview keeps exactly one box and one outline. Stray presses: on a grid over the page the old rule would have pressed a hidden button at 1142 of 3522 points (In & Out showing) and 1885 of 4516 (Brand showing), the new rule at 0. Preview: 52 steps for Pop, 65 with Out Slide, all four edges travel the right way, stops on another tab, restarts on return, rests after 8 plays. Apply (Pop, 13 scale keys, 2 Undo steps named) and Remove left the chain as found. Not seen by anyone yet: what is painted.
+- 0.10.130 was never committed on its own; this commit carries both.
+
+## 0.10.130 - Stray-press fix on every page, and In & Out Phase 4: the preview (2026-11-21, not installed, not released, awaiting the user's look)
+- **Fix: clicks on the settings opened other tabs.** The user's report of 2026-11-21: "when I click somewhere on the settings it opens up the other tabs", on Motion and Brand.
+  Cause: the 0.10.77 safety net `strayPresses()` in `panel/main.js` pressed the first button whose rectangle held the pointer when a press
+  landed on a non-button. In Premiere 26.5.3 a button inside a hidden pane keeps the rectangle it had when the pane was last shown (measured
+  through the bridge: 63 of 296 buttons, offsetParent and offsetWidth non-zero too), so clicks on labels, card backgrounds and the Tracker
+  picture pressed buttons of pages visited earlier: Tools actions (which jump to the Tools tab), Keyframer presets, and once a Brand asset was
+  imported and placed from a click on an In & Out label (engine log 18:09:09). Every page was affected; the stray presses have been in the
+  logs since 15 November, and the cause is older than In & Out (commit 1963f4f).
+  Fix: the net skips any button with a `hidden` ancestor. New `tests/straypress.test.js` (4 tests, run against the real source cut from
+  `main.js`); the original Track / Stop case still passes.
+  Known gap, not fixed: only `#app` is checked for scrolled-out buttons. `#work` and `#result` (max-height 240 px, scrolling, outside `#app`)
+  could still have a scrolled-out button stray-pressed (found in review).
+- **In & Out Phase 4: a Preview card** at the top of the In & Out page (new `panel/inoutpreview.js`, tests in `tests/inoutpreview.test.js`).
+  It plays the picked In and Out presets on a sample box, from the same rows `inoutplan.plan()` gives Apply, with the page's edge, turn,
+  frames and Strength. The loop is In, 15 frames of rest, Out, 24 frames of pause, at 30 fps. Both None: a resting box and no timer.
+  It uses the Keyframer preview's technique (an SVG polygon redrawn with setTimeout) and its `.kf-pv*` classes; the Keyframer code is
+  untouched and no CSS was added.
+  It never writes to Premiere or to the store. The timer stops when the pane is hidden, after 8 plays without a pointer move or a new pick,
+  during Apply and Remove, and after a draw failure. `openTab` wakes it (`inoutPage.wake()`; `inoutPage` is now a `let` beside `trackerPage`).
+  The frame is a fixed 148 x 104 px with a 52 x 36 px box: it shows the motion, not the clip's real size, and it does not draw motion blur.
+  The blur switch already existed since Phase 3 and is unchanged.
+- Packed in `scripts/package_ccx.sh`; wiring test added in `tests/wiring.test.js`.
+- Checks: Node 486 pass (467 at 0.10.129; 19 new: 14 preview, 4 stray press, 1 wiring). No Python changed. rules-reviewer PASS, no must-fix.
+- Not run yet: pytest, the install, the bridge test.
+- Not verified: the user has not seen the preview's drawing or layout in Premiere, and has not confirmed the click fix in real use.
+
 ## 0.10.129 - In & Out animations: Phase 3, the page (2026-11-21, installed on the development Mac, not released, awaiting the user's look)
 - 0.10.128 was an install-only step on the development Mac for the bridge test; it was never committed or released and has no entry of its own.
 - New Motion → In & Out page: `panel/inout.js` (the page) and the pure helper `panel/inoutui.js` (what the controls show and say, Node-tested in `tests/inoutui.test.js`).
