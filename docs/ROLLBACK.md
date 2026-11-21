@@ -4,7 +4,7 @@ The 2026-11 improvements (branch `improvements/2026-11`, the user's implementati
 that each one can be switched off, reverted or have its data restored on its own, without losing the others.
 
 ## The protected starting point
-- Local tag `backup/pre-improvements-2026-11-08` = commit `fbe0b28`, version 0.10.8 (never pushed).
+- Local tag `backup/pre-improvements-2026-11-08` = commit `2991cf4`, version 0.10.8 (never pushed).
 - Full private backup (Git bundle, whole working tree incl. untracked files, app data, installed panel/host, LaunchAgent,
   model hashes, restore steps): `~/Kaloyan/07_ARCHIVE/_backups/Asistent 2026-11-08 pre-improvements/MANIFEST.md`.
   Read-only; never edit or delete it. Restore steps are in that manifest, part by part.

@@ -57,7 +57,7 @@ MIN_S, MAX_S = 15.0, 150.0
 FPS = 8                    # frames a second read for the reference, as measure_style.py
 # profile -> what the job is asked for; a new recognition path gets its own name here when it exists
 #   strict   the Auto style as shipped in 0.10.118, run from that version's code kept in the store (`code/0.10.118/engine`,
-#            made once with `git archive 4f359f7 engine | tar -x -C <store>/code/0.10.118`): the baseline does not move
+#            made once with `git archive e3f0f46 engine | tar -x -C <store>/code/0.10.118`): the baseline does not move
 #            while the working tree changes
 #   now      the Auto style of the working tree (must score exactly as `strict` until the default profile changes)
 #   classic  the same sound through the ReShape style's recognition

@@ -1,5 +1,14 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-21: no Claude credit in commits; history rewritten once
+- **The user: "Remove him you have permission and stop adding him"** (Claude was listed as a contributor on GitHub because 197 of
+  199 commit messages ended with a `Co-Authored-By: Claude ...` line). From now on no commit carries such a line.
+- **The one approved rewrite of history:** the lines were removed from every commit message (`git filter-branch --msg-filter`,
+  files, authors and dates unchanged), and `main`, `improvements/2026-11` and the release tags were force-pushed. Every commit
+  hash changed; the hashes quoted in the documents were replaced by the new ones. A bundle of the repository as it was is kept
+  on the development Mac in `~/Library/Application Support/Asistent/backup/asistent-before-rewrite-2026-11-21.bundle`.
+  Any other clone must be cloned again. "History is never rewritten" stands for everything else.
+
 ## 2026-11-21: Cut silences after the audit (0.10.122)
 - **The user: "use the agents to fix them"** after the audit's list; taken as the go for TODO SIL (the dead channel) as well.
   Not decided by the user and so not built: Calm as the default pacing, keeping unselected clips in the new sequence.

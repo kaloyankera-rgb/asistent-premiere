@@ -193,6 +193,9 @@ or the snapshot in `docs/dev-workflow/`.
   it private again, offer updates from an office server folder (`updater._source`) instead of GitHub. Treat everything
   committed as public: nothing private in commits, ever.
   History is never rewritten: no force-push, no `reset --hard`, no history rewriting, no deleting branches or tags.
+  (One exception, the user's explicit order of 2026-11-21: the `Co-Authored-By: Claude` lines were taken out of every commit
+  message and the branches and tags force-pushed once; DECISIONS. The rule stands for everything else.)
+  Commit messages carry no `Co-Authored-By` line and no other credit to Claude or any AI tool (the user, 2026-11-21).
   Rename files with `git mv`. Never commit secrets, models, `dist/`, logs or client footage (`.gitignore` covers them).
 - Documents and what each is for: `CLAUDE.md` rules and architecture · `docs/INDEX.md` the map ·
   `docs/features/<feature>.md` one page per feature (≤ ~80 lines, template `_TEMPLATE.md`) · `PROJECT_STATUS.md` short

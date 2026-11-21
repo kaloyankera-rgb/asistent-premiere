@@ -8,10 +8,10 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 ## Version
 - 0.10.134 (In & Out tiles: a pick is seen on the first click, after the user's "I have to double click"): installed, Node 495 pass, not pushed. The presses were always registered on the first click (log); the cause of not seeing them is not proven, each tile press now logs the tile's computed look. Awaiting the user's try.
 - 0.10.133 (In & Out page as Tiles, the user's choice of layout A): installed, Node 495 pass, rules-reviewer BLOCK fixed (stepper with a focused box), bridge-tested in NEW TEST, not pushed, not released. The user has not seen it in Premiere. Open: at a 523 px tall panel only about 2 tile rows show above the dock.
-- 0.10.132 (compact In & Out page, replaced by 0.10.133 before the user's look): local only (`d52971b`), installed and bridge-tested earlier; not pushed.
-- 0.10.131 (stray-press fix on every page; the preview no longer recreates its SVG shapes after 0.10.130 crashed Premiere in the SVG painter at 18:18:44): pushed to GitHub 2026-11-21 with the user's yes (`improvements/2026-11` at `1a20ae9`); installed, Node 487 pass, pytest 954 passed / 24 skipped, not released. The user has not confirmed the click fix.
+- 0.10.132 (compact In & Out page, replaced by 0.10.133 before the user's look): local only (`7552dca`), installed and bridge-tested earlier; not pushed.
+- 0.10.131 (stray-press fix on every page; the preview no longer recreates its SVG shapes after 0.10.130 crashed Premiere in the SVG painter at 18:18:44): pushed to GitHub 2026-11-21 with the user's yes (`improvements/2026-11` at `c2397d0`); installed, Node 487 pass, pytest 954 passed / 24 skipped, not released. The user has not confirmed the click fix.
 - 0.10.123 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`,
-  pushed to `origin/main` at `348d2ee`.
+  pushed to `origin/main` at `683953b`.
 - Last published release: v0.10.118 (2026-11-19). 0.10.119 and 0.10.120 are pushed but not released, 0.10.121-0.10.123 committed, not pushed, so the editors'
   panels do not offer them yet. Releases only when the user asks (`scripts/publish_release.sh`).
 - Windows: largely untested (`scripts/setup_win.ps1` and the Windows installer never run by the user). See

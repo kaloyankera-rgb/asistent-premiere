@@ -8,7 +8,7 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 
 ### Branch improvements/2026-11 (the user's implementation prompt of 2026-11-08; installed on the development Mac, not pushed)
 - 2026-11-09 notes: the rough cut's slowness on a 10-minute video is speech recognition on the CPU (cancelled after 326 s; the cutting takes seconds): options in TODO A. `panel/version.js` brought to 0.10.17 (written by packaging).
-- **Protected backup before any change**: local tag `backup/pre-improvements-2026-11-08` (fbe0b28, 0.10.8) and a private,
+- **Protected backup before any change**: local tag `backup/pre-improvements-2026-11-08` (2991cf4, 0.10.8) and a private,
   read-only backup outside the repo (Git bundle, whole working tree, app data, installed panel/host, LaunchAgent, model
   hashes, restore steps; isolated restore ran 574 pytest + 166 node green). See `docs/ROLLBACK.md`.
 - **ReShape baseline (dev only, no app change)**: `scripts/reshape_guard.py` (protected files changed since the tag),
@@ -72,7 +72,7 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
 - **Not run yet:** the review verdict, the install and the bridge test.
 - **Not verified in Premiere (the user's look needed):** the real panel's column count and tile look, the preview frame (in a wide
   panel a slide appears and disappears at the edge of the drawing, some way inside the frame), the icons, the hover.
-- **Git:** 0.10.131 was pushed to GitHub on 2026-11-21 (`improvements/2026-11` at `1a20ae9`). 0.10.132 (`d52971b`) and 0.10.133
+- **Git:** 0.10.131 was pushed to GitHub on 2026-11-21 (`improvements/2026-11` at `c2397d0`). 0.10.132 (`7552dca`) and 0.10.133
   are local only.
 
 - **After the first write-up of this entry:** rules-reviewer BLOCK for one bug, fixed before the install: a press on the length
@@ -117,7 +117,7 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   and bridge test: not yet.
 - **Not verified in Premiere (the user's look needed):** whether the arrow glyphs ← ↑ ↓ → ↻ ↺ render in UXP's font (fallback:
   inline SVG icons); whether a 300 px panel really gets the side-by-side layout in UXP; the hover preview's behaviour.
-- **Git:** 0.10.131 was pushed to GitHub on 2026-11-21 with the user's yes (branch `improvements/2026-11` at `1a20ae9`). 0.10.132
+- **Git:** 0.10.131 was pushed to GitHub on 2026-11-21 with the user's yes (branch `improvements/2026-11` at `c2397d0`). 0.10.132
   is not pushed.
 
 - **After the first write-up of this entry:** rules-reviewer PASS, no must-fix. Five of its notes taken before the install: the Edge /
@@ -152,7 +152,7 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   through the bridge: 63 of 296 buttons, offsetParent and offsetWidth non-zero too), so clicks on labels, card backgrounds and the Tracker
   picture pressed buttons of pages visited earlier: Tools actions (which jump to the Tools tab), Keyframer presets, and once a Brand asset was
   imported and placed from a click on an In & Out label (engine log 18:09:09). Every page was affected; the stray presses have been in the
-  logs since 15 November, and the cause is older than In & Out (commit 1963f4f).
+  logs since 15 November, and the cause is older than In & Out (commit afff051).
   Fix: the net skips any button with a `hidden` ancestor. New `tests/straypress.test.js` (4 tests, run against the real source cut from
   `main.js`); the original Track / Stop case still passes.
   Known gap, not fixed: only `#app` is checked for scrolled-out buttons. `#work` and `#result` (max-height 240 px, scrolling, outside `#app`)

@@ -525,7 +525,7 @@ Panel: „Цвят: бяло и експозиция“ → preview + „При�
 - **Step-back verified (12:40, C0739, 0.9.16):** +0.5 stops → 0.65 units, skin 0.007 stop from target;
   4.42 % newly clipped → pull-back 0.15 units → re-check 3.08 % (limit 3 %, the engine would have taken
   another 0.05), skin 0.10 stop dark (on target). The old fixed 0.5 would have left 0.15 units.
-- 0.9.17: final clipping verdict (reporting only, the exposure path of c289c31 untouched): ACCEPTED ≤ 3.00 %,
+- 0.9.17: final clipping verdict (reporting only, the exposure path of 52d1ad8 untouched): ACCEPTED ≤ 3.00 %,
   ACCEPTED_WITH_WARNING up to +0.25 points (`CLIP_SOFT_TOLERANCE`, per call `clip_tolerance`) or when the
   excess is only in areas already near white before (≥ 0.90: lamps, windows, sky), REVIEW_NEEDED above that
   or when skin TONES (skin-coloured, < 0.90 before) clip on > 1 % of the skin area; a first check followed by

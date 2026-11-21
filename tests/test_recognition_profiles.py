@@ -104,7 +104,7 @@ def test_every_other_style_gets_the_default_and_a_bad_request_changes_nothing(mo
 
 
 def test_the_cache_key_of_a_reading_is_the_one_asistent_has_always_used():
-    """Computed with the 0.10.118 code (git 4f359f7): a ReShape reading recognised before is still found, and none is redone."""
+    """Computed with the 0.10.118 code (git e3f0f46): a ReShape reading recognised before is still found, and none is redone."""
     y = np.arange(8, dtype=np.float32) / 8
     assert subtitle_job._words_key(y, "А, Б.") == "0247cd7dd98d566291c9fc3cd17ab3e85e1fc462"
     assert subtitle_job._words_key(y, "") == "3cc6a3740e38dd475b37aa72e88cd80c579dd438"
