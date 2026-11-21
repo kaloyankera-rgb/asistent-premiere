@@ -700,5 +700,7 @@ a lot): settings were chosen for what they prevent, then checked on synthetic co
 - **Decision:** one owned Transform (`AE.ADBE Geometry2`) per clip, recognised by a static tag in Skew Axis (Skew 0)
   plus the record `asistent.inout.v1`; the editor's Motion, Opacity and own Transform are never written. On a clip with a
   Graphic group it is inserted before the group. Key time of frame f: `inPt × |speed| + f × |speed| / fps`.
-- **Not decided:** Strength on presets that cannot travel less; the two protective hooks in the blur and the Keyframer
-  (the user's word). Not tested: a type-tool text clip.
+- **Not decided:** Strength on presets that cannot travel less. Not tested: a type-tool text clip.
+- **Added in 0.10.127 (the user's go-ahead, 2026-11-21):** the two protective hooks: the Keyframer's `readSelection` skips
+  the tagged Transform, and the blur's `addOwn` takes a Transform only when the count rose by exactly one and it is not
+  tagged. Measured rule for a clip rotated with Motion: the Transform's Position runs along the clip's own rotated axes.

@@ -12,6 +12,16 @@
   timeline seconds. `premiere-keyframes.js` reads existing keys (so shaping between them is right) but anything it places
   from `inPt` alone, and the blur's window, may be off on such a clip. To check with the probe sequence in NEW TEST.
 
+## In & Out animations, Phase 2 (0.10.127, open, not fixed; found in the bridge tests of 2026-11-21)
+- After ONE Undo of a first Apply, an empty untagged Transform remains on the clip; the next Apply adds a second one (it never
+  adopts an untagged Transform, by design). Two Undos are needed, as the status line says.
+- A clip whose start is off the sequence frame grid (e.g. head-trimmed by a round number of seconds at 29.97) shows a 1-3 px sliver
+  of the picture on frame 0 of a slide; the keys ignore the fractional offset.
+- Graphics made in Premiere scale and turn around the frame's centre, not their own (the result carries a note); UXP exposes no text box.
+- Inserting the Transform before a Graphic group shifts the chain indices that Keyframer records ("c:i") point at for that graphic.
+- The Anchor page's Transform target would edit In/Out's Transform when it is the only Transform on the clip (`premiere-anchor.js`).
+  Only a Basic Title MOGRT was tested, not a type-tool text clip.
+
 ## Limits of subtitles by ElevenLabs (0.10.119; also Cut silences' AI words since 0.10.121)
 - The sound of the selected clips leaves the computer. ElevenLabs keeps uploads by default; Asistent deletes each transcript
   after use, but their docs do not say that this also removes their copy of the sound (no-retention is an enterprise feature).

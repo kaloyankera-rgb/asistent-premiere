@@ -2,7 +2,7 @@
 
 Start here. To change a feature, read its page below before the code, and update that page in the same commit.
 Each page has the same sections: what it does, how to use it, key points (do not break), decisions, code map,
-status, tests. Status as of 0.10.125 (2026-11-21).
+status, tests. Status as of 0.10.127 (2026-11-21).
 
 ## Features
 
@@ -24,7 +24,7 @@ status, tests. Status as of 0.10.125 (2026-11-21).
 | Tracker | Track an object, attach a text or lock the clip to it | [tracker](features/tracker.md) | Bridge-tested; engine on a real clip | Untested |
 | Anchor | Anchor point to nine places while the picture stays put | [anchor](features/anchor.md) | Bridge-measured; text case used | Untested |
 | Install and update | Installers, release zip, the panel's Update button, rollback | [install-and-update](features/install-and-update.md) | Verified on the Mac | Never run |
-| In & Out | Preset in and out animations (position, scale, rotation, opacity) on selected clips | [in-out](features/in-out.md) | Phase 0 probes done, Phase 1 maths built (0.10.125); not wired, not installed | Untested |
+| In & Out | Preset in and out animations (position, scale, rotation, opacity) on selected clips | [in-out](features/in-out.md) | Phase 2 (0.10.127) bridge-tested, installed on the dev Mac; no page yet; motion not seen by the user | Untested |
 | Development tools | Test bridge, browser preview, CSS probe, logs, benchmarks, guards, hook | [dev-tools](features/dev-tools.md) | Used on the Mac | Not tested |
 
 New feature: copy [features/_TEMPLATE.md](features/_TEMPLATE.md), keep it under ~80 lines, add a row here.
@@ -50,7 +50,7 @@ New feature: copy [features/_TEMPLATE.md](features/_TEMPLATE.md), keep it under 
 | [ROLLBACK.md](ROLLBACK.md) | The protected backup, the ReShape guard / golden checks, how to switch off and restore per feature. |
 | [NATIVE_GRAPHICS.md](NATIVE_GRAPHICS.md) | What a script can do with Premiere's native text graphics (probed 2026-11-08). |
 | [SMART_EXPORT_DESTINATION_PLAN.md](SMART_EXPORT_DESTINATION_PLAN.md) | Plan only, not built (TODO XD). |
-| [IN_OUT_PLAN.md](IN_OUT_PLAN.md) | In & Out animations (separate in and out preset lists, baked AE-style curves, motion blur). Approved 2026-11-21; Phase 0 (probes, decision) and Phase 1 (maths) done in 0.10.125; next Phase 2. |
+| [IN_OUT_PLAN.md](IN_OUT_PLAN.md) | In & Out animations (separate in and out preset lists, baked AE-style curves, motion blur). Approved 2026-11-21; Phase 0 (probes, decision) and Phase 1 (maths) done in 0.10.125; Phase 2 (apply, remove) done in 0.10.127; next Phase 3, the page. |
 | [SUBTITLES_PLAN.md](SUBTITLES_PLAN.md), [ROUGHCUT_PLAN.md](ROUGHCUT_PLAN.md), [EXPORT_REVEAL_PLAN.md](EXPORT_REVEAL_PLAN.md) | Shipped plans, kept as history (code comments point to them). Current behaviour: the feature pages. |
 | [probes/](probes/cockpit-phase0.md), [probes/inout-phase0.md](probes/inout-phase0.md) | Probe results (Cockpit phase 0, native graphics); In & Out phase 0 (desk findings, live probes P1-P9, scripts in probes/inout/). |
 | [history/](history/PROJECT_STATUS_to_0.10.120.md) | Old PROJECT_STATUS (to 0.10.120), finished TODO sections, fixed BUGS entries, word for word. |

@@ -387,7 +387,131 @@ function times(clip, fps) {
 // Opacity = o * 100. On a text graphic the Transform goes BEFORE the Graphic group and pivots on the frame's centre, so the
 // Anchor Point has to move to the text for scale and rotation presets.
 
+// ---------------------------------------------------------------- Transform values (the pure half of premiere-inout.js)
+// Rows (frame fractions, multipliers, degrees) -> the values Premiere's Transform takes, one key list per parameter. Needs the
+// clip's on-screen box (boxOf) but no Premiere, so it is tested with node.
+const EXIT_FLOOR = 0.02;                       // a clip already (almost) off the picture still travels this far (frame fractions)
+const POSITION_REST = 0.5;                     // Position = Anchor Point = the layer's centre (measured, probe P1)
+
+/** the edge a side's position animation goes to / comes from: the preset's own (a drop), else the picked direction */
+function edgeOf(side, presetId, direction) {
+  const p = find(side, presetId);
+  const pr = p && p.props.find((x) => x.prop === "pos");
+  return (pr && pr.edge) || direction || "left";
+}
+
+/**
+ * The clip's picture on the sequence frame under its Motion. geo: {seq: {w, h}, layer: {w, h}, fit}, m: Motion values as
+ * blurplan.motion takes them. -> {cx, cy, hw, hh (centre and half sizes of the box that holds the picture, rotation
+ * included, as fractions of the frame), wf, hf (the picture's own width and height as fractions of the frame, rotation left
+ * out: the unit Transform's Position is measured in, probe P4), rot (Motion Rotation in radians, clockwise), ar (frame width /
+ * height)}
+ */
+function boxOf(geo, m) {
+  m = B.motion(m);
+  const fit = geo.fit ? Math.min(geo.seq.w / geo.layer.w, geo.seq.h / geo.layer.h) : 1;
+  const W = geo.layer.w * fit * (m.sw / 100);
+  const H = geo.layer.h * fit * (m.sh / 100);
+  const c = B.screen(geo.layer.w / 2, geo.layer.h / 2, m, geo);
+  const r = (m.rot * Math.PI) / 180;
+  const co = Math.abs(Math.cos(r));
+  const si = Math.abs(Math.sin(r));
+  return { cx: c[0] / geo.seq.w, cy: c[1] / geo.seq.h, hw: (co * W + si * H) / 2 / geo.seq.w, hh: (si * W + co * H) / 2 / geo.seq.h,
+    wf: W / geo.seq.w, hf: H / geo.seq.h, rot: r, ar: geo.seq.w / geo.seq.h };
+}
+
+// A picture smaller than this fraction of the frame (Motion scale 2 % of a frame-size layer) is not animated by position: Position
+// is the offset divided by that size, so a 0 gives Infinity and 0.001 gives keys 50000 away.
+const MIN_SIZE = 0.02;
+
+/** can this box carry a position animation? -> null (yes), "size" (not a finite box: a size that cannot be read) or "scale" (0 or too small) */
+function boxUsable(box) {
+  if (!box || ![box.cx, box.cy, box.hw, box.hh, box.wf, box.hf, box.rot === undefined ? 0 : box.rot, box.ar === undefined ? 1 : box.ar].every(Number.isFinite)) return "size";
+  return box.wf >= MIN_SIZE && box.hf >= MIN_SIZE ? null : "scale";
+}
+
+/** how far (frame fractions) the box must move towards `edge` to be fully off the picture: the "1" of an exit animation */
+function exitDistance(box, edge) {
+  const d = edge === "left" ? box.cx + box.hw : edge === "right" ? 1 - box.cx + box.hw : edge === "top" ? box.cy + box.hh : 1 - box.cy + box.hh;
+  return Math.max(d, EXIT_FLOOR);
+}
+
+/**
+ * plan() -> Transform key lists. ctx: {at (frame -> key time, times().at), box: {in, out} (boxOf, only the sides that move
+ * position need one), inPreset, outPreset, direction}.
+ * -> {keys: {position: [{f, t, v: [x, y]}], scale (percent), rotation (degrees), opacity (0-100)} (each ascending by f, an
+ *     empty list = the parameter is not animated), total (keys written), error}; `error` (and no keys) when a position side's box is
+ * unusable (boxUsable) or any key would not be a finite number
+ * Units, measured (docs/probes/inout-phase0.md): Position = 0.5 + offset / (the picture's size as a fraction of the frame),
+ * the offset being dx / dy in frame fractions, or dx / dy x the exit distance when plan().exit says the side is in exit
+ * distances; Scale = s x 100; Rotation = r (clockwise positive); Opacity = o x 100. Only Position gets pins (a pin whose time
+ * is before media time 0 is left out); the row where In and Out meet is written once.
+ */
+function transformKeys(planned, ctx) {
+  const keys = { position: [], scale: [], rotation: [], opacity: [] };
+  const presetOf = { in: ctx.inPreset, out: ctx.outPreset };
+  const failed = (error) => ({ keys: { position: [], scale: [], rotation: [], opacity: [] }, total: 0, error });
+  for (const side of ["in", "out"]) {
+    if (planned.props[side].includes("pos") && boxUsable(ctx.box && ctx.box[side])) return failed(`the picture's size on the frame cannot be used for the ${side} side (Motion scale 0 or too small, or not readable)`);
+  }
+  const pos = (side, row) => {
+    const box = ctx.box[side];
+    let ox = row.dx;
+    let oy = row.dy;
+    if (planned.exit[side]) {
+      const d = exitDistance(box, edgeOf(side, presetOf[side], ctx.direction));
+      ox *= d;
+      oy *= d;
+    }
+    // Transform's Position is in the LAYER's own axes (they turn with Motion Rotation) and in fractions of the picture's own,
+    // unrotated width and height (measured: Motion Scale 50, Rotation 30: Position x +0.25 moved the picture 0.25 x its width
+    // along its turned x axis, y likewise). So the wanted screen offset (frame fractions) is turned by -rot into the clip's axes,
+    // in frame-width units for x and frame-height units for y (the frame is not square), then divided by wf / hf. At rotation 0
+    // cos = 1 and sin = 0 exactly, so this is the plain ox / wf, oy / hf.
+    const co = Math.cos(box.rot || 0);
+    const si = Math.sin(box.rot || 0);
+    const ar = box.ar || 1;
+    const ux = ox * co + oy * (1 / ar) * si;
+    const uy = -ox * ar * si + oy * co;
+    return [POSITION_REST + ux / box.wf, POSITION_REST + uy / box.hf];
+  };
+  for (const side of ["in", "out"]) {
+    const has = (n) => planned.props[side].includes(n);
+    for (const row of planned[side]) {
+      const t = ctx.at(row.f);
+      if (has("pos")) keys.position.push({ f: row.f, t, v: pos(side, row) });
+      // plan() already keeps s in range; the clamp is the last guard before a value reaches Premiere (400 % breaks its blending)
+      if (has("scale")) keys.scale.push({ f: row.f, t, v: Math.min(SCALE_MAX, Math.max(SCALE_MIN, row.s)) * 100 });
+      if (has("rot")) keys.rotation.push({ f: row.f, t, v: row.r });
+      if (has("op")) keys.opacity.push({ f: row.f, t, v: row.o * 100 });
+    }
+  }
+  for (const pin of planned.pins) {
+    if (!planned.props[pin.side].includes("pos")) continue;
+    const t = ctx.at(pin.f);
+    if (t < 0) continue;
+    const row = planned[pin.side].find((r) => r.f === pin.like);
+    if (row) keys.position.push({ f: pin.f, t, v: pos(pin.side, row) });
+  }
+  let total = 0;
+  for (const name of Object.keys(keys)) {
+    keys[name].sort((a, b) => a.f - b.f);
+    keys[name] = keys[name].filter((k, i, a) => i === 0 || k.f !== a[i - 1].f);
+    total += keys[name].length;
+  }
+  // nothing that is not a finite number is ever handed back
+  for (const list of Object.values(keys)) for (const k of list) if (!Number.isFinite(k.t) || ![].concat(k.v).every(Number.isFinite)) return failed("a keyframe value or time is not a number");
+  return { keys, total };
+}
+
+/** one press over several clips: the sum of every clip's plan().total against the per-press cap -> an error text or null */
+function capCheck(totals) {
+  const sum = totals.reduce((a, b) => a + b, 0);
+  return sum > K.MAX_KEYS ? `that would add ${sum} keyframes in one press (more than ${K.MAX_KEYS}): select fewer clips or use shorter animations` : null;
+}
+
 module.exports = {
+  boxOf, boxUsable, exitDistance, edgeOf, transformKeys, capCheck, EXIT_FLOOR, MIN_SIZE, POSITION_REST,
   IN_PRESETS, OUT_PRESETS, GROUPS, DIRECTIONS, TURNS, REST, PROP_NAMES,
   STRENGTH_DEFAULT, STRENGTH_MIN, STRENGTH_MAX, FRAMES_MIN, FRAMES_MAX, SCALE_MAX, SCALE_MIN, PIN,
   plan, times, find, groups, animates, needs, defaultFrames,

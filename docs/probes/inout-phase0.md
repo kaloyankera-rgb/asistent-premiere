@@ -156,6 +156,16 @@ text with `insertMogrtFromPath` and Premiere's own Basic Title; Keyframer button
 `click "Apply"` hits the Anchor page's button). More helpers in `inout/`: `mkkeys.js`, `kfdom.js`, `untick.js`,
 `both.js`, `vals.js`, `motion_read.js`.
 
+## After Phase 2 (0.10.127): a clip rotated with Motion
+
+Measured with `add.js` + `set.js` on a clip at Motion Scale 50, Rotation 30 (picture 135x240 px of a 270x480 export):
+Transform Position x 0.5 → 0.75 moved the picture's centre by (+29.4, +17.0) px, y 0.5 → 0.75 by (−30.0, +52.0) px. So
+Position works **along the clip's own rotated axes, in fractions of the picture's own width and height**. The conversion
+in `inoutplan.transformKeys` (screen offset turned by −rotation, with the frame's aspect, then divided by the picture's
+size) was then checked through the real Apply on five rotated clips (30°, 30° off-centre, 90°, −45°, 15° larger than the
+frame), slides from all four edges and one out, 25 runs: Position equals the maths (1e-7), off-axis drift 0 px (0.5 px
+on the largest), frame 0 fully outside, landing diff 0. The full Phase 2 live test (13 checks) is in CHANGELOG 0.10.127.
+
 ## Open questions for the user
 
 - May Phase 2 add two small protective hooks in existing files: the `+1` count check in the blur's `addOwn`, and

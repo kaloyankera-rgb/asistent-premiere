@@ -31,23 +31,30 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] Each clip is decoded three times on the words path; the final check reads the whole new sequence through UXP again.
 
 ## IO. In & Out animations (`docs/IN_OUT_PLAN.md`, the user's approval 2026-11-21; 0.10.124 = Phase 0 desk + Phase 1 maths)
-Nothing in the panel yet. Phase 1 is `panel/inoutplan.js`, unit-neutral; no page, no Premiere code, not in the zip.
+0.10.127 = Phase 2 (`panel/premiere-inout.js`): built and bridge-tested, reachable only through the test bridge; no page yet.
 - [x] Live probes P1-P9 ran in NEW TEST 2026-11-21 (`docs/probes/inout-phase0.md`); test sequence "Asistent probe – In Out" kept.
 - [x] Decision recorded: owned Transform (DECISIONS 2026-11-21).
 - [ ] Probe a type-tool text clip (only a Basic Title MOGRT was measured) and the Keyframer on a trimmed + sped-up clip (BUGS).
+- [x] Rotation conversion: measured at 30°, re-checked live on five rotated clips (30°, 30° off-centre, 90°, −45°, 15° larger than the frame; 25 runs): travel along the screen axis within 0.5 px, fully off screen at frame 0, lands exactly (2026-11-21).
+- [ ] `inout_info`'s `stale` stays true after both Undos of a first Apply (the record outlives the effect): clear or ignore the record when no Transform of ours and no empty one is left.
+- [ ] Limits of 0.10.127 (BUGS "In & Out"), each open: (1) one Undo leaves an empty untagged Transform, the next Apply adds a second;
+      (2) fractional clip start off the frame grid shows a 1-3 px sliver on frame 0 of a slide; (3) Premiere graphics pivot on the
+      frame centre (the result notes it), UXP has no text box; (4) inserting before the Graphic group shifts Keyframer's "c:i" indices;
+      (5) the Anchor page edits In/Out's Transform when it is the only one on the clip.
 - [ ] USER: clips A-F in NEW TEST: are the old test squares (V3, 650-890 s, bin "Asistent test") still there, or prepare new ones?
 - [ ] USER: Strength. It changes nothing on In Slide, Whip, Fade, Zoom In and Out Slide, Whip, Drop, Shrink, Fade (a clip that
       must start or end fully off screen cannot travel less). The plan says "Strength scales travel distance": keep the
       exception, or change the plan? `needs().strength` lets the page grey the control out.
-- [ ] USER: may Phase 2 add two protective hooks in existing files: a +1 Geometry2 count check in the blur's `addOwn`
-      (`premiere-blur.js` 241-246), and `readSelection` in `premiere-keyframes.js` skipping In/Out's Transform (55-58).
+- [x] The two protective hooks (blur's `addOwn` +1 count check; `readSelection` skipping In/Out's Transform) are in, built on the
+      user's go-ahead 2026-11-21 ("continue").
 - [ ] Open: the Anchor page's Transform target edits In/Out's Transform when it is the only one on the clip (`premiere-anchor.js`
       21-31): guard it, or say it on the feature page.
-- [ ] Phase 2: `panel/premiere-inout.js` (apply, re-apply, remove, record in `asistent.inout.v1`), keys in one transaction,
-      tag per the probe page; add `panel/inoutplan.js` to the zip list in `scripts/package_ccx.sh` in this phase (the wiring test
-      expects it once a panel file requires it); live test through the bridge in NEW TEST.
-- [ ] Phase 3: page `panel/inout.js`, hooks in `panel/index.html`, `panel/main.js`, `panel/devbridge.js` (`inout_info`), the
-      packaging list, wiring tests. USER: one look in Premiere (layout needs it, the bridge cannot see the panel).
+- [x] Phase 2 (0.10.127): `panel/premiere-inout.js` (apply, re-apply, remove, record in `asistent.inout.v1`), keys in one
+      transaction, tag in Skew Axis; `inoutplan.js` and `premiere-inout.js` packed by `scripts/package_ccx.sh`; live test through
+      the bridge in NEW TEST, 13 checks passed (CHANGELOG 0.10.127).
+- [ ] Phase 3: page `panel/inout.js`, hooks in `panel/index.html`, `panel/main.js`, the packaging list, wiring tests. Strength
+      greyed on the nine presets where it changes nothing via `needs().strength`. USER: one look in Premiere (layout needs it,
+      the bridge cannot see the panel); also the look of the motion, which no bridge check has seen.
 - [ ] Phase 4: motion blur toggle and a small preview (reuse the Keyframer's preview).
 - [ ] Phase 5 (later): per-property curve editor (reuse `keyframer.js`) and "Save as new preset" into `asistent.inout.presets`.
 - [ ] Each phase: version bump (manifest + config), CHANGELOG, PROJECT_STATUS, TODO, BUGS, PROGRESS, INDEX. Push only on the user's yes.

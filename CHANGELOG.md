@@ -31,6 +31,34 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.127 - In & Out animations: Phase 2, apply, re-apply and remove on the Premiere side (2026-11-21, installed on the development Mac, not released, no page yet)
+- 0.10.126 was an install-only step on the development Mac and was never committed or released; it has no entry of its own.
+- New `panel/premiere-inout.js`: `apply` puts the picked In and/or Out preset on every selected video clip. Each clip gets one
+  Asistent-owned Transform, tagged in its Skew Axis and recorded in the panel store (`asistent.inout.v1`), with baked keys (one per
+  frame, from `inoutplan.plan()`) for Position, Scale, Rotation and Opacity, and optional motion blur (Shutter Angle 180).
+  `remove` takes that effect off again; `info` reads the state. Clips with a Graphic group (Premiere text) get the Transform inserted before the group.
+- Undo: a first Apply is 2 steps for any number of clips (the effect, then the tag and keys), a re-apply is 1, Remove is 1. The result says the number.
+- Never writes the editor's Motion, Opacity or own Transform, and never removes a track item.
+- `panel/inoutplan.js` gains pure exports: `boxOf`, `exitDistance`, `edgeOf`, `transformKeys`, `capCheck`, `boxUsable`, `MIN_SIZE`.
+  They turn the frame rows into Transform values from the clip's on-screen box. Rotation is handled in the clip's own rotated axes.
+  A clip whose Motion scale is 0 or tiny is skipped for position presets, with a reason. Non-finite keys are never written.
+- Two protective hooks in existing files, on the user's go-ahead (2026-11-21): `premiere-keyframes.js` `readSelection` skips In/Out's
+  tagged Transform, so the Keyframer neither lists nor reshapes its keys; `premiere-blur.js` `addOwn` now needs the Transform count to
+  rise by exactly one and refuses a tagged one. Nothing changes when the blur's add works.
+- `devbridge.js`: test-bridge commands `inout_info`, `inout_apply`, `inout_remove` (test projects only). `scripts/package_ccx.sh` packs both new modules.
+- Nothing in the panel's UI changed: the feature is reachable only through the test bridge. The page is Phase 3.
+- Bridge test in NEW TEST, sequence "Asistent probe – In Out", 13 checks, all passed: key values match the maths to float noise on
+  plain, trimmed, 200 % and 50 % clips and on a Basic Title graphic; frame 0 fully off screen and the landing bit-identical to the
+  baseline; Undo 2 / 1 / 1 on three clips; blur smears by half the per-frame travel, and off is sharp; In + Out longer than the clip
+  is shortened; a small off-centre clip exits fully and lands exactly; the Keyframer no longer lists our Transform; the blur's and
+  our Transform never touch each other in either order; an editor's own untagged Transform is never written or removed; refusals
+  (nothing selected, no preset, unknown preset, reversed clip, key cap) write nothing.
+- Rotation conversion: measured at 30°, then re-checked live on five rotated clips (30°, 30° off-centre, 90°, −45°, 15° larger than the frame; 25 runs): travel along the screen axis within 0.5 px, fully off screen at frame 0, lands exactly.
+- Not verified by the user: how the motion looks (the bridge reads numbers only).
+- Known limits, open and not fixed: `BUGS.md` "In & Out".
+- Tests: `tests/inoutkeys.test.js` new. Node 451 pass (433 at 0.10.125). Python: pytest in a scratch HOME 954 passed, 24 skipped,
+  run before the last fixes; no Python changed since.
+
 ## 0.10.125 - In & Out animations: Phase 0 live probes, the key base on sped-up clips (2026-11-21, not installed, not wired)
 - Probes P1-P9 ran in NEW TEST through the bridge, no crash (`docs/probes/inout-phase0.md`). Measured: Transform's Position is a
   fraction of the layer, Scale percent, Rotation degrees clockwise, Opacity 0-100; at rest the picture is bit-identical; it acts

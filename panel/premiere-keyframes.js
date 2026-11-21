@@ -54,9 +54,12 @@ async function readSelection(project) {
   // 0.10.78: Asistent's own motion blur Transform is not one of the clip's animations (its keys are the blur's)
   const own = await PB.findOwn(chain, rec.__blur, step / 4).catch(() => null);
   const props = [];
+  // lazy: keyframer.js, premiere-tracker.js and premiere-stash.js load through this file, and a load failure of In/Out's module must not take them down
+  const IO = require("./premiere-inout.js");
   for (let c = 0; c < n; c++) {
     if (own && own.index === c) continue;
     const comp = await chain.getComponentAtIndex(c);
+    if (await IO.isTagged(comp)) continue;             // In/Out's Transform (premiere-inout.js): its keys are not the clip's own animation
     const compMatch = (await maybe(comp, "getMatchName")) || "";
     const compName = (await maybe(comp, "getDisplayName")) || compMatch || "Effect";
     const count = await comp.getParamCount();

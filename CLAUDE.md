@@ -23,6 +23,7 @@ or the snapshot in `docs/dev-workflow/`.
   - `premiere-audio.js` Fill L/R, split copy, Volume level/keyframes · `channels.js` effect-chain routing
   - `stashplan.js` Stash: capture and place an animation, and (0.10.50) a clips stash's capture and free-track fit (pure) ·
     `premiere-stash.js` save and apply at the playhead (0.10.37; clips through a stash sequence + exportAsProject, 0.10.50)
+  - `inoutplan.js` In & Out animations' maths (pure; 0.10.124, Transform values 0.10.127) · `premiere-inout.js` apply / re-apply / remove the owned Transform (0.10.127, docs/features/in-out.md)
   - `trackplan.js` the tracker's maths: the tracked point through the clip's Motion, the attached clip's keys (pure) ·
     `premiere-tracker.js` reads the clips, writes / takes off the keys · `tracker.js` the Tracker page (0.10.51, docs/TRACKER.md)
   - `premiere-colorlearn.js` reads the exported sequence's Lumetri for colour learning (0.10.36)
@@ -113,7 +114,7 @@ or the snapshot in `docs/dev-workflow/`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
   (954 pass + 24 skipped at 0.10.122; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
   some tests write into the real app folder, so run them with `HOME` pointed at a scratch folder holding a copy of `models/lexicon`) and
-  `node --test tests/*.test.js` (433 tests at 0.10.124);
+  `node --test tests/*.test.js` (451 tests at 0.10.127);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Fix audio never splits a clip that carries effects or keyframes: overwriteClip drops them (measured 2026-11-08, DECISIONS).
 - Premiere tests only in the user's test projects `TEST.prproj` or `NEW TEST.prproj` (Ludi Glavi/Projects; the user's choice

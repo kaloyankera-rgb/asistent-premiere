@@ -228,19 +228,32 @@ async function read(prep) {
   return prep.result;
 }
 
+async function countTransforms(chain) {
+  const n = await chain.getComponentCount();
+  let count = 0;
+  for (let i = 0; i < n; i++) if (MATCHES.includes((await maybe(await chain.getComponentAtIndex(i), "getMatchName")) || "")) count++;
+  return count;
+}
+
 /** Adds Asistent's Transform at the end of the clip's effects (its own Undo step: Premiere needs it there first). */
 async function addOwn(project, prep, ti) {
   const comp = await ppro.VideoFilterFactory.createComponent(await transformMatch());
   prep.created = comp;                       // kept referenced until the end of the press (Premiere took it over)
+  // In/Out's tagged Transform may be on the clip (premiere-inout.js): the add must raise the Transform count by exactly one, or
+  // "the last Transform" below could be the In/Out's or the editor's, and its keys would be wiped (lazy require: no cycle)
+  const IO = require("./premiere-inout.js");
+  const countBefore = await countTransforms(prep.chain);
   P.transaction(project, "Asistent: Keyframer motion blur (Transform)", (c) => c.addAction(prep.chain.createAppendComponentAction(comp)));
   // Premiere crashed once (NEW TEST 2026-11-15, inside UXP turning an object into JavaScript) right after this step: the
   // effects are read again from a new handle, after Premiere has settled
   await new Promise((r) => setTimeout(r, 60));
   prep.chain = await ti.getComponentChain();
   const n = await prep.chain.getComponentCount();
+  if ((await countTransforms(prep.chain)) !== countBefore + 1) throw new Error("the Transform effect did not attach");
   for (let i = n - 1; i >= 0; i--) {
     const last = await prep.chain.getComponentAtIndex(i);
     if (MATCHES.includes((await maybe(last, "getMatchName")) || "")) {
+      if (await IO.isTagged(last)) throw new Error("the Transform effect did not attach");
       prep.own = { comp: last, index: i, ps: await transformParams(last), fresh: true };
       return prep.own;
     }
@@ -297,4 +310,5 @@ function record(prep) {
   return { times: r.keys.position.map((k) => k.t), angle: r.angle, moving: r.moving };
 }
 
-module.exports = { prepare, read, addOwn, actions, remove, record, findOwn, transformMatch };
+// transformParams, layerSize, fitOf, valueAt and MATCHES: also used by premiere-inout.js (In/Out animations)
+module.exports = { prepare, read, addOwn, actions, remove, record, findOwn, transformMatch, transformParams, layerSize, fitOf, valueAt, MATCHES };

@@ -633,6 +633,20 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       if (!hooks.keyframer || !hooks.keyframer()) throw new Error("no Keyframer page in this panel");
       return hooks.keyframer().info();
     },
+    // In/Out animations (premiere-inout.js, docs/IN_OUT_PLAN.md Phase 2): read the selected clips, apply {inPreset, outPreset,
+    // inFrames, outFrames, direction, turn, strength, blur}, remove. Before the page exists these are the only way to run it.
+    async inout_info() {
+      const { p } = await project();
+      return require("./premiere-inout.js").info(p);
+    },
+    async inout_apply(a) {
+      const { p } = await project();
+      return require("./premiere-inout.js").apply(p, a);
+    },
+    async inout_remove() {
+      const { p } = await project();
+      return require("./premiere-inout.js").remove(p);
+    },
     async tracker_info() {
       if (!hooks.tracker) throw new Error("no Tracker page in this panel");
       return hooks.tracker().info();
