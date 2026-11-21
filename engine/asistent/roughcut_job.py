@@ -17,7 +17,9 @@ import logging
 import numpy as np
 import os
 import re
+import threading
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
@@ -38,6 +40,12 @@ MIN_PIECE_FRAMES = 2
 # one long reading, which the cut can afford (it needs where speech is and which takes repeat, not the spelling); the
 # subtitles keep their own long windows.
 PART = 30.0
+# 0.10.122: ElevenLabs reads about 0.16 s per second of sound, but one request of a 20-minute clip is a 3-minute wait that
+# cannot be retried or shown, and its failure used to mean one 20-minute local reading. A window of up to CLOUD_MAX seconds is
+# still ONE request with the subtitles' own key (so a reading either feature made is shared); only a single clip longer than
+# that is cut at its quietest moments into parts of about CLOUD_PART seconds, which have keys of their own.
+CLOUD_MAX = 300.0
+CLOUD_PART = 240.0
 # 0.10.40 (the user's choice 2026-11-11, TODO A "rough cut faster on many clips"): the cut can read with large-v3-turbo. Measured
 # on GStroy FX3 (15 clips, 215 s, empty cache, M4 Max): 76.7 -> 35.8 s, but the takes differ: turbo missed a false start and
 # resolved one group of three takes differently (takes cut 58.4 -> 34.5 s, result 108.8 -> 123.3 s). So it is a switch the
@@ -50,24 +58,76 @@ ROUGH_KEY = "rough3-"      # 0.10.45: the rough cut's own large-v3 reading (asr.
 # this computer and its sound stays here too. ReShape is known by its folder ("ReShape", or the doctor's name the Brand tab
 # uses for it), also when Finder mounted a deeper folder of the share as its own volume (learning._mounts).
 RESHAPE_MARKS = ("reshape", "решейп", "denkov", "денков")
+# 0.10.122 (the engine audit): a mark counts as a WHOLE word of a path part ("Re-Shape" and "ReShapeProject" read "re"+"shape"),
+# not a piece of one: "Reshaped Exports" is not ReShape. "denkov" stays a substring („Денкова“, "Denkovclinic" count). When
+# unsure it counts: a wrong yes keeps a sound on this computer, a wrong no sends it away.
+_SHAPE = ("reshape", "решейп")
+_DENKOV = ("denkov", "денков")
+_NOT_SHAPE_ENDINGS = frozenset({"d", "r", "rs"})                           # reshaped, reshaper(s): clearly the English verb
+_CAMEL = re.compile(r"(?<=[a-zа-я])(?=[A-ZА-Я])")
+_NOT_ALNUM = re.compile(r"[^0-9a-zа-я]+")
+_MOUNT_TTL = 5.0                                  # s: /sbin/mount is asked at most this often (a run asks for every clip)
+_MOUNTS: dict = {"at": 0.0, "fn": None, "val": []}
+_MOUNTS_LOCK = threading.Lock()
+
+
+def _mounts() -> list:
+    fn = learning._mounts
+    with _MOUNTS_LOCK:
+        if _MOUNTS["fn"] is fn and time.monotonic() - _MOUNTS["at"] < _MOUNT_TTL:
+            return _MOUNTS["val"]
+    val = fn()                                    # outside the lock: it may take seconds
+    with _MOUNTS_LOCK:
+        _MOUNTS.update(at=time.monotonic(), fn=fn, val=val)
+    return val
+
+
+def _part_is_reshape(part: str) -> bool:
+    toks = [t for t in _NOT_ALNUM.split(_CAMEL.sub(" ", part).lower()) if t]
+    for t in toks:
+        for m in _SHAPE:
+            if t.startswith(m) and t[len(m):] not in _NOT_SHAPE_ENDINGS:
+                return True
+        if any(m in t for m in _DENKOV):
+            return True
+    # a name split by its punctuation: "Re-Shape", "Ре-Шейп"
+    for a, b in zip(toks, toks[1:]):
+        c = a + b
+        # the mark broken inside it ("re" + "shapes"); a first word as long as the mark is a word of its own ("reshaped" + "exports")
+        if any(c.startswith(m) and len(a) < len(m) and c[len(m):] not in _NOT_SHAPE_ENDINGS for m in _SHAPE):
+            return True
+    return any(a + b + c in _SHAPE for a, b, c in zip(toks, toks[1:], toks[2:]))
 
 
 def is_reshape(folder: str) -> bool:
-    """Is this project folder (or the share path behind its mount) a ReShape one?"""
+    """Is this path (a project folder or a media file), or the share path behind its mount, a ReShape one?"""
     if not folder:
         return False
-    path = os.path.abspath(folder)
+    path = os.path.abspath(unicodedata.normalize("NFC", folder))       # Finder hands names over decomposed (NFD)
     paths = [path]
-    for _host, remote, point in learning._mounts():
-        if path == point or path.startswith(point + "/"):
-            paths.append(remote + path[len(point):])
-    parts = [re.sub(r"[^0-9a-zа-я]", "", part.lower()) for p in paths for part in re.split(r"[\\/]", p)]
-    return any(m in part for part in parts for m in RESHAPE_MARKS)
+    try:
+        real = unicodedata.normalize("NFC", os.path.realpath(path))
+        if real != path:
+            paths.append(real)                                         # a link on the Desktop to a ReShape folder
+    except OSError:
+        pass
+    for p in list(paths):
+        for _host, remote, point in _mounts():
+            point = unicodedata.normalize("NFC", point)
+            if p == point or p.startswith(point + "/"):
+                paths.append(unicodedata.normalize("NFC", remote) + p[len(point):])
+    return any(_part_is_reshape(part) for p in paths for part in re.split(r"[\\/]", p))
 
 
-def use_cloud(out_dir: str) -> bool:
-    """Scribe reads the words of this Cut silences run: a key is saved, the switch is on and it is not a ReShape project."""
-    return cloudasr.available() and not is_reshape(out_dir)
+def is_reshape_run(folder: str, media=()) -> bool:
+    """A Cut silences run is ReShape's when its project folder OR any clip it reads or cuts is (the project may be saved on
+    the Desktop while the footage lives in the ReShape folder: 0.10.122)."""
+    return is_reshape(folder) or any(is_reshape(m) for m in dict.fromkeys(m for m in media if m))
+
+
+def use_cloud(out_dir: str, media=()) -> bool:
+    """Scribe reads the words of this Cut silences run: a key is saved, the switch is on and it is not a ReShape run."""
+    return cloudasr.available() and not is_reshape_run(out_dir, media)
 
 
 def model(fast: bool = False) -> str | None:
@@ -86,19 +146,42 @@ def read_rough(win: dict, kind: str, progress, cancelled) -> dict:
     if kind == asr.LARGE:
         entry = _cached(key) or {}
         if "words" in entry:
-            return {"y": y, "key": key, "entry": entry, "cached": True}
+            return {"key": key, "entry": entry, "cached": True}
         key = ROUGH_KEY + key
     else:
         entry = _cached(key) or {}
         if "words" in entry:
-            return {"y": y, "key": key, "entry": entry, "cached": True}
+            return {"key": key, "entry": entry, "cached": True}
         key = TURBO_KEY + key
     entry = _cached(key) or {}
     cached = "words" in entry
     if not cached:
         entry = {"words": asr.transcribe(y, None, progress, cancelled, model=kind, compression=asr.ROUGH_COMPRESSION)}
         _store(key, entry)
-    return {"y": y, "key": key, "entry": entry, "cached": cached}
+    return {"key": key, "entry": entry, "cached": cached}      # no "y": nothing after the reading uses the window's sound
+
+
+def _read_here_in_parts(win: dict, kind: str, progress, cancelled) -> dict:
+    """read_rough for a window that may be long: over PART + 20 s it is read in PART-sized parts (as the local path reads
+    long clips), side by side with nothing else but cut at the quietest moments, and the words are put back into the
+    window's own time. A fallback after a failed cloud request used to be ONE long reading (0.10.122)."""
+    if win["b"] - win["a"] <= PART + 2 * PAD + 10.0:
+        return read_rough(win, kind, progress, cancelled)
+    sub = plan_windows(split_long(win["pieces"]), max_window=PART + 2 * PAD + 10.0)
+    if len(sub) < 2:
+        return read_rough(win, kind, progress, cancelled)
+    words: list[dict] = []
+    cached = True
+    for n, w in enumerate(sub):
+        rd = read_rough(w, kind, lambda f, m, n=n: progress((n + f) / len(sub), m), cancelled)
+        cached = cached and rd["cached"]
+        shift = w["a"] - win["a"]                                          # a part's seconds -> the window's seconds
+        for sg in w["pieces"]:
+            lo = sg["start"] - w["a"]
+            hi = lo + (sg["end"] - sg["start"])
+            words += [{**x, "start": x["start"] + shift, "end": x["end"] + shift} for x in rd["entry"]["words"] if _inside(x, lo, hi)]
+    words.sort(key=lambda x: (x["start"], x["end"]))
+    return {"key": None, "entry": {"words": words}, "cached": cached}
 
 
 def read_cloud(win: dict, kind: str | None, progress, cancelled) -> dict:
@@ -108,17 +191,25 @@ def read_cloud(win: dict, kind: str | None, progress, cancelled) -> dict:
     y, key = window_audio(win, "", recognition.CLOUD)
     entry = _cached(key) or {}
     if "words" in entry:
-        return {"y": y, "key": key, "entry": entry, "cached": True}
+        if entry.get("by"):                               # 0.10.119-0.10.121 readings may hold a shout of 1000 letters
+            words, changed = cloudasr.tidy(entry["words"])
+            if changed:
+                entry = {**entry, "words": words}
+                _store(key, entry)
+        return {"key": key, "entry": entry, "cached": True}
     try:
-        # only the sound goes, as for the subtitles (cloudasr.py says what leaves the computer and why)
-        entry = {"words": cloudasr.transcribe(y, progress, cancelled, recognition.CLOUD.cloud), "by": recognition.CLOUD.cloud}
+        # only the sound goes, as for the subtitles (cloudasr.py says what leaves the computer and why); a cancelled upload
+        # that still finishes is stored for the next run (on_done)
+        model_name = recognition.CLOUD.cloud
+        entry = {"words": cloudasr.transcribe(y, progress, cancelled, model_name,
+                                              on_done=lambda ws, k=key: _store(k, {"words": ws, "by": model_name})), "by": model_name}
     except cloudasr.CloudError as e:
         log.warning("silences: %s; this window is recognised on this computer", e)
         if not kind:
-            return {"y": y, "key": key, "entry": {"words": []}, "cached": False, "fallback": str(e), "missed": True}
-        return {**read_rough(win, kind, progress, cancelled), "fallback": str(e)}
+            return {"key": key, "entry": {"words": []}, "cached": False, "fallback": str(e), "missed": True}
+        return {**_read_here_in_parts(win, kind, progress, cancelled), "fallback": str(e)}
     _store(key, entry)
-    return {"y": y, "key": key, "entry": entry, "cached": False}
+    return {"key": key, "entry": entry, "cached": False}
 
 
 def split_long(segments: list[dict], read=read_segment, part: float = PART) -> list[dict]:
@@ -210,12 +301,28 @@ def validate(body: dict) -> dict:
             "quiet": bool(sil and sil["mode"] != "silence")}
 
 
+def _cloud_parts(sg: dict) -> list[dict]:
+    """A piece for the cloud: itself, or parts of CLOUD_PART seconds when it is longer than one request should be. A long
+    clip the subtitles already read whole through ElevenLabs (its one window, under the shared key) is not split: that
+    reading is used, not paid for again."""
+    if sg["end"] - sg["start"] + 2 * PAD <= CLOUD_MAX:
+        return [sg]
+    whole = plan_windows([sg])[0]
+    if "words" in (_cached(window_audio(whole, "", recognition.CLOUD)[1]) or {}):
+        return [sg]
+    return split_long([sg], part=CLOUD_PART)
+
+
 def _words(segments: list[dict], progress, cancelled, fast: bool = False, cloud: bool = False) -> tuple[list[dict], dict]:
     """Whisper words of the pieces in SEQUENCE seconds (verbatim, no spelling work: the cut needs where speech is, not how it
     is spelled) and a note on how they were made. `cloud`: Scribe reads them (read_cloud), this computer only where it fails."""
     kind = model(fast)
     if not kind and not cloud:
         return [], {"asr": False, "note": "No speech model: the pauses were found only by the sound level and Silero."}
+    if cloud:
+        # a clip longer than one request should be is cut into parts first (CLOUD_MAX); every other window keeps the
+        # subtitles' own planning, so their readings are shared
+        segments = [part for sg in segments for part in _cloud_parts(sg)]
     wins = plan_windows(segments)
     # fewer windows than readers (one long clip): long pieces are read in parts, unless the subtitles' readings of the same
     # media are all there to reuse. With as many windows as readers splitting only adds work (REVO, three clips of 102-190 s:
@@ -236,7 +343,9 @@ def _words(segments: list[dict], progress, cancelled, fast: bool = False, cloud:
 
     reads = [None] * len(wins)
     order = sorted(range(len(wins)), key=lambda i: -(wins[i]["b"] - wins[i]["a"]))
-    with ThreadPoolExecutor(max_workers=max(1, min(asr.workers(), len(wins)))) as pool:
+    # Scribe's reading is a wait on the network, not work on this computer's cores: more at once than the local readers
+    readers = max(asr.workers(), 4) if cloud else asr.workers()
+    with ThreadPoolExecutor(max_workers=max(1, min(readers, len(wins)))) as pool:
         futures = {i: pool.submit(read_one, i) for i in order}
         try:
             for i, f in futures.items():
@@ -378,20 +487,43 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
 
 
 _WORDS: dict = {}                                 # the words of the last selections (AI): a preview after a changed setting reads nothing again
+_WORDS_LOCK = threading.Lock()                    # the engine serves requests on several threads
+
+
+def _stamp(path: str):
+    """A file's size and modification time: the same path with other content is not the same words."""
+    try:
+        st = os.stat(path)
+        return (st.st_size, st.st_mtime_ns)
+    except OSError:
+        return None
+
+
+def _complete(how: dict) -> bool:
+    """Were all the words read as asked? A window ElevenLabs could not read (read here instead, or no words at all) is a
+    result the next preview should try to improve, so it is not remembered."""
+    rec = how.get("recognizer")
+    return bool(how.get("asr")) and not (rec and (rec.get("local") or rec.get("missed") or rec.get("fallback")))
 
 
 def _silence_words(dialogue: list[dict], fast: bool, progress, cancelled, cloud: bool = False) -> tuple[list[dict], dict]:
-    """The recognised words for AI-assisted detection, remembered by what was selected and by who reads them (the readings
-    themselves are cached by their audio as well, like the subtitles')."""
-    key = (fast, cloud, tuple((d["path"], round(d["start"], 3), round(d["end"], 3), round(d["at"], 3), d.get("side")) for d in dialogue))
-    if key not in _WORDS:
-        if not cloud and not model(fast):
-            return [], {"asr": False, "note": "No speech model on this computer: detected without recognition (no hesitation sounds, no repeated takes)."}
-        mix = build_mix(dialogue, lambda f, m: progress(0.1 * f, m), cancelled)
-        _WORDS[key] = _words(mix["segments"], lambda f, m: progress(0.1 + 0.9 * f, m), cancelled, fast, cloud)
-        while len(_WORDS) > 4:
-            _WORDS.pop(next(iter(_WORDS)))
-    return _WORDS[key]
+    """The recognised words for AI-assisted detection, remembered by what was selected (the files too: their size and time)
+    and by who reads them (the readings themselves are cached by their audio as well, like the subtitles')."""
+    key = (fast, cloud, tuple((d["path"], round(d["start"], 3), round(d["end"], 3), round(d["at"], 3), d.get("side"), _stamp(d["path"]))
+                              for d in dialogue))
+    with _WORDS_LOCK:
+        if key in _WORDS:
+            return _WORDS[key]
+    if not cloud and not model(fast):
+        return [], {"asr": False, "note": "No speech model on this computer: detected without recognition (no hesitation sounds, no repeated takes)."}
+    mix = build_mix(dialogue, lambda f, m: progress(0.1 * f, m), cancelled)
+    got = _words(mix["segments"], lambda f, m: progress(0.1 + 0.9 * f, m), cancelled, fast, cloud)
+    if _complete(got[1]):
+        with _WORDS_LOCK:
+            _WORDS[key] = got
+            while len(_WORDS) > 4:
+                _WORDS.pop(next(iter(_WORDS)))
+    return got
 
 
 def run_silence(p: dict, progress, cancelled, t0: float) -> dict:
@@ -403,14 +535,21 @@ def run_silence(p: dict, progress, cancelled, t0: float) -> dict:
     t_start = round(min(i["start"] for i in p["layout"]) * fps) / fps
     t_end = round(max(i["end"] for i in p["layout"]) * fps) / fps
     dialogue = [d for d in p["dialogue"] if s["listen"] is None or d["track"] in s["listen"]]
-    ai = s["method"] == "ai"
+    # 0.10.122: words are read only when something uses them: hesitation sounds, or repeated takes (the AI rough cut, whatever
+    # the detection method: "AI rough cut" with Manual dB used to read nothing and find no takes while saying it did)
+    use_words = bool(s["fillers"]) or s["mode"] == "ai"
     progress(0.0, "Listening to the sound…")
-    det = silence.detect(dialogue, t_start, t_end, progress=lambda f, m: progress((0.25 if ai else 0.75) * f, m), cancelled=cancelled, s=s)
+    det = silence.detect(dialogue, t_start, t_end, progress=lambda f, m: progress((0.25 if use_words else 0.75) * f, m), cancelled=cancelled, s=s)
     words, how, groups = [], {"asr": False}, []
-    if ai:
-        words, how = _silence_words(dialogue, p["fast"], lambda f, m: progress(0.25 + 0.5 * f, m), cancelled, use_cloud(p["out_dir"]))
+    if use_words:
+        # ReShape is a run, not a folder: its footage may be anywhere the project is not
+        media = [d["path"] for d in p["dialogue"]] + [i["path"] for i in p["layout"]]
+        words, how = _silence_words(dialogue, p["fast"], lambda f, m: progress(0.25 + 0.5 * f, m), cancelled, use_cloud(p["out_dir"], media))
         if s["mode"] == "ai" and words:
             groups = takes.find(words)
+    elif s["method"] == "ai":
+        how = {"asr": False, "note": "AI-assisted detection read no words: nothing in this run uses them "
+                                     "(turn on Remove hesitation sounds, or choose AI rough cut for repeated takes)."}
     pl = silence.plan(det, s, t_start, words, groups)
     raw = pl["cuts"]
     cuts = edl.align_to_edges(pauses.snap(raw, fps), p["layout"], fps)

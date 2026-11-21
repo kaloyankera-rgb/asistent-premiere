@@ -29,7 +29,7 @@ function num(v, what, lo, hi) {
 /**
  * The controls' values -> { opts } (what readInput and the engine get) or { error } (what to fix, said before anything runs).
  * v: { mode, method, db, pacing, minSilence, minSpeech, before, after, sensitivity, short, shortMin, shortMax, fillers, range, action }.
- * AI rough cut always detects with the words; hesitation sounds need the words too.
+ * AI rough cut always detects with the words; hesitation sounds need the words too (Detect = AI-assisted or Cut = AI rough cut).
  */
 function readOptions(v) {
   const mode = MODES.includes(v.mode) ? v.mode : "offmic";
@@ -37,7 +37,7 @@ function readOptions(v) {
   if (mode === "ai" && method === "auto") method = "ai";
   const o = { mode, method, pacing: PACING[v.pacing] || v.pacing === "custom" ? v.pacing : "measured",
     sensitivity: Math.min(5, Math.max(1, Math.round(Number(v.sensitivity) || 3))), short: !!v.short,
-    fillers: !!v.fillers && method === "ai", action: ACTIONS.includes(v.action) ? v.action : "remove",
+    fillers: !!v.fillers && (method === "ai" || mode === "ai"), action: ACTIONS.includes(v.action) ? v.action : "remove",
     range: RANGES.includes(v.range) ? v.range : "selection", threshold: null };
   if (method === "manual") {
     const d = num(v.db, "the dB threshold", -80, -10);
@@ -76,8 +76,10 @@ function payloadOptions(opts, extra = {}) {
 
 /** What was listened to and laid out, as one string: a review belongs to the selection it was made on. */
 function signature(payload) {
-  const part = (x) => `${x.kind || "a"}${x.track}|${x.path}|${Number(x.start).toFixed(3)}|${Number(x.end).toFixed(3)}`;
-  return [...(payload.layout || []).map(part), "#", ...(payload.items || []).map((x) => `${x.track}|${x.path}|${Number(x.at).toFixed(3)}`)].join(";");
+  // the source In point is part of it (0.10.122): the same clip trimmed differently is other sound, and a review made on the
+  // old trim belongs to other seconds
+  const part = (x) => `${x.kind || "a"}${x.track}|${x.path}|${Number(x.start).toFixed(3)}|${Number(x.end).toFixed(3)}|${Number(x.inPt || 0).toFixed(3)}`;
+  return [...(payload.layout || []).map(part), "#", ...(payload.items || []).map((x) => `${x.track}|${x.path}|${Number(x.at).toFixed(3)}|${Number(x.start || 0).toFixed(3)}`)].join(";");
 }
 
 function clock(t) {
@@ -173,6 +175,43 @@ function kindsLine(by) {
   return KIND_ORDER.filter((k) => by[k] > 0.05).map((k) => `${KIND_LABEL[k]} ${by[k].toFixed(1)} s`).join(" · ");
 }
 
+/**
+ * 0.10.122: will these choices have the words read? Hesitation sounds need them, and so does AI rough cut (repeated takes),
+ * whatever Detect says: AI rough cut with Manual dB still reads them, the dB only decides what is quiet. `r` is the options
+ * ({ mode, method, fillers }) or the engine's result ({ mode, what, method, fillers }); an older engine's plain AI-assisted counts too.
+ */
+function wordsRead(r) {
+  return !!r && (r.mode === "ai" || r.what === "ai" || r.method === "ai" || !!r.fillers);
+}
+
+/** The Options line about who reads the words (null when these choices read none). cloud: engine.cloud()'s answer, or null when unknown. */
+function wordsLine(opts, cloud) {
+  if (!(opts && (opts.mode === "ai" || opts.fillers)) || !cloud) return null;
+  return cloud.on ? "Words: ElevenLabs Scribe (sends the sound of the selected clips; ReShape projects stay on this computer)"
+    : "Words: read on this computer (slower)";
+}
+
+// A Manual dB that removes most of what was selected is nearly always a level set too high (0.10.122: -30 dB on a quiet
+// lavalier cut 98 %): the press goes on only when it is repeated.
+const MANUAL_GUARD_PCT = 60;
+
+/** The share (percent) of the selected time that goes, for the guard: null unless it is a Manual dB cut that removes. */
+function removedShare(result, regions) {
+  if (!result || result.method !== "manual" || result.action === "split" || !(result.before_s > 0)) return null;
+  const cut = regions ? totals(regions).cut : result.saved_s;
+  return Math.round((100 * cut) / result.before_s);
+}
+
+/** The preview's own warning, worded for before any press: the stop comes with the first press of Cut silences. */
+function guardPreviewText(pct) {
+  return `Manual dB would remove ${pct} % of the selected time: the level may be too high. Cut silences will ask you to press it twice to go on; Suggest proposes a level from your clips.`;
+}
+
+/** What the panel says when the guard stops a press (the press repeated goes on). */
+function guardText(pct) {
+  return `This removes ${pct} % of the selected time: the dB level may be too high. Press Cut silences again to go on, or use Suggest for a level from your clips.`;
+}
+
 /** What the preview says above the waveform -> [{cls, text}]. */
 function describePreview(result, regions) {
   const t = totals(regions);
@@ -187,11 +226,13 @@ function describePreview(result, regions) {
   if (kinds) lines.push({ cls: "reason", text: kinds });
   if (t.flagged) lines.push({ cls: "warn", text: `${t.flagged} ${t.flagged === 1 ? "part is" : "parts are"} not sure and kept (yellow): tap one to cut it.` });
   if (t.restored) lines.push({ cls: "reason", text: `${t.restored} kept by you.` });
+  const share = removedShare(result, regions);
+  if (share !== null && share > MANUAL_GUARD_PCT) lines.push({ cls: "warn", text: guardPreviewText(share) });
   const sp = result.speech || {};
-  if (result.method === "ai" && !sp.asr) lines.push({ cls: "warn", text: sp.note || "No speech model: detected without recognition." });
-  if (result.method === "ai" && sp.asr && sp.recognizer) lines.push({ cls: "reason", text: `${sp.words} words recognised by ${sp.recognizer.name}.` });
+  if (wordsRead(result) && !sp.asr) lines.push({ cls: "warn", text: sp.note || "No speech model: detected without recognition." });
+  if (wordsRead(result) && sp.asr && sp.recognizer) lines.push({ cls: "reason", text: `${sp.words} words recognised by ${sp.recognizer.name}.` });
   const cloudNote = recognizerNote(sp.recognizer);
-  if (result.method === "ai" && cloudNote) lines.push({ cls: "warn", text: cloudNote });
+  if (wordsRead(result) && cloudNote) lines.push({ cls: "warn", text: cloudNote });
   return lines;
 }
 
@@ -227,5 +268,5 @@ function micLines(result) {
   return lines;
 }
 
-module.exports = { recognizerNote, PACING, MODES, METHODS, ACTIONS, RANGES, MODE_LABEL, METHOD_LABEL, ACTION_LABEL, KIND_LABEL, readOptions, payloadOptions, signature,
+module.exports = { recognizerNote, wordsRead, wordsLine, removedShare, guardText, guardPreviewText, MANUAL_GUARD_PCT, PACING, MODES, METHODS, ACTIONS, RANGES, MODE_LABEL, METHOD_LABEL, ACTION_LABEL, KIND_LABEL, readOptions, payloadOptions, signature,
   clock, view, zoomed, scrolled, columns, toggled, overridesOf, totals, kindsLine, describePreview, describeRegion, micLines };

@@ -48,11 +48,11 @@
       <div id="optRough" class="fopts" hidden>
       <p id="aboutRough" class="desc">Select the cameras and the microphones. What goes is cut from every selected clip at once, in a new sequence; each microphone is listened to on its own, so nobody who speaks into one is cut. Preview shows what would go before anything is made.</p>
       <div class="row options sl-row">
-        <label for="roughMode" class="muted sl-l" data-tip="What goes.&#10;Silences only: dead air only. Every voice stays, even a quiet one.&#10;Silences + off-mic: also voices away from the microphone (talk between takes, people across the room). Unsure parts stay and show yellow in Preview.&#10;AI rough cut: also repeated takes and false starts, found from the recognised words. Slower.">Cut</label>
+        <label for="roughMode" class="muted sl-l" data-tip="What goes.&#10;Silences only: dead air only. Every voice stays, even a quiet one.&#10;Silences + off-mic: also voices away from the microphone (talk between takes, people across the room). Unsure parts stay and show yellow in Preview.&#10;AI rough cut: also repeated takes and false starts, found from the recognised words. Whatever Detect says, the words are read: by ElevenLabs Scribe when a key is saved in Settings, else on this computer (slower).">Cut</label>
         <select id="roughMode"><option value="silence">Silences only</option><option value="offmic" selected>Silences + off-mic</option><option value="ai">AI rough cut</option></select>
       </div>
       <div class="row options sl-row">
-        <label for="roughMethod" class="muted sl-l" data-tip="How speech is found.&#10;Automatic: measures each microphone&#x27;s own noise and voice level. The best start.&#10;Manual dB: your level decides, on every microphone. What stays under it goes, speech or not.&#10;AI-assisted: Automatic plus speech recognition. Needed for hesitation sounds and repeated takes. Slower.">Detect</label>
+        <label for="roughMethod" class="muted sl-l" data-tip="How speech is found.&#10;Automatic: measures each microphone&#x27;s own noise and voice level. The best start.&#10;Manual dB: your level decides, on every microphone. What stays under it goes, speech or not. With Cut set to AI rough cut the words are still read, for repeated takes only.&#10;AI-assisted: Automatic, with the words read as well so that hesitation sounds can be found. The words are read only when something needs them: Remove hesitation sounds, or Cut set to AI rough cut.">Detect</label>
         <select id="roughMethod"><option value="auto" selected>Automatic</option><option value="manual">Manual dB</option><option value="ai">AI-assisted</option></select>
       </div>
       <div class="row options" id="roughDbRow" hidden>
@@ -95,10 +95,11 @@
         <input type="text" id="roughShortMax" class="kf-num sl-num" value="0.5" /><span class="muted sl-u">s</span>
       </div>
       <div class="row options sl-row">
-        <input type="checkbox" id="roughFillers" /><label for="roughFillers" class="muted" data-tip="Cuts sounds that are not words (ъъъ, ъм, um, uh) standing alone between two pauses.&#10;Kept: words like ами, значи, така.&#10;Needs: Detect set to AI-assisted.&#10;Note: the speech model often misses such sounds, so some stay.">Remove hesitation sounds</label>
+        <input type="checkbox" id="roughFillers" /><label for="roughFillers" class="muted" data-tip="Cuts sounds that are not words (ъъъ, ъм, um, uh) standing alone between two pauses.&#10;Kept: words like ами, значи, така.&#10;Needs: Detect set to AI-assisted, or Cut set to AI rough cut.&#10;Note: only sounds that the speech recognition writes down can be found, so some may stay.">Remove hesitation sounds</label>
       </div>
+      <div id="roughWords" class="hint" hidden></div>
       <div class="row options sl-row">
-        <label for="roughRange" class="muted sl-l" data-tip="Which part is cut.&#10;Selected clips: the clips you selected in the timeline.&#10;In to Out: between the sequence&#x27;s In and Out points. Clips are cut at the points.&#10;Whole sequence: every clip.">Range</label>
+        <label for="roughRange" class="muted sl-l" data-tip="Which part is cut.&#10;Selected clips: the clips you selected in the timeline.&#10;In to Out: between the sequence&#x27;s In and Out points. Clips are cut at the points. What lies outside the range is not in the new sequence.&#10;Whole sequence: every clip.">Range</label>
         <select id="roughRange"><option value="selection" selected>Selected clips</option><option value="inout">In to Out</option><option value="all">Whole sequence</option></select>
       </div>
       <div class="row options sl-row">
@@ -264,15 +265,15 @@
   </div>
 
   <div id="paneSettings" class="pane" hidden>
-    <div class="fgroup first">Subtitles</div>
+    <div class="fgroup first">Speech recognition</div>
     <div class="list"><div class="fopts open">
-      <p class="desc">Recognition by ElevenLabs: far fewer wrong Bulgarian words and a much shorter wait. With a key saved, Auto and the client styles send the sound of the selected clips to ElevenLabs (sound only, deleted there after the words come back). ReShape is always recognised on this computer, and so is everything when there is no internet.</p>
+      <p class="desc">Recognition by ElevenLabs Scribe: far fewer wrong Bulgarian words and a much shorter wait. With a key saved and the switch on, the sound of the selected clips is sent to ElevenLabs (sound only, deleted there after the words come back) in two places: Subtitles (Auto and the client styles) and Cut silences, only when it reads the words (Remove hesitation sounds, or Cut set to AI rough cut). ReShape is never sent: its subtitles and ReShape projects stay on this computer, and so does everything when there is no key or no internet.</p>
       <div id="cloudStatus" class="muted">Checking…</div>
       <div class="row"><input type="text" id="cloudKey" class="cloud-key" placeholder="Paste the ElevenLabs API key" /></div>
       <div class="row buttons">
         <div id="cloudSave" class="btn small" data-tip="Saves the key on this computer only. It needs Speech to Text access.">Save key</div>
-        <div id="cloudToggle" class="btn small" data-tip="Switches recognition by ElevenLabs on or off; the key stays saved.">Turn off</div>
-        <div id="cloudRemove" class="btn small" data-tip="Removes the key from this computer. Subtitles are then recognised here.">Remove key</div>
+        <div id="cloudToggle" class="btn small" data-tip="Switches ElevenLabs on or off for Subtitles and Cut silences; the key stays saved.">Turn off</div>
+        <div id="cloudRemove" class="btn small" data-tip="Removes the key from this computer. Subtitles and Cut silences then read the words here.">Remove key</div>
       </div>
     </div></div>
     <div class="fgroup">Developer</div>

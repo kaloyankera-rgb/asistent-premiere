@@ -2,7 +2,7 @@
 // left out, how the engine's answer is told, and how the sequence Premiere made from the XML is checked against it.
 
 const { planDialogue } = require("./subtitleplan.js");
-const { recognizerNote } = require("./silenceplan.js");
+const { recognizerNote, wordsRead } = require("./silenceplan.js");
 
 const MODE_LABEL = { safe: "safe", smart: "smart" };
 
@@ -111,11 +111,13 @@ function describeSilences(r, placed) {
   const manual = r.threshold !== null && r.threshold !== undefined;
   lines.push({ cls: "line", text: !manual
     ? `Listened to ${mics.length} sound ${mics.length === 1 ? "clip" : "clips"}, each with its own threshold${sp.vad ? "; Silero kept quiet speech and dropped clicks" : " (Silero is not available: the level alone)"}` +
-      `${r.method === "ai" && sp.asr ? `; ${sp.words} words recognised${sp.recognizer ? ` by ${sp.recognizer.name}` : ""}` : ""}.`
+      `${wordsRead(r) && sp.asr ? `; ${sp.words} words recognised${sp.recognizer ? ` by ${sp.recognizer.name}` : ""}` : ""}.`
     : `Threshold ${r.threshold} dB on all ${mics.length} sound ${mics.length === 1 ? "clip" : "clips"}: what stays under it goes, speech or not.` });
-  if (r.method === "ai" && !sp.asr) lines.push({ cls: "warn", text: sp.note || "No speech model: detected without recognition." });
+  // AI rough cut with Manual dB (0.10.122): the level still decides what is quiet, and the words are read for the repeated takes
+  if (manual && wordsRead(r) && sp.asr) lines.push({ cls: "reason", text: `${sp.words} words recognised${sp.recognizer ? ` by ${sp.recognizer.name}` : ""}: used to find repeated takes${r.fillers ? " and hesitation sounds" : ""}; your dB still decides what is quiet.` });
+  if (wordsRead(r) && !sp.asr) lines.push({ cls: "warn", text: sp.note || "No speech model: detected without recognition." });
   const cloudNote = recognizerNote(sp.recognizer);
-  if (r.method === "ai" && cloudNote) lines.push({ cls: "warn", text: cloudNote });
+  if (wordsRead(r) && cloudNote) lines.push({ cls: "warn", text: cloudNote });
   for (const m of mics.slice(0, 6)) {
     if (m.floor === null || m.floor === undefined) continue;
     lines.push({ cls: "reason", text: `${m.name}: noise ${m.floor} dB` + (m.voice !== null && m.voice !== undefined ? `, voice ${m.voice} dB` : "") +
@@ -140,12 +142,18 @@ function describeSilences(r, placed) {
       : { cls: "warn", text: `${clock(g.out_at)}: ${g.kind_label} ×${n}: nothing cut (${!g.safe ? "said differently" : "no clean pause to cut at"}), review it. Best is #${g.recommended + 1} "${said}".` });
   }
   if (found.length > TAKE_LINES) lines.push({ cls: "reason", text: `…and ${found.length - TAKE_LINES} more repeated takes.` });
-  for (const s of r.skipped || []) lines.push({ cls: "warn", text: `Skipped: ${s}.` });
+  // 0.10.122: what is not cut is not in the new sequence at all (the host removes it from the duplicate): say so, with the kinds
+  for (const s of r.skipped || []) lines.push({ cls: "warn", text: `Not in the new sequence: ${s}.` });
+  lines.push({ cls: "reason", text: "Not in the new sequence: clips you did not select, and selected clips that are nested sequences, graphics, offline, speed-changed or reversed." });
   if (r.no_sound_s > 0.05) lines.push({ cls: "line", text: `${r.no_sound_s.toFixed(1)} s with no selected sound at all were taken out (for example a camera rolling before anyone speaks, or empty timeline).` });
   if (r.flashes_dropped > 0) lines.push({ cls: "line", text: `${r.flashes_dropped} pieces of a few frames taken out at the end of a clip while the other camera goes on.` });
   for (const l of (placed && placed.notes) || []) lines.push(l);
   if (placed && placed.problems && placed.problems.length) for (const p of placed.problems) lines.push({ cls: "warn", text: p });
-  const head = action === "remove" ? `Done: ${clock(r.before_s)} → ${clock(r.after_s)} (−${pct} %).` : `Done: ${clock(r.before_s)}, ${DONE_LABEL[action]}.`;
+  // 0.10.122: a cut the host stopped, or whose check found problems, is not "Done" (it used to say "Done: … (−40 %)" over a half-made sequence)
+  const planned = action === "remove" ? `${clock(r.before_s)} → ${clock(r.after_s)} (−${pct} %)` : `${clock(r.before_s)}, ${DONE_LABEL[action]}`;
+  if (placed && placed.stopped) return { text: `Stopped at ${placed.stopped}: the new sequence is unfinished; yours is unchanged. Unfinished sequence: ${r.name}.`, lines };
+  const bad = placed && placed.problems && placed.problems.length;
+  const head = bad ? `Made, but the check found ${placed.problems.length === 1 ? "a problem" : `${placed.problems.length} problems`} (planned ${planned}).` : `Done: ${planned}.`;
   return { text: `${head} Sequence: ${r.name}.`, lines };
 }
 

@@ -98,3 +98,47 @@ test("a part turned around is the editor's choice: it goes to the engine, and th
   assert.ok(byScribe.includes("57 words recognised by ElevenLabs Scribe v3.") && !byScribe.some((t) => /could not read/.test(t)), byScribe.join("\n"));
   assert.ok(!SP.describePreview({ ...result, method: "ai", speech: { asr: true, words: 57 } }, []).some((l) => /recognised by/.test(l.text)));
 });
+
+// ---------------------------------------------------------------- 0.10.122: the audited panel defects
+test("the preview's signature includes the source In point: the same clip trimmed another way is another review", () => {
+  const mk = (inPt, start) => ({ layout: [{ kind: "audio", track: 0, path: "/a.wav", start: 0, end: 10, inPt }], items: [{ track: 0, path: "/a.wav", at: 0, start }] });
+  assert.notStrictEqual(SP.signature(mk(0, 0)), SP.signature(mk(2.5, 2.5)));
+  assert.notStrictEqual(SP.signature(mk(2.5, 2.5)), SP.signature(mk(3, 3)));
+  assert.strictEqual(SP.signature(mk(2.5, 2.5)), SP.signature(mk(2.5, 2.5)));
+});
+
+test("who reads the words: only when the choices need them, and the line says it from the ElevenLabs status", () => {
+  const on = { key: true, enabled: true, on: true, name: "ElevenLabs Scribe v3" };
+  const off = { key: false, enabled: true, on: false };
+  assert.strictEqual(SP.wordsLine({ mode: "offmic", fillers: false }, on), null);                   // nothing here reads words
+  assert.strictEqual(SP.wordsLine({ mode: "ai", fillers: false }, null), null);                      // status unknown: no line
+  assert.strictEqual(SP.wordsLine({ mode: "ai", fillers: false }, on), "Words: ElevenLabs Scribe (sends the sound of the selected clips; ReShape projects stay on this computer)");
+  assert.strictEqual(SP.wordsLine({ mode: "silence", fillers: true }, on), "Words: ElevenLabs Scribe (sends the sound of the selected clips; ReShape projects stay on this computer)");
+  assert.strictEqual(SP.wordsLine({ mode: "ai", fillers: false }, off), "Words: read on this computer (slower)");
+  assert.strictEqual(SP.wordsLine({ mode: "offmic", fillers: true }, { key: true, enabled: false, on: false }), "Words: read on this computer (slower)");
+  // AI rough cut with Manual dB still reads them
+  assert.strictEqual(SP.wordsRead({ mode: "ai", method: "manual" }), true);
+  assert.strictEqual(SP.wordsRead({ mode: "offmic", method: "auto", fillers: false }), false);
+});
+
+test("Manual dB that would remove most of the selection: the share, the guard text, and the preview's warning", () => {
+  const manual = { ...result, method: "manual", action: "remove", before_s: 60, saved_s: 59 };
+  assert.strictEqual(SP.removedShare(manual), 98);
+  assert.strictEqual(SP.removedShare({ ...manual, method: "auto" }), null);                          // only a level the editor set
+  assert.strictEqual(SP.removedShare({ ...manual, action: "split" }), null);                         // nothing is removed
+  assert.strictEqual(SP.removedShare({ ...manual, saved_s: 30 }), 50);
+  assert.match(SP.guardText(98), /^This removes 98 % of the selected time: .* Press Cut silences again to go on, or use Suggest/);
+  const regions = [{ start: 0, end: 59, kind: "below", cut: true, flag: false }];
+  assert.ok(SP.describePreview(manual, regions).some((l) => l.cls === "warn" && /would remove 98 %.*Cut silences will ask you to press it twice/.test(l.text)));
+  assert.ok(!SP.describePreview(manual, regions).some((l) => /press Cut silences again/.test(l.text)), "the preview must not talk of a second press before any press");
+  assert.ok(!SP.describePreview({ ...manual, method: "auto" }, regions).some((l) => /remove 98 %/.test(l.text)));
+  assert.ok(!SP.describePreview(manual, [{ start: 0, end: 20, kind: "below", cut: true, flag: false }]).some((l) => /remove \d+ %/.test(l.text)));
+  // hesitation sounds: Detect = AI-assisted or Cut = AI rough cut (the engine's rule)
+  assert.strictEqual(SP.readOptions({ ...base, mode: "ai", method: "manual", fillers: true }).opts.fillers, true);
+  assert.strictEqual(SP.readOptions({ ...base, mode: "offmic", method: "manual", fillers: true }).opts.fillers, false);
+});
+
+test("AI rough cut with Manual dB: the preview says who read the words", () => {
+  const r = { ...result, mode: "ai", method: "manual", speech: { asr: true, words: 40, recognizer: { name: "ElevenLabs Scribe v3", windows: 1, local: 0, missed: 0, fallback: [] } } };
+  assert.ok(SP.describePreview(r, []).some((l) => /40 words recognised by ElevenLabs Scribe v3/.test(l.text)));
+});

@@ -26,7 +26,9 @@ import logging
 import math
 import os
 import re
+import socket
 import threading
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -43,8 +45,13 @@ MODEL = "scribe_v3"
 NAME = "ElevenLabs Scribe v3"
 LANGUAGE = "bul"
 SR = 16000
-TIMEOUT = 300              # s for one window (at most two minutes of sound; measured about 0.16 s per second with the upload)
+# s of waiting on the connection for one request (a socket timeout, not a total). A window is up to about five minutes of sound
+# (roughcut_job.CLOUD_MAX; the subtitles' windows are merged up to two minutes, one long clip is one window) and ElevenLabs
+# answers in about 0.16 s per second of sound with the upload, so this leaves several times that.
+TIMEOUT = 300
 CANCEL_POLL = 0.2
+SECONDS_PER_SECOND = 0.16  # the measured time per second of sound, for the progress shown while waiting
+RETRY_WAIT = (2.0, 6.0)    # s before the second and the third attempt after a 429, a 5xx or a timeout (0.10.122)
 
 
 class CloudError(RuntimeError):
@@ -175,6 +182,18 @@ def forget(transcription_id: str, k: str | None = None) -> bool:
 _DRAWN_OUT = re.compile(r"(.)\1{3,}")
 
 
+def tidy(words: list[dict]) -> tuple[list[dict], bool]:
+    """A stored reading's words with the drawn-out clean-up of `words_of` applied again -> (words, anything changed). The
+    0.10.119-0.10.121 readings in the cache still hold shouts written out in 1000 letters."""
+    out, changed = [], False
+    for w in words:
+        text = _DRAWN_OUT.sub(lambda m: m.group(1) * 3, str(w.get("word") or ""))
+        if text != w.get("word"):
+            w, changed = {**w, "word": text}, True
+        out.append(w)
+    return out, changed
+
+
 def words_of(data: dict) -> list[dict]:
     """Scribe's answer -> the words as asr.transcribe gives them ({"word", "start", "end", "p"}). A shout Scribe writes
     out letter by letter („Оооооо…“, 1000 letters on a racing clip, 2026-11-21) is cut to three of the letter: nobody
@@ -190,11 +209,25 @@ def words_of(data: dict) -> list[dict]:
     return out
 
 
+def _retryable(e: Exception) -> bool:
+    """A refusal that may be gone in a few seconds: too many requests, a server error, a timeout."""
+    if isinstance(e, urllib.error.HTTPError):
+        return e.code == 429 or e.code >= 500
+    if isinstance(e, (TimeoutError, socket.timeout)):
+        return True
+    return isinstance(e, urllib.error.URLError) and isinstance(e.reason, (TimeoutError, socket.timeout))
+
+
 def transcribe(audio: np.ndarray, progress: Callable[[float, str], None] | None = None,
-               cancelled: Callable[[], bool] | None = None, model: str = MODEL) -> list[dict]:
+               cancelled: Callable[[], bool] | None = None, model: str = MODEL,
+               on_done: Callable[[list[dict]], None] | None = None) -> list[dict]:
     """Words with times (seconds from the start of `audio`) from Scribe, shaped like asr.transcribe's. Raises CloudError
     with a reason for the editor when there are none; raises asr.Cancelled when the editor cancels (the request is left
-    to finish on its own thread and its transcript is still deleted)."""
+    to finish on its own thread, its transcript is still deleted, and `on_done(words)` is called from that thread when the
+    words do arrive, so the caller can keep them: the minutes were paid for).
+
+    A 429, a 5xx or a timeout is tried again up to twice (RETRY_WAIT), waiting in a way Cancel can end. While it waits,
+    `progress` gets an estimate from the time per second of sound instead of 0 and then 1 (0.10.122)."""
     from .asr import Cancelled
 
     progress = progress or (lambda f, m: None)
@@ -206,21 +239,52 @@ def transcribe(audio: np.ndarray, progress: Callable[[float, str], None] | None 
         return []
     progress(0.0, "Sending the sound to ElevenLabs…")
     box: dict = {}
+    lock = threading.Lock()
+    stop = threading.Event()                              # set when the editor cancelled: no more attempts
 
     def work():
-        try:
-            data = _post(audio, model, k)
-            box["words"] = words_of(data)
-            forget(str(data.get("transcription_id") or ""), k)
-        except Exception as e:                             # noqa: BLE001 - one reason for the caller
-            box["error"] = _reason(e)
+        for attempt in range(len(RETRY_WAIT) + 1):
+            try:
+                data = _post(audio, model, k)
+                words = words_of(data)
+                forget(str(data.get("transcription_id") or ""), k)
+            except Exception as e:                        # noqa: BLE001 - one reason for the caller
+                if attempt < len(RETRY_WAIT) and _retryable(e):
+                    log.warning("cloud: %s; trying again in %.0f s", _reason(e), RETRY_WAIT[attempt])
+                    if stop.wait(RETRY_WAIT[attempt]):
+                        return
+                    continue
+                with lock:
+                    box["error"] = _reason(e)
+                return
+            with lock:
+                box["words"] = words
+                abandoned = box.get("abandoned", False)
+            if abandoned and on_done:
+                try:
+                    on_done(words)
+                except Exception:                         # noqa: BLE001 - keeping the words is a bonus
+                    log.warning("cloud: the words of a cancelled reading could not be kept", exc_info=True)
+            return
 
     t = threading.Thread(target=work, name="cloud-read", daemon=True)
     t.start()
+    started, shown = time.monotonic(), 0.0
+    expect = max(4.0, SECONDS_PER_SECOND * len(audio) / SR)
     while t.is_alive():
         t.join(CANCEL_POLL)
-        if t.is_alive() and cancelled():
-            raise Cancelled()
+        if not t.is_alive():
+            break
+        if cancelled():
+            with lock:
+                if "words" not in box and "error" not in box:
+                    box["abandoned"] = True
+                    stop.set()
+                    raise Cancelled()
+        frac = min(0.95, (time.monotonic() - started) / expect)
+        if frac - shown >= 0.01:
+            shown = frac
+            progress(frac, "Recognising the speech…")
     if "error" in box:
         raise CloudError(box["error"])
     progress(1.0, "Recognising the speech…")

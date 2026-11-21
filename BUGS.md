@@ -21,6 +21,14 @@
   Auto import ignores such a path (0.10.114); other features that key on the project path (Show exports, Subtitle Learning) may
   see it for one poll.
 
+## Open: Cut silences on a sequence with an odd frame rate (found in the logs 2026-11-21)
+- "4a1a lokali" (IMG_9422, iPhone, 59.97361 fps), 2026-11-16 06:27 and 06:28, 0.10.115: the host razor reported no refusal but
+  cut in the wrong places, clean answered "Premiere did not cut the new sequence ... where it was asked to" and an uncut "NO
+  SILENCE ..." copy stayed each time. Likely the timecode string given to QE `razor` (probed only at 29.97). 0.10.122 checks the
+  razor and stops with the rate named, before anything is removed; the fix waits for a probe (TODO V122). The copies path's
+  shell XML writes 59.94 for the same sequence (`xmeml.py`).
+- Words for hesitations and takes are read from both microphones of a split L / R clip (TODO AUD).
+
 ## Limits of Cut silences 0.10.96 (known, by design or not built)
 - No audio crossfade at the cuts and no J / L cuts: UXP 26 has no audio-transition action; the host (QE) route is not probed.
 - Manual dB is one number for every microphone: with two microphones recorded at different levels it cannot fit both; Automatic can.

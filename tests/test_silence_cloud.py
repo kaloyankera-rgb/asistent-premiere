@@ -34,7 +34,7 @@ def calls(monkeypatch):
     """Fake readers: what was sent to ElevenLabs and what was read here."""
     seen = {"cloud": 0, "local": 0, "fail": None}
 
-    def scribe(y, progress=None, cancelled=None, model=cloudasr.MODEL):
+    def scribe(y, progress=None, cancelled=None, model=cloudasr.MODEL, **kw):
         seen["cloud"] += 1
         if seen["fail"]:
             raise cloudasr.CloudError(seen["fail"])

@@ -111,9 +111,9 @@ or the snapshot in `docs/dev-workflow/`.
   `scripts/release_mac.sh` (packs `.ccx`, removes + installs it with Adobe's UnifiedPluginInstallerAgent
   without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
-  (901 pass + 24 skipped at 0.10.121; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
+  (954 pass + 24 skipped at 0.10.122; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
   some tests write into the real app folder, so run them with `HOME` pointed at a scratch folder holding a copy of `models/lexicon`) and
-  `node --test tests/*.test.js` (384 tests at 0.10.121);
+  `node --test tests/*.test.js` (411 tests at 0.10.122);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Fix audio never splits a clip that carries effects or keyframes: overwriteClip drops them (measured 2026-11-08, DECISIONS).
 - Premiere tests only in the user's test projects `TEST.prproj` or `NEW TEST.prproj` (Ludi Glavi/Projects; the user's choice
@@ -178,8 +178,8 @@ or the snapshot in `docs/dev-workflow/`.
 - No AI voices, no paid tools, no cloud, nothing uploaded. The one exception (the user, 2026-11-21, 0.10.119, after the
   benchmark of DECISIONS): subtitles of every style but ReShape's may be read by ElevenLabs Scribe when the editor saved a key
   and left the switch on; only the sound of the selected clips goes, nothing else. The second exception (the user, 2026-11-21,
-  0.10.121): Cut silences' AI-assisted words (hesitation sounds, repeated takes), same key and switch, never in a ReShape
-  project (`roughcut_job.is_reshape`). No other feature may use it.
+  0.10.121): Cut silences' words for hesitation sounds and repeated takes, read only when one of those is asked for, same key
+  and switch, never when the project folder or any media path is ReShape (`roughcut_job.is_reshape_run`). No other feature may use it.
 - The office server (`/Volumes/Production` and every office share) is read only (the user, 2026-11-20): nothing there is
   written, renamed, moved or deleted by Claude or by a development script; ask before any touch. Benchmarks and tests that read
   it write only on this computer, with an empty `project` and a scratch `HOME` (a real run would write `Asistent_subtitles` next

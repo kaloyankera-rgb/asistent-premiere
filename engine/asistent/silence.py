@@ -6,7 +6,7 @@ No speech recognition: where speech is comes from the sound itself, every select
 1. Level: each clip's sound in dB per 10 ms (the louder channel, or the one channel its L/L or R/R copy plays). Auto: the
    clip's own noise floor (10th percentile) and voice level (median of what is clearly above the floor) set its threshold,
    as tools/autoedit's cut check does (speech from 9.5 dB over the floor, or 12.8 dB under the voice, whichever is higher),
-   with hysteresis: speech starts over the threshold and ends 4 dB under it, so a word's tail is not chopped where it
+   with hysteresis: speech starts over the threshold and ends 6 dB under it (HYSTERESIS_DB), so a word's tail is not chopped where it
    dips. A fixed threshold (the editor's dB) is used as it is: under it is silence, nothing else decides.
 2. Silero (the VAD faster-whisper ships, already installed), in Auto: a short loud burst it does not hear at all (a bump,
    a click, a door) is not speech, and quiet speech it is sure of (a whisper under the threshold) is. It never takes away a
@@ -110,6 +110,7 @@ HESITATIONS = {"ъ", "ъъ", "ъъъ", "ъъъъ", "ъм", "ъмм", "ъх", "ъ
                "м", "мм", "ммм", "мммм", "хм", "хмм", "хъм", "uh", "uhh", "um", "umm", "uhm", "er", "erm", "eh", "ah", "hm", "hmm", "mm", "mmm"}
 FILLER_MAX_S = 2.0             # a stretch of speech longer than this is not one hesitation sound
 ISLAND_GAP_S = 0.08            # speech with gaps shorter than this is one stretch (for fillers)
+WORD_MIN_S = 0.25              # word guard: a word is at least this long when its recognised times say less (Scribe: 7 % have start == end)
 
 
 def _f(v, what: str, lo: float, hi: float) -> float:
@@ -178,7 +179,7 @@ def settings(body: dict | None = None) -> dict:
     return {"mode": mode, "method": method, "threshold": thr, "pacing": pacing, "min_silence": base["min_silence"],
             "min_speech": base["min_speech"], "before": base["before"], "after": base["after"], "sensitivity": sens,
             "short": short, "short_min": short_min, "short_max": short_max,
-            "fillers": bool(b.get("fillers")) and method == "ai", "action": action, "listen": listen, "overrides": ov}
+            "fillers": bool(b.get("fillers")) and (method == "ai" or mode == "ai"), "action": action, "listen": listen, "overrides": ov}
 
 
 def clamp_threshold(db) -> float | None:
@@ -219,6 +220,28 @@ def auto_threshold(db: np.ndarray) -> dict:
     return {"floor": floor, "voice": voice, "open": max(floor + OVER_FLOOR_DB, voice - UNDER_VOICE_DB)}
 
 
+POOL_SPREAD_DB = 6.0           # ranges of one file whose own levels differ by more than this are not pooled (another gain, another scene)
+POOL_MIN_S = 1.0               # a range shorter than this does not count in that comparison (its own statistics mean nothing)
+
+
+def pooled_levels(dbs: list[np.ndarray]) -> dict | None:
+    """Several ranges of ONE file and channel -> the noise floor, voice level and threshold of all of them together (0.10.122).
+    A clip that was already cut down to its speech has no pauses left, so its own 10th percentile is speech and its threshold
+    sits too high (audit 2026-11-21); the ranges of the same recording share one floor. None when the ranges' own levels (the
+    90th percentile of what is not digital silence) differ by more than POOL_SPREAD_DB: then each is judged on its own, as
+    before."""
+    if len(dbs) < 2:
+        return None
+    top = []
+    for d in dbs:
+        live = d[d > SILENT_DB]
+        if len(live) * HOP_S >= POOL_MIN_S:
+            top.append(float(np.percentile(live, 90)))
+    if top and max(top) - min(top) > POOL_SPREAD_DB:
+        return None
+    return auto_threshold(np.concatenate(dbs))
+
+
 def hysteresis(db: np.ndarray, open_db: float, close_db: float) -> np.ndarray:
     """Runs over close_db that reach open_db somewhere are speech."""
     out = np.zeros(len(db), dtype=bool)
@@ -237,12 +260,16 @@ def _near(mask: np.ndarray, frames: int) -> np.ndarray:
     return c > 0
 
 
-def item_speech(db: np.ndarray, probs: np.ndarray | None, threshold: float | None, min_speech: float = BUMP_S) -> tuple[np.ndarray, dict]:
-    """One clip's speech per 10 ms -> (mask, its levels)."""
+def item_speech(db: np.ndarray, probs: np.ndarray | None, threshold: float | None, min_speech: float = BUMP_S,
+                levels: dict | None = None, gate: bool = True, unsure: np.ndarray | None = None) -> tuple[np.ndarray, dict]:
+    """One clip's speech per 10 ms -> (mask, its levels). levels: the floor / voice / threshold to use in Auto instead of the
+    clip's own (`pooled_levels`: one recording cut into short clips is judged as one). gate: the very-quiet-clip rule below
+    (off when this is the only microphone listened to). unsure: a bool array the caller owns, set where the gate dropped a
+    stretch Silero half hears (HEARD..VAD_SURE): not speech, but the plan keeps it and flags it."""
     if threshold is not None:                                          # the editor's dB: the level alone decides
         thr = {"floor": None, "voice": None, "open": threshold}
         return hysteresis(db, threshold, threshold - HYSTERESIS_DB), thr
-    thr = auto_threshold(db)
+    thr = levels or auto_threshold(db)
     loud = hysteresis(db, thr["open"], thr["open"] - HYSTERESIS_DB)
     if probs is None:
         return loud, thr
@@ -252,9 +279,27 @@ def item_speech(db: np.ndarray, probs: np.ndarray | None, threshold: float | Non
     # Silero misses short loud words (measured 2026-11-12 on NEW TEST: „Има“ at -20 dB, „Какво“ at -28 dB, Silero 0.03-0.6), so it
     # never takes away a loud stretch of speech length; it only takes away a short burst it does not hear at all (a bump, a
     # click, a door), and adds quiet speech it is sure of. "Short" is the editor's minimum speech (0.15 s unless Custom).
-    for a, b in runs(loud):
-        if (b - a) * HOP_S < min_speech and not heard[a:b].any():
-            speech[a:b] = False
+    quiet_clip = gate and thr["open"] < SURE_MIN_DB
+    if quiet_clip:
+        # A threshold this low means the clip's "voice" sits under SURE_MIN_DB: a dead input (Fornetti fx30-3-0403, R: floor
+        # -88.6 dB, threshold -79: 28 s of hiss counted as speech and blocked every cut through the union of the clips, TODO SIL)
+        # or a very quiet lavalier (about -57 dB RMS). The level cannot tell them apart, Silero can: a stretch of sound counts
+        # when Silero is sure (VAD_SURE) somewhere in it or within its reach; where it only half hears (HEARD..VAD_SURE: it
+        # gives 0.03-0.6 on short loud words) the stretch is not speech but is kept and flagged; under HEARD it is not speech.
+        # Whole stretches, never single frames, so a quiet lavalier word keeps its soft syllables. Without Silero (probs is None,
+        # returned above) the level decides, the safe side for a real quiet voice. Never applied when this is the only
+        # microphone listened to (gate): there is no union to protect from its hiss, and the editor's cut follows the one voice.
+        reach_f = int(round(VAD_REACH / HOP_S))
+        sure, maybe = _near(p >= VAD_SURE, reach_f), _near(p >= HEARD, reach_f)
+        for a, b in runs(loud):
+            if not sure[a:b].any():
+                speech[a:b] = False
+                if unsure is not None and maybe[a:b].any():
+                    unsure[a:b] = True
+    else:
+        for a, b in runs(loud):
+            if (b - a) * HOP_S < min_speech and not heard[a:b].any():
+                speech[a:b] = False
     # Silero sure of speech: speech over the noise floor, or over SURE_MIN_DB where the "floor" is music or hum (a finished
     # ReShape export: floor -31 dB = its music, the voice's softer syllables under the threshold, Silero 0.9-1.0)
     speech |= (p >= VAD_SURE) & (db >= min(thr["floor"] + QUIET_OVER_FLOOR_DB, SURE_MIN_DB))
@@ -391,11 +436,15 @@ def measure(it: dict, cancelled=None) -> dict:
     return m
 
 
-def label_item(db: np.ndarray, probs: np.ndarray | None, s: dict) -> dict:
+def label_item(db: np.ndarray, probs: np.ndarray | None, s: dict, pool: dict | None = None, gate: bool = True) -> dict:
     """One clip's 10 ms frames labelled SIL / LOW / OFF / FLAG / SPEECH by the settings ->
-    {"labels", "under" (dB under the main voice, for OFF and FLAG frames), "thr", "main", "off_s", "flag_s", "vad"}."""
+    {"labels", "under" (dB under the main voice, for OFF and FLAG frames), "thr", "main", "off_s", "flag_s", "vad"}.
+    pool: {"levels": pooled_levels(...), "main": the main voice of all the ranges of the same file} (detect), else the clip's own.
+    gate: see item_speech (detect turns it off for a single microphone)."""
     n = len(db)
-    levels = auto_threshold(db)
+    own = pool["levels"] if pool else None
+    levels = own or auto_threshold(db)
+    pooled_main = pool.get("main") if pool else None
     under = np.zeros(n, dtype=np.float32)
     labels = np.zeros(n, dtype=np.uint8)
     main, used_vad = None, False
@@ -407,15 +456,16 @@ def label_item(db: np.ndarray, probs: np.ndarray | None, s: dict) -> dict:
             p = vad.per_frame(probs, n)
             labels[(p >= HEARD) & (db >= levels["floor"] + QUIET_OVER_FLOOR_DB) & ~speech] = OFF
         labels[speech] = SPEECH
-        auto_speech, _ = item_speech(db, probs, None, s["min_speech"])   # the main voice as Auto hears it: the suggestion's base
-        main = main_voice(phrases(db, auto_speech))
+        auto_speech, _ = item_speech(db, probs, None, s["min_speech"], own, gate)   # the main voice as Auto hears it: the suggestion's base
+        main = pooled_main if pooled_main is not None else main_voice(phrases(db, auto_speech))
     else:
-        speech, thr = item_speech(db, probs, None, s["min_speech"])
+        unsure = np.zeros(n, dtype=bool)
+        speech, thr = item_speech(db, probs, None, s["min_speech"], own, gate, unsure)
         used_vad = probs is not None
         labels[db >= levels["floor"] + LOW_OVER_DB] = LOW
         labels[speech] = SPEECH
         ph = phrases(db, speech)
-        main = main_voice(ph)
+        main = pooled_main if pooled_main is not None else main_voice(ph)
         if s["mode"] != "silence" and main is not None:
             line = UNDER_DB[s["sensitivity"]]
             for a, b, level in ph:
@@ -424,9 +474,34 @@ def label_item(db: np.ndarray, probs: np.ndarray | None, s: dict) -> dict:
                     part = speech[a:b]
                     labels[a:b][part] = OFF if u > line else FLAG
                     under[a:b][part] = u
+        labels[unsure & ~speech] = FLAG                                # a very quiet clip, a stretch Silero half hears: kept, flagged
     return {"labels": labels, "under": under, "thr": thr, "main": main, "vad": used_vad,
             "off_s": float((labels == OFF).sum()) * HOP_S, "flag_s": float((labels == FLAG).sum()) * HOP_S,
             "speech_s": float((labels >= FLAG).sum()) * HOP_S}
+
+
+def pools_for(items: list[dict], measured: list[dict], s: dict) -> list[dict | None]:
+    """For every selected clip: the pool of its file's other selected ranges on the same channel ({"levels", "main"}), or None
+    when it is alone, the ranges' levels differ (pooled_levels) or the editor's choices are not Auto's (a fixed dB has no
+    levels to pool). A single whole clip is judged exactly as before."""
+    out: list[dict | None] = [None] * len(items)
+    groups: dict = {}
+    for k, it in enumerate(items):
+        groups.setdefault((it.get("path"), it.get("side")), []).append(k)
+    for ks in groups.values():
+        if len(ks) < 2:
+            continue
+        lv = pooled_levels([measured[k]["db"] for k in ks])
+        if lv is None:
+            continue
+        ph = []
+        for k in ks:
+            sp, _ = item_speech(measured[k]["db"], measured[k]["probs"], None, s["min_speech"], lv)
+            ph += phrases(measured[k]["db"], sp)
+        main = main_voice(ph)
+        for k in ks:
+            out[k] = {"levels": lv, "main": main}
+    return out
 
 
 def read_item(it: dict, threshold: float | None, cancelled=None, quiet: bool = True) -> dict:
@@ -461,25 +536,44 @@ def detect(items: list[dict], t_start: float, t_end: float, threshold: float | N
     covered = np.zeros(n, dtype=bool)
     info = []
     done = [0]
+    n_sources = len({(it.get("path"), it.get("side")) for it in items})   # the quiet-clip rule guards a UNION of microphones
 
-    def one(it):
+    def listen(it):
         m = measure(it, cancelled)
+        done[0] += 1
+        if progress:
+            progress(done[0] / max(1, len(items)), f"Listening: {it.get('name') or it['path']}")
+        return m
+
+    def one(arg):
+        m, pool = arg
+        gate = n_sources > 1
         if legacy and threshold is not None:                           # as before 0.10.96: no averaging, no minimum speech
             sp, thr = item_speech(m["db"], None, threshold)
             r = {"labels": np.where(sp, SPEECH, SIL).astype(np.uint8), "under": np.zeros(len(sp), dtype=np.float32), "thr": thr,
                  "main": None, "vad": False, "off_s": 0.0, "flag_s": 0.0, "speech_s": float(sp.sum()) * HOP_S}
         else:
-            r = label_item(m["db"], m["probs"], s)
+            r = label_item(m["db"], m["probs"], s, pool, gate)
+            if pool:
+                # Pooling may only ever keep MORE (reviewer 2026-11-21): what the clip's own statistics keep stays kept, whatever the
+                # shared floor, voice and main voice say. Per frame the stronger label wins (SIL < LOW < OFF < FLAG < SPEECH).
+                r0 = label_item(m["db"], m["probs"], s, None, gate)
+                better = (r0["labels"] > r["labels"]) | ((r0["labels"] == r["labels"]) & (r0["under"] < r["under"]))
+                r["labels"][better] = r0["labels"][better]
+                r["under"][better] = r0["under"][better]
+                r["off_s"] = float((r["labels"] == OFF).sum()) * HOP_S
+                r["flag_s"] = float((r["labels"] == FLAG).sum()) * HOP_S
+                r["speech_s"] = float((r["labels"] >= FLAG).sum()) * HOP_S
             if legacy:                                                 # 0.10.95 had no flagged band: what is flagged stayed
                 r["labels"][r["labels"] == FLAG] = SPEECH
         r["db"] = m["db"]
-        done[0] += 1
-        if progress:
-            progress(done[0] / max(1, len(items)), f"Listening: {it.get('name') or it['path']}")
         return r
 
     with ThreadPoolExecutor(max_workers=max(1, min(workers, len(items))), thread_name_prefix="silence") as pool:
-        results = list(pool.map(one, items))
+        measured = list(pool.map(listen, items))
+        # the ranges of one file (a recording already cut into short clips) share their noise floor, voice and main voice
+        pools = [None] * len(items) if legacy and threshold is not None else pools_for(items, measured, s)
+        results = list(pool.map(one, zip(measured, pools)))
     for it, r in zip(items, results):
         o = int(round((float(it["at"]) - t_start) / HOP_S))
         k = len(r["labels"])
@@ -572,12 +666,74 @@ def take_masks(groups: list[dict], keep: np.ndarray, t_start: float) -> tuple[np
         if not got:
             others = [t for k, t in enumerate(g["takes"]) if k != g["recommended"] and kept_share(t["start"], t["end"]) >= 0.5]
             if others:
-                why = ("said differently" if not g["safe"] else "said again without a pause: cut it by hand" if g.get("cut")
+                why = ("said again far apart: check it by hand" if g.get("far") else
+                       "a short phrase said again: check it by hand" if g.get("short") else
+                       "said differently" if not g["safe"] else "said again without a pause: cut it by hand" if g.get("cut")
                        else "the last one is not complete")
                 g["listed"] = True
                 listed.append({"start": min(t["start"] for t in others), "end": max(t["end"] for t in others),
                                "text": f"{g['kind_label']} ×{len(g['takes'])}, {why}; the best is \"{best['text'][:60]}\""})
     return mask, listed
+
+
+def _merge_spans(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    out: list[tuple[int, int]] = []
+    for a, b in sorted(spans):
+        if out and a <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
+    return out
+
+
+def guard_words(code: np.ndarray, words: list[dict], t_start: float, s: dict, kinds: tuple[int, int]) -> list[tuple[int, int]]:
+    """Recognised words are a second witness against a cut (0.10.122, audit 2026-11-21): the level said "silence" or "short
+    pause" where a word was read (a quiet word, a soft onset). Only ever keeps MORE, never cuts: `code` is changed in place
+    (frames of the given kinds put back to 0) and the spans kept for a word that lies mostly inside a cut are returned as
+    frame ranges, for the plan to show them flagged.
+    - A cut that covers a word's START keeps from `before` seconds ahead of the start to the word's end plus `after` (a
+      word is at least WORD_MIN_S long: starts are the reliable edge, ends are not). The rest of that cut stays a cut unless
+      it is shorter than MIN_REGION_S.
+    - A word lying more than half inside a cut (starts before it or in it) is kept and flagged, whole as far as the cut goes."""
+    n = len(code)
+    ok = np.isin(code, kinds)
+    pb, pa, need = int(round(s["before"] / HOP_S)), int(round(s["after"] / HOP_S)), int(round(MIN_REGION_S / HOP_S))
+    flags: list[tuple[int, int]] = []
+    for w in words:
+        norm = _norm(w.get("word") or "")
+        if not norm or norm in HESITATIONS:                            # a hesitation sound is no word: it is not guarded
+            continue
+        try:
+            ws, we = float(w["start"]), float(w["end"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        f0 = int(round((ws - t_start) / HOP_S))
+        f1 = max(int(round((we - t_start) / HOP_S)), f0)
+        lo, hi = max(f0, 0), min(f1, n)
+        if 0 <= f0 < n and ok[f0]:
+            ra = f0
+            while ra > 0 and ok[ra - 1]:
+                ra -= 1
+            rb = f0
+            while rb < n and ok[rb]:
+                rb += 1
+            k0, k1 = max(ra, f0 - pb), min(rb, max(f1, f0 + int(round(WORD_MIN_S / HOP_S))) + pa)
+            mostly = f1 > f0 and ok[lo:hi].sum() > 0.5 * (f1 - f0)
+            code[k0:k1] = 0
+            ok[k0:k1] = False
+            for a, b in ((ra, k0), (k1, rb)):                          # what is left of the cut: a sliver stays too
+                if 0 < b - a < need:
+                    code[a:b] = 0
+                    ok[a:b] = False
+            if mostly:
+                flags.append((k0, k1))
+        elif f1 > f0 and hi > lo and ok[lo:hi].sum() > 0.5 * (f1 - f0):    # starts before the cut, mostly inside it
+            idx = np.nonzero(ok[lo:hi])[0] + lo
+            a, b = int(idx[0]), int(idx[-1]) + 1
+            code[a:b][ok[a:b]] = 0
+            ok[a:b] = False
+            flags.append((a, b))
+    return flags
 
 
 KIND_TEXT = {"silence": "silence", "nosound": "no sound clip here", "offmic": "a voice away from the microphone",
@@ -644,6 +800,11 @@ def plan(det: dict, s: dict, t_start: float, words: list[dict] | None = None, gr
             breath = any((y - x) * HOP_S >= BREATH_S for x, y in runs(labels[a + skip:b] == LOW))
             if not breath:
                 code[a + ka:b - kb] = K["short"]
+    # 4b. the recognised words as a second witness (AI modes, words given): a cut never swallows a word's start. Manual dB is the
+    # level alone in every mode (DECISIONS 2026-11-15): there the editor's line decides, words or not
+    word_spans: list[tuple[int, int]] = []
+    if words and not manual:
+        word_spans = guard_words(code, words, t_start, s, (K["silence"], K["short"]))
     # 5. regions
     regions = []
     for i, kind in enumerate(KINDS):
@@ -662,8 +823,13 @@ def plan(det: dict, s: dict, t_start: float, words: list[dict] | None = None, gr
     if flagged.any():
         for a, b in _islands(flagged, PHRASE_GAP_S):
             u = under[a:b][labels[a:b] == FLAG]
+            med = float(np.median(u))
             regions.append({"start": round(t_start + a * HOP_S, 3), "end": round(t_start + b * HOP_S, 3), "kind": "offmic", "cut": False,
-                            "flag": True, "text": f"a voice {float(np.median(u)):.0f} dB under the main voice: kept, not sure"})
+                            "flag": True, "text": (f"a voice {med:.0f} dB under the main voice: kept, not sure" if med > 0
+                                                   else "a very quiet sound that may be a voice: kept, not sure")})
+    for a, b in _merge_spans(word_spans):
+        regions.append({"start": round(t_start + a * HOP_S, 3), "end": round(t_start + b * HOP_S, 3), "kind": "silence", "cut": False,
+                        "flag": True, "text": "a word was heard here: kept, not sure"})
     for x in listed:
         regions.append({"start": round(x["start"], 3), "end": round(x["end"], 3), "kind": "take", "cut": False, "flag": True, "text": x["text"] + ": kept"})
     regions.sort(key=lambda r: (r["start"], r["end"]))

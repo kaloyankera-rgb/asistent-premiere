@@ -200,3 +200,22 @@ test("Cut silences (0.10.96): the range is the selection, In to Out, or the whol
   // one frame of the next clip under the Out point is left out (it was a 30 ms clip the engine choked on)
   assert.deepStrictEqual(R.planRoughCut(items, { kind: "inout", from: 2, to: 12.033 }).layout.map((x) => x.name), ["a", "a"]);
 });
+
+// ---------------------------------------------------------------- 0.10.122: a stopped or doubtful cut is not "Done"
+test("the headline says when the host stopped or the check found problems, and what is not in the new sequence", () => {
+  const R = require("../panel/roughcutplan.js");
+  const r = { mode: "silence", what: "offmic", method: "auto", action: "remove", tempo: "measured", tempo_label: "measured", threshold: null,
+    settings: {}, by_kind: { silence: 40 }, flagged: 0, restored: 0, takes: [], quiet: { cut: false, seconds: 0 }, before_s: 100, after_s: 60, saved_s: 40,
+    name: "NO SILENCE – SYNC v1", counts: { cuts: 12 }, no_sound_s: 0, flashes_dropped: 0, speech: { asr: false, vad: true, listened: [] }, skipped: ["B (changed speed)"] };
+  const ok = R.describeResult(r, { notes: [], problems: [] });
+  assert.match(ok.text, /^Done: 1:40 → 1:00 \(−40 %\)\./);
+  const stopped = R.describeResult(r, { notes: [], problems: ["Stopped: you pressed Cancel. The unfinished sequence can be deleted."], stopped: "cutting" });
+  assert.strictEqual(stopped.text, "Stopped at cutting: the new sequence is unfinished; yours is unchanged. Unfinished sequence: NO SILENCE – SYNC v1.");
+  assert.ok(!/Done|−40/.test(stopped.text));
+  const doubtful = R.describeResult(r, { notes: [], problems: ["2 of 12 pieces are not where they should be."] });
+  assert.ok(!/^Done/.test(doubtful.text) && /check found a problem/.test(doubtful.text), doubtful.text);
+  const all = ok.lines.map((l) => l.text).join("\n");
+  assert.match(all, /Not in the new sequence: B \(changed speed\)\./);
+  assert.match(all, /Not in the new sequence: clips you did not select, and selected clips that are nested sequences, graphics, offline, speed-changed or reversed\./);
+  assert.ok(!/Skipped/.test(all));
+});

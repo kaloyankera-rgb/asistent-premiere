@@ -7,6 +7,30 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
+## V122. Verify 0.10.122 (2026-11-21): Cut silences after the audit
+- [ ] Install (`scripts/release_mac.sh`, the user's go), restart Premiere.
+- [ ] PROBE (Claude through the bridge or the user, NEW TEST): a sequence made from an iPhone clip (59.97361 fps), Cut silences,
+      Automatic: expect "Stopped at cutting ... <rate>"; read the log line with the razor's timecode and clip counts, then build
+      the real fix where `host.jsx` says "THE PROBE RESULT GOES HERE".
+- [ ] USER: Automatic on a normal sequence: one second, "Done", nothing missing; Cancel during a long cut stops it.
+- [ ] USER: tick Remove hesitation sounds: the options say where the words are read, before the press.
+- [ ] USER: Manual dB far too high: asks for a second press, nothing made.
+- [ ] USER: Fornetti fx30-3-0403 L + R (the dead channel): 7 cuts instead of 3 expected; a quiet lavalier still heard.
+- [ ] By eye: the new line in the options, the tooltips, Settings > Speech recognition; track locks after the cut.
+
+## AUD. Left by the Cut silences audit of 2026-11-21 (in the order the evidence suggests)
+- [ ] USER decides: Calm as the default pacing (every real run since 2026-11-15 used Calm; Paced, Energetic, Custom never used).
+- [ ] USER decides: keep clips that are not selected (B-roll, music, titles, multicam, nested) in the new sequence by razoring
+      every clip and removing only the cut ranges; widens the approved removal rule, needs a probe.
+- [ ] Words of a split L / R clip are read from both microphones (`subtitle_job.window_audio` ignores `side`; also the
+      subtitles'): protected file, non-ReShape runs only.
+- [ ] A hesitation glued to a word: split at the level dip next to the word, else flag; needs a recording full of „ъъъ“ first.
+- [ ] A take repeated without a pause: the same dip rule. Words reused across "Listen to" ticks (not equivalent today).
+- [ ] Log sensitivity, short pauses, fillers, the project and the editor's taps in the `silences:` line, then set defaults.
+- [ ] Later: audio crossfades at the cuts (QE probe), a markers-only result, presets per client, play a part from the preview,
+      next / previous part in a long preview, Scribe speakers and laughter. Dead code to remove: Safe / Smart, the Fast switch.
+- [ ] Each clip is decoded three times on the words path; the final check reads the whole new sequence through UXP again.
+
 ## V121. Verify 0.10.121 (2026-11-21): Cut silences' AI words by ElevenLabs
 - [ ] USER: in NEW TEST select a talking clip, Silences > options: Detect = AI-assisted, Remove hesitation sounds on, Preview:
       "N words recognised by ElevenLabs Scribe v3" and noticeably faster than before; then Cut silences.
@@ -99,10 +123,8 @@ The user, 2026-11-21: the five 0.10.115 checks (tab row, Keyframer buttons, Bran
   Premiere runs changes the Export window's Location. Do not build before the user says so.
 
 ## SIL. Cut silences field report (the user 2026-11-13, Fornetti КП-9 Видео 10, fx30-3-0403 after Fix audio L/R)
-- [ ] **An empty channel blocks the cuts.** R is a dead camera input (floor -88.6, "voice" -66.4 dBFS): Auto set its threshold
-  at -79 dB and counted 28 s of hiss as speech, so only 3 cuts (5.1 s) instead of L's 7 (15.4 s). Measured fix: a clip whose
-  Auto threshold is under SURE_MIN_DB counts only where Silero is sure (>= 0.8): same 7 cuts as L alone on this clip. Check it
-  keeps a quiet lavalier (the -57 dB fx31031 case) before building. Waiting for the user's go.
+- [x] **An empty channel blocks the cuts.** Built in 0.10.122 (synthetic: 7.6 s of shared silence cut against 3.8 s). USER: the
+      real clip, TODO V122.
 
 ## SEG. Subtitle cuts by the delivery (0.10.61, the user 2026-11-12)
 - [ ] USER: press Make subtitles with a client style (GStroy, Credissimo, ЕКОПАК, Beauty Sector, AULA) or Auto on a real

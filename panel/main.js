@@ -1760,7 +1760,8 @@ window.addEventListener("blur", () => engine.log("info", "panel: focus lost"));
 window.addEventListener("focus", () => engine.log("info", "panel: focus back"));
 onTap($("probe"), onProbeAsk);
 
-// Settings > Subtitles: ElevenLabs (0.10.119). The engine keeps the key; the panel only ever sees how it ends.
+// Settings > Speech recognition: ElevenLabs (0.10.119; Cut silences' words too since 0.10.121). The engine keeps the key; the
+// panel only ever sees how it ends.
 async function refreshCloud(change) {
   let st;
   try {
@@ -1769,12 +1770,13 @@ async function refreshCloud(change) {
     $("cloudStatus").textContent = `Not saved: ${e.message || e}`;
     return;
   }
-  $("cloudStatus").textContent = !st.key ? "Off: no key saved. Subtitles are recognised on this computer."
-    : st.enabled ? `On (key ending ${st.ends}): Auto and the client styles are read by ${st.name}.`
-      : `Off (key ending ${st.ends} is saved): subtitles are recognised on this computer.`;
+  $("cloudStatus").textContent = !st.key ? "Off: no key saved. Subtitles and Cut silences read the words on this computer."
+    : st.enabled ? `On (key ending ${st.ends}): ${st.name} reads the words for Subtitles (Auto and the client styles) and for Cut silences when it needs them. ReShape stays on this computer.`
+      : `Off (key ending ${st.ends} is saved): the words are read on this computer.`;
   $("cloudToggle").textContent = st.enabled ? "Turn off" : "Turn on";
   enable($("cloudToggle"), st.key);
   enable($("cloudRemove"), st.key);
+  if (silencesPage && silencesPage.refreshWords) silencesPage.refreshWords();      // Cut silences' line about who reads the words
 }
 onTap($("cloudSave"), async () => {
   const key = String($("cloudKey").value || "").trim();

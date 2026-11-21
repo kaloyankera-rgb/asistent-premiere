@@ -127,7 +127,7 @@ def test_a_refusal_becomes_a_reason_for_the_editor_without_the_key(home, monkeyp
 def test_a_run_with_a_key_is_read_by_elevenlabs_and_a_reshape_run_never_is(home, monkeypatch):
     cloudasr.save({"key": KEY})
     heard = []
-    monkeypatch.setattr(cloudasr, "transcribe", lambda y, progress, cancelled, model: heard.append(model) or [dict(w) for w in WORDS])
+    monkeypatch.setattr(cloudasr, "transcribe", lambda y, progress, cancelled, model, **kw: heard.append(model) or [dict(w) for w in WORDS])
     local = []
     monkeypatch.setattr(asr, "transcribe", lambda *a, **k: local.append(1) or [dict(w) for w in WORDS])
     res = subtitle_job.run(body(home), *RUN)
@@ -141,7 +141,7 @@ def test_a_run_with_a_key_is_read_by_elevenlabs_and_a_reshape_run_never_is(home,
 def test_when_elevenlabs_fails_the_window_is_read_here_and_the_result_says_so(home, monkeypatch):
     cloudasr.save({"key": KEY})
 
-    def down(y, progress, cancelled, model):
+    def down(y, progress, cancelled, model, **kw):
         raise cloudasr.CloudError("ElevenLabs could not be reached (no internet?)")
     monkeypatch.setattr(cloudasr, "transcribe", down)
     local = []
@@ -151,6 +151,6 @@ def test_when_elevenlabs_fails_the_window_is_read_here_and_the_result_says_so(ho
     assert res["recognizer"] == {"name": cloudasr.NAME, "windows": 1, "local": 1, "fallback": ["ElevenLabs could not be reached (no internet?)"]}
     # the local reading was not stored as ElevenLabs': the next run asks again
     asked = []
-    monkeypatch.setattr(cloudasr, "transcribe", lambda y, progress, cancelled, model: asked.append(1) or [dict(w) for w in WORDS])
+    monkeypatch.setattr(cloudasr, "transcribe", lambda y, progress, cancelled, model, **kw: asked.append(1) or [dict(w) for w in WORDS])
     res = subtitle_job.run(body(home), *RUN)
     assert asked == [1] and res["recognizer"]["local"] == 0

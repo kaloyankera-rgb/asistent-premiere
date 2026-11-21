@@ -13,9 +13,13 @@ from collections import Counter
 from difflib import SequenceMatcher
 
 SENTENCE_END = (".", "?", "!", "…")
+ABANDONED = "--"                    # Scribe writes a start the speaker broke off as „Днес ще ви--“: a false-start cue, and it ends the sentence
 SENTENCE_GAP = 0.5                  # a pause this long ends a sentence even without punctuation
 COMMA_GAP = 0.25                    # a comma followed by a pause this long ends it too
-WINDOW_S, WINDOW_N = 90.0, 12       # a sentence is compared with later ones inside this much time or this many sentences
+WINDOW_S, WINDOW_N = 90.0, 12       # a sentence is compared with later ones within WINDOW_S seconds; beyond WINDOW_N sentences only a
+FAR_MIN_WORDS = 5                   # long exact repeat (this many content words) counts, and it is only LISTED (never cut): 0.10.122, audit
+#                                     2026-11-21: 12 short sentences are ~21 s, not the 90 s the docs promised
+SHORT_EXACT = 4                     # a lone exact pair of this many content words or fewer („Правим ли го?“ twice) is only listed
 MIN_WORDS = 3                       # shorter sentences ("Добре.", "Така.") repeat all the time: never matched
 NEAR = 0.75                         # difflib ratio of the normalised words for a near repeat
 LEN_RATIO = (0.6, 1.6)
@@ -95,14 +99,15 @@ def sentences(words: list[dict]) -> list[dict]:
         if toks:
             last = words[cur[-1]]["word"].strip()
             out.append({"i": len(out), "a": cur[0], "b": cur[-1], "start": words[cur[0]]["start"], "end": words[cur[-1]]["end"],
-                        "tokens": toks, "text": " ".join(words[k]["word"].strip() for k in cur), "ends": last.endswith(SENTENCE_END)})
+                        "tokens": toks, "text": " ".join(words[k]["word"].strip() for k in cur), "ends": last.endswith(SENTENCE_END),
+                        "abandoned": last.endswith(ABANDONED)})
         cur.clear()
 
     for k, w in enumerate(words):
         cur.append(k)
         txt = w["word"].strip()
         gap = words[k + 1]["start"] - w["end"] if k + 1 < len(words) else 99.0
-        if txt.endswith(SENTENCE_END) or gap > SENTENCE_GAP or (txt.endswith(",") and gap > COMMA_GAP):
+        if txt.endswith(SENTENCE_END) or txt.endswith(ABANDONED) or gap > SENTENCE_GAP or (txt.endswith(",") and gap > COMMA_GAP):
             close()
     close()
     return out
@@ -152,6 +157,8 @@ def _similar(a: dict, b: dict) -> tuple[str, float] | None:
             k += 1
         if k >= 3 and k >= len(ta) - 1:
             return "false_start", k / len(ta)
+        if a.get("abandoned") and k >= 2 and k >= len(ta):             # broke off on purpose („Днес ще--“): two words are enough
+            return "false_start", 1.0
     # the later one breaks off: it is only the opening of the earlier one (an attempt abandoned after a good take)
     if not b["ends"] and len(tb) >= 3 and len(ta) > len(tb) and ta[:len(tb)] == tb and b["start"] - a["end"] <= FALSE_START_S:
         return "false_start", len(tb) / len(ta)
@@ -173,23 +180,31 @@ def _groups_of_sentences(sent: list[dict]) -> dict:
         return x
 
     kinds: dict = {}
+    far_links: set = set()
     for i, a in enumerate(sent):
-        for j in range(i + 1, min(len(sent), i + 1 + WINDOW_N)):
+        for j in range(i + 1, len(sent)):
             b = sent[j]
             if b["start"] - a["end"] > WINDOW_S:
                 break
             m = _similar(a, b)
+            if j - i > WINDOW_N:
+                # many sentences later (short sentences, ~21 s): only a long exact repeat, and only listed, never cut
+                if not m or m[0] != "exact" or len(_content(a["tokens"])) < FAR_MIN_WORDS:
+                    continue
+                far_links.add((i, j))
             if m:
                 parent[find(j)] = find(i)
                 kinds[(i, j)] = m[0]
     groups: dict = {}
     for i in range(len(sent)):
-        groups.setdefault(find(i), {"members": [], "kind": None})["members"].append(i)
+        groups.setdefault(find(i), {"members": [], "kind": None, "far": False})["members"].append(i)
     order = {"false_start": 0, "near": 1, "exact": 2}
     for (i, j), k in kinds.items():
         g = groups[find(i)]
         if g["kind"] is None or order[k] < order[g["kind"]]:
             g["kind"] = k                                 # a group is as sure as its weakest match
+        if (i, j) in far_links:
+            g["far"] = True
     return {r: g for r, g in groups.items() if len(g["members"]) > 1}
 
 
@@ -245,10 +260,10 @@ def _chains(sent: list[dict], groups: dict) -> list[dict]:
                 taken.update(span)
                 spans.append((sorted(span), t))
         out.append({"kind": min((groups[r]["kind"] for r in chain), key=lambda k: {"false_start": 0, "near": 1, "exact": 2}[k]),
-                    "spans": spans, "refs": [groups[r]["members"] for r in chain]})
+                    "spans": spans, "refs": [groups[r]["members"] for r in chain], "far": any(groups[r]["far"] for r in chain)})
     for r, g in groups.items():
         if r not in used:
-            out.append({"kind": g["kind"], "spans": [([i], 0) for i in g["members"]], "refs": [g["members"]]})
+            out.append({"kind": g["kind"], "spans": [([i], 0) for i in g["members"]], "refs": [g["members"]], "far": g["far"]})
     return out
 
 
@@ -320,21 +335,32 @@ def find(words: list[dict]) -> list[dict]:
                 if (len(x) >= CONTENT_MIN or _is_number(x)) and x not in lost and not any(_word_like(x, y) for y in said):
                     lost.append(x)
         safe = len(lost) <= max(LOST_WORDS, LOST_SHARE * len(keep)) and not any(_is_number(x) for x in lost)
-        # meaning words that only some takes have (either way: the winner may ADD a „не“ the others lack)
+        # meaning words that only some takes have (either way: the winner may ADD a „не“ the others lack).
+        # A false start is a PREFIX of the full sentence, so the winner always has words it lacks: only what the abandoned start
+        # says and the winner does not matters there (0.10.122; before, any difference either way kept almost every false start).
         win_meaning = _meaning(takes[rec])
-        for k, t in enumerate(takes):
+        for k, tk in enumerate(takes):
             if k == rec:
                 continue
-            for x in sorted(win_meaning ^ _meaning(t)):
+            mine = _meaning(tk)
+            # decided per TAKE: only a take that is a prefix of the winner (an abandoned start) may differ by what the winner adds;
+            # a full take that says something else („не“ added or lost) is compared both ways, whatever else the chain holds
+            n = len(tk["_tokens"])
+            one_way = n < len(takes[rec]["_tokens"]) and tk["_tokens"] == takes[rec]["_tokens"][:n]
+            for x in sorted(mine - win_meaning if one_way else win_meaning ^ mine):
                 if x not in lost:
                     lost.append(x)
                 safe = False
+        far = ch.get("far", False)
+        short = ch["kind"] == "exact" and len(ch["refs"]) == 1 and len(takes[rec]["_tokens"]) <= SHORT_EXACT
+        if far or short:                                    # not a plain repeat we can be sure of: listed, kept
+            safe = False
         cut, whole = _cut_plan(sent, takes, rec) if safe and takes[rec]["ends"] else ([], False)
         for t in takes:
             t.pop("_tokens")
             t.pop("_span")
         out.append({"kind": ch["kind"], "kind_label": KIND_LABEL[ch["kind"]], "takes": takes, "recommended": rec, "safe": safe, "lost": lost,
-                    "cut": cut, "whole": whole})
+                    "cut": cut, "whole": whole, **({"far": True} if far else {}), **({"short": True} if short and not far else {})})
     out += restarts(words, out)
     out.sort(key=lambda g: g["takes"][0]["start"])
     return out

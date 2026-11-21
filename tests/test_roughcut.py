@@ -342,6 +342,35 @@ def test_a_few_frames_of_the_second_camera_at_the_end_of_its_clip_are_not_kept()
     assert edl.drop_flashes(only)[1] == 0
 
 
+def test_one_camera_track_and_a_microphone_never_lose_their_last_frames_to_a_flash_rule():
+    """Audit 2026-11-21: A ends at 10.0 and B starts there on ONE camera track, a mic runs under both, kept 9.8-12: A's 6 frames
+    were dropped (black gap on V1) and a mic clip ending at 10.2 lost its last 12 frames of speech."""
+    a = {"kind": "video", "track": 0, "path": "a.mp4", "start": 0.0, "end": 10.0, "inPt": 0.0}
+    b = {"kind": "video", "track": 0, "path": "b.mp4", "start": 10.0, "end": 20.0, "inPt": 0.0}
+    mic = {"kind": "audio", "track": 0, "path": "m.wav", "start": 0.0, "end": 20.0, "inPt": 0.0}
+    tail = {"kind": "audio", "track": 1, "path": "t.wav", "start": 8.0, "end": 10.2, "inPt": 0.0}
+    ps = edl.pieces([a, b, mic, tail], [(9.8, 12.0)], FPS)
+    out, dropped = edl.drop_flashes(ps)
+    assert dropped == 0 and len(out) == len(ps)
+    v1 = sorted((p for p in out if p["kind"] == "video"), key=lambda p: p["start"])
+    assert v1[0]["end"] == v1[1]["start"] and v1[0]["start"] == 0                       # no hole on V1
+    t = [p for p in out if p["path"] == "t.wav"][0]
+    assert t["end"] - t["start"] == round(10.2 * FPS) - round(9.8 * FPS)               # the mic's 12 frames stay
+
+
+def test_a_flash_goes_only_when_another_camera_covers_all_of_it_and_never_a_sound_piece():
+    cam1 = {"kind": "video", "track": 1, "path": "b.mp4", "start": 0.0, "end": 10.0, "inPt": 0.0}
+    cam2 = {"kind": "video", "track": 0, "path": "a.mp4", "start": 0.0, "end": 20.0, "inPt": 0.0}
+    mic = {"kind": "audio", "track": 0, "path": "m.wav", "start": 0.0, "end": 10.0, "inPt": 0.0}
+    ps = edl.pieces([cam1, cam2, mic], [(0.0, 4.0), (9.8, 15.0)], FPS)
+    out, dropped = edl.drop_flashes(ps)
+    assert dropped == 1 and [p for p in out if p["kind"] == "audio"] == [p for p in ps if p["kind"] == "audio"]
+    # the other camera starts after the flash does: it does not cover all of it, so the flash stays (no black)
+    late = {"kind": "video", "track": 0, "path": "a.mp4", "start": 9.9, "end": 20.0, "inPt": 0.0}
+    out2, dropped2 = edl.drop_flashes(edl.pieces([cam1, late], [(9.8, 15.0)], FPS))
+    assert dropped2 == 0 and len(out2) == 2
+
+
 def test_the_gap_between_two_clips_closes_exactly_even_when_the_next_clip_starts_with_loud_speech():
     y = np.zeros(10 * SR, np.float32)
     y[:3 * SR] = 0.3 * np.sin(2 * np.pi * 220 * np.arange(3 * SR) / SR)          # clip A: 0-3 s of a loud tone

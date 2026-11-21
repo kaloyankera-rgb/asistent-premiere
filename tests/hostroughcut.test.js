@@ -42,6 +42,8 @@ function sequence(proj, name, id, video, audio, zero = 0) {
     const dump = (ts) => ts.map((t) => t.items.map((c) => [Number(c.start.ticks) / TPF, Number(c.end.ticks) / TPF, c.name]));
     const c = sequence(proj, `${name} Copy`, `${id}-copy${proj.seqs.length}`, dump(s.v), dump(s.a), zero);
     c.marks = s.marks.map((m) => ({ ...m }));
+    s.v.forEach((t, i) => { c.v[i].locked = t.locked; });                  // a clone keeps the editor's locked tracks
+    s.a.forEach((t, i) => { c.a[i].locked = t.locked; });
     proj.seqs.push(c);
     return true;
   };
@@ -55,8 +57,9 @@ function host() {
   proj.openSequence = (id) => { proj.active = proj.seqs.find((s) => s.sequenceID === id) || proj.active; return true; };
   Object.defineProperty(proj, "activeSequence", { get: () => proj.active });
   const razored = [];
+  const shift = { frames: 0 };                                             // a razor that lands this many frames off (the odd frame rate)
   const qe = { project: { getActiveSequence: () => ({ name: proj.active.name, razor: (tc) => {
-    const at = Number(tc) - Number(proj.active.zeroPoint);                 // the model's "timecode" is the tick with the start offset
+    const at = Number(tc) - Number(proj.active.zeroPoint) + shift.frames * TPF;   // the model's "timecode" is the tick with the start offset
     razored.push(proj.active.name);
     for (const t of [...proj.active.v, ...proj.active.a]) {
       if (t.locked) continue;
@@ -77,7 +80,7 @@ function host() {
   // the host answers in JSON text (as_result), as it does to the engine
   const raw = ctx.as_run;
   ctx.run = (name, args) => JSON.parse(raw(name, args));
-  return { ctx, proj, razored };
+  return { ctx, proj, razored, shift };
 }
 
 const shape = (s) => ({ v: s.v.map((t) => t.items.map((c) => `${Number(c.start.ticks) / TPF}-${Number(c.end.ticks) / TPF}`)),
@@ -158,6 +161,7 @@ test("the razor did not cut: nothing is removed and the editor is told", () => {
   const r = h.ctx.run("rough_cut", { ...base, cut: made.cut, phase: "clean", pieces: [{ k: "v", t: 0, f: 0, e: 40, at: 0 }] });
   assert.strictEqual(r.ok, false);
   assert.match(r.msg, /did not cut/);
+  assert.match(r.msg, /can be deleted; your own sequence was not changed/);
   assert.strictEqual(h.proj.seqs.find((s) => s.sequenceID === made.cut).v[0].items.length, 1);
 });
 
@@ -191,9 +195,120 @@ test("the time budget: a phase stops, says where, and goes on from there", () =>
   h.ctx.AS_CUT_BUDGET = -1;                                                // every call is out of time at once
   const r0 = h.ctx.run("rough_cut", { ...base, cut: made.cut, phase: "razor", cuts, i: 0 });
   assert.strictEqual(r0.done, false);
-  assert.strictEqual(r0.i, 0);
+  assert.strictEqual(r0.i, 1, "a call always does at least one item, however short the budget");
   h.ctx.AS_CUT_BUDGET = 15000;
   const r1 = h.ctx.run("rough_cut", { ...base, cut: made.cut, phase: "razor", cuts, i: 4 });
   assert.strictEqual(r1.done, true);
-  assert.strictEqual(h.proj.seqs.find((s) => s.sequenceID === made.cut).v[0].items.length, 6);   // cuts 4..8 of 9
+  assert.strictEqual(h.proj.seqs.find((s) => s.sequenceID === made.cut).v[0].items.length, 7);   // cut 0 (the first call always does one) and cuts 4..8 of 9
+});
+
+// ---------------------------------------------------------------- 0.10.122: the audited defects
+function start(h, video, audio, name = "N v1") {
+  const src = sequence(h.proj, "S", "g1", video, audio);
+  h.proj.seqs.push(src);
+  h.proj.active = src;
+  const base = { sequence: "S", guid: "g1", project: h.proj.path, name };
+  const made = h.ctx.run("rough_cut", { ...base, phase: "start" });
+  const dup = h.proj.seqs.find((s) => s.sequenceID === made.cut);
+  const call = (phase, extra) => h.ctx.run("rough_cut", { ...base, cut: made.cut, phase, ...extra });
+  return { src, base, made, dup, call };
+}
+
+test("clean: a piece without a clip of its own stops everything before anything is removed", () => {
+  const h = host();
+  const t = start(h, [[[100, 200, "cam"], [300, 400, "other"]]], []);
+  // the razor landed 5 frames off: clips 100-135 and 135-200, the piece asks for 100-130
+  t.call("razor", { cuts: [{ f: 135, only: "" }], i: 0 });
+  const r = t.call("clean", { pieces: [{ k: "v", t: 0, f: 100, e: 130, at: 0 }] });
+  assert.strictEqual(r.ok, false);
+  assert.match(r.msg, /1 of 1 kept pieces have no clip of their own/);
+  assert.strictEqual(t.dup.v[0].items.length, 3, "nothing may be removed");
+});
+
+test("clean: only clips inside a cut range go, never one that overlaps a kept piece by more than a frame", () => {
+  const h = host();
+  const t = start(h, [[[100, 150, "a"], [151, 200, "b"], [300, 400, "far"]], [[120, 160, "unselected track"]]], []);
+  // kept: 100-150 (exact), 151-200 (the clip starts a frame late: still matches); the extra clip 140-170 below overlaps 100-150
+  t.dup.v[0].add(140, 170, "straddler");
+  t.dup.v[0].items.sort((x, y) => Number(x.start.ticks) - Number(y.start.ticks));
+  const r = t.call("clean", { pieces: [{ k: "v", t: 0, f: 100, e: 150, at: 0 }, { k: "v", t: 0, f: 150, e: 200, at: 50 }] });
+  assert.strictEqual(r.ok, true, r.msg);
+  assert.strictEqual(r.overlap, 1);
+  assert.strictEqual(r.removed, 2);                                        // "far" and the unselected track's clip
+  assert.deepStrictEqual(shape(t.dup).v, [["100-150", "140-170", "151-200"], []]);
+});
+
+test("clean: a clip that touches a kept piece by one frame of rounding still goes", () => {
+  const h = host();
+  const t = start(h, [[[100, 150, "a"], [149, 160, "edge"]]], []);
+  const r = t.call("clean", { pieces: [{ k: "v", t: 0, f: 100, e: 150, at: 0 }] });
+  assert.strictEqual(r.ok, true, r.msg);
+  assert.strictEqual(r.overlap, 0);
+  assert.deepStrictEqual(shape(t.dup).v, [["100-150"]]);
+});
+
+test("clean and move do at least one item per call, and the clock starts after the clips are listed", () => {
+  const h = host();
+  const t = start(h, [[[0, 10, "a"], [20, 30, "b"], [40, 50, "c"], [60, 70, "d"]]], []);
+  h.ctx.AS_CUT_BUDGET = -1;
+  const pieces = [{ k: "v", t: 0, f: 0, e: 10, at: 0 }, { k: "v", t: 0, f: 20, e: 30, at: 10 }];
+  const c0 = t.call("clean", { pieces });
+  assert.strictEqual(c0.removed, 1);
+  assert.strictEqual(c0.done, false);
+  assert.strictEqual(c0.left, 1);
+  const c1 = t.call("clean", { pieces });
+  assert.strictEqual(c1.done, true);
+  const m0 = t.call("move", { pieces, i: 0 });
+  assert.strictEqual(m0.i >= 1, true);
+});
+
+test("razor: no clip edge at an asked frame stops the cut, naming the frame rate; the evidence for the probe comes back", () => {
+  const h = host();
+  const t = start(h, [[[0, 1000, "cam"]]], []);
+  const cuts = [{ f: 100, only: "" }, { f: 200, only: "" }];
+  h.shift.frames = 7;                                                      // Premiere said yes and cut elsewhere
+  const r = t.call("razor", { cuts, i: 0 });
+  assert.strictEqual(r.ok, false);
+  assert.match(r.msg, /no clip edge at 2 of 2 cut frames/);
+  assert.match(r.msg, /runs at [\d.]+ fps/);
+  assert.match(r.msg, /The unfinished sequence "N v1" can be deleted; your own sequence was not changed/);
+  assert.strictEqual(r.refused, 0);
+  assert.strictEqual(r.tc, String(100 * TPF));                             // what was handed to the razor
+  assert.strictEqual(r.before, 1);
+  assert.strictEqual(r.after_first, 2);
+  assert.strictEqual(shape(t.src).v[0].length, 1, "the editor's sequence is untouched");
+});
+
+test("razor: when every cut landed, the first call also reports the timecode and the counts", () => {
+  const h = host();
+  const t = start(h, [[[0, 1000, "cam"]]], []);
+  const r = t.call("razor", { cuts: [{ f: 100, only: "" }, { f: 200, only: "" }], i: 0 });
+  assert.strictEqual(r.ok, true, r.msg);
+  assert.strictEqual(r.done, true);
+  assert.strictEqual(r.before, 1);
+  assert.strictEqual(r.after_first, 2);
+  const later = t.call("razor", { cuts: [{ f: 100, only: "" }, { f: 200, only: "" }], i: 1 });
+  assert.strictEqual(later.tc, undefined, "only the first call carries the evidence");
+});
+
+test("finish: the tracks the editor had locked are locked again in the duplicate", () => {
+  const h = host();
+  const src = sequence(h.proj, "S", "g1", [[[0, 100, "cam"]], [[0, 100, "b-cam"]]], [[[0, 100, "mic"]]]);
+  src.v[1].locked = true;                                                  // the editor locked V2
+  h.proj.seqs.push(src);
+  h.proj.active = src;
+  const base = { sequence: "S", guid: "g1", project: h.proj.path, name: "N v1" };
+  const made = h.ctx.run("rough_cut", { ...base, phase: "start" });
+  const dup = h.proj.seqs.find((s) => s.sequenceID === made.cut);
+  const pieces = [{ k: "v", t: 0, f: 0, e: 40, at: 0 }, { k: "v", t: 0, f: 60, e: 100, at: 40 }, { k: "a", t: 0, f: 0, e: 40, at: 0 }, { k: "a", t: 0, f: 60, e: 100, at: 40 }];
+  const cuts = [{ f: 40, only: "" }, { f: 60, only: "" }];
+  const call = (phase, extra) => h.ctx.run("rough_cut", { ...base, cut: made.cut, phase, ...extra });
+  assert.strictEqual(call("razor", { cuts, i: 0 }).ok, true);
+  assert.strictEqual(call("clean", { pieces }).ok, true);
+  assert.strictEqual(call("move", { pieces, i: 0 }).ok, true);
+  assert.ok(dup.v.every((x) => !x.locked), "unlocked until the end");
+  const fin = call("finish", { pieces, marks: [], i: 1 });
+  assert.strictEqual(fin.relocked, 1);
+  assert.deepStrictEqual([dup.v[0].locked, dup.v[1].locked, dup.a[0].locked], [false, true, false]);
+  assert.strictEqual(src.v[1].locked, true);                               // only read
 });

@@ -1,5 +1,20 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-21: Cut silences after the audit (0.10.122)
+- **The user: "use the agents to fix them"** after the audit's list; taken as the go for TODO SIL (the dead channel) as well.
+  Not decided by the user and so not built: Calm as the default pacing, keeping unselected clips in the new sequence.
+- **Words are read only when a rule uses them** (hesitation sounds, AI rough cut's takes). The 2026-11-15 rule "Manual dB is
+  the level alone" still holds for what counts as silence, and the word guard is off there; but AI rough cut with Manual dB now
+  reads the words and cuts repeated takes, because the result claimed "AI rough cut" while reading nothing.
+- **Every new detection rule may only keep more or list more** (review of the first version): pooled statistics are a union
+  with the clip's own labels; the one-way false-start check applies only to a take that is a prefix of the winner; the
+  dead-channel rule flags what Silero half-hears and is off with one microphone. The one rule that cuts more is the false
+  start whose full sentence only adds words, and the dead channel's hiss no longer counting as speech (TODO SIL, measured).
+- **ReShape for Cut silences is decided by any path of the run**, and a doubtful name counts as ReShape (a wrong "no" sends a
+  client's sound).
+- **Protected files touched** (`subtitle_job.py`: cloud-only key and callbacks, a unique temp name; `host/host.jsx`: only the
+  `as_cut_*` block): `reshape_golden.py check` identical.
+
 ## 2026-11-21: Cut silences may read its AI words through ElevenLabs too; the second cloud exception (0.10.121)
 - **Decision (the user, 2026-11-21: "Do it", after asking whether ElevenLabs could make Cut silences faster and more precise):**
   Cut silences' AI-assisted words (hesitation sounds, repeated takes) are read by Scribe when the editor saved a key and left

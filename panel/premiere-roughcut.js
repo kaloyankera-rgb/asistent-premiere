@@ -411,13 +411,24 @@ function hostPlan(result, layout, refs, tpf) {
   return { pieces, cuts, moves: pieces.filter((p) => p.at !== p.f).length };
 }
 
-/** The cut through the host. -> { problems, notes }, or null when the host cannot start it and the copies should try. */
-async function hostCut(project, result, input, say) {
+/** The cut through the host. -> { problems, notes } (also `stopped`: the step the host stopped at, when it did not finish),
+ *  or { fallback: why } when the host cannot start it and the copies may try (at most HOST_FALLBACK_PIECES pieces: more
+ *  pieces are refused here, because the copies crashed Premiere on long selections).
+ *  cancelled: () => true once the editor pressed Cancel; it is asked before every step and every round (0.10.122). */
+async function hostCut(project, result, input, say, cancelled) {
   const count = (result.pieces || []).length;
-  if (!count || !result.pieces.every((p) => Number.isFinite(p.seq_in) && Number.isFinite(p.seq_out))) return null;
+  const stop = typeof cancelled === "function" ? cancelled : () => false;
+  if (!count || !result.pieces.every((p) => Number.isFinite(p.seq_in) && Number.isFinite(p.seq_out))) {
+    if (count > HOST_FALLBACK_PIECES) {
+      throw new P.UserError(`The engine did not say where the ${count} pieces lie in your sequence, and the older copying way is only used for up to ${HOST_FALLBACK_PIECES} pieces. ` +
+        "Nothing was cut. Update Asistent's engine and press again.");
+    }
+    return { fallback: "the engine gave no source places for the pieces" };
+  }
   const src = input.sequence;
   const base = { sequence: src.name, guid: C.seqGuid(src), project: project.path, name: result.name };
   const tell = (m) => { if (say) say(m); };
+  if (stop()) throw new P.UserError("Cancelled. Nothing was changed in Premiere.");
   let made;
   try {
     made = await engine.roughCut({ ...base, phase: "start" });
@@ -426,48 +437,64 @@ async function hostCut(project, result, input, say) {
   }
   if (!made.ok) {
     engine.log("warn", `roughcut host: not started: ${made.msg}`);
-    if (count <= HOST_FALLBACK_PIECES && !/already has a sequence/.test(made.msg || "")) return null;
+    if (count <= HOST_FALLBACK_PIECES && !/already has a sequence/.test(made.msg || "")) return { fallback: String(made.msg || "it did not start").replace(/\s*Nothing was made\.?$/, "") };
     throw new P.UserError(`${made.msg} Nothing was cut.`);
   }
   const plan = hostPlan(result, input.plan.layout, input.plan.refs, Number(made.tpf) || 0);
   const left = `The unfinished sequence "${result.name}" can be deleted; your own sequence was not changed.`;
-  const phase = async (name, body, label, total) => {
+  let at = "the start";                                      // where the host is, for the message when it stops
+  const phase = async (name, body, label, total, human) => {
+    at = human;
     let i = 0;
     const sum = { moved: 0, missing: 0, removed: 0, refused: 0 };
+    const first = {};                                       // the razor's evidence comes with its first round only: kept for the last answer
     for (let round = 0; round < 400; round++) {
+      if (stop()) throw new Error("Stopped: you pressed Cancel.");
       const r = await engine.roughCut({ ...base, cut: made.cut, phase: name, i, ...body });
       if (!r.ok) throw new Error(r.msg || `Premiere refused the step "${name}".`);
       for (const k of Object.keys(sum)) sum[k] += r[k] || 0;
-      if (r.done !== false) return { ...r, ...sum };
+      for (const k of ["tc", "before", "after_first", "rate"]) if (r[k] !== undefined && first[k] === undefined) first[k] = r[k];
+      if (r.done !== false) return { ...r, ...first, ...sum };
       i = r.i === undefined ? i : r.i;
-      tell(`${label} ${total ? Math.min(99, Math.round((100 * (r.i === undefined ? total - (r.left || 0) : r.i)) / total)) : 0} %…`);
+      // Removing has no list to count through: it is driven by what is left to remove (a step that reports `left`)
+      const did = r.left !== undefined ? sum.removed + sum.refused : (r.i === undefined ? 0 : r.i);
+      const all = r.left !== undefined ? did + r.left : total;
+      tell(`${label} ${all ? Math.min(99, Math.round((100 * did) / all)) : 0} %…`);
     }
     throw new Error(`The step "${name}" did not finish.`);
   };
   let moved = { moved: 0, missing: 0 };
   let done;
+  let clean = { removed: 0, refused: 0, overlap: 0 };
+  let cut = { refused: 0 };
   try {
     if (!plan) throw new Error("The cut plan does not fit the clips.");
     tell(`Cutting the duplicate (${plan.cuts.length} cuts)…`);
-    const cut = await phase("razor", { cuts: plan.cuts }, "Cutting", plan.cuts.length);
+    cut = await phase("razor", { cuts: plan.cuts }, "Cutting", plan.cuts.length, "cutting");
+    // the evidence for the odd-frame-rate probe (host.jsx as_cut_razor): what was handed to the razor and what it did
+    if (cut.tc !== undefined) engine.log("info", `roughcut host: first razor at "${cut.tc}" on a ${cut.rate} sequence: ${cut.before} clips before it, ${cut.after_first} after (${plan.cuts.length} cuts, ${cut.refused || 0} refused)`);
     tell("Removing what goes…");
-    const clean = await phase("clean", { pieces: plan.pieces }, "Removing", 0);
+    clean = await phase("clean", { pieces: plan.pieces }, "Removing", 0, "removing");
     if (plan.moves) {
       tell(`Closing the gaps (${plan.moves} pieces)…`);
-      moved = await phase("move", { pieces: plan.pieces }, "Closing the gaps", plan.pieces.length);
+      moved = await phase("move", { pieces: plan.pieces }, "Closing the gaps", plan.pieces.length, "closing the gaps");
     }
+    at = "the last step";
+    if (stop()) throw new Error("Stopped: you pressed Cancel.");
     done = await engine.roughCut({ ...base, cut: made.cut, phase: "finish", i: plan.moves ? 1 : 0, pieces: plan.pieces, marks: result.marks || [] });
     if (!done.ok) throw new Error(done.msg || "Premiere refused the last step.");
     P.debug(`roughcut host: ${plan.cuts.length} cuts (${cut.refused || 0} refused), ${clean.removed} removed (${clean.refused || 0} refused), ` +
       `${moved.moved} moved (${moved.missing} missing), ${done.there} of ${plan.pieces.length} pieces in place, ${done.clips} clips`);
   } catch (e) {
     const msg = e && e.message ? e.message : String(e);
-    engine.log("error", `roughcut host: ${msg}`);
-    return { problems: [`${msg} ${left}`], notes: [] };
+    engine.log("error", `roughcut host: stopped at ${at}: ${msg}`);
+    // a message that already says the sequence can be deleted (the host's own) is not told twice
+    return { problems: [/can be deleted/.test(msg) ? msg : `${msg} ${left}`], notes: [], stopped: at };
   }
   const problems = [];
   if (done.there < plan.pieces.length) problems.push(`${plan.pieces.length - done.there} of ${plan.pieces.length} pieces are not where they should be.`);
   if (done.clips > plan.pieces.length) problems.push(`${done.clips - plan.pieces.length} clips that should have gone are still in the new sequence.`);
+  if (clean.overlap > 0) problems.push(`${clean.overlap} clips that overlap a kept piece were left in the new sequence, because removing them would have cost speech.`);
   // the panel's own look at the new sequence (read only), as after every rough cut
   try {
     const sequence = await findSequence(project, result.name);
@@ -482,31 +509,41 @@ async function hostCut(project, result, input, say) {
     engine.log("warn", `roughcut host: the check could not read the new sequence: ${e && e.message ? e.message : e}`);
   }
   P.debug(`roughcut verify ${result.name} (host): ${problems.length ? problems.join(" | ") : "as written"}`);
+  // How many Undo steps it took: Premiere's razor, removals and moves are each their own step, and the host cannot make
+  // them one (the rule: when it cannot be one, the panel says how many). A count from what was done, not read from Premiere.
+  const steps = plan.cuts.length + (clean.removed || 0) + (moved.moved || 0) + 1;
   const notes = [{ cls: "line", text: "Cut in a duplicate of your sequence: every piece is your own clip with its rotation, Motion, colour, effects, links and Fix audio's L / R copies. Your sequence was not changed." },
-    { cls: "hint", text: "Not what you wanted? Delete the new sequence (bin \"No silence\"): quicker than undoing every cut." }];
+    { cls: "hint", text: `Not what you wanted? Delete the new sequence (bin "No silence"): quicker than Undo, which would take about ${steps} steps (every cut, removal and move is its own).` }];
   return { problems, notes };
 }
 
 /** Import the XML into the bin "Rough cut", find the new sequence, check it against the engine's EDL, carry the effects
  *  over, open it. -> { problems: [text], notes: [{cls, text}] }. input (0.10.45): readInput's answer: the copies way.
  *  0.10.108: first the host's cut in a duplicate; the copies only when the host is away and the pieces are few. */
-async function place(project, result, meta, input, say) {
+async function place(project, result, meta, input, say, cancelled) {
+  let why = null;
   if (input && input.plan && input.sequence) {
-    const cut = await hostCut(project, result, input, say);
-    if (cut) return cut;
+    const cut = await hostCut(project, result, input, say, cancelled);
+    if (cut && !cut.fallback) return cut;
+    if (cut) why = cut.fallback;
   }
+  // 0.10.122: the older way is never silent: the result says the host did not make this cut and why
+  const said = (r) => {
+    if (why) r.notes.unshift({ cls: "warn", text: `The Asistent host did not make this cut (${why}), so the older way was used: copies of your clips. Premiere can be unstable with many copies.` });
+    return r;
+  };
   const cloned = await placeClones(project, result, input);
-  if (cloned) return cloned;
+  if (cloned) return said(cloned);
   const bin = await P.ensureBin(project, "No silence");
   const target = ppro.ProjectItem.cast(bin) || bin;
   const accepted = await project.importFiles([result.xml], true, target, false);
-  if (accepted === false) return { problems: ["Premiere did not accept the XML file. It is in the Asistent_roughcut folder: File > Import."], notes: [] };
+  if (accepted === false) return said({ problems: ["Premiere did not accept the XML file. It is in the Asistent_roughcut folder: File > Import."], notes: [] });
   let sequence = null;
   for (let i = 0; i < 20 && !sequence; i++) {
     sequence = await findSequence(project, result.name);
     if (!sequence) await new Promise((r) => setTimeout(r, 250));
   }
-  if (!sequence) return { problems: [`The sequence "${result.name}" did not appear in the project. The XML is in the Asistent_roughcut folder: File > Import.`], notes: [] };
+  if (!sequence) return said({ problems: [`The sequence "${result.name}" did not appear in the project. The XML is in the Asistent_roughcut folder: File > Import.`], notes: [] });
   const { items } = await P.readItems(sequence);
   const got = { video: {}, audio: {}, end: 0 };
   for (const it of items) {
@@ -524,7 +561,7 @@ async function place(project, result, meta, input, say) {
     problems.push(`The effects were not fully carried over: ${e && e.message ? e.message : e}`);
   }
   await P.maybe(project, "openSequence", sequence);
-  return { problems, notes };
+  return said({ problems, notes });
 }
 
 // The new sequence has no effects of its own (it is built from the media). What Asistent writes is put back on the new

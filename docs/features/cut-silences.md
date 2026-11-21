@@ -34,13 +34,19 @@ own clips cut. The editor's sequence is not touched. Preview shows what would go
 - The preview and the cut share one code path; the editor's choices go back as time ranges (0.10.96).
 - Repeated takes: matched with difflib, never on similarity alone; a plain repeat is cut (last full take stays), a take
   said differently (other number or content words) is only listed; takes over 90 s apart are not matched.
-- AI-assisted words (hesitations, takes): ElevenLabs Scribe when its key is saved and the switch is on (`read_cloud`, 0.10.121),
-  sharing the subtitles' cache key; else, and for any window it cannot read, local large-v3 (own cache keys `rough3-`).
-  Never in a ReShape project (`is_reshape`, by folder and mount). Words decide what goes, the 10 ms level decides where.
-  Automatic and Manual dB never use words and never send anything.
+- Words (hesitations, takes) are read only when Remove hesitation sounds is on or Cut = AI rough cut (then with any Detect,
+  Manual dB too): ElevenLabs Scribe when its key is saved and the switch is on (`read_cloud`, the subtitles' cache key, clips
+  over 5 min in parts), else and for any window it cannot read local large-v3. Never when the project folder or any media
+  path is ReShape (`is_reshape_run`). Words decide what goes, the 10 ms level decides where; a word guard keeps a word a cut
+  would cover (not in Manual dB). The options show before the press where the words are read.
+- New rules may only keep or list more (0.10.122): pooled statistics are a union with the clip's own; the dead-channel rule
+  flags what Silero half-hears and is off with one microphone; far (over 12 sentences) and short (4 words or fewer) repeats
+  are listed; a false start is cut only when the take is a prefix of the full sentence.
+- Host clean removes only clips that overlap no kept piece, and nothing when a kept piece has no clip; the razor is checked
+  frame by frame before anything is removed. `drop_flashes` never drops sound.
 
 ## Decisions
-- AI words through ElevenLabs, ReShape local: DECISIONS 2026-11-21 (0.10.121).
+- AI words through ElevenLabs, ReShape local: DECISIONS 2026-11-21 (0.10.121). After the audit: DECISIONS 2026-11-21 (0.10.122).
 - Silences replaces the rough cut in the panel, no recognition: DECISIONS 2026-11-12.
 - Regions the editor can turn around; Manual dB is the level alone: DECISIONS 2026-11-15 (0.10.96).
 - Auto cuts voices 8 dB under the main voice: DECISIONS 2026-11-15 (0.10.95).
@@ -60,18 +66,18 @@ own clips cut. The editor's sequence is not touched. Preview shows what would go
 - Host: `host/host.jsx` `as_rough_cut` with `as_cut_start`, `as_cut_razor`, `as_cut_clean`, `as_cut_move`, `as_cut_finish`.
 
 ## Status
-- Since 0.10.65 (Silences), rebuilt in 0.10.96, host cut since 0.10.108-0.10.109, ElevenLabs for AI words 0.10.121 (not installed yet;
-  measured outside Premiere on IMG_9422: recognition 139 -> 34 s, one repeated take Whisper missed; not yet run by the user).
-- Through the bridge in NEW TEST: 17 runs on 52 clips, 0 crashes, every piece verified; 0.10.110 checked on the user's
-  v83 and SYNC sequences. The user ran 0.10.96 once (options showed and ran, 0.10.97); the 0.10.109/0.10.110 presses by
-  the user, the preview look at panel width and the tooltips are unverified (TODO V96).
+- Since 0.10.65 (Silences), rebuilt 0.10.96, host cut 0.10.108, ElevenLabs words 0.10.121, audit fixes 0.10.122 (not installed).
+- Real use (logs to 2026-11-21): no real-project result since 0.10.108: the host razor fails on a 59.97361 fps sequence
+  (iPhone footage; now detected and stopped, the fix needs a probe in NEW TEST), and AI-assisted left on cost minutes.
+  The user's own presses of 0.10.109 in NEW TEST (2026-11-15) cut as written. 0.10.122 has not run in Premiere.
 - Windows: untested.
-- Limits (BUGS "Limits of Cut silences 0.10.96"): no audio crossfades or J/L cuts; Manual dB is one number for all
-  microphones; hesitation sounds only when Whisper writes them; a take repeated without a pause is listed, not cut.
-- Open: TODO V121, V96 (verify lists), TODO SIL (an empty channel blocks cuts, waiting for the user).
+- Limits (BUGS "Limits of Cut silences"): odd frame rates stop instead of cutting; no audio crossfades or J/L cuts; Manual dB
+  is one number for all microphones; a hesitation glued to a word stays; a take repeated without a pause is listed.
+- Open: TODO V122 (verify list and the probe), V96, AUD (what the audit left).
 
 ## Tests
 - `tests/test_silence.py` (levels, Silero, modes, pacing, edges), `test_roughcut.py` (speech map, pauses, EDL, XML, job),
-  `test_takes.py` (repeated takes), `test_silence_cloud.py` (ElevenLabs, ReShape by folder, fallback, shared reading).
+  `test_takes.py` (repeated takes), `test_silence_cloud.py`, `test_silence_cloud_audit.py` (ElevenLabs, ReShape, fallback, shared reading, parts, retries),
+  `test_silence_audit.py` (dead channel, pooling, word guard); node `hostcutflow`, `silencespanel` (cancel, guard, words line).
 - `tests/silenceplan.test.js`, `roughcutplan.test.js`, `roughcutclones.test.js` (copies in batches, `hostPlan`),
   `hostroughcut.test.js` (host cut against a model of Premiere), `wiring.test.js`, `tiptext.test.js` (tooltip rows).

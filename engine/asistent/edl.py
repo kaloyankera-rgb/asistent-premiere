@@ -90,17 +90,20 @@ MIN_PIECE = 15                    # frames (0.5 s): a shorter piece of an item t
 
 
 def drop_flashes(pieces: list[dict], min_frames: int = MIN_PIECE) -> tuple[list[dict], int]:
-    """Remove the end of a camera that is only a few frames long while another track carries the moment: a 5-frame piece
+    """Remove the end of a camera that is only a few frames long while another camera carries the moment: a 5-frame piece
     of the second POV at the end of its clip is a flash on the timeline (the user's 2026-11-03 test: "very fast cuts at the
-    end of some clips"). A short piece is kept when nothing longer plays at the same time (a short word is a shot of its
-    own). -> (pieces, how many were dropped)"""
+    end of some clips"). Only a VIDEO piece goes, and only when a longer video piece on ANOTHER track covers all of it: the
+    picture is never left empty. Sound is never dropped here (a microphone clip ending a few frames into a kept range is
+    speech), and a piece of the same camera track is not "another camera": clip A ending where clip B starts on one V1 is a
+    cut, and dropping A's last frames would leave black (audit 2026-11-21). A short piece nothing covers is a shot of its own.
+    -> (pieces, how many were dropped)"""
     keep = []
     dropped = 0
     for p in pieces:
-        if p["end"] - p["start"] < min_frames:
-            longer = any(q is not p and q["end"] - q["start"] >= min_frames and q["start"] < p["end"] and p["start"] < q["end"]
-                         for q in pieces)
-            if longer:
+        if p["kind"] == "video" and p["end"] - p["start"] < min_frames:
+            covered = any(q is not p and q["kind"] == "video" and q["track"] != p["track"] and q["end"] - q["start"] >= min_frames
+                          and q["start"] <= p["start"] and p["end"] <= q["end"] for q in pieces)
+            if covered:
                 dropped += 1
                 continue
         keep.append(p)

@@ -21,6 +21,7 @@ import os
 import re
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
@@ -189,12 +190,19 @@ def _cached(key: str):
 
 def _store(key: str, entry: dict) -> None:
     path = os.path.join(cache_dir(), key + ".json")
+    # 0.10.122: a name of its own per write: two threads storing the same key (a cancelled cloud reading that finishes
+    # while the next run stores it too) must not write into one ".tmp" file
+    tmp = f"{path}.{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex[:8]}.tmp"
     try:
-        with open(path + ".tmp", "w", encoding="utf-8") as f:
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(entry, f, ensure_ascii=False)
-        os.replace(path + ".tmp", path)
+        os.replace(tmp, path)
     except OSError as e:
         log.warning("subtitle cache write failed: %s", e)
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
 
 
 def _inside(w: dict, lo: float, hi: float) -> bool:
@@ -255,6 +263,10 @@ def window_audio(win: dict, prompt: str, prof=None) -> tuple[np.ndarray, str]:
     """What a window's reading hears (as recorded) and the cache key of that reading."""
     y, _ = read_segment({"path": win["path"], "start": win["a"], "end": win["b"]}, 0.0)
     y = silence_between(y, win)
+    # 0.10.122: ElevenLabs is never sent the names prompt, so a cloud reading's key must not hold it either: the same sound
+    # is one reading for every client's names and for Cut silences (empty prompt). Every other profile: as it always was.
+    if prof is not None and prof.cloud:
+        prompt = ""
     return y, _words_key(y, prompt, prof.tag if prof else "")
 
 
@@ -264,10 +276,18 @@ def read_window(win: dict, prompt: str, progress, cancelled, prof=None) -> dict:
     y, key = window_audio(win, prompt, prof)
     entry = _cached(key) or {}
     cached = "words" in entry
+    if cached and prof is not None and prof.cloud and entry.get("by"):
+        # 0.10.122: a reading stored by 0.10.119-0.10.121 may hold a shout written out in 1000 letters: shorten it now
+        words, changed = cloudasr.tidy(entry["words"])
+        if changed:
+            entry = {**entry, "words": words}
+            _store(key, entry)
     if not cached and prof is not None and prof.cloud:
         try:
-            # only the sound goes: no prompt, no names, no file name (cloudasr.py says what leaves the computer and why)
-            entry = {"words": cloudasr.transcribe(y, progress, cancelled, prof.cloud), "by": prof.cloud}
+            # only the sound goes: no prompt, no names, no file name (cloudasr.py says what leaves the computer and why);
+            # a cancelled upload that still finishes is stored for the next run (on_done)
+            entry = {"words": cloudasr.transcribe(y, progress, cancelled, prof.cloud,
+                                                  on_done=lambda ws, k=key, m=prof.cloud: _store(k, {"words": ws, "by": m})), "by": prof.cloud}
         except cloudasr.CloudError as e:
             log.warning("subtitles: %s; this window is recognised on this computer", e)
             return {**read_window(win, prompt, progress, cancelled, recognition.local(prof)), "fallback": str(e)}

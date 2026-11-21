@@ -642,6 +642,29 @@ function as_cut_lock(tracks, on) {
     }
 }
 
+// A phase's clock starts when it has listed the clips, and a call always does at least one item (0.10.122): a long clip
+// list used to eat the whole budget before the first item, and the panel then called again with the same result for ever.
+function as_cut_clock() {
+    return new Date().getTime() + AS_CUT_BUDGET;
+}
+
+// the sequence's frame rate as text, from its ticks per frame (254016000000 ticks make a second)
+function as_cut_rate(tpf) {
+    return (Math.round(254016000000 / tpf * 1000) / 1000) + " fps";
+}
+
+// which tracks were locked, as the editor had them: [1|0 per video track], [1|0 per audio track]; null when this Premiere
+// does not say (the tracks are then left unlocked, as the cut leaves them)
+function as_cut_locks(seq) {
+    var out = { v: [], a: [] }, kinds = [["v", seq.videoTracks], ["a", seq.audioTracks]];
+    for (var n = 0; n < kinds.length; n++) {
+        for (var t = 0; t < kinds[n][1].numTracks; t++) {
+            try { out[kinds[n][0]].push(kinds[n][1][t].isLocked() ? 1 : 0); } catch (e) { return null; }
+        }
+    }
+    return out;
+}
+
 // every clip of the duplicate: [{k: "v"|"a", t: track, f: start frame, e: end frame, c: the clip}]
 function as_cut_clips(seq, tpf) {
     var out = [], kinds = [["v", seq.videoTracks], ["a", seq.audioTracks]];
@@ -701,6 +724,22 @@ function as_cut_start(a) {
     return as_result(true, "ok", { cut: made.sequenceID, tpf: Number(made.timebase), source: String(src.name) });
 }
 
+// cut frames with no clip edge within a frame: [frame, ...]. A cut is asked only where a kept piece ends inside its clip,
+// so after the razor there must be an edge there (of the picture, of the sound, or of either when both were cut).
+function as_cut_unsplit(all, cuts) {
+    var edges = { v: {}, a: {} }, n, d, miss = [];
+    for (n = 0; n < all.length; n++) {
+        edges[all[n].k][all[n].f] = 1;
+        edges[all[n].k][all[n].e] = 1;
+    }
+    for (n = 0; n < cuts.length; n++) {
+        var only = cuts[n].only || "", kinds = only ? [only] : ["v", "a"], hit = false;
+        for (var k = 0; k < kinds.length; k++) for (d = -1; d <= 1; d++) if (edges[kinds[k]][cuts[n].f + d]) hit = true;
+        if (!hit) miss.push(cuts[n].f);
+    }
+    return miss;
+}
+
 function as_cut_razor(a, tg, until) {
     var seq = tg.seq, proj = tg.project, tpf = Number(seq.timebase), cuts = a.cuts || [], i = Number(a.i) || 0;
     if (!app.project.activeSequence || app.project.activeSequence.sequenceID !== seq.sequenceID) proj.openSequence(seq.sequenceID);
@@ -710,8 +749,12 @@ function as_cut_razor(a, tg, until) {
     // the razor works on the sequence in front: it must be the duplicate, never the editor's own sequence
     if (!qs || String(qs.name) !== String(a.name)) return as_result(false, "The new sequence \"" + a.name + "\" is not the one in front, so nothing was cut. It can be deleted.");
     var st = seq.getSettings(), zero = Number(seq.zeroPoint) || 0, state = null, refused = 0;
+    // evidence for the odd-frame-rate probe (below): the first razor's timecode string and the clip counts around it
+    var from = i, ev = {}, probe = (i === 0 && cuts.length > 0);
+    if (probe) ev.before = as_cut_clips(seq, tpf).length;
+    until = as_cut_clock();
     for (; i < cuts.length; i++) {
-        if (new Date().getTime() > until) break;
+        if (i > from && new Date().getTime() > until) break;
         var only = cuts[i].only || "";
         if (only !== state) {
             as_cut_lock(seq.videoTracks, only === "a");
@@ -720,37 +763,86 @@ function as_cut_razor(a, tg, until) {
         }
         var tm = new Time();
         tm.ticks = String(cuts[i].f * tpf + zero);
-        if (!qs.razor(tm.getFormatted(st.videoFrameRate, st.videoDisplayFormat))) refused++;
+        // PROBE (open, needs Premiere; user's log 2026-11-16): on a 59.97361 fps sequence (iPhone footage) this razor reported
+        // success (refused 0) but cut at other places than asked, so the duplicate stayed uncut. The string handed to the
+        // razor is Time.getFormatted() with the sequence's own display format; a drop-frame or odd-rate sequence may need
+        // another string (a frame count, a non-drop timecode), or QE's razor may round to its own grid. The first razor's
+        // string and the clip counts before and after it come back as tc / before / after_first (and go to the engine log).
+        // THE PROBE RESULT GOES HERE: what the string looked like on such a sequence, where the cut landed, and the fix.
+        var tc = tm.getFormatted(st.videoFrameRate, st.videoDisplayFormat);
+        if (!qs.razor(tc)) refused++;
+        if (probe && i === 0) {
+            ev.tc = String(tc);
+            ev.after_first = as_cut_clips(seq, tpf).length;
+        }
     }
     as_cut_lock(seq.videoTracks, false);
     as_cut_lock(seq.audioTracks, false);
-    return as_result(true, "ok", { i: i, done: i >= cuts.length, refused: refused });
+    var out = { i: i, done: i >= cuts.length, refused: refused, rate: as_cut_rate(tpf) };
+    for (var key in ev) out[key] = ev[key];
+    if (out.done && cuts.length) {
+        // the check the odd frame rate showed to be needed: a razor that says yes may still have cut elsewhere
+        var miss = as_cut_unsplit(as_cut_clips(seq, tpf), cuts);
+        if (miss.length) {
+            out.unsplit = miss.length;
+            return as_result(false, "Premiere did not cut the new sequence \"" + a.name + "\" where it was asked to: there is no clip edge at " + miss.length + " of " + cuts.length +
+                " cut frames (the first is frame " + miss[0] + "; the sequence runs at " + out.rate + ", which Premiere's razor may not handle). Nothing was removed. " +
+                "The unfinished sequence \"" + a.name + "\" can be deleted; your own sequence was not changed.", out);
+        }
+    }
+    return as_result(true, "ok", out);
 }
 
+// The kept pieces' clips stay, and a clip goes only when it lies entirely inside a cut range of its own track (one frame of
+// rounding allowed): never a clip that overlaps a kept piece by more than a frame (a razor that landed off must not cost
+// speech). Every kept piece must have a clip of its own first, else nothing is removed at all.
 function as_cut_clean(a, tg, until) {
     var seq = tg.seq, tpf = Number(seq.timebase), pieces = a.pieces || [], map = as_cut_index(pieces, false);
-    var all = as_cut_clips(seq, tpf), matched = 0, extra = [], n;
-    for (n = 0; n < all.length; n++) {
-        if (as_cut_lookup(map, all[n].k, all[n].t, all[n].f, all[n].e)) matched++; else extra.push(all[n]);
+    var all = as_cut_clips(seq, tpf), matched = 0, extra = [], n, p;
+    until = as_cut_clock();
+    if (!pieces.length) return as_result(false, "The cut has no kept pieces, so nothing was removed from the new sequence \"" + a.name + "\". It can be deleted; your own sequence was not changed.");
+    var here = {}, lost = 0;
+    for (n = 0; n < all.length; n++) here[all[n].k + "|" + all[n].t + "|" + all[n].f + "|" + all[n].e] = n + 1;
+    for (n = 0; n < pieces.length; n++) if (!as_cut_lookup(here, pieces[n].k, pieces[n].t, pieces[n].f, pieces[n].e)) lost++;
+    if (lost) return as_result(false, "Premiere did not cut the new sequence \"" + a.name + "\" where it was asked to: " + lost + " of " + pieces.length +
+        " kept pieces have no clip of their own (the sequence runs at " + as_cut_rate(tpf) + "), so nothing was removed from it. " +
+        "The unfinished sequence can be deleted; your own sequence was not changed.", { lost: lost, pieces: pieces.length });
+    // the kept pieces of each track, in order (they never overlap each other)
+    var by = {};
+    for (n = 0; n < pieces.length; n++) {
+        p = pieces[n];
+        (by[p.k + "|" + p.t] = by[p.k + "|" + p.t] || []).push(p);
     }
-    // nothing is where a piece should be: the razor did not cut as asked, so nothing is removed
-    if (pieces.length && !matched) return as_result(false, "Premiere did not cut the new sequence \"" + a.name + "\" where it was asked to, so nothing was removed from it. It can be deleted; your own sequence was not changed.");
+    for (var key in by) by[key].sort(function (x, y) { return x.f - y.f; });
+    var overlap = 0;
+    for (n = 0; n < all.length; n++) {
+        if (as_cut_lookup(map, all[n].k, all[n].t, all[n].f, all[n].e)) { matched++; continue; }
+        // the first kept piece of its track that ends more than a frame after this clip starts: it must start a frame or
+        // more after the clip ends, else the clip holds kept speech
+        var list = by[all[n].k + "|" + all[n].t] || [], lo = 0, hi = list.length;
+        while (lo < hi) {
+            var mid = (lo + hi) >> 1;
+            if (list[mid].e > all[n].f + 1) hi = mid; else lo = mid + 1;
+        }
+        if (lo < list.length && list[lo].f < all[n].e - 1) overlap++; else extra.push(all[n]);
+    }
     as_cut_lock(seq.videoTracks, false);
     as_cut_lock(seq.audioTracks, false);
     var removed = 0, refused = 0;
     for (n = extra.length - 1; n >= 0; n--) {                 // from the end of each track backwards
-        if (new Date().getTime() > until) break;
+        if (n < extra.length - 1 && new Date().getTime() > until) break;
         try { if (extra[n].c.remove(false, false) === false) refused++; else removed++; } catch (e) { refused++; }
     }
-    return as_result(true, "ok", { done: n < 0, removed: removed, refused: refused, matched: matched, left: n + 1 });
+    return as_result(true, "ok", { done: n < 0, removed: removed, refused: refused, matched: matched, left: n + 1, overlap: overlap });
 }
 
 function as_cut_move(a, tg, until) {
     var seq = tg.seq, tpf = Number(seq.timebase), pieces = a.pieces || [], i = Number(a.i) || 0;
-    var all = as_cut_clips(seq, tpf), here = {}, n, moved = 0, missing = [];
+    var all = as_cut_clips(seq, tpf), here = {}, n, moved = 0, missing = [], from = i;
     for (n = 0; n < all.length; n++) here[all[n].k + "|" + all[n].t + "|" + all[n].f + "|" + all[n].e] = n + 1;
+    until = as_cut_clock();
     for (; i < pieces.length; i++) {
-        if (new Date().getTime() > until) break;
+        if (i > from && new Date().getTime() > until) break;
         var p = pieces[i], d = p.at - p.f;
         if (!d) continue;
         var hit = as_cut_lookup(here, p.k, p.t, p.f, p.e);
@@ -789,7 +881,20 @@ function as_cut_finish(a, tg) {
     try { seq.setPlayerPosition("0"); } catch (e4) { /* the playhead stays */ }
     var all = as_cut_clips(seq, tpf), map = as_cut_index(a.pieces || [], true), there = 0;
     for (n = 0; n < all.length; n++) if (as_cut_lookup(map, all[n].k, all[n].t, all[n].f, all[n].e)) there++;
-    return as_result(true, "ok", { clips: all.length, there: there, markers_cleared: cleared, markers: added });
+    // the tracks go back as the editor had them (0.10.122; the cut unlocked all of them): read from the editor's own
+    // sequence, which is only looked at, and put on the duplicate when it has the same tracks (a clone does)
+    var relocked = 0;
+    try {
+        var src = as_target(a);
+        if (!src.error) {
+            var want = as_cut_locks(src.seq);
+            if (want && want.v.length === seq.videoTracks.numTracks && want.a.length === seq.audioTracks.numTracks) {
+                for (n = 0; n < want.v.length; n++) if (want.v[n]) { seq.videoTracks[n].setLocked(1); relocked++; }
+                for (n = 0; n < want.a.length; n++) if (want.a[n]) { seq.audioTracks[n].setLocked(1); relocked++; }
+            }
+        }
+    } catch (e6) { /* the tracks stay unlocked */ }
+    return as_result(true, "ok", { clips: all.length, there: there, markers_cleared: cleared, markers: added, relocked: relocked });
 }
 
 function as_rough_cut(a) {

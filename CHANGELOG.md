@@ -31,6 +31,42 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.122 - Cut silences audited and repaired: the host cut, the ElevenLabs path, takes and detection (2026-11-21, not installed yet, untested in Premiere)
+The user: "do an audit with the agents ... on the rest of the cut silences", then "use the agents to fix them". Four read-only
+audits (logs of real use, detection, engine code, panel and host), three builders, one review that blocked the first version
+(it cut two things HEAD kept) and was answered. Found in the logs: since the host cut (0.10.108) no real project got a result:
+two presses on a 59.97361 fps sequence (iPhone footage) failed with "Premiere did not cut the new sequence", two were cancelled
+after 4-5 minutes because Detect had stayed on AI-assisted.
+- **Host cut (host.jsx `as_cut_*`, premiere-roughcut.js):** clean removes only clips that overlap no kept piece, and nothing at
+  all when a kept piece has no clip (a razor that landed off used to remove kept speech); after the razor the host checks a
+  clip edge exists at every asked frame and stops with the frame rate named and the first razor's timecode and clip counts
+  logged (the odd-frame-rate failure is now DETECTED, not fixed: it needs a probe in Premiere); Cancel works between rounds; a
+  stopped or doubtful cut is headlined "Stopped at ..." / "Made, but the check found ...", only a clean one "Done"; every round
+  does at least one item; lock states go back; the result says about how many Undo steps; no silent fall to the copies path
+  over 40 pieces.
+- **Words only when used (roughcut_job):** read (and sent) only when Remove hesitation sounds is on or Cut = AI rough cut; AI
+  rough cut reads them with any Detect, Manual dB included (it used to read none and still say "AI rough cut").
+- **ElevenLabs path (fixes to 0.10.121):** a run is ReShape when the project folder OR any media path is (NFC, whole words,
+  `denkov` anywhere); the subtitles' cloud key no longer hashes the names prompt, so readings really are shared (cloud readings
+  made with a names list in 0.10.119-0.10.121 are read once more); a failed reading is not remembered; clips over 5 minutes are
+  cut into parts unless their whole reading is cached; a failed window is read here in parts; two retries on busy / timeout;
+  estimated progress; a cancelled upload that finishes is kept; four requests at once; old cached shouts are cleaned.
+- **Detection (silence.py, takes.py, edl.py):** `drop_flashes` drops only a video piece another camera covers, never sound (a
+  camera clip's last frames could go black, a microphone's last frames of speech could go); the dead-channel rule of TODO SIL
+  (a clip whose line is under -60 dB counts as speech only where Silero is sure, half-heard stretches kept and flagged, off
+  with one microphone); ranges of one file share their noise floor and may only keep more; a word guard in the AI modes (a cut
+  covering a word's start is trimmed, a word mostly inside a cut is kept and flagged; not in Manual dB); a false start is cut
+  when the full sentence only adds words (per take: a take differing by a number or a negation is still only listed); the
+  takes window is really 90 s (beyond 12 sentences: exact with 5+ words, listed only); a lone exact repeat of 4 words or fewer
+  is listed, not cut.
+- **Panel:** a line in the options says before the press whether the words go to ElevenLabs or are read here; Settings group
+  "Speech recognition" covers both features; Manual dB that would remove over 60 % asks for a second press (checked on a
+  preview run, nothing written); Suggest says why it did nothing; "Skipped" became "Not in the new sequence"; the preview's
+  signature holds the source In point and a pending option change is flushed before the cut.
+- Not done: the frame-rate fix itself (probe), words read from both microphones of a split L/R clip (`window_audio`, protected
+  file), words reused across "Listen to" ticks, a hesitation glued to a word, Calm as default, keeping unselected clips.
+- Tests: 954 Python (24 skipped) + 411 Node pass; `reshape_golden.py check` identical. Nothing run in Premiere.
+
 ## 0.10.121 - Cut silences: AI-assisted words by ElevenLabs, about 4x faster and better at takes (2026-11-21, not installed yet: `release_mac.sh` waits for the user; untested in Premiere)
 - The user (2026-11-21): "can we also use elevenlabs there to recognize speech faster make the cuts more precise?". Only the
   AI parts of Cut silences recognise speech (Detect = AI-assisted, needed for hesitation sounds, and Cut = AI rough cut for

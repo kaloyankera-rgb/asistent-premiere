@@ -166,3 +166,94 @@ def test_a_near_repeat_that_changes_the_meaning_is_never_cut():
 def test_a_near_repeat_without_a_meaning_change_is_still_cut():
     g = takes.find(say("Днес ще ви покажа три неща.", "Днес ще ви покажа три нещица."))
     assert g and g[0]["safe"] and g[0]["cut"]
+
+
+# ---- 0.10.122 (audit 2026-11-21): false starts, the window, short repeats
+def _talk(k, start=0.0):
+    """k sentences of six words nobody repeats (every word is its own), 0.3 s per word, a second between."""
+    lines = []
+    for i in range(k):
+        a, b = divmod(i, 20)
+        lines.append(" ".join(f"{chr(1073 + a)}{chr(1073 + b)}{chr(1073 + n)}ко" for n in range(6)) + ".")
+    return say(*lines, t=start)
+
+
+def test_a_false_start_is_cut_when_the_full_sentence_only_adds_words():
+    words = say("Днес ще ви покажа", "Днес ще ви покажа три нови кухни.")
+    g = takes.find(words)
+    assert [x["kind"] for x in g] == ["false_start"] and g[0]["safe"] and g[0]["lost"] == []
+    assert g[0]["cut"] == [(words[0]["start"], words[4]["start"])]       # the abandoned start goes up to the full sentence
+
+
+def test_a_false_start_that_says_something_else_than_the_winner_is_only_listed():
+    for first, second, lost in (("Днес ще ви покажа 5", "Днес ще ви покажа 3 нови кухни.", "5"),
+                                ("Днес ще ви покажа пет", "Днес ще ви покажа три нови кухни.", "пет"),
+                                ("Днес ще ви покажа не", "Днес ще ви покажа три нови кухни.", "не")):
+        g = takes.find(say(first, second))
+        assert len(g) == 1 and g[0]["kind"] == "false_start", (first, g)
+        assert not g[0]["safe"] and g[0]["cut"] == [] and lost in g[0]["lost"], (first, g[0])
+
+
+def test_a_near_repeat_still_compares_in_both_directions():
+    g = takes.find(say("Този продукт е подходящ за деца.", "Този продукт не е подходящ за деца."))
+    assert g and g[0]["kind"] == "near" and not g[0]["safe"] and "не" in g[0]["lost"]
+
+
+def test_a_token_ending_in_two_dashes_is_an_abandoned_start():
+    words = say("Днес ще--", "Днес ще ви покажа три нови кухни.", gap=0.1)     # 0.1 s apart: no pause would split them
+    s = takes.sentences(words)
+    assert [x["text"] for x in s] == ["Днес ще--", "Днес ще ви покажа три нови кухни."] and s[0]["abandoned"] and not s[0]["ends"]
+    g = takes.find(words)
+    assert [x["kind"] for x in g] == ["false_start"] and g[0]["safe"] and g[0]["cut"]
+    plain = say("Днес ще", "Днес ще ви покажа три нови кухни.", gap=0.1)         # without the cue two words are not a false start
+    assert takes.find(plain) == []
+
+
+def test_the_window_is_time_not_twelve_sentences():
+    rep = "Днес ще ви покажа новата кухня на клиента."
+    near = say(rep)
+    for k, expect in ((10, "cut"), (11, "cut"), (12, "far"), (13, "far")):
+        mid = _talk(k, near[-1]["end"] + 1.0)
+        later = say(rep, t=mid[-1]["end"] + 1.0)
+        g = takes.find(near + mid + later)
+        assert len(g) == 1 and g[0]["kind"] == "exact", (k, g)
+        if expect == "cut":
+            assert g[0]["safe"] and g[0]["cut"] and not g[0].get("far"), (k, g[0])
+        else:
+            assert not g[0]["safe"] and g[0]["cut"] == [] and g[0]["far"], (k, g[0])
+    # beyond the 90 s of the window nothing is matched at all
+    mid = _talk(40, near[-1]["end"] + 1.0)
+    later = say(rep, t=mid[-1]["end"] + 1.0)
+    assert later[0]["start"] - near[-1]["end"] > takes.WINDOW_S and takes.find(near + mid + later) == []
+
+
+def test_far_matches_are_only_long_exact_ones():
+    mid = _talk(14, 3.0)
+    for first, second in (("Правим ли го сега?", "Правим ли го сега?"),                        # four words: too short far away
+                          ("Днес ще ви покажа новата кухня на клиента.", "Днес ще ви покажа новата кухня за клиента.")):   # near, not exact
+        a = say(first)
+        b = say(second, t=mid[-1]["end"] + 1.0)
+        assert takes.find(a + mid + b) == [], first
+
+
+def test_a_lone_short_exact_pair_is_listed_not_cut_but_a_chain_still_is():
+    mid = _talk(3, 3.0)
+    for line in ("Правим ли го?", "Правим ли го сега?"):                                   # 3 and 4 words
+        g = takes.find(say(line) + mid + say(line, t=mid[-1]["end"] + 1.0))
+        assert len(g) == 1 and g[0]["kind"] == "exact" and not g[0]["safe"] and g[0]["cut"] == [] and g[0]["short"], (line, g)
+    five = takes.find(say("Правим ли го още веднъж?") + mid + say("Правим ли го още веднъж?", t=mid[-1]["end"] + 1.0))
+    assert five[0]["safe"] and five[0]["cut"]                                              # five words: a plain repeat
+    two = lambda t: say("Правим ли го?", "Да, правим го.", t=t)
+    chain = takes.find(two(0.0) + mid + two(mid[-1]["end"] + 1.0))
+    assert len(chain) == 1 and chain[0]["safe"] and chain[0]["cut"]                       # a passage of two short sentences
+
+
+def test_one_way_is_decided_per_take_not_per_chain():
+    """Reviewer 2026-11-21: a false start in the chain must not make the full takes one-way. The full take without „не“ and the
+    winner that has it differ in meaning: listed, nothing cut (at HEAD it was listed, `lost` ["не"])."""
+    g = takes.find(say("Този продукт е", "Този продукт е подходящ за вас.", "Този продукт не е подходящ за вас."))
+    assert len(g) == 1 and len(g[0]["takes"]) == 3
+    assert not g[0]["safe"] and g[0]["cut"] == [] and "не" in g[0]["lost"], g[0]
+    # the abandoned start next to the right winner is still cut
+    ok = takes.find(say("Този продукт не е", "Този продукт не е подходящ за вас."))
+    assert ok and ok[0]["kind"] == "false_start" and ok[0]["safe"] and ok[0]["cut"]

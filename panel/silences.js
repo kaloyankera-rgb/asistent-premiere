@@ -17,7 +17,8 @@ const BOXES = { short: "roughShort", fillers: "roughFillers" };
 
 function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough, state, setBusy, progress, finish, show, runJob, autoLabels }) {
   // the preview that is on screen: the clips it was made from, the engine's plan, the editor's own choices
-  const pv = { input: null, sig: null, result: null, regions: [], view: null, listen: null, timer: null, again: false };
+  const pv = { input: null, sig: null, result: null, regions: [], view: null, listen: null, timer: null, again: false, guard: null };
+  let cloud = null;                                      // engine.cloud(): is ElevenLabs on (for the line about who reads the words)
 
   const values = () => {
     const v = {};
@@ -70,9 +71,27 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
     const method = $("roughMethod").value;
     show("roughDbRow", method === "manual");
     show("roughCustom", $("roughPacing").value === "custom");
-    $("roughFillers").disabled = method !== "ai";
-    if (method !== "ai") $("roughFillers").checked = false;
+    const words = method === "ai" || $("roughMode").value === "ai";        // hesitation sounds need the words (the engine's rule)
+    $("roughFillers").disabled = !words;
+    if (!words) $("roughFillers").checked = false;
     for (const id of ["roughShortMin", "roughShortMax"]) $(id).disabled = !$("roughShort").checked;
+    showWords();
+  }
+
+  // 0.10.122: when the current choices read the words (hesitation sounds, AI rough cut), who reads them
+  function showWords() {
+    const line = SP.wordsLine({ mode: $("roughMode").value, fillers: $("roughFillers").checked }, cloud);
+    $("roughWords").textContent = line || "";
+    show("roughWords", !!line);
+  }
+
+  async function refreshWords() {
+    try {
+      cloud = typeof engine.cloud === "function" ? await engine.cloud() : null;
+    } catch (e) {
+      cloud = null;                                      // no engine: no line
+    }
+    showWords();
   }
 
   // a preset chosen: its numbers go into the Custom fields (so Custom starts from them) and its short-pause choice applies
@@ -197,12 +216,13 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
   async function preview(fresh) {
     if (state.busy) {
       pv.again = true;                                       // a change made while it was working: once more after it
-      return;
+      return false;
     }
     if (!state.online) {
       finish("No connection to the engine. See README.", false);
-      return;
+      return false;
     }
+    let ok = false;
     setBusy(true);
     progress(0, fresh ? "Reading the clips…" : "Updating the preview…");
     try {
@@ -223,6 +243,7 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
       const { job } = await engine.startRoughcut(payload);
       const result = await runJob(job);
       showResult(result, !fresh);
+      ok = true;
     } catch (e) {
       $("roughPreviewNote").textContent = e.message || String(e);
       if (!(e instanceof premiere.UserError)) engine.log("error", `silences preview: ${e && e.stack ? e.stack : e}`);
@@ -234,6 +255,7 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
         schedule();
       }
     }
+    return ok;
   }
 
   // an option changed while a preview is on screen: the picture follows (after a moment, so typing a number is one update)
@@ -253,6 +275,14 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
       finish("No connection to the engine. See README.", false);
       return;
     }
+    // 0.10.122: an option changed less than a moment ago is still waiting to update the preview: bring the regions up to the
+    // options first, so the cut never takes new options with the old regions' choices. A preview that fails stops the press
+    // (its note says why).
+    if (pv.timer) {
+      clearTimeout(pv.timer);
+      pv.timer = null;
+      if (!(await preview(false))) return;
+    }
     show("result", false);
     setBusy(true);
     progress(0, "Reading the selected clips…");
@@ -270,11 +300,32 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
         }
         extra = { overrides: SP.overridesOf(pv.regions), listen: pv.listen };
       }
+      // Manual dB that would remove most of the selection (a level set too high): one more press of the same cut goes on. The
+      // share is read BEFORE the real job: from the preview on screen when it is this cut's, else from a preview run (which
+      // writes nothing; the real job writes its XML into the project folder, and a stopped press must leave nothing there).
+      if (opts.method === "manual" && opts.action !== "split") {
+        const key = `${SP.signature(input.payload)}|${JSON.stringify(SP.payloadOptions(opts, extra))}`;
+        if (pv.guard !== key) {
+          const shown = pv.result && SP.signature(input.payload) === pv.sig && pv.result.method === opts.method && pv.result.threshold === opts.threshold;
+          let share;
+          if (shown) share = SP.removedShare(pv.result, pv.regions);
+          else {
+            progress(0.05, "Checking how much goes…");
+            const probe = await engine.startRoughcut(premiereRough.withOptions(input, opts, { ...extra, preview: true }));
+            share = SP.removedShare(await runJob(probe.job));
+          }
+          if (share !== null && share > SP.MANUAL_GUARD_PCT) {
+            pv.guard = key;
+            throw new premiere.UserError(SP.guardText(share));
+          }
+        }
+      }
+      pv.guard = null;
       const { job } = await engine.startRoughcut(premiereRough.withOptions(input, opts, extra));
       const result = await runJob(job);
       progress(0.92, "Making the new sequence…");
       premiere.trace("job done, place>");
-      const placed = await premiereRough.place(project, result, input.meta, input, (m) => progress(0.95, m));
+      const placed = await premiereRough.place(project, result, input.meta, input, (m) => progress(0.95, m), () => state.cancelRequested);
       premiere.trace("place<");
       const out = roughcutplan.describeResult(result, placed);
       const named = placed.problems.length ? "" : await autoLabels(project);
@@ -292,7 +343,15 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
 
   // Manual dB's starting point: listens (a preview with the current options) and puts the engine's proposal in the field
   async function suggest() {
-    if (state.busy || !state.online) return;
+    // 0.10.122: it never does nothing without saying why
+    if (state.busy) {
+      $("roughPreviewNote").textContent = "Suggest did nothing: Asistent is busy. Wait for it to finish.";
+      return;
+    }
+    if (!state.online) {
+      $("roughPreviewNote").textContent = "Suggest did nothing: no connection to the engine. See README.";
+      return;
+    }
     setBusy(true);
     progress(0, "Listening to the dialogue…");
     try {
@@ -307,7 +366,8 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
       remember();
       schedule();
     } catch (e) {
-      $("roughPreviewNote").textContent = e.message || String(e);
+      // nothing selected is the usual reason: readInput says "Select the clips…"; the note says Suggest did nothing because of it
+      $("roughPreviewNote").textContent = `Suggest did nothing: ${e.message || String(e)}`;
       if (!(e instanceof premiere.UserError)) engine.log("error", `silences suggest: ${e && e.stack ? e.stack : e}`);
     } finally {
       state.jobId = null;
@@ -340,8 +400,9 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
   }
   remembered();
   reflect();
+  refreshWords();
 
-  return { remembered, preview, cut, showResult, state: pv };
+  return { remembered, preview, cut, showResult, refreshWords, state: pv };
 }
 
 module.exports = { mount };
