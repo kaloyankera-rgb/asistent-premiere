@@ -66,6 +66,7 @@
   rectangle tests alone cannot tell what is on screen. The net therefore also reads the `hidden` property up the tree.
 
 ## In & Out preview and Tiles page (0.10.130-0.10.133, limits)
+- Open (0.10.134): the user had to double click the tiles in 0.10.133 although the log shows each press picking on the first click. 0.10.134 makes the pick visible in the preview and restates the picked look under the pointer; whether that was the cause is not known until the user tries it (see the "inout: tile ... down / up" lines in the engine log).
 - Tiles page, measured in Premiere at a 487 x 523 px panel (0.10.133): only about 2 tile rows show between the preview and the dock (scroll area 307 px; preview, switch and chips about 208 px; dock 151 px). Ideas not built: a fourth column in a wide panel, Strength and Blur on the stepper row when it fits, a lower preview.
 - The Out switch button is 1 px wider than the page (right edge 460 against 459).
 - Seen once through the bridge (0.10.131): on the very first visit to In & Out after the panel loads, the preview with remembered picks did not start; later visits did. A pointer move over the page or a new pick starts it. Not reproduced, cause not looked into (possibly the pane has no width yet when `openTab` wakes it).

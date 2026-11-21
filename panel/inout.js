@@ -91,6 +91,46 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     chipRow.appendChild(b);
     chips[id] = b;
   }
+  // 0.10.134 (the user, 2026-11-21: "I have to double click the buttons for them to work"): the log shows every press picked on
+  // the first click, so the pick was made but not seen while the pointer stayed on the tile. The cause is not proven (the bridge
+  // reads the DOM, not what Premiere paints), so three things: the pick takes the hover away (pick(): the caption stops saying
+  // "Preview:" and the pick plays from its first frame), the picked look is said again for the hovered and the pressed state
+  // (style.css), and when the button goes up the picked class is set again, in case Premiere put back the look from before the
+  // press. Each step is logged with what the tile then looks like, so the next presses say which it was (TODO IO: take the
+  // logging out once known).
+  function afterPress(b, side, id) {
+    const look = () => {
+      try {
+        const cs = getComputedStyle(b);
+        return `border ${cs.borderTopColor || cs.borderColor}, back ${cs.backgroundColor}`;
+      } catch (e) {
+        return "look not readable";
+      }
+    };
+    const note = (when) => premiere.debug(`inout: tile ${side} ${id} ${when}: class "${b.className}", ${look()}, hover ${hover ? hover.id : "-"}`);
+    const again = () => {
+      if (!b.classList.contains("on")) return;
+      b.classList.remove("on");
+      b.classList.add("on");
+    };
+    let downAt = 0;
+    const down = () => {
+      if (Date.now() - downAt < 80) return;                    // one press comes as pointerdown and as mousedown
+      downAt = Date.now();
+      note("down");
+    };
+    let upAt = 0;
+    const up = () => {
+      if (Date.now() - upAt < 80) return;
+      upAt = Date.now();
+      again();
+      note("up");
+    };
+    b.addEventListener("pointerdown", down);
+    b.addEventListener("mousedown", down);
+    b.addEventListener("pointerup", up);
+    b.addEventListener("mouseup", up);
+  }
   const lists = {};                                          // side -> container
   const sides = {};                                          // side -> its tiles [{b, id}]
   function buildSide(side, title, tip) {
@@ -113,6 +153,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
         hover = null;
         showPreview();
       });
+      afterPress(b, side, t.id);
       buttons.push(b);
       c.appendChild(b);
     }
@@ -352,6 +393,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
 
   function pick(side, id) {
     if (busy) return;
+    hover = null;                                              // the press answers in the preview: the pick itself, from its first frame (0.10.134)
     Object.assign(state, U.afterPick(state, side, id));        // the page follows the pick to its side; a filtered-out tile goes back to All so it shows
     changed();
   }

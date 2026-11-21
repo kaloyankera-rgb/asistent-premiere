@@ -64,6 +64,7 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] USER: the look in Premiere, next to the reference: the page (card layout, greyed rows, dock, the four Motion buttons at narrow
       widths, tooltips) and the playback, blur on and off. The bridge reads the DOM and cannot see either.
 - [x] Phase 4 (0.10.130): the preview card on the page, built and Node-tested (14 tests); rules-reviewer PASS. The motion blur toggle is in since Phase 3.
+- [ ] USER: 0.10.134: does one click on a tile now show as picked (yellow outline, the preview caption without "Preview:")? Then read the "inout: tile ... down / up" log lines, name the cause, and take the logging in `panel/inout.js` `afterPress` out.
 - [ ] Review (rules-reviewer) of 0.10.133, then install and bridge-test the Tiles page and the preview: the timer stops when the pane
       is hidden, after 8 plays, during Apply / Remove, and after a draw failure; `openTab` wakes it; the filter chips; a pick by id
       from another side; the hover preview; the dock summary. Not run yet.

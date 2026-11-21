@@ -31,6 +31,21 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.134 - In & Out tiles: a pick is seen on the first click (2026-11-21, installed, not pushed, cause not proven, awaiting the user's look)
+
+- **The user's report (0.10.133):** "I have to double click the buttons for them to work".
+- **Measured:** the engine log has every one of the user's tile presses on the first pointerdown, and the page's state changed on
+  it (replayed through the bridge: a hover and one press give the picked class, the "In · ..." label and the summary). So the
+  pick was made and not seen. The bridge reads the DOM, not what Premiere paints, so the cause is not proven.
+- **Changed, for the two things that can hide a pick while the pointer stays on the tile:**
+  - a pick takes the hover away: the caption stops saying "Preview: ..." and the pick plays from its first frame (before, a click
+    on the tile under the pointer changed nothing in the preview, as the hover was already playing that preset);
+  - the picked look is stated for the hovered and the pressed tile too (`style.css`), and it is set again when the button goes up,
+    in case Premiere puts back the look from before the press.
+- **Logging (temporary):** each tile press writes "inout: tile <side> <id> down / up" with the tile's class, border and background
+  as Premiere computes them, so the user's next presses show whether the look was there after one click.
+- Node 495 pass (the wiring test extended). No Python file changed.
+
 ## 0.10.133 - In & Out page as Tiles, the user's choice of layout A (2026-11-21, installed, reviewed, bridge-tested, not pushed, awaiting the user's look)
 - **Why:** the user asked for three different layouts, "optimized for fast and easy use", and chose A. Three working mockups were
   put on a design canvas: A Tiles, B Two columns, C Quick pairs. The user answered "A Tiles". It replaces the compact layout of

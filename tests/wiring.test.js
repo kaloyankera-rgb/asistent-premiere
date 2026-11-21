@@ -496,6 +496,12 @@ test("the In & Out page: pane, Motion button, dock, mount line and packed files"
   assert.match(page, /addEventListener\("mouseleave"/);
   const hoverFn = page.slice(page.indexOf('b.addEventListener("mouseenter"'), page.indexOf('buttons.push(b)'));
   assert.doesNotMatch(hoverFn, /state\[|keep\(|changed\(|IO\./);                         // a hover is not a choice and never writes
+  // 0.10.134: a pick is seen at once: it takes the hover away (the preview shows the pick, not "Preview: ...") and its look is set again on release
+  assert.match(page, /function pick\(side, id\) \{\s+if \(busy\) return;\s+hover = null;/);
+  assert.match(page, /afterPress\(b, side, t\.id\);/);
+  const press = page.slice(page.indexOf("function afterPress"), page.indexOf("const lists = {}"));
+  assert.doesNotMatch(press, /state\[|keep\(|changed\(|IO\./);                          // only the look and the log
+  assert.match(fs.readFileSync(path.join(panel, "style.css"), "utf8"), /\.btn\.small\.io-tile\.on:hover, \.btn\.small\.io-tile\.on:active \{ border-color: var\(--sel\)/);
 });
 
 // In & Out preview (Phase 4): it only draws; it never reaches Premiere, stops its timer when the pane is hidden, and the page wakes it

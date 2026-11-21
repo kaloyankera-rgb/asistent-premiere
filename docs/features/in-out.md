@@ -102,6 +102,7 @@ Nothing is applied by itself. The one timer is the Preview's; it only redraws th
   crash report).
 - Compact page (0.10.132): local only, replaced by 0.10.133. Node 490 pass; browser harness only; installed and bridge-tested for the
   compact layout, rules-reviewer PASS.
+- 0.10.134: a pick takes the hover away and its look is restated under the pointer (the user had to double click in 0.10.133; first-click picks were in the log, the cause of not seeing them is not proven; `afterPress` in `panel/inout.js` logs each tile press, to be removed). Installed, awaiting the user.
 - Tiles page (0.10.133): built; Node 494 pass; the browser harness measured the page content (one side, All filter): In 540 px (21
   tiles) and Out 432 px (14 tiles) at 300 and 420 px; 756 px and 540 px at 240 px (2 columns); the dock 125 px (151 px at 240 px when
   Edge wraps); a filter on leaves 1-3 rows. Screenshots at 240, 300 and 420 px read. Not run: review verdict, install, bridge test.

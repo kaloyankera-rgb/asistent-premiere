@@ -679,6 +679,9 @@ svg.io-ico { flex: none; }
 svg.io-ico path { fill: none; stroke: var(--text-2); stroke-width: 1.6px; stroke-linecap: round; stroke-linejoin: round; }
 .btn.small.io-tile.on svg.io-ico path, .btn.small.io-glyph.on svg.io-ico path { stroke: var(--sel); }
 .btn.io-tile:hover svg.io-ico path, .btn.io-glyph:hover svg.io-ico path { stroke: var(--text); }
+/* 0.10.134: the picked tile keeps its look under the pointer and while pressed (.btn:hover / .btn:active must not show over it) */
+.btn.small.io-tile.on:hover, .btn.small.io-tile.on:active { border-color: var(--sel); background-color: var(--ref-bg); }
+.btn.small.io-tile.on:hover svg.io-ico path { stroke: var(--sel); }
 @media (max-width: 279px) {
   .btn.small.io-tile { width: 48%; margin-right: 4%; }
   .btn.small.io-tile.e3 { margin-right: 4%; }
