@@ -1,5 +1,23 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-22: subtitles Max words, Case, Line break; the transcript's times per sentence (0.10.138-0.10.140)
+- **Max words is a hard cap** (the user asked for "maximum 3 words or 2 words"): never more, both lines counted. The one exception
+  is a single counted unit (a number with what it counts), which is never split. ReShape is excluded (frozen); 16:9 goes through
+  the delivery phrase cutter when capped, because its own grouping cannot keep a count.
+- **Case:** ALL CAPS also capitalises the English line; today's client capital styles keep their English as it was. A client's
+  names keep their own spelling in both cases (the user's GStroy rule of 2026-11-10).
+- **Line break (the user's choices of 2026-11-21):** every subtitle over 3 words breaks (not only keyword lines); the colour is
+  the client style's measured keyword colour, changeable per style in the panel (Auto: the Submagic orange #EF7A00). The colour
+  goes into the .srt as `<font color>`, the only way a colour can reach a caption without the editor: no script can style a
+  caption in Premiere 26 (docs/NATIVE_GRAPHICS.md). Whether Premiere keeps it is the user's test; if it shows the tag as text,
+  the tag comes out.
+- **Hormozi 6 look (the user, 2026-11-21):** an After Effects template with the Submagic look was proposed and then dropped by
+  the user ("its fine"); nothing was built.
+- **Protected files touched:** `subtitles.py`, `subtitle_job.py` (optional arguments whose defaults are the old calls; ReShape's
+  style is returned as is). `scripts/reshape_golden.py check`: identical (SRT, English SRT, job JSON).
+- **Transcript with times:** a time on every sentence, not on every paragraph (a tight voice-over has no pauses, so a paragraph
+  could run 40 s under one time). Paragraphs also break after 4 sentences or 60 words.
+
 ## 2026-11-21: In & Out own presets, Phase 5 foundation (0.10.135)
 - **The user approved the Phase 5 plan on 2026-11-21 ("approved", then "Go ahead").** Built: steps 1-4. Step 5, the editor page, is not built.
 - **Points editor only.** No two-handle bezier mode.

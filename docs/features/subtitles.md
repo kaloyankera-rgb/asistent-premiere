@@ -10,7 +10,8 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
 
 ## How to use it
 1. Select the audio clips with speech, pick a Style (Auto, ReShape, GStroy, Credissimo, ЕКОПАК, Beauty Sector, AULA),
-   type names or `чуто => казано` corrections in the box if needed, press Make subtitles.
+   optionally Max words (1-4), Case (Normal / ALL CAPS) and Line break (On + colour), type names or `чуто => казано`
+   corrections in the box if needed, press Make subtitles.
 2. Select all the captions and restyle them together in Properties. Optional: Upgrade Caption to Graphic, select the
    graphics, press Move off faces (only Position changes, one Undo step; hand-moved lines stay).
 3. Captions tab: type a wrong word right, Apply and rebuild (no new recognition, seconds). Also Who speaks per track,
@@ -39,6 +40,9 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
   new pair is placed and checked, the lines of Asistent's OWN earlier pair are removed in one step (`removeLines`), only when
   every line's time matches the record kept by sequence guid (`captionstate.py`). Empty tracks stay (no script deletes a
   caption track). This is the only removal allowed.
+- Max words, Case, Line break (0.10.138-0.10.139) are copies of the style (`with_max_words`, `with_case`, `with_line_break`),
+  never for ReShape; off, every style gives exactly the old captions. Line break's colour is `<font color>` on the bottom line
+  of the Bulgarian .srt only (the JSON, the panel and the English stay plain text).
 - A line never appears before its cut; cuts follow where the speaker ends a phrase (0.10.61, not ReShape).
 - Learning writes only to the client's "<Client> Subtitle Learning" office folder (one file per computer, outbox when the
   server is away). Development scripts and tests must never write there.
@@ -65,12 +69,14 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
 - Latest: 0.10.119 ElevenLabs (650 wrong words of 4171 locally, 365 with Scribe, about 14x faster). The user's first run
   froze; fixed in 0.10.120 (a shout read as a 1000-letter word). The user, 2026-11-21: works in Premiere on two videos,
   fast and accurate. Still to run: ReShape on its own clip, and Auto with the switch off.
-- Client styles (0.10.18-0.10.22), 0.10.61 cuts, Export transcript (0.10.66): not seen by the user in Premiere.
+- Client styles (0.10.18-0.10.22), 0.10.61 cuts: not seen by the user in Premiere.
+- 0.10.138 Max words and Case, 0.10.139 Line break, 0.10.140 Export transcript with a time on every sentence: installed,
+  awaiting the user's look (TODO SUB); open: whether Premiere keeps the .srt colour.
 - Windows: untested (host install, CEP path, learning folder). Latest release v0.10.118. Open: BUGS "Limits of
   subtitles by ElevenLabs"; TODO V119, SEG, SL, S, A.
 
 ## Tests
-- Text: `test_subtitles.py`, `test_subtitle_job.py`, `test_chunking.py`, `test_delivery.py`, `test_guide_regressions.py`,
+- Text: `test_subtitles.py`, `test_subtitle_job.py`, `test_max_words.py`, `test_case.py`, `test_line_break.py`, `test_chunking.py`, `test_delivery.py`, `test_guide_regressions.py`,
   `test_bgnorm.py`, `test_numbers.py`, `test_english.py`, `test_lexicon_by_ear.py`, `test_consensus.py`, `test_corrections.py`.
 - Recognition and ReShape: `test_asr.py`, `test_recognition_profiles.py`, `test_cloudasr.py`, `test_reshape_baseline.py`.
 - Learning, review, styles, bench: `test_learning.py`, `test_speakers.py`, `test_review.py`, `test_transcript.py`,

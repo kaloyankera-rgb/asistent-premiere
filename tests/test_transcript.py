@@ -43,6 +43,36 @@ def test_export_writes_next_to_the_srt_with_times_and_english(tmp_path):
     assert timed.startswith("[1:05] Първо изречение.\n\n[1:08] Второ изречение.")
 
 
+def test_a_tight_voice_over_gets_a_time_on_every_sentence_and_short_paragraphs():
+    # 0.10.140 (the user: "the timings on the text are not right"): no pause anywhere, so before this the whole
+    # 40 s were one paragraph under one time; now each sentence has its own line and time, four to a paragraph
+    sentences = [f"Изречение номер {i} има малко думи." for i in range(1, 11)]
+    words = _w(" ".join(sentences), 178.0)
+    text = T.build({"words": words}, times=True)
+    paras = text.strip().split("\n\n")
+    assert [len(p.split("\n")) for p in paras] == [4, 4, 2]
+    lines = text.strip().replace("\n\n", "\n").split("\n")
+    assert len(lines) == 10
+    for i, line in enumerate(lines):
+        start = words[6 * i]["start"]
+        assert line == f"[{T._clock(start)}] {sentences[i]}"
+    assert T.build({"words": words}, times=False).strip().count("\n\n") == 2      # the plain one: the same paragraphs
+
+
+def test_a_long_sentence_gets_a_second_time_after_a_comma():
+    words = _w("Едно две три четири пет шест седем осем девет десет единайсет дванайсет тринайсет четиринайсет "
+               "петнайсет шестнайсет седемнайсет осемнайсет , после още малко думи.", 10.0)
+    text = T.build({"words": words}, times=True)
+    assert text.count("[") == 2 and text.startswith("[0:10] Едно") and "\n[0:16] После още малко думи." in text
+
+
+def test_english_follows_with_a_time_on_every_sentence():
+    caps = [{"start": 61.0 + i, "end": 61.9 + i, "text": "Х", "en": e}
+            for i, e in enumerate(["Here is what", "you get.", "This is Alpha."])]
+    text = T.build({"words": _w("Ето какво получавате. Това е Алфа.", 61.0), "captions": caps}, times=True)
+    assert text.endswith("English\n\n[1:01] Here is what you get.\n[1:03] This is Alpha.\n")
+
+
 def test_only_asistents_own_runs_are_exported(tmp_path):
     p = tmp_path / "x.json"
     p.write_text("{}", encoding="utf-8")

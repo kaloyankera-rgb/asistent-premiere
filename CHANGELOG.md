@@ -31,6 +31,50 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.140 - Export transcript: a time on every sentence (2026-11-22, installed, pushed, awaiting the user's look)
+
+- **The bug (the user, 2026-11-21: "the timings on the text are not right"):** a voice-over cut tight has no pause, so the whole
+  40 s were one paragraph (it broke only at 120 words) under one time; every sentence after the first sat under a time that was
+  not its own. The times themselves were right (the words and the captions start together).
+- **Now:** with times, every sentence is on its own line after its own `[m:ss]`; a sentence of 18+ words gets a second time after
+  its next comma. Paragraphs break at a pause as before, and also after their 4th sentence or past 60 words, so the plain export
+  reads in blocks too. The English section follows the same layout (each caption's English as one piece).
+- **Code:** `engine/asistent/transcript.py` (`paragraphs` returns each paragraph's sentences, `_section`); the "With times"
+  tooltip. **Tests:** `tests/test_transcript.py` +3 (a tight voice-over, a long sentence, English); Python 1114 passed / 24 skipped.
+
+## 0.10.139 - Subtitles: Line break, the bottom line in the client's colour (2026-11-22, installed, pushed, untested in Premiere)
+
+- **The user's request:** "a line break option like in Submagic": up to 5 words a subtitle, 1-3 words one line, 4-5 words two
+  lines with up to 3 on top and the last 1-2 below, the bottom line in the client's colour; every subtitle over 3 words breaks.
+- **Panel:** a "Line break" row under Case (Style default / On) with a colour box and swatch. The box starts with the style's
+  measured colour (GStroy #94D000, Credissimo #F84430, ЕКОПАК #18CC6E, Beauty Sector #D45E58, AULA #37D977; Auto the
+  Submagic orange #EF7A00) and remembers a typed colour per style. Greyed for ReShape. The result line names the line break
+  and its colour and counts the two-line subtitles; the client keyword suggestions give way to it.
+- **Engine:** `subtitles.with_line_break` (a copy of the style: cap 5 words or the editor's Max words, the delivery cutter, no
+  stack/split/keyword rules), `_broken` (top up to 3 words, bottom 1-2, a cut between units, a top line not ending on a little
+  word when another cut fits), captions get `accent_line` and `accent` (the bottom line); `write_srt(..., colour)` wraps the
+  bottom line in `<font color="#RRGGBB">` in the Bulgarian .srt only (the JSON and the English .srt stay plain).
+  `/subtitles` takes `line_break` (bool) and `colour` (#RRGGBB); the result has `line_break` and `colour` only when asked.
+- **Not known yet:** whether Premiere keeps the colour from the .srt, ignores it or shows the tag as text (the user's test).
+- **ReShape:** untouched (`with_line_break` returns its style as is); golden check identical; with Line break off every style
+  gives the same captions as before (336 runs, 8 presets). **Tests:** `tests/test_line_break.py` (new), `test_subtitle_job.py`
+  +2 and 5 bad requests, `subtitleplan.test.js` +4; Node 580 pass.
+
+## 0.10.138 - Subtitles: Max words and Case (2026-11-21, installed, pushed, awaiting the user's look)
+
+- **The user's requests:** a Submagic/Kapwing-style choice of the most words a subtitle may show, and all subtitles in ALL CAPS
+  or normal.
+- **Max words** (Style default, 1-4): a hard cap on one subtitle's words, both lines counted; only one counted unit (a number
+  with what it counts, „8 евро“) may go over it. 16:9 goes through the delivery phrase cutter when capped. With a cap the English
+  line may come out empty on some lines (a note says how many).
+- **Case** (Style default, Normal, ALL CAPS): ALL CAPS also puts the English line in capitals; a client's names keep their own
+  spelling (GStroy). Normal takes a client style out of capitals with the same cuts.
+- Both greyed for ReShape (its style is fixed) and remembered on this computer. Engine: `subtitles.with_max_words`,
+  `with_case`, `CASES`; `/subtitles` takes `max_words` (int 1-4) and `case`; the result has them only when asked.
+- First installed as 0.10.137 without a version bump: Adobe's installer kept the old panel (same version), so the Case row was
+  missing until the bump. **Tests:** `tests/test_max_words.py`, `tests/test_case.py` (new), `test_subtitle_job.py`,
+  `subtitleplan.test.js`. ReShape golden identical.
+
 ## 0.10.136 - In & Out curve editor and own presets: Phase 5 complete (2026-11-21, not installed, not pushed, not run in Premiere)
 
 - **The plan:** step 5 of the Phase 5 plan (`docs/IN_OUT_PLAN.md`), the last step. Steps 1-4 are in 0.10.135. Phase 5 is now

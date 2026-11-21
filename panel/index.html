@@ -189,8 +189,22 @@
       <p id="aboutSubtitles" class="desc">Select the audio clips with speech. Recognition runs only on this computer; the .srt goes into the project folder and onto a new caption track. Select all its captions to restyle them together in Properties.</p>
       <div class="row buttons"><div id="moveOffFaces" class="btn small" data-tip="After Upgrade Caption to Graphic (right-click on the captions): select the subtitle graphics and press. Each line goes to the client's height for its shot: under the speaker's chin, above a low face, the middle with no face; an English line stays under its Bulgarian line. Only Position changes, in one Undo step; lines you moved by hand or keyframed are left alone.">Move off faces</div></div>
       <div class="row options">
-        <label for="subtitleStyle" class="muted" data-tip="How the lines are cut and timed. Auto: 2-3 words for 9:16, two lines for 16:9. ReShape: that client's own style, measured on its videos: 2-3 words, no punctuation, each line 0.18 s before its first word. GStroy: 1-3 words in capitals, no punctuation, a longer chunk on two lines with its last word alone underneath, green keywords suggested. Credissimo: the same look, the two lines cut evenly, red keywords suggested. ЕКОПАК: the same, green keywords (recycling words) suggested. Beauty Sector: the same, coral keywords, product names in Latin capitals. AULA: the same, green keywords, English names in Latin capitals with the article joined (IPHONE-А).">Style</label>
+        <label for="subtitleStyle" class="muted sub-l" data-tip="How the lines are cut and timed. Auto: 2-3 words for 9:16, two lines for 16:9. ReShape: that client's own style, measured on its videos: 2-3 words, no punctuation, each line 0.18 s before its first word. GStroy: 1-3 words in capitals, no punctuation, a longer chunk on two lines with its last word alone underneath, green keywords suggested. Credissimo: the same look, the two lines cut evenly, red keywords suggested. ЕКОПАК: the same, green keywords (recycling words) suggested. Beauty Sector: the same, coral keywords, product names in Latin capitals. AULA: the same, green keywords, English names in Latin capitals with the article joined (IPHONE-А).">Style</label>
         <select id="subtitleStyle"><option value="auto" selected>Auto</option><option value="reshape">ReShape</option><option value="gstroy">GStroy</option><option value="credissimo">Credissimo</option><option value="ekopak">ЕКОПАК</option><option value="beautysector">Beauty Sector</option><option value="aula">AULA</option></select>
+      </div>
+      <div class="row options">
+        <label for="subtitleMaxWords" class="muted sub-l" data-tip="The most words one subtitle may show. Style default: the style's own size (2-3 words, sometimes a fourth to keep a phrase whole). A number is never exceeded; only a number with what it counts (8 евро) stays together. Counts both lines of a two-line style. Not for ReShape: its style is fixed.">Max words</label>
+        <select id="subtitleMaxWords"><option value="" selected>Style default</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select>
+      </div>
+      <div class="row options">
+        <label for="subtitleCase" class="muted sub-l" data-tip="How the letters are written. Style default: the style's own (Auto as spoken, the client styles in capitals). Normal: as spoken, a capital at the start of a sentence and on names. ALL CAPS: every line in capitals, the English line too. A client's names keep their own spelling. Not for ReShape: its style is fixed.">Case</label>
+        <select id="subtitleCase"><option value="" selected>Style default</option><option value="normal">Normal</option><option value="upper">ALL CAPS</option></select>
+      </div>
+      <div class="row options">
+        <label for="subtitleLineBreak" class="muted sub-l" data-tip="As in the clients' Submagic videos. On: up to 5 words a subtitle (or Max words, when chosen); 1-3 words stay one line, 4-5 words are two lines: up to 3 on top and the last 1-2 below, in the colour on the right. Style default: the style's own lines. Not for ReShape: its style is fixed.">Line break</label>
+        <select id="subtitleLineBreak"><option value="" selected>Style default</option><option value="on">On</option></select>
+        <span id="subtitleColourSwatch" class="swatch"></span>
+        <input type="text" id="subtitleColour" maxlength="7" spellcheck="false" data-tip="The bottom line's colour (#RRGGBB). It starts as the client's own colour for its style (GStroy green, Credissimo red, ЕКОПАК green, Beauty Sector coral, AULA green) and is remembered per style when you change it." />
       </div>
       <div class="row options">
         <input type="checkbox" id="subtitleEnglish" />
@@ -294,7 +308,7 @@
     </div>
     <div class="row options">
       <div id="captionTranscript" class="btn small" data-tip="Saves the subtitles as a transcript (.txt) next to the .srt and shows it in Finder: plain sentences in paragraphs (a new one where the speaker pauses), with the corrections already applied. Press Apply and rebuild first to include what you just typed.">Export transcript</div>
-      <input type="checkbox" id="captionTranscriptTimes" /><label for="captionTranscriptTimes" class="muted" data-tip="Each paragraph starts with its time in the sequence, like [1:23].">With times</label>
+      <input type="checkbox" id="captionTranscriptTimes" /><label for="captionTranscriptTimes" class="muted" data-tip="Every sentence on its own line after its own time in the sequence, like [1:23], in short paragraphs.">With times</label>
     </div>
     <div id="captionEditState" class="muted"></div>
     <div class="row options"><input type="checkbox" id="captionHelpers" checked /><label for="captionHelpers" class="muted" data-tip="Play buttons, the reasons under each line to check and Lines to check. They only read the subtitles that were made; switching them off shows the list as before.">Review helpers</label></div>

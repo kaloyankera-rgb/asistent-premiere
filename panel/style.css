@@ -201,6 +201,12 @@ svg.i path, svg.i circle, svg.i rect { fill: none; stroke: var(--text-2); stroke
 .options > label:first-child { width: 48px; }
 .options select { margin-bottom: 2px; }
 .options input[type="checkbox"] { margin: 0 6px 0 0; }
+/* Subtitles: Style, Max words and Case, one under the other, their lists lined up (0.10.138) */
+.options > label.sub-l { width: 62px; flex: none; }
+#subtitleMaxWords[disabled], #subtitleCase[disabled], #subtitleLineBreak[disabled], #subtitleColour[disabled] { opacity: 0.4; }
+/* Line break's colour (0.10.139): a swatch and its #RRGGBB */
+#subtitleColour { width: 64px; font-size: 11px; }
+.swatch { width: 12px; height: 12px; border-radius: 2px; margin-right: 4px; border: 1px solid var(--text-2); flex: none; }
 select { font-size: 11px; margin-right: 12px; }
 .buttons { flex-wrap: wrap; margin-top: 8px; }
 label.field { display: block; margin: 10px 0 0 0; font-size: 11px; color: var(--text-2); }

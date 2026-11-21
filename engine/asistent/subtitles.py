@@ -131,6 +131,59 @@ def preset_for(width, height):
     return "standard" if w > h else "short"
 
 
+def with_max_words(cfg, max_words=None):
+    """The editor's "Max words" choice (0.10.138): a hard cap on the words of one caption, both lines counted. None keeps the
+    style exactly as it is, and ReShape's style is never changed (protected). The cap is a copy of the style: PRESETS stays
+    as it is. 16:9 ("standard", no phrase cutter) goes through the delivery phrase cutter when capped: its own grouping
+    attaches function words to the next word and cannot keep a hard count."""
+    if max_words is None or cfg is PRESETS["reshape"]:
+        return cfg
+    out = dict(cfg, max_words=int(max_words), hard_words=True)
+    if not cfg.get("phrases"):
+        out.update(phrases=True, delivery=True)
+    return out
+
+
+CASES = ("normal", "upper")
+
+
+def with_case(cfg, case=None):
+    """The editor's "Case" choice (0.10.138): "upper" shows every caption in capitals, "normal" as the words were written
+    (a client's capitals style without its capitals). None keeps the style exactly as it is, and ReShape's style is never
+    changed (protected). A client's names keep their own spelling either way (`_shown`). A copy: PRESETS stays as it is."""
+    if case is None or cfg is PRESETS["reshape"]:
+        return cfg
+    return dict(cfg, upper=case == "upper")
+
+
+# The editor's "Line break" (0.10.139, the user 2026-11-21, as the clients' Submagic videos do it): a caption of up to 5
+# words; 1-3 words stay one line, 4-5 are two lines with up to 3 words on top and the last 1-2 below, the bottom line in the
+# client's colour. Measured keyword colours of the client styles (docs/SUBTITLE_STYLES/); the panel lets the editor change it.
+LINE_BREAK_WORDS = 5
+LINE_BREAK_TOP = 3
+ACCENT_COLOURS = {"gstroy": "#94D000", "credissimo": "#F84430", "ekopak": "#18CC6E", "beautysector": "#D45E58",
+                  "aula": "#37D977"}
+
+
+def with_line_break(cfg, line_break=False):
+    """The editor's "Line break" (0.10.139): up to 5 words a caption (or the editor's Max words, when chosen), over 3 words
+    split into a top line of up to 3 words and a bottom line of the last 1-2 (`_lines`), marked for the accent colour
+    (`build_captions`). The client's own two-line rules (stack, split) and keyword suggestions give way to it. False keeps
+    the style exactly as it is, and ReShape's style is never changed (protected). A copy: PRESETS stays as it is."""
+    if not line_break or cfg is PRESETS["reshape"]:
+        return cfg
+    cap = cfg["max_words"] if cfg.get("hard_words") else LINE_BREAK_WORDS
+    out = {k: v for k, v in cfg.items() if k not in ("stack", "split", "accent", "accent_near", "accent_words")}
+    out.update(max_words=cap, hard_words=True, line_break=True, lines=2, phrases=True, delivery=True,
+               line_chars=LINE_BREAK_CHARS, soft_chars=LINE_BREAK_CHARS, chunk_max=LINE_BREAK_CHARS + 8,
+               line_max=cfg.get("line_max", LINE_BREAK_LINE))
+    return out
+
+
+LINE_BREAK_CHARS = 24          # the whole caption's target size: past it each character costs (the delivery cutter)
+LINE_BREAK_LINE = 18           # no line wider (the client styles keep their own 16)
+
+
 def exact_fps(fps):
     """The real frame rate for a rounded NTSC value; any other rate is returned as is."""
     fps = float(fps)
@@ -265,6 +318,8 @@ def _text_len(words):
 def _lines(units, cfg):
     """The units of one caption -> lines (lists of words). Two lines are split where they come out most even."""
     flat = [w for u in units for w in u]
+    if cfg.get("line_break"):
+        return _broken(units)
     if cfg.get("stack"):
         return _stacked(units, cfg)
     if cfg["lines"] == 1 or len(units) == 1 or _text_len(flat) <= cfg["line_chars"]:
@@ -278,6 +333,23 @@ def _lines(units, cfg):
         score = (over, abs(la - lb))
         if best is None or score < best[0]:
             best = (score, [a, b])
+    return best[1]
+
+
+def _broken(units):
+    """The editor's Line break (`with_line_break`): up to 3 words one line; more is a top line of up to 3 words and a bottom
+    line of the last 1-2, cut between units so a number stays with its unit; a top line ending on a little word („да“) only
+    when no other such cut exists. When the units allow no such cut („за 8 евро“ in the wrong place), the cut closest to it."""
+    flat = [w for u in units for w in u]
+    if len(flat) <= LINE_BREAK_TOP or len(units) == 1:
+        return [flat]
+    best = None
+    for k in range(1, len(units)):
+        top, bottom = [w for u in units[:k] for w in u], [w for u in units[k:] for w in u]
+        key = (len(top) > LINE_BREAK_TOP or len(bottom) > 2, _word_core(top[-1]) in NON_FINAL,   # not „… ДА / ВИДИМ“
+               abs(len(top) - LINE_BREAK_TOP), len(bottom))
+        if best is None or key < best[0]:
+            best = (key, [top, bottom])
     return best[1]
 
 
@@ -524,10 +596,13 @@ def _phrase_cost(units, cfg, forced_edges, after=(), st=None):
     # whatever the words are, so a phrase stays whole; the classic rule allows it only with little words or a number in it.
     # A fifth word stays the classic exception (allowing it moved Credissimo's cuts away from its editors': F1 0.738 -> 0.724)
     soft = st is not None and n == 4
-    if n > cfg["max_words"] + 1 or (n == cfg["max_words"] + 1 and not glued and little < 2 and not soft) \
-            or (chars > limit and len(units) > 1):
+    if cfg.get("hard_words"):                                  # the editor's Max words: never more, whatever the words are;
+        over = n > cfg["max_words"] and len(units) > 1         # only one counted unit („за 8 евро“) goes out whole
+    else:
+        over = n > cfg["max_words"] + 1 or (n == cfg["max_words"] + 1 and not glued and little < 2 and not soft)
+    if over or (chars > limit and len(units) > 1):
         return None                                            # not allowed
-    if st is not None and len(units) > 1 and cfg.get("stack") and \
+    if st is not None and len(units) > 1 and (cfg.get("stack") or cfg.get("line_break")) and \
             any(_text_len(line) > cfg["line_max"] for line in _lines(units, cfg)):
         return None                                            # a line wider than the editors ever made one
     cost = c["base"]
@@ -672,7 +747,7 @@ def _join_articles(words, cfg):
     return out
 
 
-def build_captions(words, preset="short", fps=25.0, cuts=()):
+def build_captions(words, preset="short", fps=25.0, cuts=(), max_words=None, case=None, line_break=False):
     """Words (sequence seconds, `p` optional) -> captions {"start", "end", "text", "words", "flags"}.
 
     cuts: sequence times where a clip starts (an edit). A caption never appears before the cut its first word comes after:
@@ -681,8 +756,13 @@ def build_captions(words, preset="short", fps=25.0, cuts=()):
     Spelling is fixed, lines follow the preset, every start/end is a whole frame at `fps`, the preset's
     min/max duration holds without overlapping the next caption, and no caption has zero length.
     A word with p < 0.5 adds {"word", "p", "at"} to `flags`; the text itself stays clean.
+    max_words: the editor's hard cap (1-4, `with_max_words`); None keeps the style's own size.
+    case: the editor's "normal" or "upper" (`with_case`); None keeps the style's own.
+    line_break: the editor's Line break (`with_line_break`): a two-line caption gets "accent_line": True and its bottom line
+    as "accent" (`write_srt` colours it); False keeps the style's own.
     """
     cfg = PRESETS[preset] if isinstance(preset, str) else preset
+    cfg = with_case(with_line_break(with_max_words(cfg, max_words), line_break), case)
     fps = exact_fps(fps)
     words = _join_names(_clean_words(words), cfg)
     if cfg.get("drop_dashes"):                                 # the client template shows no punctuation, not even a lone „–“
@@ -742,6 +822,8 @@ def build_captions(words, preset="short", fps=25.0, cuts=()):
         })
         if i in accents:                                       # the suggested keyword, as shown (its last word)
             captions[-1]["accent"] = _shown(flat[-1]["word"], cfg)
+        if cfg.get("line_break") and "\n" in captions[-1]["text"]:      # the Line break's bottom line, in the colour
+            captions[-1].update(accent=captions[-1]["text"].split("\n")[-1], accent_line=True)
     return captions
 
 
@@ -750,10 +832,20 @@ def _srt_time(t):
     return "%02d:%02d:%02d,%03d" % (ms // 3600000, ms // 60000 % 60, ms // 1000 % 60, ms % 1000)
 
 
-def write_srt(captions, path):
-    """UTF-8 with BOM (the form Asistent verified in Premiere), \\n line endings, numbered from 1."""
+def coloured_text(c, colour=None):
+    """A caption's SRT text: the Line break's bottom line wrapped in <font color="#RRGGBB"> when a colour is given
+    (0.10.139); everything else exactly as it was."""
+    if not colour or not c.get("accent_line") or "\n" not in c["text"]:
+        return c["text"]
+    top, bottom = c["text"].rsplit("\n", 1)
+    return '%s\n<font color="%s">%s</font>' % (top, colour, bottom)
+
+
+def write_srt(captions, path, colour=None):
+    """UTF-8 with BOM (the form Asistent verified in Premiere), \\n line endings, numbered from 1.
+    colour: the Line break's accent colour (`coloured_text`); None writes the text exactly as before."""
     # The BOM is written by hand: the "utf-8-sig" codec writes nothing for an empty file.
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write("\ufeff")
         for n, c in enumerate(captions, 1):
-            f.write("%d\n%s --> %s\n%s\n\n" % (n, _srt_time(c["start"]), _srt_time(c["end"]), c["text"]))
+            f.write("%d\n%s --> %s\n%s\n\n" % (n, _srt_time(c["start"]), _srt_time(c["end"]), coloured_text(c, colour)))

@@ -7,6 +7,14 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
+## SUB. Verify 0.10.138-0.10.140 (2026-11-22): subtitles options and the transcript
+- [x] Install (0.10.140, 2026-11-22).
+- [ ] USER: Max words 2 and 3 on a 9:16 and a 16:9 sequence: never more words; „8 евро“ stays together.
+- [ ] USER: Case ALL CAPS and Normal on Auto and on a client style (GStroy stays GStroy).
+- [ ] USER: Line break On: 4-5 word subtitles on two lines, the bottom 1-2 words in the colour. If the bottom line is white,
+      Premiere ignores `<font color>`: take it out of the .srt and say "colour by hand"; if the tag shows as text, take it out at once.
+- [ ] USER: Export transcript with times: each sentence on its own line with its own time.
+
 ## V122. Verify 0.10.122 (2026-11-21): Cut silences after the audit
 - [x] Install (0.10.122, then 0.10.123, 2026-11-21).
 - [ ] USER: Cut silences again on "Lokal 2" (59.974 fps): 0.10.123 hands the razor "00:04:27:38"-style strings. Expect a cut "as

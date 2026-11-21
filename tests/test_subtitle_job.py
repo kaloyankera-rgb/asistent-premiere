@@ -143,10 +143,82 @@ def test_skipped_clips_are_passed_through_for_the_review(home, monkeypatch):
     ({"out_dir": "/nonexistent/folder"}, "project folder"),
     ({"preset": "huge"}, "Invalid subtitle style"),
     ({"fps": 0}, "Invalid value"),
+    ({"max_words": "5"}, "Invalid maximum words"),
+    ({"max_words": 0}, "Invalid maximum words"),
+    ({"max_words": 5}, "Invalid maximum words"),
+    ({"max_words": True}, "Invalid maximum words"),
+    ({"max_words": 2.5}, "Invalid maximum words"),
+    ({"case": "UPPER"}, "Invalid letter case"),
+    ({"case": True}, "Invalid letter case"),
+    ({"case": ""}, "Invalid letter case"),
+    ({"line_break": "on"}, "Invalid line break"),
+    ({"line_break": 1}, "Invalid line break"),
+    ({"line_break": True, "colour": "94D000"}, "Invalid colour"),
+    ({"line_break": True, "colour": "#94D00"}, "Invalid colour"),
+    ({"line_break": True, "colour": 9752576}, "Invalid colour"),
 ])
 def test_bad_requests_say_what_is_wrong(home, change, message):
     with pytest.raises(ValueError, match=message):
         subtitle_job.validate({**body(home), **change})
+
+
+LONG_WORDS = [{"word": w, "start": 0.3 + 0.32 * i, "end": 0.3 + 0.32 * i + 0.28, "p": 0.95}
+              for i, w in enumerate("Днес ще ви покажа как работи новият двигател на колата".split())]
+
+
+def test_max_words_caps_every_line_and_is_named_in_the_result(home, monkeypatch):
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: [dict(w) for w in LONG_WORDS])
+    res = subtitle_job.run(body(home, max_words=2), lambda f, m: None, lambda: False)
+    assert res["max_words"] == 2
+    assert all(len(c["text"].split()) <= 2 for c in res["captions"])
+
+
+def test_the_default_run_and_reshape_have_no_max_words_key(home, monkeypatch):
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: [dict(w) for w in LONG_WORDS])
+    assert "max_words" not in subtitle_job.run(body(home), lambda f, m: None, lambda: False)
+    assert subtitle_job.validate(body(home, preset="reshape", max_words=1))["max_words"] is None
+
+
+def test_all_caps_is_in_the_result_and_on_every_line(home, monkeypatch):
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: [dict(w) for w in LONG_WORDS])
+    res = subtitle_job.run(body(home, case="upper"), lambda f, m: None, lambda: False)
+    assert res["case"] == "upper"
+    assert all(c["text"] == c["text"].upper() for c in res["captions"])
+    assert "case" not in subtitle_job.run(body(home), lambda f, m: None, lambda: False)
+    assert subtitle_job.validate(body(home, preset="reshape", case="upper"))["case"] is None
+
+
+def test_all_caps_puts_the_english_line_in_capitals_too(home, monkeypatch):
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: [dict(w) for w in LONG_WORDS])
+    monkeypatch.setattr(subtitle_job.translate, "available", lambda: True)
+    monkeypatch.setattr(subtitle_job.translate, "english_lines", lambda lines, fixes=None: ["Today I show" for _ in lines])
+    res = subtitle_job.run(body(home, english=True, case="upper"), lambda f, m: None, lambda: False)
+    with open(res["srt_en"], encoding="utf-8-sig") as f:
+        en = f.read()
+    assert "TODAY I SHOW" in en and "Today I show" not in en
+
+
+def test_line_break_colours_the_bottom_line_in_the_srt_and_names_it(home, monkeypatch):
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: [dict(w) for w in LONG_WORDS])
+    res = subtitle_job.run(body(home, line_break=True, colour="#ef7a00"), lambda f, m: None, lambda: False)
+    assert res["line_break"] is True and res["colour"] == "#EF7A00"
+    two = [c for c in res["captions"] if "\n" in c["text"]]
+    assert two and all(c["accent"] == c["text"].split("\n")[1] for c in two)
+    with open(res["srt"], encoding="utf-8-sig") as f:
+        srt = f.read()
+    assert srt.count('<font color="#EF7A00">') == len(two)
+    with open(res["json"], encoding="utf-8") as f:
+        assert "<font" not in f.read()                  # only the .srt carries the colour; the lines stay plain text
+
+
+def test_no_line_break_keys_by_default_and_never_for_reshape(home, monkeypatch):
+    monkeypatch.setattr(asr, "transcribe", lambda *a, **k: [dict(w) for w in LONG_WORDS])
+    res = subtitle_job.run(body(home, colour="#EF7A00"), lambda f, m: None, lambda: False)
+    assert "line_break" not in res and "colour" not in res
+    with open(res["srt"], encoding="utf-8-sig") as f:
+        assert "<font" not in f.read()
+    p = subtitle_job.validate(body(home, preset="reshape", line_break=True, colour="#EF7A00"))
+    assert p["line_break"] is False and p["colour"] is None
 
 
 def test_a_missing_file_is_named(home):

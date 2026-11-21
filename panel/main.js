@@ -15,7 +15,7 @@ const { cameras, shotMoments } = require("./moments.js");
 const { createBridge } = require("./devbridge.js");
 const premiereSubtitles = require("./premiere-subtitles.js");
 const premiereCaptions = require("./premiere-captions.js");
-const { describeResult } = require("./subtitleplan.js");
+const { describeResult, maxWords, letterCase, lineBreak, hexColour, styleColour } = require("./subtitleplan.js");
 const { describePlacement } = require("./captionplan.js");
 const reviewplan = require("./reviewplan.js");
 const premierePlacement = require("./premiere-placement.js");
@@ -1112,6 +1112,15 @@ async function onSubtitles(opts = {}) {
     const { payload, plan, sequence: source } = await premiereSubtitles.readInput(project, [], $("notes").value);   // the sequence the subtitles are for
     payload.english = $("subtitleEnglish").checked;                          // the English line under every Bulgarian line
     payload.preset = $("subtitleStyle").value;                               // auto, or a client's own style
+    const mw = maxWords($("subtitleStyle").value, $("subtitleMaxWords").value);   // Max words (0.10.138): absent = the style's size
+    if (mw) payload.max_words = mw;
+    const lc = letterCase($("subtitleStyle").value, $("subtitleCase").value);    // Case (0.10.138): absent = the style's own
+    if (lc) payload.case = lc;
+    if (lineBreak($("subtitleStyle").value, $("subtitleLineBreak").value)) {   // Line break (0.10.139) and its colour
+      payload.line_break = true;
+      const colour = hexColour($("subtitleColour").value) || styleColour($("subtitleStyle").value);
+      payload.colour = colour;
+    }
     payload.english_fixed = englishFixed(project.path);                      // English lines typed in the Captions tab
     payload.english_words = englishWords(project.path);                      // and the words changed in them (learned per client)
     payload.english_words_off = englishWordsOff(project.path);               // and the word fixes taken back (0.10.6)
@@ -2161,6 +2170,7 @@ brandPage = require("./brand.js").mount({ $, el, button, enable, bindTips, premi
     if (!subtitleValues().includes(v)) return false;
     $("subtitleStyle").value = v;
     store.setItem("asistent.subtitleStyle", v);
+    syncMaxWords();
     return true;
   },
 } });
@@ -2169,14 +2179,47 @@ onTap($("openPreview"), () => openTab("panePreview"));
 onTap($("hideResult"), () => show("result", false));       // the full answer stays in Log
 // the English line and the style are remembered on this computer (store.js: in the engine's app folder, so an update keeps
 // them); applied at once from what the panel still has, and again when the engine's copy has loaded
+// Max words and Case (0.10.138) do not apply to ReShape (its style is fixed): greyed there, their choice kept for the others
+function syncMaxWords() {
+  const free = $("subtitleStyle").value !== "reshape";
+  enable($("subtitleMaxWords"), free);
+  enable($("subtitleCase"), free);
+  enable($("subtitleLineBreak"), free);
+  syncColour();
+}
+// Line break's colour (0.10.139): the style's own until the editor changes it, then remembered for that style
+function colourKey() {
+  return `asistent.subtitleColour.${$("subtitleStyle").value}`;
+}
+function syncColour() {
+  let saved = null;
+  try {
+    saved = hexColour(store.getItem(colourKey()));
+  } catch (e) {
+    /* no storage */
+  }
+  $("subtitleColour").value = saved || styleColour($("subtitleStyle").value);
+  paintSwatch();
+  enable($("subtitleColour"), $("subtitleStyle").value !== "reshape" && $("subtitleLineBreak").value === "on");
+}
+function paintSwatch() {
+  const c = hexColour($("subtitleColour").value);
+  $("subtitleColourSwatch").style.backgroundColor = c || "transparent";
+}
 function applyRemembered() {
   try {
     $("subtitleEnglish").checked = store.getItem("asistent.subtitleEnglish") === "1";
     const style = store.getItem("asistent.subtitleStyle");
     $("subtitleStyle").value = ["reshape", "gstroy", "credissimo", "ekopak", "beautysector", "aula"].includes(style) ? style : "auto";
+    const mw = store.getItem("asistent.subtitleMaxWords");
+    $("subtitleMaxWords").value = ["1", "2", "3", "4"].includes(mw) ? mw : "";
+    const lc = store.getItem("asistent.subtitleCase");
+    $("subtitleCase").value = ["normal", "upper"].includes(lc) ? lc : "";
+    $("subtitleLineBreak").value = store.getItem("asistent.subtitleLineBreak") === "on" ? "on" : "";
   } catch (e) {
     /* no storage */
   }
+  syncMaxWords();
   try {
     fillLabelControls();
     $("colorLearn").checked = learnOn();
@@ -2205,6 +2248,40 @@ $("subtitleStyle").addEventListener("change", () => {
   } catch (e) {
     /* no storage */
   }
+  syncMaxWords();
+});
+$("subtitleMaxWords").addEventListener("change", () => {
+  try {
+    store.setItem("asistent.subtitleMaxWords", $("subtitleMaxWords").value);
+  } catch (e) {
+    /* no storage */
+  }
+});
+$("subtitleCase").addEventListener("change", () => {
+  try {
+    store.setItem("asistent.subtitleCase", $("subtitleCase").value);
+  } catch (e) {
+    /* no storage */
+  }
+});
+$("subtitleLineBreak").addEventListener("change", () => {
+  try {
+    store.setItem("asistent.subtitleLineBreak", $("subtitleLineBreak").value);
+  } catch (e) {
+    /* no storage */
+  }
+  syncColour();
+});
+$("subtitleColour").addEventListener("input", paintSwatch);
+$("subtitleColour").addEventListener("change", () => {
+  const c = hexColour($("subtitleColour").value);
+  if (c) $("subtitleColour").value = c;
+  try {
+    if (c) store.setItem(colourKey(), c);
+  } catch (e) {
+    /* no storage */
+  }
+  paintSwatch();
 });
 // the ▾ of each Tools row (0.10.59): its options and what it does; one row open at a time, remembered on this computer
 const OPEN_ROW = "asistent.openRow";

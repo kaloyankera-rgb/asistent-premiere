@@ -1,7 +1,52 @@
 // node --test tests/subtitleplan.test.js
 const test = require("node:test");
 const assert = require("node:assert");
-const { planDialogue, sizeFrom, dirOf, describeResult } = require("../panel/subtitleplan.js");
+const { planDialogue, sizeFrom, dirOf, describeResult, maxWords, letterCase, lineBreak, hexColour, styleColour } = require("../panel/subtitleplan.js");
+
+test("lineBreak: On goes to the engine; Style default, anything else and ReShape send nothing", () => {
+  assert.strictEqual(lineBreak("auto", "on"), true);
+  assert.strictEqual(lineBreak("gstroy", "on"), true);
+  for (const v of ["", "off", "ON", true, null, undefined]) assert.strictEqual(lineBreak("auto", v), null, String(v));
+  assert.strictEqual(lineBreak("reshape", "on"), null);
+});
+
+test("hexColour: #RRGGBB in capitals from what the editor typed, null when it is not a colour", () => {
+  assert.strictEqual(hexColour("#ef7a00"), "#EF7A00");
+  assert.strictEqual(hexColour(" ef7a00 "), "#EF7A00");
+  assert.strictEqual(hexColour("#f80"), "#FF8800");
+  for (const v of ["", "#ef7a0", "orange", "#gg0000", null, undefined, "#EF7A00FF"]) assert.strictEqual(hexColour(v), null, String(v));
+});
+
+test("styleColour: each client style's measured colour, the Submagic orange otherwise", () => {
+  assert.strictEqual(styleColour("gstroy"), "#94D000");
+  assert.strictEqual(styleColour("credissimo"), "#F84430");
+  assert.strictEqual(styleColour("ekopak"), "#18CC6E");
+  assert.strictEqual(styleColour("beautysector"), "#D45E58");
+  assert.strictEqual(styleColour("aula"), "#37D977");
+  assert.strictEqual(styleColour("auto"), "#EF7A00");
+});
+
+test("describeResult: the line break and its colour are named, the bottom lines counted", () => {
+  const caps = [{ start: 0, end: 1, text: "КОЙ ОТ ДВАМА\nВИ ЗНАЕ", accent: "ВИ ЗНАЕ", flags: [] }, { start: 1, end: 2, text: "ДВЕ ДУМИ", flags: [] }];
+  const r = describeResult({ counts: { captions: 2, words: 7, flagged: 0 }, preset: "gstroy", fps: 25, cached: true, captions: caps, line_break: true, colour: "#94D000" });
+  assert.match(r.lines[0].text, / · line break in #94D000$/);
+  assert.ok(r.lines.some((l) => /Line break: 1 of 2 lines on two lines, the bottom line in #94D000/.test(l.text)));
+  assert.ok(!r.lines.some((l) => /keywords suggested/.test(l.text)));
+});
+
+test("letterCase: normal and upper go to the engine; Style default, anything else and ReShape send nothing", () => {
+  assert.strictEqual(letterCase("auto", "upper"), "upper");
+  assert.strictEqual(letterCase("gstroy", "normal"), "normal");
+  for (const v of ["", "UPPER", "caps", null, undefined]) assert.strictEqual(letterCase("auto", v), null, String(v));
+  for (const v of ["normal", "upper"]) assert.strictEqual(letterCase("reshape", v), null);
+});
+
+test("describeResult: the case is named on the first line only when one was asked", () => {
+  const base = { counts: { captions: 1, words: 2, flagged: 0 }, preset: "short", fps: 25, cached: true, captions: [{ start: 0, end: 1, text: "две думи", flags: [] }] };
+  assert.doesNotMatch(describeResult(base).lines[0].text, /caps|case/);
+  assert.match(describeResult({ ...base, case: "upper" }).lines[0].text, / · all caps$/);
+  assert.match(describeResult({ ...base, max_words: 2, case: "normal" }).lines[0].text, / · max 2 words a line · normal case$/);
+});
 
 const item = (o) => ({ kind: "audio", track: 0, start: 0, end: 10, inPt: 0, path: "/a.wav", name: "A", speed: 1,
   reversed: false, selected: true, ...o });
@@ -79,6 +124,21 @@ test("describeResult: counts, uncertain words, skipped clips, first captions, fi
   assert.match(all, /1:06\.0  ред {2}\?/);                        // the flagged caption is marked
   assert.match(all, /2 more lines/);
   assert.match(all, /\/p\/Asistent_subtitles\/x\.srt/);
+});
+
+test("maxWords: 1-4 go to the engine; Style default, anything else and ReShape send nothing", () => {
+  assert.strictEqual(maxWords("auto", "1"), 1);
+  assert.strictEqual(maxWords("gstroy", "4"), 4);
+  assert.strictEqual(maxWords("credissimo", 2), 2);
+  for (const v of ["", "0", "5", "2.5", "x", null, undefined]) assert.strictEqual(maxWords("auto", v), null, String(v));
+  for (const v of ["1", "2", "3", "4"]) assert.strictEqual(maxWords("reshape", v), null);
+});
+
+test("describeResult: the cap is named on the first line only when one was asked", () => {
+  const base = { counts: { captions: 1, words: 2, flagged: 0 }, preset: "short", fps: 25, cached: true, captions: [{ start: 0, end: 1, text: "две думи", flags: [] }] };
+  assert.doesNotMatch(describeResult(base).lines[0].text, /max/);
+  assert.match(describeResult({ ...base, max_words: 1 }).lines[0].text, / · max 1 word a line$/);
+  assert.match(describeResult({ ...base, max_words: 3 }).lines[0].text, / · max 3 words a line$/);
 });
 
 test("describeResult: no speech is a warning, not a success", () => {

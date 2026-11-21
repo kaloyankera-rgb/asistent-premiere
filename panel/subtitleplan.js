@@ -65,6 +65,39 @@ function clock(t) {
 const PRESET_NAME = { short: "short (9:16)", standard: "standard (16:9)", reshape: "ReShape", gstroy: "GStroy", credissimo: "Credissimo", ekopak: "ЕКОПАК", beautysector: "Beauty Sector", aula: "AULA" };
 const ACCENT_NAME = { gstroy: "Green", credissimo: "Red", ekopak: "Green", beautysector: "Coral", aula: "Green" };   // the client's accent colour
 
+/** The Max words choice (0.10.138) -> the engine's max_words: 1-4, or null for "Style default" and for ReShape (its style
+ * is fixed, the engine ignores a cap there too). */
+function maxWords(style, value) {
+  if (style === "reshape" || !/^[1-4]$/.test(String(value))) return null;
+  return Number(value);
+}
+
+/** The Case choice (0.10.138) -> the engine's case: "normal" or "upper", or null for "Style default" and for ReShape. */
+function letterCase(style, value) {
+  return style !== "reshape" && (value === "normal" || value === "upper") ? value : null;
+}
+
+/** Line break (0.10.139): the client styles' measured keyword colours; Auto starts with the clients' Submagic orange. */
+const LINE_COLOUR = { gstroy: "#94D000", credissimo: "#F84430", ekopak: "#18CC6E", beautysector: "#D45E58", aula: "#37D977" };
+const DEFAULT_LINE_COLOUR = "#EF7A00";
+
+/** The style's own bottom-line colour (before the editor changes it). */
+function styleColour(style) {
+  return LINE_COLOUR[style] || DEFAULT_LINE_COLOUR;
+}
+
+/** The Line break choice -> the engine's line_break: true, or null for "Style default" and for ReShape. */
+function lineBreak(style, value) {
+  return style !== "reshape" && value === "on" ? true : null;
+}
+
+/** What the editor typed -> "#RRGGBB" (a missing # is added, 3 digits are doubled), or null when it is not a colour. */
+function hexColour(value) {
+  let v = String(value || "").trim().replace(/^#/, "");
+  if (/^[0-9a-f]{3}$/i.test(v)) v = v.split("").map((ch) => ch + ch).join("");
+  return /^[0-9a-f]{6}$/i.test(v) ? `#${v.toUpperCase()}` : null;
+}
+
 /** The engine's /subtitles result -> { text, ok, lines: [{cls, text}] } for the result box. */
 function describeResult(r) {
   const c = r.counts || {};
@@ -73,7 +106,10 @@ function describeResult(r) {
     return { ok: false, text: "No speech recognised in the selected clips.", lines: [{ cls: "warn", text: "Check that the clips with speech are selected." }] };
   }
   lines.push({ cls: "line", text: `${c.words} words · style ${PRESET_NAME[r.preset] || r.preset} · ${r.fps.toFixed(3).replace(/\.?0+$/, "")} fps` +
-    ` · ${r.cached ? "recognised earlier" : `recognition ${r.asr_seconds} s for ${r.mix_seconds} s of sound`}` });
+    ` · ${r.cached ? "recognised earlier" : `recognition ${r.asr_seconds} s for ${r.mix_seconds} s of sound`}` +
+    (r.max_words ? ` · max ${r.max_words} ${r.max_words === 1 ? "word" : "words"} a line` : "") +
+    (r.case === "upper" ? " · all caps" : r.case === "normal" ? " · normal case" : "") +
+    (r.line_break ? ` · line break${r.colour ? ` in ${r.colour}` : ""}` : "") });
   const t = r.timing || {};
   if (t.method === "aligned") {
     lines.push({ cls: "line", text: `Timing: aligned to the sound (${t.aligned} words${t.weak ? `, ${t.weak} weak ones keep Whisper's timing` : ""}).` });
@@ -118,7 +154,10 @@ function describeResult(r) {
   for (const s of r.skipped || []) lines.push({ cls: "warn", text: `Skipped: ${s}.` });
   // a client style with an accent colour (GStroy's green, Credissimo's red keyword): the suggested words, which the editor colours
   const accents = (r.captions || []).filter((cap) => cap.accent);
-  if (accents.length) {
+  if (r.line_break) {
+    // Line break (0.10.139): every two-line subtitle's bottom line is in the colour (written into the .srt)
+    lines.push({ cls: "hint", text: `Line break: ${accents.length} of ${(r.captions || []).length} lines on two lines, the bottom line in ${r.colour || "the colour"}.` });
+  } else if (accents.length) {
     lines.push({ cls: "hint", text: `${ACCENT_NAME[r.preset] || "Accent"} keywords suggested on ${accents.length} of ${r.captions.length} lines (the client's editors pick them by meaning; change any): ` +
       `${accents.slice(0, 12).map((cap) => `${clock(cap.start)} ${cap.accent}`).join("; ")}${accents.length > 12 ? "; …" : ""}.` });
   }
@@ -131,4 +170,4 @@ function describeResult(r) {
   return { ok: true, text: `Done: ${c.captions} subtitle lines.`, lines };
 }
 
-module.exports = { planDialogue, sizeFrom, dirOf, describeResult };
+module.exports = { planDialogue, sizeFrom, dirOf, describeResult, maxWords, letterCase, lineBreak, hexColour, styleColour };

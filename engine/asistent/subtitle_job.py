@@ -91,6 +91,27 @@ def validate(body: dict) -> dict:
     preset = body.get("preset", "auto")
     if preset not in PRESET_NAMES:
         raise ValueError("Invalid subtitle style.")
+    # the editor's Max words (0.10.138): absent = the style's own size; 1-4 = a hard cap; never for ReShape (protected)
+    max_words = body.get("max_words")
+    if max_words is not None and (isinstance(max_words, bool) or not isinstance(max_words, int) or not 1 <= max_words <= 4):
+        raise ValueError("Invalid maximum words per line.")
+    # the editor's Case (0.10.138): absent = the style's own; "normal" or "upper"; never for ReShape (protected)
+    case = body.get("case")
+    if case is not None and case not in subtitles.CASES:
+        raise ValueError("Invalid letter case.")
+    # the editor's Line break (0.10.139): true = up to 5 words, the last 1-2 on a second line in `colour` (#RRGGBB, written
+    # into the SRT); absent = the style's own lines; never for ReShape (protected)
+    line_break = body.get("line_break", False)
+    if not isinstance(line_break, bool):
+        raise ValueError("Invalid line break choice.")
+    colour = body.get("colour")
+    if colour is not None and (not isinstance(colour, str) or not re.fullmatch(r"#[0-9A-Fa-f]{6}", colour)):
+        raise ValueError("Invalid colour: use #RRGGBB.")
+    if preset == "reshape":
+        max_words = case = None
+        line_break = False
+    if not line_break:
+        colour = None
     out_dir = body.get("out_dir")
     if not isinstance(out_dir, str) or not os.path.isdir(out_dir):
         raise ValueError("The project folder was not found: save the project and try again.")
@@ -116,7 +137,8 @@ def validate(body: dict) -> dict:
             "english": bool(body.get("english")), "english_fixed": _english_fixed(body.get("english_fixed")),
             "english_words": _english_words(body.get("english_words")),
             "english_words_off": _english_words(body.get("english_words_off")),
-            "project": body.get("project") if isinstance(body.get("project"), str) else ""}
+            "project": body.get("project") if isinstance(body.get("project"), str) else "", "max_words": max_words, "case": case,
+            "line_break": line_break, "colour": colour.upper() if colour else None}
 
 
 def line_key(text: str) -> str:
@@ -797,12 +819,13 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
 
     preset = subtitles.preset_for(p["width"], p["height"]) if p["preset"] == "auto" else p["preset"]
     # every clip start is an edit: a line does not appear before the cut it belongs to
-    captions = subtitles.build_captions(words, preset, p["fps"], cuts={it["at"] for it in p["items"]})
+    captions = subtitles.build_captions(words, preset, p["fps"], cuts={it["at"] for it in p["items"]}, max_words=p["max_words"],
+                                       case=p["case"], line_break=p["line_break"])
 
     folder = os.path.join(p["out_dir"], "Asistent_subtitles")
     os.makedirs(folder, exist_ok=True)
     stem = os.path.join(folder, _file_stem(p["name"]))
-    subtitles.write_srt(captions, stem + ".srt")
+    subtitles.write_srt(captions, stem + ".srt", colour=p["colour"])      # the Line break's bottom line in its colour
     # the English line (the user's reference style): one per Bulgarian line, the same times, translated sentence by sentence
     english, english_note = None, None
     if p["english"]:
@@ -818,6 +841,12 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
             # client's editors typed for the same line in other projects
             fixed = {**(learned.plan.english if learned else {}), **p["english_fixed"]}
             english = [fixed.get(line_key(c["text"]), e) for c, e in zip(captions, english)]
+            if p["case"] == "upper":                       # the editor's ALL CAPS: the English line too, after its fixes
+                english = [e.upper() for e in english]
+            empty = sum(1 for e in english if not e.strip()) if p["max_words"] else 0
+            if empty:                                      # a few words a line: the English has fewer words than lines
+                english_note = (f"{empty} English {'line is' if empty == 1 else 'lines are'} empty: with this few words per line "
+                                "the English cannot follow line by line.")
             subtitles.write_srt([{**c, "text": e} for c, e in zip(captions, english)], stem + ".en.srt")
         else:
             english_note = "The English line needs the translator (models/nllb-600m-int8 and the sentencepiece package): see README."
@@ -851,6 +880,16 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
         reasons = sorted({r["fallback"] for r in reads if r.get("fallback")})
         result["recognizer"] = {"name": cloudasr.NAME, "windows": len(wins), "local": sum(1 for r in reads if r.get("fallback")),
                                 "fallback": reasons}
+    if p["max_words"]:
+        # the editor's Max words, for the panel's result line: a new key, only when a cap was asked (ReShape and default
+        # runs keep exactly the keys they have)
+        result["max_words"] = p["max_words"]
+    if p["case"]:
+        result["case"] = p["case"]                         # the editor's Case, likewise only when one was asked
+    if p["line_break"]:
+        result["line_break"] = True                        # the editor's Line break and its colour, likewise
+        if p["colour"]:
+            result["colour"] = p["colour"]
     with open(stem + ".json", "w", encoding="utf-8") as f:
         # the verbatim layer (what Whisper wrote) is never edited; every change to it is listed in `edits`
         edits = {"corrections": result["corrections"], "writing": norms, "english": english_words, "speaker_forms": speaker_changes, "spelling": changes, "commas": tidy["commas"],

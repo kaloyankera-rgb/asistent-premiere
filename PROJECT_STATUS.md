@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.136 (2026-11-21)
+# Project status: Asistent 0.10.140 (2026-11-22)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,6 +6,9 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
+- 0.10.140 (Export transcript: every sentence on its own line with its own time; short paragraphs): installed, Python 1114 passed / 24 skipped, Node 580 pass, pushed. Awaiting the user's export.
+- 0.10.139 (Subtitles: Line break, up to 5 words, the last 1-2 on a second line in the client's colour via `<font color>` in the .srt): installed, ReShape golden identical, pushed. Untested in Premiere: whether Premiere keeps the colour.
+- 0.10.138 (Subtitles: Max words 1-4 and Case Normal / ALL CAPS): installed, pushed. Awaiting the user's look in Premiere.
 - 0.10.136 (In & Out Phase 5 step 5: the curve editor (Curves button), Save as new / Rename / Delete; Phase 5 fully built): not installed, Node 572 pass, rules-reviewer BLOCK fixed, PASS on the re-check, browser harness only, not run in Premiere or UXP, not bridge-tested, not pushed.
 - 0.10.135 (In & Out Phase 5 foundation: own presets, point curves, preset store, curve-graph rules; nothing visible changes): not installed, Node 553 pass, rules-reviewer PASS on the second pass (three smaller points of it fixed too), not bridge-tested, not pushed.
 - 0.10.134 (In & Out tiles: a pick is seen on the first click, after the user's "I have to double click"): installed, Node 495 pass, not pushed. The presses were always registered on the first click (log); the cause of not seeing them is not proven, each tile press now logs the tile's computed look. Awaiting the user's try.
@@ -32,6 +35,8 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - Local recognition experiments (`NEXT` profile) paused behind a development switch; the held-back runs were stopped.
 
 ## Waiting for a check in Premiere (newest first)
+- 0.10.138-0.10.140 subtitles: Max words, Case, Line break (does the bottom line come in colour, white, or with the tag shown as
+  text?), Export transcript with times. TODO SUB. [subtitles](docs/features/subtitles.md)
 - 0.10.130: clicks on the Motion and Brand settings no longer open other tabs or press buttons of other pages (the stray-press net skips
   hidden panes). The user's real use to confirm. [tracker](docs/features/tracker.md)
 - 0.10.136: In & Out curve editor and own presets (not installed): the Curves button, the editor's look and drag in Premiere, own tiles, the preview after a drag. [in-out](docs/features/in-out.md)
