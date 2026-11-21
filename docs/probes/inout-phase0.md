@@ -4,11 +4,12 @@ Plan: `../IN_OUT_PLAN.md`. Two halves:
 
 - **Desk half, done 2026-11-21:** what the code and earlier probes already settle (below). Read from the repo; nothing
   was run in Premiere.
-- **Live half, NOT RUN YET:** Premiere held a client project on 2026-11-21, so no probe ran. The scripts are in
-  `inout/` and have only been syntax-checked, never executed. Results go in the table at the end.
+- **Live half, partly run 2026-11-21:** P1-P5 and P8 passed; P6, P7 and P9 wait for test clips. Scripts in `inout/`,
+  results in the table at the end.
 
-The owned-Transform-or-Motion decision is **not made** until the live half is in. Phase 1 (`panel/inoutplan.js`) was
-built first on the user's word, unit-neutral, so no live answer can invalidate it.
+The owned-Transform-or-Motion decision: the probes so far support the owned Transform for footage; text graphics wait
+for P9. Not recorded in `DECISIONS.md` until the user says so. Phase 1 (`panel/inoutplan.js`) was built before the live
+half on the user's word, unit-neutral, so no live answer can invalidate it.
 
 ## Desk findings
 
@@ -88,7 +89,7 @@ printed in `before`, and `left: 0`. Stop at the first failure and clean up. A Tr
 |---|---|---|---|
 | P1 | Attaches, rest values, tag, picture unchanged at rest | A: `shot` + `meas`; `run add.js`; `shot` + `meas` | 12 parameters in the order above, rest values written down (Opacity and Shutter as read), `tag` 17.25, `last` true, `box` / `area` / `grad` identical |
 | P2 | Position unit, clipping | `run set.js 'const W={1:[0.75,0.5]};'`; measure; put back 0.5 | `cx` shift = 0.25 × layer width × Motion scale × fit × export scale (± 3 %), `cy` same; note `area` after / before |
-| P3 | Rotation, Scale, Opacity units | one `set` each, measure, put back: `{7:45}`, `{3:50}`, `{3:200}`, `{8:50}` (if the shape vanishes: `{8:0.5}`) | square's `w`, `h` × 1.41 with centre kept → degrees; halves / doubles around the centre; `peak` about half → 0-100 |
+| P3 | Rotation, Scale, Opacity units | one `set` each, measure, put back: `{7:45}`, `{3:50}`, `{3:200}`, `{8:50}` | square's `w`, `h` × 1.41 with centre kept → degrees; halves / doubles around the centre; `peak` about half → 0-100 |
 | P4 | Pivot and clipping on a clip moved with Motion | `run motion.js 'const MV={Position:[0.3,0.35],Scale:50};'` (keep `old`); baseline; P3's rotation and scale; `{1:[1.0,0.5]}`; restore Motion | centre within 1 px of the baseline; `area` 1.00 while inside the frame (about 0.5 = cropped at the layer's bounds) |
 | P5 | Per-frame keys + Shutter Angle really blur | `run bake.js 'const C={f0:5,n:10,x0:0.3,x1:0.7,sh:0};'`; `shot seqT[1]`; again with `sh:180` | 11 keys, `maxErrFrames` < 0.05, linear between keys; at 180° `w` grows by 0.4-0.6 of the per-frame travel and `grad` drops |
 | P6 | Blur's Transform + In/Out's on one clip | F1 with two hand-made Motion Position keys: `add.js`, `bake.js`, `state.js`; Keyframer "Read the selected clip" + `keyframer_info`; Apply with blur on; change amount, Apply; blur off, Apply. F2: the reverse order, then "Undo last" | tagged Transform's `posTimes` identical every time, never removed; note whether "Transform › Position" is listed |
@@ -107,11 +108,46 @@ Not fallback triggers: P5 fails (no blur, or sub-frame keys as `blurplan.js` doe
 the measured factor), P8 is one step per clip (say the number), the tag fails (record only), Opacity's scale is odd
 (use the measured factor).
 
-## Live results
+## Live results (2026-11-21, Premiere 2026, NEW TEST, sequence "SYNC – кам2 (4)")
+
+Run by the live tester through the bridge; no crash in any add, remove, 3-clip batch or undo. Probe clip: a camera clip on
+V2 with nothing under or above it (layer 2160x3840, fills the frame); for P4 it was set to Motion Position 0.3/0.35,
+Scale 50 and put back. Frames export at 270x480 RGBA; measured by difference against a baseline frame and from the
+alpha channel (empty picture = alpha 0), numbers only. Everything was cleaned up: every clip's chain is `Opacity > Motion`
+again, nothing tagged is left, the exported frames are deleted, the project was not saved.
 
 | # | Answer | Evidence |
 |---|---|---|
-| P1-P9 | not run | |
+| P1 | **Pass.** Attaches last, 12 parameters, the Skew Axis tag round-trips, the picture at rest is bit-identical | max pixel difference 0 before / after; tag read back 17.25; chain back to `before` after `clean.js` |
+| P2 | **Pass.** Position = fraction of the layer (x of its width, y of its height) | x 0.75: 68 px of 270 (expected 67.5); y 0.7: 96 px of 480 (exact) |
+| P3 | **Pass.** Rotation in degrees, clockwise positive; Scale in percent; **Opacity 0-100**, rest 100 | 45° and 20° fits (IoU 0.997 / 0.999; the opposite sign 0.63 / 0.77); Scale 50 → exactly half, centre kept; Scale 200 → 2.00 ± 0.01; Opacity 50 → alpha 127, 25 → 64, colour unchanged |
+| P4 | **Pass.** On a clip moved and scaled with Motion the pivot is the clip's own visible centre, Position is a fraction of the Motion-scaled picture, and **nothing is cropped at the layer's bounds** | rotation and scale keep the centre at (80.5, 167.5) exactly; x 0.75 → +34 px (33.75), x 1.0 → +67.6 (67.5), y 0.75 → +60 (60); area ratio 1.00 with the picture moved past its original rectangle |
+| P5 | **Pass.** Per-frame keys land exactly and Shutter Angle blurs them | 11 keys, error 3e-15 frame, linear between keys, no extra key at 0; at 180° the edge smears over 5 px for 10.8 px of travel per frame (0.46; expected 0.4-0.6), max alpha gradient 255 → 48 |
+| P6 | **Not run** | needs a clip with two hand-made Motion Position keys and the Keyframer's buttons |
+| P7 | **Not run** beyond speed 1, In 0 (exact, from P5) | no trimmed, 200 % or 50 % clip with nothing under it in the sequence |
+| P8 | **Pass.** Per press, not per clip: add = 2 Undo steps for 3 clips (append, tag), keys = 1, re-apply = 1, remove = 1 | `qe.project.undo()` through the host, state read after each step: every undo acted on all three clips at once |
+| P9 | **Not run** | no Premiere text graphic in the sequence |
+
+Rest values read after the add (index, UXP name, value): 0 Anchor Point [0.5, 0.5] · 1 Position [0.5, 0.5] · 2 "" (Uniform
+Scale) true · 3 Scale 100 · 4 " " (Scale Width) 100 · 5 Skew 0 · 6 Skew Axis 0 · 7 Rotation 0 · 8 Opacity 100 · 9 ""
+(Use Composition's Shutter Angle) true · 10 Shutter Angle 0 · 11 Sampling 0.
+
+What this means for the build: the Transform acts after Motion, around the clip's visible centre, so no anchor
+correction is needed; an offset of the sequence frame becomes Position by dividing by the clip's on-screen size as a
+fraction of the frame (Motion scale × fit); `o` × 100 is Opacity. The first Apply is **3 steps if the tag is its own
+step** (append, tag, keys): write the tag in the same transaction as the keys to keep the plan's 2.
+
+Against "What forces the Motion fallback": P1 and P2 / P4 do not force it. P9 (text) and P6 (next to the blur) are still
+unknown. Recommendation: owned Transform for footage and stills now; text graphics stay undecided until P9.
+
+Notes from the run: the active sequence changed once while the tester was reading (not by the tester): `pre.js` should
+guard the sequence name. `shot` prints the exact path (`<stamp>_<n>_dev_<name>.png`); `meas` must read the alpha channel
+(`cv2.imread(f, -1)`), since a grayscale read loses Opacity and the layer mask, and camera footage is not a bright shape
+on black.
+
+Still to run, and what it needs in the active sequence (V2 or V3, nothing under or above, 2 s or more): **P7** a clip
+with In > 0, the same at 200 % and at 50 %; **P9** a text made in Premiere; **P6** two clips, each with two Motion
+Position keys.
 
 ## Open questions for the user
 

@@ -20,7 +20,7 @@ Remove takes the owned Transform off again.
 - Measured limits to reuse: Scale above about 400 % blends straight (`blurplan.SCALE_MAX`); pins at each end of a key run.
 
 ## Decisions
-- Owned Transform, not Motion: recommended in the plan, NOT decided. Waits for probes P1-P9.
+- Owned Transform, not Motion: recommended in the plan, supported for footage by probes P1-P5 and P8 (2026-11-21); text graphics wait for P9. Not in DECISIONS yet.
 - Open (the user's word needed): Strength changes nothing on presets that must start or end fully off screen (see Status).
   Also to look at with it: at Strength 200, In Bounce's first hop goes all the way back off screen before landing.
 
@@ -29,10 +29,10 @@ Remove takes the owned Transform off again.
   key-cap error; `times()` frame to media seconds; `find`, `groups`, `animates`, `needs`, `defaultFrames` for the page.
   Curves reused from `keyframeplan.js`, scale cap from `blurplan.js`.
 - Not yet built: `panel/premiere-inout.js` (Phase 2), `panel/inout.js` (Phase 3).
-- Probes: `docs/probes/inout-phase0.md`, scripts `docs/probes/inout/` (syntax-checked only, never run).
+- Probes: `docs/probes/inout-phase0.md`, scripts `docs/probes/inout/` (P1-P5, P8 run 2026-11-21).
 
 ## Status
-- Since 0.10.124. Phase 0 desk findings done; live probes P1-P9 NOT run.
+- Since 0.10.124. Phase 0 desk findings done; live probes P1-P5 and P8 passed (units: Position = fraction of the layer, Scale %, Rotation degrees clockwise, Opacity 0-100; no crop at the layer's bounds; blur works; Undo per press). P6, P7, P9 not run.
 - Phase 1 (`inoutplan.js`): built and Node-tested, outside Premiere. Not wired, not installed, not in the zip.
 - Phase 2 (apply, remove, record): not started. Phases 3-5: TODO IO.
 - Open questions: (a) owned Transform or Motion fallback, after the probes; (b) Strength on presets that cannot travel less

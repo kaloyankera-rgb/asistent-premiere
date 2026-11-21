@@ -32,10 +32,10 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 
 ## IO. In & Out animations (`docs/IN_OUT_PLAN.md`, the user's approval 2026-11-21; 0.10.124 = Phase 0 desk + Phase 1 maths)
 Nothing in the panel yet. Phase 1 is `panel/inoutplan.js`, unit-neutral; no page, no Premiere code, not in the zip.
-- [ ] Run live probes P1-P9 in NEW TEST through the bridge (`docs/probes/inout-phase0.md`, scripts `docs/probes/inout/`; first
+- [ ] Run the remaining live probes P6, P7, P9 in NEW TEST (P1-P5 and P8 passed 2026-11-21, results in the doc). Before: through the bridge (`docs/probes/inout-phase0.md`, scripts `docs/probes/inout/`; first
       `ASISTENT_LANE=26 python3 scripts/dev_cmd.py ping` must answer NEW TEST). Not run on 2026-11-21: Premiere held a client
       project. Write each result in the table of the probe page; stop at the first failure and clean up as it says.
-- [ ] Record the decision owned Transform or Motion fallback in `DECISIONS.md` only after P1-P9 (none made yet).
+- [ ] Record the decision owned Transform or Motion fallback in `DECISIONS.md` on the user's word (footage: owned Transform supported by P1-P5, P8; text waits for P9).
 - [ ] USER: clips A-F in NEW TEST: are the old test squares (V3, 650-890 s, bin "Asistent test") still there, or prepare new ones?
 - [ ] USER: Strength. It changes nothing on In Slide, Whip, Fade, Zoom In and Out Slide, Whip, Drop, Shrink, Fade (a clip that
       must start or end fully off screen cannot travel less). The plan says "Strength scales travel distance": keep the

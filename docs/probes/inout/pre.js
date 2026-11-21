@@ -2,6 +2,8 @@
 const M='AE.ADBE Geometry2',TAG=17.25,tt=(s)=>ppro.TickTime.createWithSeconds(s),mb=premiere.maybe;
 const sx=(t)=>(t&&Number.isFinite(t.seconds)?t.seconds:undefined);
 const uw=(v)=>{for(let i=0;i<4&&v&&typeof v==='object'&&'value' in v;i++)v=v.value;return v&&Number.isFinite(v.x)?[v.x,v.y]:v;};
+// optional prefix const SEQ='name'; refuses when another sequence became active (it happened once mid-run)
+if(typeof SEQ!=='undefined'&&sequence.name!==SEQ)return {error:'active sequence changed: '+sequence.name};
 const tl=await premiere.readTimeline(project);
 const sel=tl.items.filter((x)=>x.selected&&x.kind==='video');
 const comps=async(ti)=>{const ch=await ti.getComponentChain(),n=await ch.getComponentCount(),all=[];for(let i=0;i<n;i++){const c=await ch.getComponentAtIndex(i);all.push({c,i,m:(await mb(c,'getMatchName'))||''});}return {ch,n,all,geo:all.filter((o)=>o.m===M)};};
