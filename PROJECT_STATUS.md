@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.122 (2026-11-21)
+# Project status: Asistent 0.10.123 (2026-11-21)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,9 +6,9 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
-- 0.10.122 (and 0.10.121) committed, NOT installed yet (`scripts/release_mac.sh` waits for the user's go); 0.10.120 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`,
+- 0.10.123 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`,
   pushed to `origin/main` at `348d2ee`.
-- Last published release: v0.10.118 (2026-11-19). 0.10.119 and 0.10.120 are pushed but not released, 0.10.121 and 0.10.122 committed, not pushed, so the editors'
+- Last published release: v0.10.118 (2026-11-19). 0.10.119 and 0.10.120 are pushed but not released, 0.10.121-0.10.123 committed, not pushed, so the editors'
   panels do not offer them yet. Releases only when the user asks (`scripts/publish_release.sh`).
 - Windows: largely untested (`scripts/setup_win.ps1` and the Windows installer never run by the user). See
   [install-and-update](docs/features/install-and-update.md).
@@ -41,11 +41,12 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - Full checklists per version: `TODO.md` (sections V119, V96 and on).
 
 ## Open problems
-- Cut silences fails on a 59.97361 fps sequence (iPhone footage): the host razor lands wrong; 0.10.122 stops with a message. `BUGS.md`.
+- Cut silences on a 59.974 fps sequence (iPhone footage): 0.10.122 stopped the wrong cut on the user's "Lokal 2"; 0.10.123 writes the
+  razor's timecode itself (built from that log, the user's next press confirms). `BUGS.md`.
 - Keyframer's record key cannot tell Premiere's graphics apart. `BUGS.md`, [keyframer](docs/features/keyframer.md).
 - Everything else open: `BUGS.md` (open bugs and platform limits) and `TODO.md` (tasks in priority order).
 
 ## Next
-1. Install 0.10.122, then the probe on an iPhone-clip sequence in NEW TEST (TODO V122) and the user's checks above.
-2. Release 0.10.122 when the user asks.
+1. The user's next press of Cut silences on "Lokal 2" (0.10.123), then the checks above (TODO V122).
+2. Release 0.10.123 when the user asks.
 3. `TODO.md` in its order.

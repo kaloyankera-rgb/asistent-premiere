@@ -25,7 +25,9 @@
 - "4a1a lokali" (IMG_9422, iPhone, 59.97361 fps), 2026-11-16 06:27 and 06:28, 0.10.115: the host razor reported no refusal but
   cut in the wrong places, clean answered "Premiere did not cut the new sequence ... where it was asked to" and an uncut "NO
   SILENCE ..." copy stayed each time. Likely the timecode string given to QE `razor` (probed only at 29.97). 0.10.122 checks the
-  razor and stops with the rate named, before anything is removed; the fix waits for a probe (TODO V122). The copies path's
+  razor and stops with the rate named, before anything is removed. 2026-11-21 13:09, "Lokal 2": frame 16058 was asked as
+  "00:08:55:08" (30 to the second), the razor read 60 and cut at twice the time; 0.10.123 writes the string itself, not yet
+  confirmed by a press (TODO V122). The copies path's
   shell XML writes 59.94 for the same sequence (`xmeml.py`).
 - Words for hesitations and takes are read from both microphones of a split L / R clip (TODO AUD).
 

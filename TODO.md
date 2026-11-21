@@ -8,10 +8,9 @@ Work rule for every step: implement → tests → bump version (manifest + confi
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
 ## V122. Verify 0.10.122 (2026-11-21): Cut silences after the audit
-- [ ] Install (`scripts/release_mac.sh`, the user's go), restart Premiere.
-- [ ] PROBE (Claude through the bridge or the user, NEW TEST): a sequence made from an iPhone clip (59.97361 fps), Cut silences,
-      Automatic: expect "Stopped at cutting ... <rate>"; read the log line with the razor's timecode and clip counts, then build
-      the real fix where `host.jsx` says "THE PROBE RESULT GOES HERE".
+- [x] Install (0.10.122, then 0.10.123, 2026-11-21).
+- [ ] USER: Cut silences again on "Lokal 2" (59.974 fps): 0.10.123 hands the razor "00:04:27:38"-style strings. Expect a cut "as
+      written"; if it stops at the first cut, the log line `roughcut/cut razor` has `tc` and `tc_own` for the next try.
 - [ ] USER: Automatic on a normal sequence: one second, "Done", nothing missing; Cancel during a long cut stops it.
 - [ ] USER: tick Remove hesitation sounds: the options say where the words are read, before the press.
 - [ ] USER: Manual dB far too high: asks for a second press, nothing made.

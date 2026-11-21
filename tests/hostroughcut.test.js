@@ -269,7 +269,8 @@ test("razor: no clip edge at an asked frame stops the cut, naming the frame rate
   h.shift.frames = 7;                                                      // Premiere said yes and cut elsewhere
   const r = t.call("razor", { cuts, i: 0 });
   assert.strictEqual(r.ok, false);
-  assert.match(r.msg, /no clip edge at 2 of 2 cut frames/);
+  assert.match(r.msg, /the first cut \(frame 100, asked as \d+\) is not there/);        // stopped at the first cut, not after all of them
+  assert.strictEqual(r.i, 1);
   assert.match(r.msg, /runs at [\d.]+ fps/);
   assert.match(r.msg, /The unfinished sequence "N v1" can be deleted; your own sequence was not changed/);
   assert.strictEqual(r.refused, 0);
@@ -311,4 +312,21 @@ test("finish: the tracks the editor had locked are locked again in the duplicate
   assert.strictEqual(fin.relocked, 1);
   assert.deepStrictEqual([dup.v[0].locked, dup.v[1].locked, dup.a[0].locked], [false, true, false]);
   assert.strictEqual(src.v[1].locked, true);                               // only read
+});
+
+test("razor (0.10.123): a plain timecode is written with the sequence's own frame base, not Premiere's formatted one", () => {
+  // "Lokal 2" (iPhone, 59.974 fps): getFormatted counted 30 frames to the second, the razor reads 60 -> cuts at twice the time
+  const h = host();
+  const TPF60 = 4235462784;
+  const tc = (ticks, base) => { const f = Math.round(Number(ticks) / TPF60), s = Math.floor(f / base), two = (n) => String(n).padStart(2, "0");
+    return `${two(Math.floor(s / 3600))}:${two(Math.floor(s / 60) % 60)}:${two(s % 60)}:${two(f % base)}`; };
+  const tm = { ticks: String(16058 * TPF60), getFormatted: function () { return tc(this.ticks, 30); } };
+  assert.strictEqual(tm.getFormatted(), "00:08:55:08");                    // what the user's log shows
+  assert.strictEqual(h.ctx.as_cut_timecode(tm, {}, TPF60), "00:04:27:38"); // frame 16058 = 267 s and 38 frames at 60 to the second
+  // at a standard rate both ways give the same string
+  const TPF25 = 10160640000, t25 = { ticks: String(1234 * TPF25), getFormatted: () => "00:00:49:09" };
+  assert.strictEqual(h.ctx.as_cut_timecode(t25, {}, TPF25), "00:00:49:09");
+  // drop-frame and non-timecode displays keep Premiere's own string
+  assert.strictEqual(h.ctx.as_cut_timecode({ ticks: "8475667200", getFormatted: () => "00;00;01;00" }, {}, 8475667200), "00;00;01;00");
+  assert.strictEqual(h.ctx.as_cut_timecode({ ticks: String(500 * TPF60), getFormatted: () => "500" }, {}, TPF60), "500");
 });

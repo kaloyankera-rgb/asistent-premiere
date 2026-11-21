@@ -740,6 +740,22 @@ function as_cut_unsplit(all, cuts) {
     return miss;
 }
 
+// The timecode string QE's razor is given for a tick time. Premiere's own Time.getFormatted() is right for a drop-frame
+// sequence (probed at 29.97, ";" in the string) and when the display is not a timecode at all (frames, feet). For a plain
+// timecode it is written here, counting frames with the sequence's own whole-number frame base, because getFormatted can
+// count with another base than the razor reads with (0.10.123, the user's "Lokal 2", iPhone footage at 59.974 fps,
+// 2026-11-21: frame 16058 came out as "00:08:55:08", 30 frames to the second, the razor read 60 to the second and cut at
+// twice the time: 434 of 436 cuts were not where they were asked). At the standard rates both give the same string.
+function as_cut_timecode(tm, st, tpf) {
+    var own = String(tm.getFormatted(st.videoFrameRate, st.videoDisplayFormat));
+    if (own.indexOf(";") >= 0 || own.split(":").length !== 4) return own;
+    var base = Math.round(254016000000 / tpf), f = Math.round(Number(tm.ticks) / tpf);
+    if (!(base >= 1) || !(f >= 0)) return own;
+    var two = function (n) { return (n < 10 ? "0" : "") + n; };
+    var sec = Math.floor(f / base);
+    return two(Math.floor(sec / 3600)) + ":" + two(Math.floor(sec / 60) % 60) + ":" + two(sec % 60) + ":" + two(f % base);
+}
+
 function as_cut_razor(a, tg, until) {
     var seq = tg.seq, proj = tg.project, tpf = Number(seq.timebase), cuts = a.cuts || [], i = Number(a.i) || 0;
     if (!app.project.activeSequence || app.project.activeSequence.sequenceID !== seq.sequenceID) proj.openSequence(seq.sequenceID);
@@ -763,17 +779,25 @@ function as_cut_razor(a, tg, until) {
         }
         var tm = new Time();
         tm.ticks = String(cuts[i].f * tpf + zero);
-        // PROBE (open, needs Premiere; user's log 2026-11-16): on a 59.97361 fps sequence (iPhone footage) this razor reported
-        // success (refused 0) but cut at other places than asked, so the duplicate stayed uncut. The string handed to the
-        // razor is Time.getFormatted() with the sequence's own display format; a drop-frame or odd-rate sequence may need
-        // another string (a frame count, a non-drop timecode), or QE's razor may round to its own grid. The first razor's
-        // string and the clip counts before and after it come back as tc / before / after_first (and go to the engine log).
-        // THE PROBE RESULT GOES HERE: what the string looked like on such a sequence, where the cut landed, and the fix.
-        var tc = tm.getFormatted(st.videoFrameRate, st.videoDisplayFormat);
+        // the string is as_cut_timecode's (see there for what the odd frame rate showed). The first razor is checked at
+        // once: its string, Premiere's own string and the clip counts come back as tc / tc_own / before / after_first (and
+        // go to the engine log), and when it did not land the cut stops there, with one stray cut instead of hundreds
+        var tc = as_cut_timecode(tm, st, tpf);
         if (!qs.razor(tc)) refused++;
         if (probe && i === 0) {
+            var now = as_cut_clips(seq, tpf);
             ev.tc = String(tc);
-            ev.after_first = as_cut_clips(seq, tpf).length;
+            ev.tc_own = String(tm.getFormatted(st.videoFrameRate, st.videoDisplayFormat));
+            ev.after_first = now.length;
+            if (as_cut_unsplit(now, [cuts[0]]).length) {
+                as_cut_lock(seq.videoTracks, false);
+                as_cut_lock(seq.audioTracks, false);
+                var first = { i: 1, done: false, refused: refused, rate: as_cut_rate(tpf), unsplit: 1 };
+                for (var k0 in ev) first[k0] = ev[k0];
+                return as_result(false, "Premiere did not cut the new sequence \"" + a.name + "\" where it was asked to: the first cut (frame " + cuts[0].f +
+                    ", asked as " + ev.tc + ") is not there; the sequence runs at " + first.rate + ", which Premiere's razor may not handle. Nothing was removed. " +
+                    "The unfinished sequence \"" + a.name + "\" can be deleted; your own sequence was not changed.", first);
+            }
         }
     }
     as_cut_lock(seq.videoTracks, false);

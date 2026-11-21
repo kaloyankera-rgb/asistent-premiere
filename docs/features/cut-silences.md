@@ -68,7 +68,8 @@ own clips cut. The editor's sequence is not touched. Preview shows what would go
 ## Status
 - Since 0.10.65 (Silences), rebuilt 0.10.96, host cut 0.10.108, ElevenLabs words 0.10.121, audit fixes 0.10.122 (not installed).
 - Real use (logs to 2026-11-21): no real-project result since 0.10.108: the host razor fails on a 59.97361 fps sequence
-  (iPhone footage; now detected and stopped, the fix needs a probe in NEW TEST), and AI-assisted left on cost minutes.
+  (iPhone footage; stopped by 0.10.122's check on "Lokal 2", the razor's timecode rewritten in 0.10.123 from that log,
+  unconfirmed), and AI-assisted left on cost minutes.
   The user's own presses of 0.10.109 in NEW TEST (2026-11-15) cut as written. 0.10.122 has not run in Premiere.
 - Windows: untested.
 - Limits (BUGS "Limits of Cut silences"): odd frame rates stop instead of cutting; no audio crossfades or J/L cuts; Manual dB

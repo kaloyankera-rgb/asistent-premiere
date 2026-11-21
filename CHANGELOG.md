@@ -31,6 +31,19 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.123 - Cut silences: the razor's timecode on an odd frame rate (2026-11-21, installed, the user's next press to confirm)
+- The user's first press of 0.10.122 ("Lokal 2", 4a1a, iPhone clips, 59.974 fps, 29:45, 436 cuts): the new check stopped the cut
+  with "no clip edge at 434 of 436 cut frames", nothing removed, and logged the evidence the probe was waiting for: frame 16058
+  (4:27 at this rate) was handed to the razor as "00:08:55:08". `Time.getFormatted` counted 30 frames to the second; the razor
+  reads the string with the sequence's 60, so every cut landed at twice its time.
+- `host.jsx as_cut_timecode`: a plain timecode is written by the host with the sequence's own whole-number frame base
+  ("00:04:27:38" for that frame); drop-frame strings (probed at 29.97) and non-timecode displays stay Premiere's own. The first
+  razor is checked at once and the cut stops there if it did not land (one stray cut in the duplicate instead of hundreds);
+  the log carries both strings (`tc`, `tc_own`).
+- Built from the log, not from a probe: the user's project was open, the bridge works only in the test projects. That the razor
+  counts 60 frames to the second on this sequence is inferred from the cuts landing at twice the time; the next press shows it.
+- Tests: 1 new Node (412 pass); Python unchanged (954).
+
 ## 0.10.122 - Cut silences audited and repaired: the host cut, the ElevenLabs path, takes and detection (2026-11-21, not installed yet, untested in Premiere)
 The user: "do an audit with the agents ... on the rest of the cut silences", then "use the agents to fix them". Four read-only
 audits (logs of real use, detection, engine code, panel and host), three builders, one review that blocked the first version
