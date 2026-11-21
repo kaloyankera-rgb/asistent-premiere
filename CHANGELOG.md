@@ -31,6 +31,20 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.124 - In & Out animations: Phase 0 desk findings and Phase 1 maths (2026-11-21, not installed, not wired)
+- Plan `docs/IN_OUT_PLAN.md` (approved 2026-11-21): In and Out animations for the selected clips, with separate preset lists.
+  This version is the first two steps only. Nothing is in the panel yet: no page, no Premiere code, not in the zip.
+- New `panel/inoutplan.js` (pure, Node-tested): `IN_PRESETS` (20: Slide, Glide, Whip, Overshoot, Elastic, Bounce, Drop;
+  Pop, Pop Soft, Pop Elastic, Pop Bounce, Slam, Zoom In; Spin In, Swing, Twist Pop, Roll In; Fade, Slide Fade, Pop Fade) and
+  `OUT_PRESETS` (13: Slide, Whip, Anticipate, Drop; Shrink, Pop Out, Zoom Out; Spin Out, Twist Shrink, Roll Out, Swing Out;
+  Fade, Slide Fade). `plan()` gives one row per sequence frame (offset, scale, rotation, opacity), with pins, shortened
+  frames when In and Out meet, and a key-cap error. The maths is unit-neutral on purpose: no Premiere units are assumed yet.
+  Curves are reused from `keyframeplan.js` and scale is capped by `blurplan.SCALE_MAX`; nothing is copied.
+- Desk findings in `docs/probes/inout-phase0.md`: a second Asistent Transform next to the blur's, the hooks it needs,
+  Transform units from the repo, key times and Undo steps. The live probes P1-P9 are written, not run (Premiere held a
+  client project; the scripts in `docs/probes/inout/` are syntax-checked only). The owned-Transform decision waits for them.
+- Tests: `tests/inoutplan.test.js` 21 new. Node 433 pass (412 before). Python unchanged (954 pass, 24 skipped).
+
 ## 0.10.123 - Cut silences: the razor's timecode on an odd frame rate (2026-11-21, installed, the user's next press to confirm)
 - The user's first press of 0.10.122 ("Lokal 2", 4a1a, iPhone clips, 59.974 fps, 29:45, 436 cuts): the new check stopped the cut
   with "no clip edge at 434 of 436 cut frames", nothing removed, and logged the evidence the probe was waiting for: frame 16058

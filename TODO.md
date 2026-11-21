@@ -30,6 +30,29 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
       next / previous part in a long preview, Scribe speakers and laughter. Dead code to remove: Safe / Smart, the Fast switch.
 - [ ] Each clip is decoded three times on the words path; the final check reads the whole new sequence through UXP again.
 
+## IO. In & Out animations (`docs/IN_OUT_PLAN.md`, the user's approval 2026-11-21; 0.10.124 = Phase 0 desk + Phase 1 maths)
+Nothing in the panel yet. Phase 1 is `panel/inoutplan.js`, unit-neutral; no page, no Premiere code, not in the zip.
+- [ ] Run live probes P1-P9 in NEW TEST through the bridge (`docs/probes/inout-phase0.md`, scripts `docs/probes/inout/`; first
+      `ASISTENT_LANE=26 python3 scripts/dev_cmd.py ping` must answer NEW TEST). Not run on 2026-11-21: Premiere held a client
+      project. Write each result in the table of the probe page; stop at the first failure and clean up as it says.
+- [ ] Record the decision owned Transform or Motion fallback in `DECISIONS.md` only after P1-P9 (none made yet).
+- [ ] USER: clips A-F in NEW TEST: are the old test squares (V3, 650-890 s, bin "Asistent test") still there, or prepare new ones?
+- [ ] USER: Strength. It changes nothing on In Slide, Whip, Fade, Zoom In and Out Slide, Whip, Drop, Shrink, Fade (a clip that
+      must start or end fully off screen cannot travel less). The plan says "Strength scales travel distance": keep the
+      exception, or change the plan? `needs().strength` lets the page grey the control out.
+- [ ] USER: may Phase 2 add two protective hooks in existing files: a +1 Geometry2 count check in the blur's `addOwn`
+      (`premiere-blur.js` 241-246), and `readSelection` in `premiere-keyframes.js` skipping In/Out's Transform (55-58).
+- [ ] Open: the Anchor page's Transform target edits In/Out's Transform when it is the only one on the clip (`premiere-anchor.js`
+      21-31): guard it, or say it on the feature page.
+- [ ] Phase 2: `panel/premiere-inout.js` (apply, re-apply, remove, record in `asistent.inout.v1`), keys in one transaction,
+      tag per the probe page; add `panel/inoutplan.js` to the zip list in `scripts/package_ccx.sh` in this phase (the wiring test
+      expects it once a panel file requires it); live test through the bridge in NEW TEST.
+- [ ] Phase 3: page `panel/inout.js`, hooks in `panel/index.html`, `panel/main.js`, `panel/devbridge.js` (`inout_info`), the
+      packaging list, wiring tests. USER: one look in Premiere (layout needs it, the bridge cannot see the panel).
+- [ ] Phase 4: motion blur toggle and a small preview (reuse the Keyframer's preview).
+- [ ] Phase 5 (later): per-property curve editor (reuse `keyframer.js`) and "Save as new preset" into `asistent.inout.presets`.
+- [ ] Each phase: version bump (manifest + config), CHANGELOG, PROJECT_STATUS, TODO, BUGS, PROGRESS, INDEX. Push only on the user's yes.
+
 ## V121. Verify 0.10.121 (2026-11-21): Cut silences' AI words by ElevenLabs
 - [ ] USER: in NEW TEST select a talking clip, Silences > options: Detect = AI-assisted, Remove hesitation sounds on, Preview:
       "N words recognised by ElevenLabs Scribe v3" and noticeably faster than before; then Cut silences.
@@ -189,10 +212,11 @@ first; brand profiles deferred.
   Stash of clips likely via exportAsProject/importSequences, OpenCV MIL + optical flow, no scripted adjustment layer.
 - [x] P-A6 drag in the panel works (SVG and divs); the temporary probe code was removed in 0.10.31.
 - [ ] Phase 0 leftovers for the builds: P-A2 on a sped-up clip (Keyframer), P-A4 with a hand-drawn tracked mask (optional).
+  (The sped-up clip is also probe P7 in In & Out, TODO IO; kept here until P7 runs.)
 - [x] **A1b Keyframer bounce** (0.10.33, verified through the bridge). USER: try Elastic on a title popping in and Ping-pong
   on a logo; say if the default strength (20 % overshoot, 50 % height) feels right.
 - [x] **A1 Keyframer** (0.10.32, branch feature/keyframer; verified through the bridge). USER: drag the handles, try Overshoot
-  on a real animation; check a sped-up clip. Later if wanted: rename / delete saved curves, several clips at once.
+  on a real animation; check a sped-up clip (also probe P7, TODO IO). Later if wanted: rename / delete saved curves, several clips at once.
 - [x] **A2 Stash v1** (0.10.37, verified through the bridge). USER: save a real title animation and put it on another clip.
   Later: a thumbnail, rename in the panel, stashes shared through the office (with EL0).
 - [x] **A2b Stash clips v2** (0.10.50, verified through the bridge in NEW TEST and TEST). The user said "go" without choosing
