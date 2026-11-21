@@ -16,10 +16,12 @@ rather than guess.
 1. Version in BOTH `panel/manifest.json` (`"version"`) and `engine/asistent/config.py` (`VERSION`), equal.
 2. `CHANGELOG.md`: new entry at the top of the right section, in the style of the entries already there
    (read the first ~40 lines). What changed and why, in plain English.
-3. `PROJECT_STATUS.md`: grep for the feature; REPLACE outdated lines (do not append history), mark each item
-   verified in Premiere / works through the bridge / unverified.
+3. The feature's page in `docs/features/` (map: `docs/INDEX.md`): update Status (version, verified in Premiere /
+   through the bridge / unverified), and Key points, Decisions, Code map, Tests where the change touches them, plus
+   its row in `docs/INDEX.md`. A new feature: a new page from `docs/features/_TEMPLATE.md` (≤ ~80 lines) and a row.
+   `PROJECT_STATUS.md`: REPLACE outdated lines (do not append history), keep it under ~120 lines.
 4. `TODO.md`: tick or remove the finished task, add new follow-ups the reports name.
-5. `BUGS.md`: add new bugs or limits, remove fixed ones.
+5. `BUGS.md`: add new bugs or limits; a fixed bug leaves the file (its fix is in CHANGELOG).
 6. `PROGRESS.md`: one dated line (`- YYYY-MM-DD: X.Y.Z ...`) with versions, test counts and what is not verified.
    Append at the end; never read the file whole (tail it).
 7. `DECISIONS.md` only if the caller says a decision was made.
@@ -27,8 +29,10 @@ rather than guess.
    pre-commit hook in `scripts/githooks` refuses a code commit without both staged).
 
 ## Quick Search (`tools/premiere-barzo`)
-Version in `CSXS/manifest.xml` and the "Current version" line of its `CLAUDE.md`; `PROJECT_STATE.md`
-(replace outdated lines); one dated line in `PROGRESS.md` (that log is in Bulgarian: match it).
+Version in `CSXS/manifest.xml` and the "Current version" line of its `CLAUDE.md`; the feature's page in
+`docs/features/` and its row in `docs/INDEX.md` (Mac and Windows status separately; a new feature gets a page from
+`_TEMPLATE.md`); `PROJECT_STATE.md` (replace outdated lines); one dated line in `PROGRESS.md` (that log is in
+Bulgarian: match it).
 
 ## Rules
 - Only the doc and version files above. No source edits, no `git add`/`commit`/`push`, no release scripts.

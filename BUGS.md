@@ -3,12 +3,9 @@
 - **Test bridge `fill` on a checkbox (Premiere 26.5.2, 2026-11-11):** `dispatchEvent(new Event("change"))` throws "Cannot read
   properties of undefined (reading 'detail')"; the box is set before it, the change handler does not run (a stored preference is
   not saved). Bridge only; the editor clicking a box is not affected. Fix: dispatch in try/catch or call the handler.
-> Last fully reviewed at 0.9.18. Later findings (0.9.19-0.9.41) are in `PROJECT_STATUS.md` and `PROGRESS.md`; folding them in is open task T1 in `TODO.md`.
-
-## FIXED (0.10.120): subtitles froze at "Aligning the words to the sound…"
-- ElevenLabs wrote a shout as one 1000-letter word and the dictionary's neighbour search (used when the project has learned
-  fixes or correction lines) ran for minutes, holding the whole engine. CHANGELOG 0.10.120. Still true: a long pure-Python
-  step in a job keeps the engine from answering the panel until it ends.
+> Open bugs, limits and warnings only. A fixed bug goes into `CHANGELOG.md` and leaves this file; the fixed entries moved
+> out on 2026-11-21 are in [docs/history/BUGS_fixed_to_0.10.120.md](docs/history/BUGS_fixed_to_0.10.120.md). Per feature:
+> the Status section of its page in `docs/features/` ([docs/INDEX.md](docs/INDEX.md)).
 
 ## Limits of subtitles by ElevenLabs (0.10.119)
 - The sound of the selected clips leaves the computer. ElevenLabs keeps uploads by default; Asistent deletes each transcript
@@ -19,25 +16,10 @@
 - The dictionary repair is off after Scribe, so a by-ear spelling it makes stays and is only marked.
 - A window read here because ElevenLabs failed uses the 0.10.118 recognition (slow); the result line says so.
 
-## FIXED (0.10.112): a Tint on text made in Premiere drew nothing
-- Appended to the clip's effects it lands after the graphic's Text layer, where Premiere does not draw it; inserted before the
-  Graphic group it colours the text. CHANGELOG 0.10.111-0.10.115.
-
 ## Premiere names its recovery copy as the open project for a moment (2026-11-15, Premiere 26.5.3)
 - While it auto-saves, `Project.getActiveProject().path` can read …/Adobe Premiere Pro Auto-Save/RecoveryProjects/<name>--<id>.prproj.
   Auto import ignores such a path (0.10.114); other features that key on the project path (Show exports, Subtitle Learning) may
   see it for one poll.
-
-## FIXED (0.10.110): Cut silences left 1-frame slivers and gaps between the clips
-- The 10 ms plan edges rounded to the frame before a sound clip's first frame: one camera kept a frame the others did not. Cut
-  edges now snap onto clip edges within a frame; keep-the-spaces drops flashes. CHANGELOG 0.10.110.
-
-## FIXED (0.10.108): Cut silences crashed Premiere 26.5.3 on many clips (52 clips, 85 pieces)
-- The crash was inside Premiere's UXP layer while it handed the panel a copy of a clip. The host now cuts a duplicate of the sequence instead (no copies): 17 runs, 0 crashes. CHANGELOG 0.10.108-0.10.109. The copies way remains only as a fallback without the host for at most 40 pieces.
-- NEW TEST now holds about 75 "NO SILENCE – SYNC – кам2 (4) vN" sequences and one "HOSTPROBE" from these runs (the user may delete them); it held about 60 "NO SILENCE – SYNC – кам2 (4) vN" sequences from these runs: delete them.
-
-## Superseded: the 0.10.98 batch limit (kept, harmless)
-- Many short clips (49 clips, 94 and 133 pieces) went into one batch; Premiere 26.5.3 crashed in UXP's transaction callback. Batches are now at most 20 pieces. The exact limit is not known (58 worked, 94 crashed).
 
 ## Limits of Cut silences 0.10.96 (known, by design or not built)
 - No audio crossfade at the cuts and no J / L cuts: UXP 26 has no audio-transition action; the host (QE) route is not probed.
@@ -45,32 +27,6 @@
 - Hesitation sounds go only when they stand alone between two pauses, and only those Whisper writes down (it often leaves them out).
 - A repeated take said again without a pause is listed, never cut. Takes more than 90 s apart are not matched (`takes.WINDOW_S`).
 - The preview's dynamic checkboxes and text-field `change` events were never run in UXP (browser preview only).
-
-## Fixed in 0.10.95, not yet confirmed: Cut silences kept people talking further away; clone errors half-ran
-See CHANGELOG 0.10.95. The 0.10.94 crash fix worked (05:49: 202 pieces in 15 batches); three later presses on the "Lokali" clip
-hit "Illegal Parameter type" / "script object is no longer valid" and then a crash (05:52:40). The refusal's cause is unknown;
-a refused piece is now skipped and named. Still open: „съседание“ for „състезание“ (Whisper hears it so every time).
-
-## Fixed in 0.10.94, not yet confirmed by the user: Cut silences crashed Premiere on a long clip with many cuts
-Three crashes 2026-11-15 05:09-05:10 (4a1a ALPHA, IMG_9423.MOV 492.8 s, -30 dB, 101 cuts): the whole-clip clones reached 28.6
-hours of timeline. Now in batches within 2 hours (CHANGELOG 0.10.94). The exact limit was not reproduced (the user's Premiere was
-open; no crash test there): if it happens again with batches, the next suspect is the number of clones per transaction.
-
-## Fixed in 0.10.94: the dictionary turned heard words into different words („съседни“, „Кара“)
-See CHANGELOG 0.10.94. Still possible: a same-syllable near-miss (асимулатор -> асимилатор), listed among the changed words.
-
-## Fixed in 0.10.90: Anchor refused a text made in Premiere ("source media is unavailable") and animated Scale / Rotation
-- A Type-tool graphic has no project item; it now counts as the sequence frame. Limit: Premiere gives no script the text's box
-  (Source Text is null / binary), 0.10.91 measures the letters from two renders instead (two extra Undo steps that cancel out; refused when every Opacity is animated).
-
-## Fixed 2026-11-12: the translator crashed pytest (and macOS reported "Python quit unexpectedly")
-sentencepiece is built with SWIG, which warns on Python 3.12 while it sets itself up; under the test command's `-W error` the
-warning became an error inside its C code and left it half set up, so Python crashed while loading the model or when unloading
-it at exit (5 crash reports 2026-11-11/12, all from test runs started in the terminal, none from the engine, which never runs
-with -W error). `tests/conftest.py` imports it once with only that warning ignored; the real-model tests run again (12 pass).
-
-## Fixed in 0.10.70: Auto import took files from deep inside the watched folder (the vault's screenshots)
-See CHANGELOG 0.10.70. NEW TEST still holds the 928 imported screenshots (bin MUSIC): delete them by hand.
 
 ## Open bugs
 - **Premiere crashed on Exposure +0.5 pressed twice fast (2026-11-18 11:48, the user's GStroy project, 26.5.3):** two clips
@@ -155,8 +111,8 @@ Asistent put them, so nothing wrong is removed, but the record of one graphic ca
 (0.10.72) use track + start as well. Fix the record key the same way (keeping old records readable) when Keyframer is next changed.
 
 ## Not verified in Premiere (implemented)
-- 0.10.71 Brand tab: not installed, not run in Premiere (docs/BRAND_KIT.md "Still to check"). `ppro.Color`'s range is not
-  measured (`brandplan.COLOR_RANGE` = 1 assumed): a tinted logo may come out black until it is. Whether `getOutPoint` gives a
+- 0.10.71 Brand tab: installed 2026-11-14, not yet tried by the user (docs/BRAND_KIT.md "Still to check"). `ppro.Color`'s
+  range was measured in 0.10.111-0.10.115 (0-1, `brandplan.COLOR_RANGE` = 1 is right; CHANGELOG). Still open: whether `getOutPoint` gives a
   still's length, whether Premiere passes dropped files to the panel, `insertMogrtFromPath` (not used: the host's importMGT is).
 0.10.45-0.10.47: the SYNC clips' own POV colour on the timeline (scripts cannot read a clip's label; the files are coloured), Bounce Back, the clone rough cut on footage with a rotation flag (the clones keep the original project item, so the flag stays).
 Subtitles M3 (0.9.42): verified working in Premiere on 2026-11-01 (see `PROJECT_STATUS.md`); still unjudged: Bulgarian accuracy and caption timing against the picture, behaviour with an unsaved project (refused with a message, not tried).

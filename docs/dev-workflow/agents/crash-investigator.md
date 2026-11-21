@@ -9,7 +9,8 @@ You find out WHY something breaks. You do not fix it: you return the cause, the 
 that would remove the cause, so `feature-builder` can implement it.
 
 ## Start
-- Read the project's `CLAUDE.md` (architecture and rules). Grep `BUGS.md`, `DECISIONS.md`, `PROGRESS.md` and
+- Read the project's `CLAUDE.md` (architecture and rules) and the feature's page in `docs/features/` (map:
+  `docs/INDEX.md`): its Key points list the crashes already measured there. Grep `BUGS.md`, `DECISIONS.md`, `PROGRESS.md` and
   `CHANGELOG.md` for the symptom: many Premiere quirks are already measured there (for example Asistent: UXP
   crashes when removing track items, clone batches over 2 h, overwriteClip dropping effects, the 26.0.2 API).
 - Get the facts before a theory: which version is installed, what the user pressed, at what time.

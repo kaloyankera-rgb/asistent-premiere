@@ -1,39 +1,70 @@
-# Documentation map
+# Asistent: documentation map
 
-Read in this order when continuing the project (the first four are the whole handoff):
+Start here. To change a feature, read its page below before the code, and update that page in the same commit.
+Each page has the same sections: what it does, how to use it, key points (do not break), decisions, code map,
+status, tests. Status as of 0.10.120 (2026-11-21).
 
-| # | File | What it holds |
-|---|---|---|
-| 1 | [../CLAUDE.md](../CLAUDE.md) | Architecture, development rules, permanent user rules. Loaded automatically by Claude Code. |
-| 2 | [../PROJECT_STATUS.md](../PROJECT_STATUS.md) | Version, every phase and feature, what is verified in Premiere and what is not. |
-| 3 | [../TODO.md](../TODO.md) | Remaining tasks in priority order. |
-| 4 | [../BUGS.md](../BUGS.md) | Open bugs, Premiere/UXP limits, things that crash. |
-| 5 | [../DECISIONS.md](../DECISIONS.md) | Why things are the way they are (user decisions, rejected approaches). |
-| 6 | [../PROGRESS.md](../PROGRESS.md) | Detailed dated log. Search it, do not read it whole. |
-| 7 | [../README.md](../README.md) | User guide (Bulgarian): install and every button. |
-| 8 | [../COLOR_CORRECTION_PLAN.md](../COLOR_CORRECTION_PLAN.md) | Colour engine plan; spec package in [color-spec/](color-spec/00_START_HERE.md). |
-| 9 | [SUBTITLES_PLAN.md](SUBTITLES_PLAN.md) | Phase 7 (Bulgarian subtitles) plan and milestones M0-M5. |
-| 9e | [SUBTITLE_STYLES/AULA.md](SUBTITLE_STYLES/AULA.md) | AULA's style (preset `aula`, English names joined with the article), colour in [CLIENT_COLOR/AULA.md](CLIENT_COLOR/AULA.md). |
-| 9d | [SUBTITLE_STYLES/BEAUTY_SECTOR.md](SUBTITLE_STYLES/BEAUTY_SECTOR.md) | Beauty Sector's style (preset `beautysector`), colour in [CLIENT_COLOR/BEAUTY_SECTOR.md](CLIENT_COLOR/BEAUTY_SECTOR.md). |
-| 9c | [SUBTITLE_STYLES/EKOPAK.md](SUBTITLE_STYLES/EKOPAK.md) | ЕКОПАК's style (preset `ekopak`), colour in [CLIENT_COLOR/EKOPAK.md](CLIENT_COLOR/EKOPAK.md); what the three clients share: the vault's `editing/client-styles.md`. |
-| 9b | [SUBTITLE_STYLES/CREDISSIMO.md](SUBTITLE_STYLES/CREDISSIMO.md) | Credissimo's style (preset `credissimo`), colour in [CLIENT_COLOR/CREDISSIMO.md](CLIENT_COLOR/CREDISSIMO.md); measured with `scripts/measure_style.py`. |
-| 9a | [SUBTITLE_STYLES/GSTROY.md](SUBTITLE_STYLES/GSTROY.md) | GStroy's subtitle style measured on its exports (preset `gstroy`); colour findings in [CLIENT_COLOR/GSTROY.md](CLIENT_COLOR/GSTROY.md). |
-| 9b | [ROUGHCUT_PLAN.md](ROUGHCUT_PLAN.md) | Phase 8 (AI Auto Rough Cut: Safe/Smart cut, repeated takes) research and plan, milestones M0-M6. Planning only, nothing built (2026-11-03). |
-| 9a | [BULGARIAN_TRANSCRIPTION_GUIDE.md](BULGARIAN_TRANSCRIPTION_GUIDE.md) | **Read before touching the subtitle pipeline.** Linguistic and engineering rules for Bulgarian speech-to-text (gender forms, verb forms, numbers, punctuation, alignment, grouping) and the documented SRT errors used as regression tests. |
-| 9c | [ROLLBACK.md](ROLLBACK.md) | The protected backup of 2026-11-08, the ReShape guard/baseline/golden checks, and per feature how to switch off, revert and restore. |
-| 9d | [NATIVE_GRAPHICS.md](NATIVE_GRAPHICS.md) | What Premiere 26.0.2 lets a script do with native text graphics (probed 2026-11-08): no text or style write; the manual steps. |
-| 9e | [BENCHMARK.md](BENCHMARK.md) | Bulgarian recognition benchmark: what is measured, the private reference sets, how to verify a reference, results. Since 0.10.119 also the whole subtitle job scored against the editors' finished videos (`scripts/bench_subtitles.py`) and the table every recognition change is judged by. |
-| 9f | [BRAND_KIT.md](BRAND_KIT.md) | The Brand tab (0.10.71): where kits are, how the client is found, what each press does and what Premiere allows, cache and offline, the Premiere checks still to do. |
-| 10 | [../LICENSES.md](../LICENSES.md) | Licences of dependencies and the bundled face model. |
-| 11 | [dev-workflow/DEV_WORKFLOW.md](dev-workflow/DEV_WORKFLOW.md) | Which model/agent does what; snapshot of the four agent definitions in [dev-workflow/agents/](dev-workflow/agents/). |
+## Features
+
+| Feature | What it does | Page | Mac / Premiere | Windows |
+|---|---|---|---|---|
+| Sync | Lines up cameras and lavaliers by shared sound in a new SYNC sequence | [sync](features/sync.md) | Verified; 0.10.117 not tried | Untested |
+| Fix audio | L/L and R/R copies, level to -17 LUFS, peak under -6 dBFS | [fix-audio](features/fix-audio.md) | Split verified; Undo count unverified | Untested |
+| Cut silences | Silences, off-mic voices and repeated takes cut in a duplicate sequence | [cut-silences](features/cut-silences.md) | Bridge-tested 0.10.110; user's presses open | Untested |
+| Track names | Tracks named POV 1, POV 2, Mic n, Subtitles BG / EN; camera colours | [track-names](features/track-names.md) | Bridge-tested; Cmd+Z unverified | Untested |
+| Color | Auto color (white balance + exposure), Match POVs, Exposure ±0.5, Before / after | [color](features/color.md) | Used by the user; 0.10.118 untested | Untested |
+| Learn from exports | Editors' Lumetri noted next to Auto color's, per client and camera | [color-learning](features/color-learning.md) | Bridge-verified; real Export untried | Untested |
+| Before export | Check export: offline, gaps, picture that does not fill, safe area, peaks | [export-check-before](features/export-check-before.md) | Bridge-verified; not tried by the user | Untested |
+| Show exports, Export check | Finished export shown in Finder; FFmpeg measures the file | [exports](features/exports.md) | Seen on a real export; event unverified | Untested |
+| Subtitles | Bulgarian speech to SRT and a caption track; Captions tab fixes and learning | [subtitles](features/subtitles.md) | Core verified; 0.10.119-0.10.120 run open | Untested |
+| Auto import | Watches the project's folder, imports new files into type bins | [auto-import](features/auto-import.md) | Verified; default-on bridge-tested | Untested |
+| Brand | The client's brand kit in Premiere: place, colours, MOGRTs, fonts | [brand](features/brand.md) | Installed; not tried by the user | Untested |
+| Keyframer | Curves between keyframes, repeats, motion blur, live preview | [keyframer](features/keyframer.md) | Bridge-tested; user's look open | Untested |
+| Stash | Save a clip's animation or clips, apply at the playhead | [stash](features/stash.md) | Bridge-tested; not tried by the user | Untested |
+| Tracker | Track an object, attach a text or lock the clip to it | [tracker](features/tracker.md) | Bridge-tested; engine on a real clip | Untested |
+| Anchor | Anchor point to nine places while the picture stays put | [anchor](features/anchor.md) | Bridge-measured; text case used | Untested |
+| Install and update | Installers, release zip, the panel's Update button, rollback | [install-and-update](features/install-and-update.md) | Verified on the Mac | Never run |
+| Development tools | Test bridge, browser preview, CSS probe, logs, benchmarks, guards, hook | [dev-tools](features/dev-tools.md) | Used on the Mac | Not tested |
+
+New feature: copy [features/_TEMPLATE.md](features/_TEMPLATE.md), keep it under ~80 lines, add a row here.
+
+## Other documents
+
+| File | What it is for |
+|---|---|
+| [../CLAUDE.md](../CLAUDE.md) | Architecture, development rules, permanent user rules (loaded automatically). |
+| [../PROJECT_STATUS.md](../PROJECT_STATUS.md) | Short snapshot: version, in progress, what waits for a check in Premiere. |
+| [../TODO.md](../TODO.md) | Open tasks in priority order. |
+| [../BUGS.md](../BUGS.md) | Open bugs, Premiere / UXP limits, warnings. |
+| [../DECISIONS.md](../DECISIONS.md) | Why things are the way they are (dated entries). |
+| [../CHANGELOG.md](../CHANGELOG.md) | One entry per version, newest first. |
+| [../PROGRESS.md](../PROGRESS.md) | Detailed dated log. Search it, do not read it whole. |
+| [../README.md](../README.md) | The user guide (English, like the panel): install and every button. |
+| [BULGARIAN_TRANSCRIPTION_GUIDE.md](BULGARIAN_TRANSCRIPTION_GUIDE.md) | **Read before touching the subtitle pipeline.** Rules and the regression table. |
+| [BENCHMARK.md](BENCHMARK.md) | Recognition benchmark and the table every recognition change is judged by. |
+| [SUBTITLE_STYLE.md](SUBTITLE_STYLE.md), [SUBTITLE_STYLES/](SUBTITLE_STYLES/GSTROY.md) | Subtitle styles; one measured file per client (AULA, Beauty Sector, Credissimo, ЕКОПАК, GStroy). |
+| [CLIENT_COLOR/](CLIENT_COLOR/GSTROY.md) | Colour findings per client (proposals only). |
+| [../COLOR_CORRECTION_PLAN.md](../COLOR_CORRECTION_PLAN.md), [color-spec/](color-spec/00_START_HERE.md) | Colour engine plan and spec package (contrast, saturation and the rest not built). |
+| [BRAND_KIT.md](BRAND_KIT.md), [TRACKER.md](TRACKER.md) | Deep references behind the Brand and Tracker pages. |
+| [ROLLBACK.md](ROLLBACK.md) | The protected backup, the ReShape guard / golden checks, how to switch off and restore per feature. |
+| [NATIVE_GRAPHICS.md](NATIVE_GRAPHICS.md) | What a script can do with Premiere's native text graphics (probed 2026-11-08). |
+| [SMART_EXPORT_DESTINATION_PLAN.md](SMART_EXPORT_DESTINATION_PLAN.md) | Plan only, not built (TODO XD). |
+| [SUBTITLES_PLAN.md](SUBTITLES_PLAN.md), [ROUGHCUT_PLAN.md](ROUGHCUT_PLAN.md), [EXPORT_REVEAL_PLAN.md](EXPORT_REVEAL_PLAN.md) | Shipped plans, kept as history (code comments point to them). Current behaviour: the feature pages. |
+| [probes/](probes/cockpit-phase0.md) | Probe results (Cockpit phase 0, native graphics). |
+| [history/](history/PROJECT_STATUS_to_0.10.120.md) | Old PROJECT_STATUS (to 0.10.120), finished TODO sections, fixed BUGS entries, word for word. |
+| [../LICENSES.md](../LICENSES.md) | Licences of dependencies and the bundled face model. |
+| [dev-workflow/DEV_WORKFLOW.md](dev-workflow/DEV_WORKFLOW.md) | Which model / agent does what; snapshot of the agent definitions in [dev-workflow/agents/](dev-workflow/agents/). |
 
 ## Setting up on a new machine (or after cloning from GitHub)
 1. Clone the repo. It is self-contained; the surrounding Content Studio vault is not needed to read or test the code.
-2. Mac: `scripts/setup_mac.sh` (Python 3.12 venv + LaunchAgent, outside the repo in `~/Library/Application Support/Asistent/`); Windows: `scripts/setup_win.ps1`.
-3. Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider` and `node --test tests/*.test.js` (see `CLAUDE.md`).
-4. Not in Git by design: `dist/` (rebuild with `scripts/package_ccx.sh`), the 3 GB Whisper model (downloaded from the panel after the user confirms), the Python venv, logs, client footage, and `.claude/agents/` (symlinks into the Content Studio vault).
-5. Subagents: inside the vault they come from `<vault>/.claude/agents/`. In a standalone clone, copy the files from `dev-workflow/agents/` to `.claude/agents/` if you want them.
-6. Model routing, state files and handoff habits: `dev-workflow/DEV_WORKFLOW.md`. The canonical copy lives in the vault (`tools/DEV_WORKFLOW.md`); this one is a snapshot of 2026-11-01.
-
-## Last verified
-2026-11-01, v0.9.41: 211 pytest + 50 node tests pass. Premiere-side verification status per feature is in `PROJECT_STATUS.md`.
+2. The normal route is a release zip with the double-click installers, or on a bare Mac `installer/mac/Install Asistent.command`
+   (puts Python 3.12 and FFmpeg into Asistent's folder; [install-and-update](features/install-and-update.md)). From the repo:
+   `scripts/setup_mac.sh [--subtitles] [--align] [--no-panel]` (venv, host, fonts, panel, LaunchAgent, all outside the repo in
+   `~/Library/Application Support/Asistent/`); Windows `scripts/setup_win.ps1 [-Subtitles] [-NoPanel]` (never run yet).
+3. Enable the docs hook once: `git config core.hooksPath scripts/githooks`.
+4. Tests: `node --test tests/*.test.js`, and pytest with `HOME` pointed at a scratch folder holding a copy of `models/lexicon`
+   (some tests write into the real app folder; exact command in `CLAUDE.md`). `test_real_footage.py` is skipped without
+   `ASISTENT_REAL_FOOTAGE`. Browser preview: `npm install` in `preview/` ([dev-tools](features/dev-tools.md)).
+5. Not in Git by design: `dist/`, the Whisper model (downloaded from the panel after the user confirms), the venv, logs,
+   client footage, keys, and `.claude/agents/` (inside the vault they come from `<vault>/.claude/agents/`; in a standalone clone
+   copy them from `dev-workflow/agents/`).

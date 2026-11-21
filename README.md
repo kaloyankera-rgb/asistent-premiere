@@ -1,6 +1,8 @@
 # Asistent for Premiere Pro
 
-A standalone helper for the technical side of editing: syncing cameras, lavalier audio, automatic import of files, white balance and exposure, a rough cut without pauses and repeated takes, and Bulgarian subtitles. Free, local only (nothing is uploaded anywhere), for Mac and Windows, with Premiere Pro 2026 (26.0+).
+A standalone helper for the technical side of editing: syncing cameras, lavalier audio, automatic import of files, white balance and exposure, cutting silences and repeated takes, Bulgarian subtitles, checks before and after export, the client's brand kit, and motion tools (Keyframer, Stash, Tracker, Anchor). Free and local: nothing leaves the computer, with one exception you switch on yourself (subtitles read by ElevenLabs, see Subtitles). For Mac and Windows, with Premiere Pro 2026 (26.0+).
+
+One page per feature, with its rules, code and status, for whoever develops Asistent: [docs/INDEX.md](docs/INDEX.md).
 
 It has no connection to the Quick Search extension: a different ID (`com.contentstudio.asistent`), a different port (47390), its own data folder.
 
@@ -76,20 +78,31 @@ Select the video clips and press **Auto color** (white balance and exposure toge
 - After applying, the panel exports a frame from Premiere and the engine measures it: if the white is off or more than 3 % of the picture clipped, it is corrected once. The panel says how many Undo steps it took.
 - **Match POVs** (after the corrections, clips from two cameras): matches the brightness, white balance, contrast and saturation of the other cameras to one reference camera, by faces and neutral surfaces, at once; a camera's button under the result matches to that camera instead.
 
-## Rough cut
+## Cut silences
 
-Select the cameras and the microphones with speech (the SYNC sequence works) and press **Rough cut**. A new sequence `ROUGH – <sequence> (<mode>) vN` is made in the bin `Rough cut`, with the same cuts on every selected camera and microphone, so the sync is kept. The original and older versions are never touched.
+Select the cameras and the microphones with speech (the SYNC sequence works; or use In to Out or the whole sequence) and press
+**Cut silences** (the Silences row). A new sequence `NO SILENCE – <sequence> vN` is made in the bin `No silence`: a duplicate of
+yours with the same cuts on every camera and microphone, so the sync is kept. Your sequence and older versions are never touched;
+if you do not like the result, delete the new sequence.
 
-- **Safe** cuts long pauses that are surely silence; **Smart** shortens every pause to the **Tempo** (Calm, Normal, Tight).
-- Repeated takes are found from the words: when the same passage is said again, the last full take stays and the earlier takes go, together with short setup talk between them. A take said with other numbers or different content is only listed for you to review. A start repeated inside a sentence is cut only in Smart.
-- Time with no selected speech audio and empty space between clips are cut whole.
-- Audio on a muted track (or a switched-off clip) is not used: it is left out of the cut and of the speech, as if you had deleted it. Use this for a quiet camera microphone next to your lavaliers; otherwise its sound counts as speech and the cameras' rows get gaps.
-- The level, the limiter and the Lumetri values of the old clips are carried over to the new ones; other effects are listed as not carried.
-- **Review markers** puts a marker at every place worth a look.
+- **Cut**: Silences only, Silences + off-mic (voices away from the microphone, the default) or AI rough cut (also repeated takes:
+  a plain repeat is cut and the last full take stays; a take said differently is only listed).
+- **Detect** (Automatic, Manual dB, AI-assisted), **Sensitivity**, **Pacing** (Calm, Measured, Paced, Energetic, Custom), Remove
+  short pauses, Remove hesitation sounds, and the **Result** (remove and close the gaps, keep the spaces, split only, mute).
+- **Preview** shows the waveform and every part by kind; tap a part to keep or cut it. Unsure parts are kept and shown yellow.
+  Cut silences then cuts exactly what the preview showed.
+
+Details: [docs/features/cut-silences.md](docs/features/cut-silences.md).
+
+## Track names
+
+Press **Name tracks** (no selection needed): the open sequence's tracks are named POV 1, POV 2 (cameras in track order), POV 1
+audio, Mic 1, Subtitles BG / EN. Names you typed and B-roll or graphics tracks are left alone. Under **▾**: name the new SYNC and
+NO SILENCE sequences by themselves, a label colour per camera, and **Put names back**. One Cmd/Ctrl+Z takes a press back.
 
 ## Subtitles (Make subtitles)
 
-Select the audio clips with speech and press **Make subtitles** (the Subtitles row). The speech is recognised on this computer only (Whisper large-v3, about 3.1 GB, downloaded only with the **Download the model** button), checked against a Bulgarian dictionary, aligned to the sound, and saved as an .srt in `Asistent_subtitles` next to the project; the panel puts it on a new caption track. To restyle them, open the Properties panel, select all the captions on that track and change font, size, outline or shadow for all at once; save the look as a Track Style. Right-click > Upgrade Caption to Graphic turns them into text graphics if needed.
+Select the audio clips with speech and press **Make subtitles** (the Subtitles row). The speech is recognised on this computer (Whisper large-v3, about 3.1 GB, downloaded only with the **Download the model** button), or, when you saved an ElevenLabs key in **Settings > Subtitles** and left it on, by ElevenLabs Scribe for every style but ReShape's (faster and with fewer wrong words; only the sound of the selected clips is sent, and each transcript is deleted there after use; without internet or a key it runs on this computer as before). The words are checked against a Bulgarian dictionary, aligned to the sound, and saved as an .srt in `Asistent_subtitles` next to the project; the panel puts it on a new caption track. To restyle them, open the Properties panel, select all the captions on that track and change font, size, outline or shadow for all at once; save the look as a Track Style. Right-click > Upgrade Caption to Graphic turns them into text graphics if needed.
 
 Fix a wrong word in the **Captions** tab and press **Apply and rebuild**: the fix is remembered and the next videos of the same client get it too, on every computer in the office. Nothing to press: a client folder on the server that holds a folder named "<Client> Subtitle Learning" (for example `ReShape/ReShape Subtitle Learning`) is where the fixes are shared; projects outside such a folder learn on that computer only. A word fix reaches the other editors after it was made in two projects; a fix is only used where the sound agrees with it; typing the original word back undoes it for everyone. Under the lines, **Learned** lists what was learned: **Remove** stops a fix for everyone. **Who speaks** (above the lines) sets a man or a woman per microphone track, so „доволен/доволна“ and „направил/направила“ follow the person; leave it on "not set / both" when two people share a microphone. **Review helpers** (on by default; uncheck to hide them): under each line to check, the reasons, Words or Timing, and what a word was changed from („масна“ → „масона“); **Lines to check** shows only those lines, the most important first (numbers, negations, names, a word that may be missing); **▶** plays the line with a second and a half around it on your computer and moves the playhead there. "Unsure" means the recognition said so; it is not an accuracy figure. The search box above the lines finds a word in the Bulgarian or the English lines: type it and press Enter (or Find); Clear shows all lines again. A word you change in an English line ("lipidemia" to "lipedema") is remembered for the client's next videos too. A rebuild replaces Asistent's earlier subtitles: their lines are removed (one Undo brings them back) and their empty tracks stay, to be deleted by hand if you like (right-click > Delete Track); a track you changed yourself is never touched.
 
@@ -127,6 +140,35 @@ name or folders); pick another one in the list at the top, and the choice is rem
 The kit refreshes by itself when its files change. Files from the server that you use often are copied to this computer, so
 they still work when the server is away (the tab says so). Details: `docs/BRAND_KIT.md`.
 
+## Before export
+
+Press **Check export** (the Before export row, no selection needed; an In and Out limits it): it lists offline media, black gaps
+and flash frames, video and photo clips that do not fill the frame (under-scaled B-roll), text outside the safe area, caption
+lines that overlap and microphone clips peaking above -6 dBFS, each with a time you can click. ✓ fine, ! to look at, ? a script
+cannot see it (missing fonts). It only reads; **Put N markers on the timeline** adds one marker per problem in one Undo step.
+
+## After export: Show exports, Export check, Learn from exports
+
+Three rows under Automatic, all read only. **Show exports** shows a finished export from the Export tab selected in Finder /
+Explorer. **Export check** (on by default) plays the exported file through FFmpeg and reports black bars, black or frozen picture,
+one-channel or silent sound, true peak above -1 dBFS, clipped samples, silence at the start, and size, frame rate and length
+against the sequence; loudness is shown next to -14 LUFS as information. **Learn from exports** notes each clip's Lumetri next
+to what Auto color would have set, per client and camera; **What the editors did** under its **▾** shows the result.
+
+## Motion: Keyframer, Stash, Tracker, Anchor
+
+- **Keyframer**: select a clip with keyframes, **Read the selected clip**, tick the properties, pick a curve (presets, Elastic,
+  Bounce, Custom points, Repeat after the last key), optional **Motion blur**, then **Apply** (one Undo step). After Apply a
+  changed curve is applied again by itself; **Undo last** takes Asistent's keys out.
+- **Stash** (on the Keyframer page): **Save animation** or **Save selected clips**, then put it back at the playhead in any
+  project with its button.
+- **Tracker**: **Load frame**, drag a box around the object, **Track**; then **Attach selected** (a text or logo follows it) or
+  **Lock to it** (the clip moves so the object stays put). One Undo step each.
+- **Anchor**: select clips, click one of nine points: the anchor point moves there and the picture stays where it is. **Use
+  alpha** puts it on the visible part of a logo.
+
+Details: [docs/INDEX.md](docs/INDEX.md).
+
 ## How the sync offset is found
 - Each audio channel is looked at on its own (L and R separately, quiet and duplicated channels skipped), plus a temporarily levelled mix.
 - The sound is filtered to 150–4000 Hz and searched across the whole recording with GCC-PHAT and with a curve of sound onsets (more robust when the two microphones sound different).
@@ -150,4 +192,4 @@ The panel's look can be checked in a browser before installing: `cd tools/asiste
 - Clips sit on whole frames in the sequence, so up to half a frame of difference remains (8 ms at 60 fps, 20 ms at 25 fps). The panel shows it.
 - With VFR material (phones) Premiere may drift later in the clip. The panel warns.
 
-Status and next phases: [PROJECT_STATUS.md](PROJECT_STATUS.md), [TODO.md](TODO.md).
+Status: [PROJECT_STATUS.md](PROJECT_STATUS.md); per feature [docs/INDEX.md](docs/INDEX.md); open tasks [TODO.md](TODO.md).

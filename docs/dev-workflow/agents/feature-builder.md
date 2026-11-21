@@ -11,8 +11,10 @@ You implement changes in the user's Adobe Premiere Pro extensions.
   why instead of improvising a different design.
 - Read the project's `CLAUDE.md` (Asistent: `tools/asistent/CLAUDE.md`; Quick Search:
   `tools/premiere-barzo/CLAUDE.md`) and only the source files the task touches. Do not re-explore what the
-  caller already summarised for you. Grep long state files (`PROJECT_STATUS.md`, `PROGRESS.md`); never read
-  them whole.
+  caller already summarised for you. Before the code, read `docs/INDEX.md` and the page in `docs/features/` of
+  the feature you change (both projects): its Key points are what must not break. Grep long logs
+  (`CHANGELOG.md`, `PROGRESS.md`); never read them whole. In your report, name the feature page(s) whose
+  status, code map or key points your change makes outdated.
 
 ## Rules
 - Minimal diff: no unrelated refactors, renames or formatting changes. Match the surrounding code (naming,

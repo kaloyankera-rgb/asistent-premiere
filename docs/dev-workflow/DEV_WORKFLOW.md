@@ -49,12 +49,14 @@ Fable never for simple edits, formatting, ordinary UI changes, test runs or pape
 
 ## Keeping state between sessions
 Each project has a short entry point that a new session reads first:
-- Asistent: `CLAUDE.md` → `PROJECT_STATUS.md` → `TODO.md` → `BUGS.md` (`DECISIONS.md` for why).
-- Quick Search: `CLAUDE.md` → `PROJECT_STATE.md` (`PROGRESS.md` is the detailed dated log, search only).
+- Both projects: `CLAUDE.md` → `docs/INDEX.md` (the map, one row per feature) → the page in `docs/features/` of
+  the feature being changed (what it does, what must not break, decisions, code map, status, tests).
+- Then the short snapshot: Asistent `PROJECT_STATUS.md` (`TODO.md`, `BUGS.md`, `DECISIONS.md` for that feature's
+  items), Quick Search `PROJECT_STATE.md`. `CHANGELOG.md` and `PROGRESS.md` are detailed logs: search only.
 
 After a milestone (a feature works, a bug is fixed, a release is built, or before `/clear`), update the
-state file: version, what is done, what is pending, what is verified in Premiere and what is not, new
-decisions. Keep it compact: replace outdated lines instead of appending history (history goes to `PROGRESS.md`).
+feature's page in `docs/features/` and the state file: version, what is done, what is pending, what is verified
+in Premiere and what is not, new decisions. Keep it compact: replace outdated lines instead of appending history (history goes to `PROGRESS.md`).
 The user can trigger this with "update the project state".
 
 ## Session commands (Claude Code)

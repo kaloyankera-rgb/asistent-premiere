@@ -12,10 +12,11 @@ to follow without your context.
 ## Start
 1. Read the project's `CLAUDE.md` in full (Asistent: `tools/asistent/CLAUDE.md`; Quick Search:
    `tools/premiere-barzo/CLAUDE.md`). It holds the architecture map and the permanent rules.
-2. State files are long: do NOT read them whole. Grep them for the feature and read only the matching parts:
-   - Asistent: `PROJECT_STATUS.md` (~800 lines), `TODO.md`, `BUGS.md`, `DECISIONS.md` (why things are so).
-   - Quick Search: `PROJECT_STATE.md` (short, read it), `PROGRESS.md` (long dated log, grep only).
-   `PROGRESS.md` in either project: grep only, never read whole.
+2. Read `docs/INDEX.md` (the map, both projects) and the page in `docs/features/` of every feature the work
+   touches: what it does, what must not break, decisions, code map, status, tests. Then the short snapshot
+   (Asistent `PROJECT_STATUS.md`, Quick Search `PROJECT_STATE.md`). Grep the rest only for the feature:
+   Asistent `TODO.md`, `BUGS.md`, `DECISIONS.md` (why things are so). `CHANGELOG.md` and `PROGRESS.md` in either
+   project: grep only, never read whole. Name in the plan which feature pages must be updated or created.
 3. Then read the specific source files involved. Do not sweep the repository; do not read logs in full.
 4. If the caller already gave you file contents or findings, use them instead of re-reading.
 5. Check `git status` first: if the tree has someone else's uncommitted work, say so and plan around it.

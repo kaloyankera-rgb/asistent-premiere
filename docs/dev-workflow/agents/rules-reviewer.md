@@ -43,6 +43,8 @@ the code, not the report about it. Only report what you can point to in the diff
 **Done-definition**
 - Version equal in `panel/manifest.json` and `engine/asistent/config.py`; CHANGELOG and PROJECT_STATUS
   entries present and true to the diff (the pre-commit hook needs both staged with code).
+- The changed feature's page in `docs/features/` (both projects) is updated in the same commit and still true
+  to the code: status, key points, code map. A new feature has a page and a row in `docs/INDEX.md`.
 
 ## Report
 - **Verdict**: PASS, or BLOCK (a rule is broken or a real bug), or PASS WITH NOTES.

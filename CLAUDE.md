@@ -5,10 +5,15 @@ Independent, zero-budget, local assistant for the user's daily short-form editin
 and exposure). Built 2026-11-01 from the user's spec (first message of the session) plus the colour
 engine spec in `docs/color-spec/` (see `COLOR_CORRECTION_PLAN.md`).
 
-Read first when continuing: `PROJECT_STATUS.md` → `TODO.md` → `BUGS.md`.
-`DECISIONS.md` explains why things are the way they are. `PROGRESS.md` is the detailed chronological log
-(search it, do not read it whole). Model routing and agents: `../DEV_WORKFLOW.md` in the Content Studio vault,
-or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: `docs/INDEX.md`.
+Read first when continuing, in this order (short on purpose):
+1. `docs/INDEX.md`: the map, one row per feature with its status, and every other document.
+2. The feature page in `docs/features/` for what you are about to change: what it does, how it is used, what must
+   not break, decisions, code map, status, tests. Read it before the code.
+3. `PROJECT_STATUS.md` (short snapshot: version, in progress, what waits for a check); `TODO.md` and `BUGS.md` only
+   for the items of your feature.
+`DECISIONS.md` explains why things are the way they are. `CHANGELOG.md` and `PROGRESS.md` are the detailed logs
+(search them, do not read them whole). Model routing and agents: `../DEV_WORKFLOW.md` in the Content Studio vault,
+or the snapshot in `docs/dev-workflow/`.
 
 ## Architecture
 - **UXP panel** `panel/` (manifest v5, id `com.contentstudio.asistent`, host `premierepro` ≥ 26.0.0,
@@ -106,9 +111,9 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   `scripts/release_mac.sh` (packs `.ccx`, removes + installs it with Adobe's UnifiedPluginInstallerAgent
   without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
-  (573 pass + 23 skipped at 0.10.7; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
+  (894 pass + 24 skipped at 0.10.120; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
   some tests write into the real app folder, so run them with `HOME` pointed at a scratch folder holding a copy of `models/lexicon`) and
-  `node --test tests/*.test.js` (166 tests);
+  `node --test tests/*.test.js` (383 tests at 0.10.120);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Fix audio never splits a clip that carries effects or keyframes: overwriteClip drops them (measured 2026-11-08, DECISIONS).
 - Premiere tests only in the user's test projects `TEST.prproj` or `NEW TEST.prproj` (Ludi Glavi/Projects; the user's choice
@@ -186,14 +191,17 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   committed as public: nothing private in commits, ever.
   History is never rewritten: no force-push, no `reset --hard`, no history rewriting, no deleting branches or tags.
   Rename files with `git mv`. Never commit secrets, models, `dist/`, logs or client footage (`.gitignore` covers them).
-- Documents and what each is for: `CLAUDE.md` rules and architecture · `PROJECT_STATUS.md` what exists and what is
-  verified in Premiere · `TODO.md` remaining tasks in priority order · `BUGS.md` open bugs and limits ·
+- Documents and what each is for: `CLAUDE.md` rules and architecture · `docs/INDEX.md` the map ·
+  `docs/features/<feature>.md` one page per feature (≤ ~80 lines, template `_TEMPLATE.md`) · `PROJECT_STATUS.md` short
+  snapshot (≤ ~120 lines) · `TODO.md` open tasks in priority order · `BUGS.md` open bugs and limits ·
   `CHANGELOG.md` one entry per released change · `PROGRESS.md` dated log (search, do not read whole) ·
-  `DECISIONS.md` why. Map: `docs/INDEX.md`.
+  `DECISIONS.md` why · `docs/history/` what was moved out of the state files, word for word.
 - **Definition of done for every task** (do all, in this order, without being asked): code → tests pass →
   version bump (manifest + config) → `scripts/release_mac.sh` → user verifies in `TEST.prproj` where Premiere is
-  involved → update the docs: `CHANGELOG.md` (new entry), `PROJECT_STATUS.md` (replace outdated lines, mark verified
-  or unverified), `TODO.md` (tick or remove the finished task, add new ones), `BUGS.md` (new/fixed bugs),
+  involved → update the docs: the feature's page in `docs/features/` (status, key points, decisions, code map, tests;
+  a new feature gets a new page from `_TEMPLATE.md` and a row in `docs/INDEX.md`), `CHANGELOG.md` (new entry),
+  `PROJECT_STATUS.md` (replace outdated lines, keep it short, mark verified or unverified), `TODO.md` (remove the
+  finished task, add new ones), `BUGS.md` (new bugs; a fixed bug leaves it, the fix is in CHANGELOG),
   `PROGRESS.md` (dated line), `DECISIONS.md` (only if a decision was made) → one descriptive commit
   (`Asistent X.Y.Z: what and why`; docs-only commits start with `Docs:`) → tell the user what is committed.
 - Speed changes must give bit-identical results: compare against the `git show HEAD:` code on real footage before keeping one.
@@ -210,4 +218,4 @@ or the snapshot in `docs/dev-workflow/`. Map of all docs and new-machine setup: 
   assets `Asistent-<version>.zip` + `latest.json`, notes from this version's CHANGELOG entry). A published version is never
   moved or replaced: fix forward with a new version.
 - Before ending a session or when the user says "update the project state": make sure the state docs above are
-  current and everything finished is committed, so a new session can continue from `PROJECT_STATUS.md` + `TODO.md`.
+  current and everything finished is committed, so a new session can continue from `docs/INDEX.md`, the feature pages and `PROJECT_STATUS.md`.
