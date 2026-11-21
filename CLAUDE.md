@@ -23,7 +23,7 @@ or the snapshot in `docs/dev-workflow/`.
   - `premiere-audio.js` Fill L/R, split copy, Volume level/keyframes · `channels.js` effect-chain routing
   - `stashplan.js` Stash: capture and place an animation, and (0.10.50) a clips stash's capture and free-track fit (pure) ·
     `premiere-stash.js` save and apply at the playhead (0.10.37; clips through a stash sequence + exportAsProject, 0.10.50)
-  - `inoutplan.js` In & Out animations' maths (pure; 0.10.124, Transform values 0.10.127) · `premiere-inout.js` apply / re-apply / remove the owned Transform (0.10.127, docs/features/in-out.md)
+  - `inoutplan.js` In & Out animations' maths (pure; 0.10.124, Transform values 0.10.127) · `premiere-inout.js` apply / re-apply / remove the owned Transform (0.10.127, docs/features/in-out.md) · `inout.js` the In & Out page (0.10.129) · `inoutui.js` what that page shows and says (pure, 0.10.129)
   - `trackplan.js` the tracker's maths: the tracked point through the clip's Motion, the attached clip's keys (pure) ·
     `premiere-tracker.js` reads the clips, writes / takes off the keys · `tracker.js` the Tracker page (0.10.51, docs/TRACKER.md)
   - `premiere-colorlearn.js` reads the exported sequence's Lumetri for colour learning (0.10.36)
@@ -98,7 +98,7 @@ or the snapshot in `docs/dev-workflow/`.
   width media queries, inline SVG with outlines from CSS only; NOT gap, grid, transitions, animations, :focus-visible, matchMedia,
   `<header>`/`<footer>` (centred flex rows: use divs). Buttons are `div.btn` (Premiere paints `<button>` grey): make them with
   `button()`, switch them with `enable()`. Colours only through the tokens in `style.css` `:root`. Layout (0.10.59, the user's chosen mockup): Tools = rows
-  (`.feat` in a `.list`, groups Run / Automatic; options under ▾ via `data-more`, one open), Motion = Keyframer | Tracker
+  (`.feat` in a `.list`, groups Run / Automatic; options under ▾ via `data-more`, one open), Motion = Keyframer | Tracker | Anchor | In & Out
   (`openTab("motion")`), Log and Settings = icon tabs; the glow is `panel/img/glow.jpg` as the body's `background-image`
   behind translucent `--glass`. UXP paints an absolutely placed element OVER the panel whatever the DOM order or
   `position: relative` (0.10.59: the glow `<img>` hid everything): never place one meant to sit underneath. The bridge reads
@@ -114,7 +114,7 @@ or the snapshot in `docs/dev-workflow/`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
   (954 pass + 24 skipped at 0.10.122; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
   some tests write into the real app folder, so run them with `HOME` pointed at a scratch folder holding a copy of `models/lexicon`) and
-  `node --test tests/*.test.js` (451 tests at 0.10.127);
+  `node --test tests/*.test.js` (467 tests at 0.10.129);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Fix audio never splits a clip that carries effects or keyframes: overwriteClip drops them (measured 2026-11-08, DECISIONS).
 - Premiere tests only in the user's test projects `TEST.prproj` or `NEW TEST.prproj` (Ludi Glavi/Projects; the user's choice

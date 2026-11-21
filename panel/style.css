@@ -648,3 +648,12 @@ input.sl-num { width: 36px; margin: 0; }
 
 /* Settings > Subtitles: the ElevenLabs key field (0.10.119) */
 input.cloud-key { flex: 1 1 auto; min-width: 0; font-size: 11px; }
+
+/* ---------------------------------------------------------------- the In & Out page (Phase 3): flex rows only. A row of
+   controls, a short label over each group of presets, a row greyed while its control changes nothing (opacity as .kf-blur-row.off). */
+.io-row { align-items: center; margin-top: 6px; }
+.io-group { margin: 6px 0 0 0; font-size: 10px; color: var(--text-3); }
+.io-off { opacity: 0.45; }
+/* the fourth Motion button: its label stays on one line, the buttons give up some padding in a very narrow panel */
+#tabInOut { white-space: nowrap; }
+@media (max-width: 260px) { .btn.mside { padding: 4px 3px; } }

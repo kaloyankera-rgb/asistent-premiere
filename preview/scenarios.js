@@ -57,6 +57,14 @@ function kfPress(labels) {
   }
 }
 
+// presses the In & Out page's controls by id (a click with no press before it acts, like a test click)
+function ioPress(ids) {
+  for (const id of ids) {
+    const b = document.getElementById(id);
+    if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  }
+}
+
 // the Tracker page with a drawn clip: a court, a ball bouncing across it (no footage)
 // variant "box": a frame with a box drawn, not yet tracked; "busy": the first track running (live frame, 40 % done)
 // 0.10.75: shape "wide" (16:9) or "square" (1:1) instead of the vertical 9:16 court, for the adaptive layouts
@@ -259,6 +267,12 @@ window.PREVIEW_SCENARIOS = (function () {
     "brand-offline": { engine: { brandKits: brandKits(), brandKit: { ...brandKit(), online: false, note: "The kit's folder is not reachable (/Volumes/Production/Brand Kits/Northwind): showing what this computer read last (2026-11-14 12:01). Files with a copy here still work." } },
       thumb: brandThumb, run: (api) => api.openTab("paneBrand") },
     anchor: { run: (api) => api.openTab("paneAnchor") },
+    // In & Out (Phase 3): nothing picked; Slide in + Anticipate out (edge asked, Strength on); Spin in + Fade out (turn asked, Strength
+    // greyed); after Apply with a made-up result
+    inout: { run: (api) => api.openTab("paneInOut") },
+    "inout-edge": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-slide", "ioOut-anticipate", "ioDir-top"]); } },
+    "inout-turn": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-spinIn", "ioOut-fade", "ioTurn-ccw", "ioBlurSwitch"]); } },
+    "inout-done": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-slide", "ioOut-fade"]); setTimeout(() => ioPress(["ioApply"]), 150); } },
     // 0.10.78: the preview and the motion blur switched on (Overshoot+ sample move)
     "keyframer-blur": { run: (api) => {
       api.openTab("paneKeyframer");

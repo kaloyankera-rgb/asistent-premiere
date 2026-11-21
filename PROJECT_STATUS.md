@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.127 (2026-11-21)
+# Project status: Asistent 0.10.129 (2026-11-21)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,7 +6,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
-- 0.10.127 (In & Out, Phase 2 Premiere side: apply, re-apply, remove): installed on the development Mac, bridge-tested in NEW TEST (13 checks), not released. No page yet; nothing in the panel UI changed; the user has not seen the motion.
+- 0.10.129 (In & Out, Phase 3 the page: Motion → In & Out): installed on the development Mac, bridge-tested on 0.10.128 (10 checks), smoke-tested after four fixes, not released. The user has not looked at the page or the motion in Premiere yet.
 - 0.10.123 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`,
   pushed to `origin/main` at `348d2ee`.
 - Last published release: v0.10.118 (2026-11-19). 0.10.119 and 0.10.120 are pushed but not released, 0.10.121-0.10.123 committed, not pushed, so the editors'
@@ -20,13 +20,14 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
   TODO V119. [subtitles](docs/features/subtitles.md)
 - Cut silences (0.10.121 ElevenLabs words, 0.10.122 audit fixes): built and tested outside Premiere, not installed. Open: the
   host razor on odd frame rates (detected, not fixed). TODO V122, AUD.
-- In & Out animations (0.10.127, plan `docs/IN_OUT_PLAN.md`): Phases 0-2 done. Phase 2 (`panel/premiere-inout.js`): one owned Transform per
-  clip, baked keys, apply / re-apply / remove through the test bridge only. Rotated clips re-checked live (25 runs, pass).
-  Next: Phase 3, the page (needs the user's look). Open: Strength on presets where it changes nothing; the limits in BUGS.md.
+- In & Out animations (0.10.129, plan `docs/IN_OUT_PLAN.md`): Phases 0-3 done. Phase 2: one owned Transform per clip, baked keys,
+  apply / re-apply / remove. Phase 3: the page (Motion → In & Out), bridge-tested on 0.10.128, awaiting the user's look.
+  Next: Phase 4 (a small preview). Open: Strength on presets where it changes nothing; the limits in BUGS.md.
   [in-out](docs/features/in-out.md)
 - Local recognition experiments (`NEXT` profile) paused behind a development switch; the held-back runs were stopped.
 
 ## Waiting for a check in Premiere (newest first)
+- 0.10.129: In & Out page: the card layout, greyed Strength, the dock, the four Motion buttons at narrow widths, tooltips, and the motion in playback next to the reference (blur on and off). [in-out](docs/features/in-out.md)
 - 0.10.121: Cut silences with Detect = AI-assisted (or Cut = AI rough cut): the result says "words recognised by
   ElevenLabs Scribe v3", faster than before; a ReShape project stays on this computer. [cut-silences](docs/features/cut-silences.md)
 - 0.10.119-0.10.120: one ReShape run (same captions as before), switch off and run again (Auto confirmed 2026-11-21).
@@ -54,5 +55,5 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 ## Next
 1. The user's next press of Cut silences on "Lokal 2" (0.10.123), then the checks above (TODO V122).
 2. Release 0.10.123 when the user asks.
-3. In & Out: Phase 3 (the page, hooks, wiring tests); one look by the user in Premiere. Phase 2 is built and bridge-tested (0.10.127).
+3. In & Out: the user's look at the page and its playback in Premiere (0.10.129); then Phase 4 (a small preview).
 4. `TODO.md` in its order.

@@ -31,6 +31,32 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.129 - In & Out animations: Phase 3, the page (2026-11-21, installed on the development Mac, not released, awaiting the user's look)
+- 0.10.128 was an install-only step on the development Mac for the bridge test; it was never committed or released and has no entry of its own.
+- New Motion → In & Out page: `panel/inout.js` (the page) and the pure helper `panel/inoutui.js` (what the controls show and say, Node-tested in `tests/inoutui.test.js`).
+  An In card and an Out card, each with None and its presets grouped Position / Scale / Rotation / Opacity (20 In, 13 Out).
+- Controls: Edge (Left, Top, Bottom, Right) only when a picked preset needs it; Turn (Clockwise, Counter-clockwise) only when one rotates;
+  In frames and Out frames (a preset fills its own length unless the editor typed one); Strength % (greyed, with the tooltip "Strength does not
+  change this animation", on presets where it changes nothing); a Motion blur switch.
+- Apply and Remove are in the dock. Apply runs on every selected video clip. Nothing runs by itself (no live update, no timers).
+  While both sides are None, Apply says "Pick an In or an Out animation first." and writes nothing.
+- The status line says how many clips and keyframes, the Undo count ("Cmd/Ctrl+Z 2 times" the first time, once after), skipped clips with
+  their reasons, "Shortened to fit the clip", and notes. The choices are remembered in the panel store (`asistent.inout.ui`).
+- The Motion tab has four pages now: Keyframer, Tracker, Anchor, In & Out. The four Motion buttons get narrower padding below 260 px so "In & Out" fits.
+- Hooks in existing files: `panel/index.html` (tab, pane, dock), `panel/main.js` (page list, Motion tab, dock switch, mount, remembered choices),
+  `panel/style.css`, `scripts/package_ccx.sh` (packs both new modules), `tests/wiring.test.js`. Browser preview: `preview/fake-inout.js`, four scenarios.
+- Test bridge in NEW TEST on 0.10.128, 10 checks passed: navigation shows one pane and one dock at a time; every preset's Edge / Turn / Strength
+  state matches the maths (33 presets, 0 mismatches); clamps (frames 1-1000, strength 25-200); Apply through the page writes what the direct
+  call writes, with the right Undo counts; the blur switch gives Shutter 180 / 0; three clips, a reversed clip skipped with its reason, shortening,
+  the graphic note; Remove and "Nothing removed"; nothing selected refused; nothing written without Apply; the Keyframer, Tracker and Anchor pages
+  unaffected; no panel errors in the log.
+- Four small fixes after that run: a frames box no longer pins the default when only focused; typed numbers are committed at Apply; the hint
+  while both sides are None; a stale status line is cleared when a choice changes. Reinstalled as 0.10.129 and smoke-tested through the page
+  (Pop applied: 13 scale keys, the 2-Undo sentence; Remove restored the chain).
+- Not verified: the user has not looked at the page in Premiere yet. The bridge reads the DOM, not what is painted: the card layout, the greyed
+  rows, the dock, the four Motion buttons at narrow widths, tooltips, and how the animations look in playback.
+- Tests: `node --test tests/*.test.js` 467 pass (451 at 0.10.127; new `tests/inoutui.test.js`). No Python changed (954 passed, 24 skipped earlier today).
+
 ## 0.10.127 - In & Out animations: Phase 2, apply, re-apply and remove on the Premiere side (2026-11-21, installed on the development Mac, not released, no page yet)
 - 0.10.126 was an install-only step on the development Mac and was never committed or released; it has no entry of its own.
 - New `panel/premiere-inout.js`: `apply` puts the picked In and/or Out preset on every selected video clip. Each clip gets one

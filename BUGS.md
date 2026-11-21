@@ -12,6 +12,10 @@
   timeline seconds. `premiere-keyframes.js` reads existing keys (so shaping between them is right) but anything it places
   from `inPt` alone, and the blur's window, may be off on such a clip. To check with the probe sequence in NEW TEST.
 
+## In & Out animations, Phase 3 page (0.10.129, open, not fixed; found in the bridge tests of 2026-11-21)
+- The header refresh in `panel/main.js` re-enables every action button, so Apply can look enabled while both sides are None. Pressing
+  it shows "Pick an In or an Out animation first." and writes nothing. The Keyframer behaves the same way.
+
 ## In & Out animations, Phase 2 (0.10.127, open, not fixed; found in the bridge tests of 2026-11-21)
 - After ONE Undo of a first Apply, an empty untagged Transform remains on the clip; the next Apply adds a second one (it never
   adopts an untagged Transform, by design). Two Undos are needed, as the status line says.

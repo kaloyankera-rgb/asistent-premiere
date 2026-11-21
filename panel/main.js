@@ -253,8 +253,8 @@ let keyframerPage = null;                                 // the Keyframer page 
 
 // 0.10.59: Keyframer and Tracker share the Motion tab (a switch between them, the last one used comes back); Log and
 // Settings are icons at the right of the tab row.
-const PANES = ["paneTools", "paneKeyframer", "paneTracker", "paneAnchor", "paneBrand", "paneLog", "panePreview", "paneCaptions", "paneSettings"];
-const MOTION = ["paneKeyframer", "paneTracker", "paneAnchor"];
+const PANES = ["paneTools", "paneKeyframer", "paneTracker", "paneAnchor", "paneInOut", "paneBrand", "paneLog", "panePreview", "paneCaptions", "paneSettings"];
+const MOTION = ["paneKeyframer", "paneTracker", "paneAnchor", "paneInOut"];
 let motionSide = "paneKeyframer";
 
 // 0.10.111 (the user: "smooth transitions when switching tabs"): Premiere's UXP runs no CSS transitions (css_probe 0.9.71),
@@ -281,6 +281,7 @@ function openTab(pane) {
   const was = PANES.find((p) => !$(p).hidden);
   for (const p of PANES) show(p, p === pane);
   show("kfDock", pane === "paneKeyframer");
+  show("ioDock", pane === "paneInOut");
   if (was !== pane) fadeIn($(pane));
   for (const t of document.querySelectorAll(".btn.tab")) {
     const tab = t.getAttribute("data-tab");
@@ -2139,6 +2140,7 @@ for (const t of document.querySelectorAll(".btn.tab, .btn.mside")) onTap(t, () =
 keyframerPage = require("./keyframer.js").mount({ $, el, button, enable, bindTips, premiere });     // the Keyframer page (0.10.32)
 trackerPage = require("./tracker.js").mount({ $, el, button, enable, bindTips, premiere });   // the Tracker page (0.10.51)
 require("./anchor.js").mount({ $, el, button, enable, bindTips, premiere });     // the Anchor page (0.10.69, Anchor Studio)
+const inoutPage = require("./inout.js").mount({ $, el, button, enable, bindTips, premiere });   // the In & Out page (Phase 3)
 // the Brand page (0.10.71): the subtitle style it can switch is the Subtitles row's own list
 const subtitleValues = () => [...$("subtitleStyle").querySelectorAll("option")].map((o) => o.value);
 brandPage = require("./brand.js").mount({ $, el, button, enable, bindTips, premiere, hooks: {
@@ -2175,6 +2177,7 @@ function applyRemembered() {
   }
   // 0.10.78: the Keyframer's motion blur and Update live, when the store loads after the page was built
   if (keyframerPage && keyframerPage.remembered) keyframerPage.remembered();
+  inoutPage.remembered();                                     // the In & Out page's choices, when the store loads late
   if (silencesPage) silencesPage.remembered();              // 0.10.96: Cut silences' options, when the store loads late
 }
 applyRemembered();

@@ -455,3 +455,28 @@ test("the open tab is drawn with whole-box borders, never a one-side colour", ()
   assert.doesNotMatch(tabRules, /border-(bottom|top|left|right)(-color)?\s*:/);
   assert.match(css, /\.btn\.tab\.on \{[^}]*background-color: var\(--tab-on\)/);
 });
+
+// In & Out page (Phase 3): a pane and a Motion button, a dock shown with it, one mount line, packed files
+test("the In & Out page: pane, Motion button, dock, mount line and packed files", () => {
+  const pack = fs.readFileSync(path.join(__dirname, "..", "scripts", "package_ccx.sh"), "utf8");
+  assert.match(html, /<div id="tabInOut" class="btn mside" data-tab="paneInOut" data-tip="[^"]+">In &amp; Out<\/div>/);
+  assert.match(html, /<div id="paneInOut" class="pane" hidden><\/div>/);
+  assert.match(html, /<div id="ioDock" class="dock" hidden><\/div>/);
+  assert.ok(html.indexOf('<div id="tabInOut"') < html.indexOf('<div id="paneKeyframer"'), "the button sits in the Motion switch");
+  assert.ok(html.indexOf('<div id="ioDock"') > html.indexOf('<div id="kfDock"') && html.indexOf('<div id="ioDock"') < html.indexOf('<div id="bottom">'), "ioDock under the page, above #bottom");
+  assert.match(main, /const PANES = \[[^\]]*"paneInOut"/);
+  assert.match(main, /const MOTION = \[[^\]]*"paneInOut"\]/);
+  assert.match(main, /show\("ioDock", pane === "paneInOut"\)/);
+  assert.match(main, /require\("\.\/inout\.js"\)\.mount\(\{ \$, el, button, enable, bindTips, premiere \}\)/);
+  assert.match(main, /inoutPage\.remembered\(\)/);
+  for (const f of ["inout.js", "inoutui.js", "inoutplan.js", "premiere-inout.js"]) assert.match(pack, new RegExp(`\\b${f.replace(".", "\\.")}\\b`));
+  const page = fs.readFileSync(path.join(panel, "inout.js"), "utf8");
+  assert.match(page, /const dock = \$\("ioDock"\) \|\| host;/);
+  assert.match(page, /store\.setItem\(KEY, /);
+  assert.match(page, /const KEY = "asistent\.inout\.ui";/);
+  // only Apply and Remove write anything, and both go through a pressed button
+  assert.strictEqual((page.match(/IO\.(apply|remove)\(/g) || []).length, 2);
+  assert.doesNotMatch(page, /setTimeout|setInterval/);                            // nothing runs by itself
+  // every button of the page is made with button() (a div.btn) and carries a tip
+  assert.doesNotMatch(page, /createElement\("button"\)/);
+});

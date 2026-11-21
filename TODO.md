@@ -31,7 +31,7 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] Each clip is decoded three times on the words path; the final check reads the whole new sequence through UXP again.
 
 ## IO. In & Out animations (`docs/IN_OUT_PLAN.md`, the user's approval 2026-11-21; 0.10.124 = Phase 0 desk + Phase 1 maths)
-0.10.127 = Phase 2 (`panel/premiere-inout.js`): built and bridge-tested, reachable only through the test bridge; no page yet.
+0.10.127 = Phase 2 (`panel/premiere-inout.js`): built and bridge-tested. 0.10.129 = Phase 3, the page (`panel/inout.js`, `panel/inoutui.js`): bridge-tested on 0.10.128, awaiting the user's look.
 - [x] Live probes P1-P9 ran in NEW TEST 2026-11-21 (`docs/probes/inout-phase0.md`); test sequence "Asistent probe – In Out" kept.
 - [x] Decision recorded: owned Transform (DECISIONS 2026-11-21).
 - [ ] Probe a type-tool text clip (only a Basic Title MOGRT was measured) and the Keyframer on a trimmed + sped-up clip (BUGS).
@@ -52,10 +52,14 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [x] Phase 2 (0.10.127): `panel/premiere-inout.js` (apply, re-apply, remove, record in `asistent.inout.v1`), keys in one
       transaction, tag in Skew Axis; `inoutplan.js` and `premiere-inout.js` packed by `scripts/package_ccx.sh`; live test through
       the bridge in NEW TEST, 13 checks passed (CHANGELOG 0.10.127).
-- [ ] Phase 3: page `panel/inout.js`, hooks in `panel/index.html`, `panel/main.js`, the packaging list, wiring tests. Strength
-      greyed on the nine presets where it changes nothing via `needs().strength`. USER: one look in Premiere (layout needs it,
-      the bridge cannot see the panel); also the look of the motion, which no bridge check has seen.
-- [ ] Phase 4: motion blur toggle and a small preview (reuse the Keyframer's preview).
+- [x] Phase 3 (0.10.129): page `panel/inout.js` + `panel/inoutui.js`, hooks in index.html / main.js / style.css, packing, wiring tests,
+      preview scenarios; bridge NEW TEST 10 checks on 0.10.128, four fixes smoke-tested (CHANGELOG 0.10.129). Strength greyed via `needs().strength`
+      on the nine presets where it changes nothing.
+- [ ] USER: the look in Premiere, next to the reference: the page (card layout, greyed rows, dock, the four Motion buttons at narrow
+      widths, tooltips) and the playback, blur on and off. The bridge reads the DOM and cannot see either.
+- [ ] Phase 4: a small preview of the picked preset (reuse the Keyframer's preview). The motion blur toggle is in since Phase 3.
+- [ ] In & Out page small things: the bridge's `fill` allowlist lacks `ioInFrames`, `ioOutFrames`, `ioStrength` (tests set them
+      through `uxp_eval`); `remembered()` after a late store load was not exercised live.
 - [ ] Phase 5 (later): per-property curve editor (reuse `keyframer.js`) and "Save as new preset" into `asistent.inout.presets`.
 - [ ] Each phase: version bump (manifest + config), CHANGELOG, PROJECT_STATUS, TODO, BUGS, PROGRESS, INDEX. Push only on the user's yes.
 

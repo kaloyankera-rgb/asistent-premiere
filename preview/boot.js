@@ -69,6 +69,7 @@
     uxp: { host: { version: "26.0.2" }, storage: { localFileSystem: { getFolder: async () => null } } },
     os: { platform: () => "darwin", release: () => "24.6.0" },
     "./engine.js": fakeEngine,
+    "./premiere-inout.js": window.PREVIEW_INOUT,                // the In & Out page presses this (fake-inout.js)
   };
 
   // ------------------------------------------------------------ loader
