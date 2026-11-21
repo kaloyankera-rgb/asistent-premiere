@@ -12,13 +12,17 @@
   timeline seconds. `premiere-keyframes.js` reads existing keys (so shaping between them is right) but anything it places
   from `inPt` alone, and the blur's window, may be off on such a clip. To check with the probe sequence in NEW TEST.
 
-## In & Out own presets (0.10.135, limits)
+## In & Out own presets (0.10.135-0.10.136, limits)
 - A touched curve becomes its 16-point version: within 0.02 of the original curve, and up to about 38 px mid-move on a 1920 px slide.
 - The smooth curve can swing slightly past its points. Position and rotation are not clamped.
 - Unsaved edits are lost on a restart; an Apply of them records the id `draft`, not a saved preset.
 - A point between two neighbours closer than 0.024 cannot be moved.
 - A fast own curve that reaches 0.998 early keeps Strength enabled for a nearly invisible change.
 - The graph has never run in UXP: pointer capture, `getBoundingClientRect` and the drawn look are untested.
+- Saving, renaming or deleting rebuilds that side's tiles, which recreates the tile icons' SVGs after mount. It is static (outside
+  the preview loop; the preview is stopped first) and judged safe on reasoning, not measured in Premiere.
+- Nothing of the editor has run in UXP: the flex ellipsis on the summary row, `hidden` on the tiles' wrapper, pointer events on the graph.
+- The editor's handlers are covered by bridge checks only (TODO section IO), not by Node tests.
 
 ## In & Out animations, Phase 3 page (0.10.129, open, not fixed; found in the bridge tests of 2026-11-21)
 - The header refresh in `panel/main.js` re-enables every action button, so Apply can look enabled while both sides are None. Pressing

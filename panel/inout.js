@@ -10,6 +10,9 @@ const IO = require("./premiere-inout.js");
 const I = require("./inoutplan.js");
 const U = require("./inoutui.js");
 const PV = require("./inoutpreview.js");
+const P = require("./inoutpresets.js");
+const E = require("./inoutedit.js");
+const graph = require("./curvegraph.js");
 
 const KEY = "asistent.inout.ui";
 // icons are 16 x 16 viewBox outlines; their colour and width come from CSS (svg.io-ico path), as UXP ignores the stroke attribute
@@ -35,7 +38,19 @@ function readSaved() {
 
 function mount({ $, el, button, enable, bindTips, premiere }) {
   const root = $("paneInOut");
+  // the editor's own presets (Phase 5) are read BEFORE the stored choices: a stored own pick is None to U.restore until the registry has it
+  let ownText = null;                                        // the stored list as last read or written here
+  const loadOwn = () => {
+    const text = store.getItem(P.KEY);
+    const r = I.setCustom(P.parse(text));
+    if (r.dropped.length) premiere.debug(`inout: own presets dropped: ${JSON.stringify(r.dropped)}`);
+    const moved = text !== ownText;
+    ownText = text;
+    return moved;
+  };
+  loadOwn();
   const state = U.restore(readSaved());
+  E.clearDrafts(state);                                      // unsaved curve edits: never remembered, never read back
   let busy = false;
   let hover = null;                                          // {side, id} while the pointer rests on a tile; never saved
   let result = null;                                         // the last press's lines; forgotten when the editor changes a choice
@@ -44,6 +59,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   const changed = () => {
     result = null;
     keep();
+    ed.disarm();                                             // a Delete waiting for its second press is cancelled by any other press
     paint();
   };
 
@@ -66,6 +82,9 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   // presses ioIn-* / ioOut-* by id); the other side's container and the filtered-out tiles are hidden with the `hidden` property.
   const switchRow = el("div", "row io-switch");
   root.appendChild(switchRow);
+  // the chips and the tiles sit in one box so the curve editor can take their place (Phase 5): the box is hidden with the property
+  const presetsBox = el("div", "io-presets");
+  root.appendChild(presetsBox);
   const segs = {};
   for (const side of ["in", "out"]) {
     const b = button("small io-seg", "", side === "in" ? "Show the In presets. The label is the current In pick." : "Show the Out presets. The label is the current Out pick.", () => {
@@ -79,7 +98,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     segs[side] = b;
   }
   const chipRow = el("div", "row io-chips");
-  root.appendChild(chipRow);
+  presetsBox.appendChild(chipRow);
   const chips = {};
   for (const [id, name] of U.FILTERS) {
     const b = button("small io-chip", name, `${FILTER_TIP[id]} The choice is kept for both sides.`, () => {
@@ -133,32 +152,41 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   }
   const lists = {};                                          // side -> container
   const sides = {};                                          // side -> its tiles [{b, id}]
+  const fills = {};                                          // side -> its refill
   function buildSide(side, title, tip) {
     const c = el("div", "row wrap io-tiles");
-    root.appendChild(c);
-    const buttons = [];
-    for (const t of U.tiles(side)) {
-      const b = button("small io-tile", "", t.preset ? U.presetTip(side, t.preset) : tip, () => pick(side, t.id));
-      b.id = `io${title}-${t.id}`;
-      b.setAttribute("data-id", t.id);
-      b.innerHTML = icon(ICO[t.filter]);
-      b.appendChild(el("div", "io-tn", t.name));
-      b.addEventListener("mouseenter", () => {
-        if (busy) return;
-        hover = { side, id: t.id };
-        showPreview();
-      });
-      b.addEventListener("mouseleave", () => {
-        if (!hover) return;
-        hover = null;
-        showPreview();
-      });
-      afterPress(b, side, t.id);
-      buttons.push(b);
-      c.appendChild(b);
-    }
+    presetsBox.appendChild(c);
+    // the tiles of the side, made at mount and again after Save as new / Rename / Delete (never per frame, never on hover): the editor's
+    // own presets sit after None. The icons are static markup.
+    const fill = () => {
+      c.innerHTML = "";
+      const buttons = [];
+      for (const t of U.tiles(side)) {
+        const b = button(`small io-tile${t.mine ? " io-mine" : ""}`, "", t.preset ? U.presetTip(side, t.preset) : tip, () => pick(side, t.id));
+        b.id = `io${title}-${t.id}`;
+        b.setAttribute("data-id", t.id);
+        if (t.mine) b.setAttribute("data-mine", "1");
+        b.innerHTML = icon(ICO[t.filter]);
+        b.appendChild(el("div", "io-tn", t.name));
+        b.addEventListener("mouseenter", () => {
+          if (busy) return;
+          hover = { side, id: t.id };
+          showPreview();
+        });
+        b.addEventListener("mouseleave", () => {
+          if (!hover) return;
+          hover = null;
+          showPreview();
+        });
+        afterPress(b, side, t.id);
+        buttons.push(b);
+        c.appendChild(b);
+      }
+      sides[side] = buttons;
+    };
+    fills[side] = fill;
     lists[side] = c;
-    sides[side] = buttons;
+    fill();
   }
   buildSide("in", "In", "No In animation: the start of the clip stays as it is.");
   buildSide("out", "Out", "No Out animation: the end of the clip stays as it is.");
@@ -283,8 +311,10 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   // row c: Apply (wide) and Remove; then the summary and the answer
   const actions = el("div", "row io-act");
   dock.appendChild(actions);
+  const sumRow = el("div", "row io-sumrow");                 // the summary and, at its right end, the Curves button (inoutedit.js)
+  dock.appendChild(sumRow);
   const sum = el("div", "io-sum");                           // what is picked, visible wherever the page is scrolled
-  dock.appendChild(sum);
+  sumRow.appendChild(sum);
   const status = el("div", "kf-status");
   dock.appendChild(status);
 
@@ -292,11 +322,25 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     result = [].concat(lines);
     paint();
   }
+  // ---- the curve editor (Phase 5): takes the place of the chips and tiles while it is open; its drafts are the page's state.drafts and
+  // reach the preview and Apply through the registry (inoutplan.setDraft). It never writes to Premiere or the store except Save /
+  // Rename / Delete of the own presets.
+  const ed = E.mount({ host: root, entryHost: sumRow, el, button, enable, bindTips, store, graph, getState: () => state, hooks: {
+    refresh: () => { result = null; paint(); },
+    changed: () => changed(),
+    pick: (side, id) => pick(side, id),
+    refill: (side) => { ownText = store.getItem(P.KEY); hover = null; preview.stop(); fills[side](); bindTips(lists[side]); },
+    showSide: (side) => { state.side = side; keep(); },
+    say: (lines) => say(lines),
+    isBusy: () => busy,
+    debug: (text) => premiere.debug(text),
+  } });
   function showStatus() {
     status.innerHTML = "";
     for (const l of U.statusFor(state, result)) status.appendChild(el("div", l.cls || "line", l.text));
   }
 
+  let late = false;                                          // remembered() came during a write: it runs when the write ends
   async function guarded(fn) {
     if (busy) return;
     busy = true;
@@ -309,7 +353,10 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       if (!(e instanceof premiere.UserError)) premiere.debug(`inout: ${e && e.stack ? e.stack : e}`);
     } finally {
       busy = false;
-      paint();
+      if (late) {                                              // the stored choices arrived during the write: read them now
+        late = false;
+        remembered();
+      } else paint();
     }
   }
 
@@ -344,6 +391,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   }
 
   function paint() {
+    ed.syncDrafts();                                           // the registry follows the drafts before anything reads it
     const v = U.view(state);
     for (const side of ["in", "out"]) {
       const picked = state[`${side}Preset`];
@@ -353,7 +401,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
         const id = b.getAttribute("data-id");
         const show = shown.includes(id);
         b.hidden = !show;
-        b.className = `btn small io-tile${id === picked ? " on" : ""}${show && n % 3 === 2 ? " e3" : ""}${show && n % 2 === 1 ? " e2" : ""}`;
+        b.className = `btn small io-tile${b.getAttribute("data-mine") ? " io-mine" : ""}${id === picked ? " on" : ""}${show && n % 3 === 2 ? " e3" : ""}${show && n % 2 === 1 ? " e2" : ""}`;
         if (show) n++;
       }
       lists[side].hidden = v.side !== side;
@@ -361,6 +409,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
       segs[side].textContent = v.labels[side];
     }
     for (const [id, b] of Object.entries(chips)) b.className = `btn small io-chip${v.filter === id ? " on" : ""}`;
+    ed.paint();                                                // may close itself (the side showing has nothing picked)
+    presetsBox.hidden = ed.isOpen();                           // the editor takes the place of the chips and tiles
     dirPair.p.hidden = !v.direction;
     turnPair.p.hidden = !v.turn;
     paintDir();
@@ -395,6 +445,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     if (busy) return;
     hover = null;                                              // the press answers in the preview: the pick itself, from its first frame (0.10.134)
     Object.assign(state, U.afterPick(state, side, id));        // the page follows the pick to its side; a filtered-out tile goes back to All so it shows
+    ed.syncDrafts();                                           // a pick ends that side's draft: the registry loses it too
     changed();
   }
 
@@ -402,15 +453,31 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   bindTips(root);
   bindTips(dock);
   return {
-    // the store may load after the page was built (main.js applyRemembered)
-    remembered: () => {
-      Object.assign(state, U.restore(readSaved()));
-      hover = null;
-      paint();
-    },
+    remembered,
     wake: () => preview.wake(),                              // main.js openTab: the page is on screen again
-    info: () => ({ ...U.snapshot(state), view: U.view(state), busy, preview: preview.info(), status: [...status.children].map((c) => c.textContent) }),
+    info: () => ({ ...U.snapshot(state), view: U.view(state), busy, preview: preview.info(), status: [...status.children].map((c) => c.textContent), ...ed.info() }),
+    edit: (side, prop, pts) => ed.edit(side, prop, pts),       // the bridge: a property's curve set as if dragged and released
   };
+
+  // the store may load after the page was built (main.js applyRemembered)
+  function remembered() {
+      // Apply reads its presets from the registry between awaits: the list and the drafts are not changed under a running write
+      if (busy) { late = true; return; }
+      const ownMoved = loadOwn();                              // own presets first, then the choices that may name one
+      const before = JSON.stringify(U.snapshot(state));
+      Object.assign(state, U.restore(readSaved()));
+      // this also runs when the engine comes back during use: unsaved edits and the tiles are touched only when something really changed
+      if (ownMoved || JSON.stringify(U.snapshot(state)) !== before) E.clearDrafts(state);
+      hover = null;
+      if (ownMoved) {
+        preview.stop();
+        for (const side of ["in", "out"]) {
+          fills[side]();
+          bindTips(lists[side]);
+        }
+      }
+      paint();
+  }
 }
 
 module.exports = { mount };

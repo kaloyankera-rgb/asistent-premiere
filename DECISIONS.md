@@ -724,3 +724,17 @@ a lot): settings were chosen for what they prevent, then checked on synthetic co
 - **Added in 0.10.127 (the user's go-ahead, 2026-11-21):** the two protective hooks: the Keyframer's `readSelection` skips
   the tagged Transform, and the blur's `addOwn` takes a Transform only when the count rose by exactly one and it is not
   tagged. Measured rule for a clip rotated with Motion: the Transform's Position runs along the clip's own rotated axes.
+
+## 2026-11-21: In & Out curve editor and own presets: builder's choices, the user's look pending (0.10.136)
+- **Why:** the Phase 5 plan (`docs/IN_OUT_PLAN.md`, approved 2026-11-21) asks for a page that edits a curve and keeps it as an own
+  preset. The maths and the store rules were built in 0.10.135; 0.10.136 adds the page (`panel/inoutedit.js`).
+- **Builder's choices, not asked of the user (the user's look pending):**
+  - On an own preset the name box starts with that preset's name, and "Save as new" makes the name unique ("Snappy", "Snappy 2").
+  - Reset on an own preset goes back to the built-in base curve.
+  - Switching to a side with nothing picked closes the editor.
+  - The stored choices read again (the engine coming back) clear unsaved edits only when something really changed, and never under a
+    running Apply: that reload waits until the Apply has ended.
+  - Save, Rename and Delete do nothing until the panel store has loaded from the engine ("Your presets are still loading. Try again in
+    a moment."). This came from the rules-reviewer BLOCK: a save before the load would have written a list without the earlier presets.
+- **Review:** the fixes made after the review (the store guard, the deferred reload, a press on the graph disarming Delete, the Save
+  sentence) passed the reviewer's re-check. The reviewer judged the tile refill safe on reasoning and asks for a soak through the bridge first.

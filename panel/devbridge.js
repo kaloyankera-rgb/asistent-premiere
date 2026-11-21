@@ -125,7 +125,7 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     async fill(a) {
       // the notes box, and (0.10.34) the Track names options, so a test can choose colours and the auto switch
       // 0.10.65: and Remove silences' Pauses / Threshold
-      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughMode", "roughMethod", "roughDb", "roughPacing", "roughMinSilence", "roughMinSpeech", "roughBefore", "roughAfter", "roughSensitivity", "roughShort", "roughShortMin", "roughShortMax", "roughFillers", "roughRange", "roughAction", "tr_scale", "tr_rotation", "tr_centre", "tr_smooth", "tr_zoom", "kfBlurAmount"].includes(a.id)) throw new Error("fill: notes, the Track names options, Remove silences' options and the Tracker's options and the Keyframer's blur amount only.");
+      if (!["notes", "labelsColor1", "labelsColor2", "labelsAuto", "roughMode", "roughMethod", "roughDb", "roughPacing", "roughMinSilence", "roughMinSpeech", "roughBefore", "roughAfter", "roughSensitivity", "roughShort", "roughShortMin", "roughShortMax", "roughFillers", "roughRange", "roughAction", "tr_scale", "tr_rotation", "tr_centre", "tr_smooth", "tr_zoom", "kfBlurAmount", "ioEdName"].includes(a.id)) throw new Error("fill: notes, the Track names options, Remove silences' options and the Tracker's options, the Keyframer's blur amount and In & Out's preset name only.");
       const e = doc.getElementById(a.id);
       const box = a.id === "labelsAuto" || a.id === "roughShort" || a.id === "roughFillers" || a.id.startsWith("tr_");
       if (box) e.checked = !!a.value;
@@ -646,6 +646,17 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     async inout_remove() {
       const { p } = await project();
       return require("./premiere-inout.js").remove(p);
+    },
+    // In & Out's curve editor (inoutedit.js, Phase 5): what the page holds ({editing, side, prop, own, draft, graph, name, canSave, ...}), and a
+    // property's curve set as if dragged and released ({side, prop, pts}: opens the editor there if needed; {ok} or {error}). The
+    // buttons are pressed with click (ioEdit, ioEdBack, ioEdReset, ioEdSave, ioEdRename, ioEdDelete, ioEdProp-<prop>) and ioEdName with fill.
+    async inout_page() {
+      if (!hooks.inout || !hooks.inout()) throw new Error("no In & Out page in this panel");
+      return hooks.inout().info();
+    },
+    async inout_edit(a) {
+      if (!hooks.inout || !hooks.inout()) throw new Error("no In & Out page in this panel");
+      return hooks.inout().edit(a.side, a.prop, a.pts);
     },
     async tracker_info() {
       if (!hooks.tracker) throw new Error("no Tracker page in this panel");

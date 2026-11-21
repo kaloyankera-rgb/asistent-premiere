@@ -53,7 +53,7 @@
     exportsRecent: async () => ({ items: engineState.exports.items || [] }),
     review: async () => engineState.review || { lines: [], summary: null },
     captionFaces: async () => ({ frames: [] }),
-    panelStore: async () => ({ values: {} }),
+    panelStore: async () => ({ values: S.store || {} }),          // a scenario may seed the panel's store (the In & Out own presets)
     panelStorePut: async () => ({ ok: true }),
     playFrom: async () => ({ ok: true }),
     playStop: async () => ({ ok: true }),

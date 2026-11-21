@@ -31,6 +31,42 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.136 - In & Out curve editor and own presets: Phase 5 complete (2026-11-21, not installed, not pushed, not run in Premiere)
+
+- **The plan:** step 5 of the Phase 5 plan (`docs/IN_OUT_PLAN.md`), the last step. Steps 1-4 are in 0.10.135. Phase 5 is now
+  fully built; nothing of it is installed or run in Premiere yet.
+- **What the editor shows:** a small "Curves" button (`ioEdit`) at the right end of the dock's summary line. It opens the curve
+  editor in place of the filter chips and tiles; the preview, the In | Out switch and the dock stay where they are. The dock's
+  height does not change (240 / 300 / 420 px). In the editor: "Presets" (back), a chip per animated property (an edited one reads
+  "Scale •"; a multi-step property is greyed with the reason), Reset, a 208 x 160 px graph (press adds a point, drag moves, double
+  press removes, Alt + press makes a corner), a name box and "Save as new". On an own preset also Rename and Delete (a second press
+  confirms; any other press cancels). Unsaved edits show as "In · Pop (edited)" and Apply writes them. Own presets are tiles right
+  after None with an accent left edge. Save, Rename and Delete each say one line in the status.
+- **Files:** new `panel/inoutedit.js`: the pure decisions (`clearDrafts`, `baseline`, `effectiveFrames`, `editDraft`, `resetDraft`,
+  `editedOf`, `pointsFor`, `uniqueName`, `specOf`, `syncDrafts`, `saveSpec`) and `mount()` with the editor's DOM and the store reads
+  and writes. It makes no Premiere call, runs no timer and mounts the graph once. Hooks: `panel/inout.js` (own presets loaded before
+  the stored choices, tiles in a wrapper `div.io-presets`, the tiles of one side refilled at mount and after save / rename / delete
+  / a real change of the stored list, the summary row, `edit()`, a wider `info()`), `panel/style.css` (`.io-sumrow`, `.io-edbtn`,
+  `.io-mine`, `.io-ed*`), `panel/main.js` (bridge hook `inout`), `panel/devbridge.js` (`inout_page`, `inout_edit {side, prop, pts}`,
+  `ioEdName` in the `fill` allowlist), `scripts/package_ccx.sh` (packs `curvegraph.js` and `inoutedit.js`), `preview/` (scenarios
+  `inout-editor` and `inout-mine`; `boot.js` lets a scenario seed the store).
+- **Choices made while building** (the user has not been asked; recorded in DECISIONS as builder's choices, the user's look
+  pending): on an own preset the name box starts with that preset's name, and "Save as new" makes the name unique ("Snappy",
+  "Snappy 2"); Reset on an own preset goes back to the built-in base curve; switching to a side with nothing picked closes the
+  editor; the stored choices read again (the engine coming back) clear unsaved edits only when something really changed, and never
+  under a running Apply (deferred to its end); Save, Rename and Delete do nothing until the panel store has loaded ("Your presets
+  are still loading. Try again in a moment.").
+- **Review:** rules-reviewer BLOCK on step 5 for one bug, fixed: a Save, Rename or Delete before the panel store had loaded from the
+  engine would have written a list without the presets saved earlier. Also fixed from that review: the stored choices read again
+  could change the presets under a running Apply; a press on the graph did not cancel an armed Delete; the Save sentence. These
+  fixes came after the review; the reviewer's re-check of them is a PASS. The reviewer judged the tile refill safe on reasoning and asks for a
+  soak through the bridge before release.
+- **Tests:** Node 572 pass (553 at 0.10.135). New `tests/inoutedit.test.js` (14, the pure half only); `tests/wiring.test.js` +5.
+  No Python changed; the Python suite not run. Browser harness only (Chrome): screenshots at 240 / 300 / 420 px read; dock heights
+  equal to 0.10.135; `#ioEd` 267 px tall, the pane with the editor open 405 px.
+- **Not verified:** not installed, not run in Premiere or UXP, not bridge-tested, not pushed. The user has seen none of it. The
+  bridge checks for NEW TEST are listed in `TODO.md` section IO.
+
 ## 0.10.135 - In & Out own presets: Phase 5 foundation (2026-11-21, not installed, not pushed, nothing visible changed yet)
 
 - **The plan:** the user approved the Phase 5 plan on 2026-11-21 ("approved", then "Go ahead"). This version builds steps 1-4 of it.

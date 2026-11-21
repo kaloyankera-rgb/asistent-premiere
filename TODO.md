@@ -37,7 +37,7 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] USER: click the Motion and Brand settings labels and card backgrounds in real use: no other tab opens, nothing is placed.
 
 ## IO. In & Out animations (`docs/IN_OUT_PLAN.md`, the user's approval 2026-11-21; 0.10.124 = Phase 0 desk + Phase 1 maths)
-0.10.127 = Phase 2 (`panel/premiere-inout.js`): built and bridge-tested. 0.10.129 = Phase 3, the page (`panel/inout.js`, `panel/inoutui.js`): bridge-tested on 0.10.128, awaiting the user's look. 0.10.130 = Phase 4, the preview card (`panel/inoutpreview.js`): built, Node-tested, not installed; rebuilt compact in 0.10.132, then as Tiles in 0.10.133 (the user chose layout A of three mockups: preview on top, In | Out switch, filter chips, tiles, dock with stepper and drawn Edge / Turn icons). 0.10.135 = Phase 5 steps 1-4 (own presets, curve maths and registry, store rules, curve-graph rules): built, Node-tested, not installed. Step 5 (the editor page) remains.
+0.10.127 = Phase 2 (`panel/premiere-inout.js`): built and bridge-tested. 0.10.129 = Phase 3, the page (`panel/inout.js`, `panel/inoutui.js`): bridge-tested on 0.10.128, awaiting the user's look. 0.10.130 = Phase 4, the preview card (`panel/inoutpreview.js`): built, Node-tested, not installed; rebuilt compact in 0.10.132, then as Tiles in 0.10.133 (the user chose layout A of three mockups: preview on top, In | Out switch, filter chips, tiles, dock with stepper and drawn Edge / Turn icons). 0.10.135 = Phase 5 steps 1-4 (own presets, curve maths and registry, store rules, curve-graph rules): built, Node-tested, not installed. 0.10.136 = Phase 5 step 5, the editor page (Curves button, editor, own presets' Save / Rename / Delete): built, Node-tested, not installed, not bridge-tested. Phase 5 is fully built.
 - [x] Live probes P1-P9 ran in NEW TEST 2026-11-21 (`docs/probes/inout-phase0.md`); test sequence "Asistent probe – In Out" kept.
 - [x] Decision recorded: owned Transform (DECISIONS 2026-11-21).
 - [ ] Probe a type-tool text clip (only a Basic Title MOGRT was measured) and the Keyframer on a trimmed + sped-up clip (BUGS).
@@ -77,9 +77,26 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] In & Out page small things: the bridge's `fill` allowlist lacks `ioInFrames`, `ioOutFrames`, `ioStrength` (tests set them
       through `uxp_eval`); `remembered()` after a late store load was not exercised live.
 - [x] Phase 5 steps 1-4 (0.10.135): own presets as a registry in `inoutplan.js`, store rules in `panel/inoutpresets.js`, point-curve maths, graph rules in `panel/curvegraph.js` (not mounted yet), own tiles and drafts in `inoutui.js`. Node 553 pass; rules-reviewer BLOCK on the first pass fixed, PASS on the second.
-- [ ] Phase 5 step 5, the editor page: new `panel/inoutedit.js`; hooks in `panel/inout.js` (Curves button on the dock's summary line, the editor in place of the tiles, Save as new / Rename / Delete), `style.css`, `main.js`; `devbridge.js` commands `inout_page` and `inout_edit` with `ioEdName` in the `fill` allowlist; pack `curvegraph.js` and `inoutedit.js` in `scripts/package_ccx.sh`; wiring tests; preview scenarios `inout-editor` and `inout-mine`.
-- [ ] Step 5 bridge checks: eleven, to be listed when step 5 starts; not run.
-- [ ] USER: the editor page's look in Premiere, after step 5 is built and installed. Nothing to decide for steps 1-4.
+- [x] Phase 5 step 5, the editor page (0.10.136, built, not installed): new `panel/inoutedit.js`; hooks in `panel/inout.js` (Curves button on the dock's summary line, the editor in place of the tiles, Save as new / Rename / Delete), `style.css`, `main.js`; `devbridge.js` commands `inout_page` and `inout_edit` with `ioEdName` in the `fill` allowlist; pack `curvegraph.js` and `inoutedit.js` in `scripts/package_ccx.sh`; wiring tests; preview scenarios `inout-editor` and `inout-mine`.
+- [ ] Step 5 bridge checks, NEW TEST, sequence "Asistent probe – In Out" (0.10.136; none run yet):
+  1. No own presets: In 21 and Out 14 tiles, `ioEd` hidden, `ioDock` height equal to 0.10.134 at 240 / 300 / 420 px.
+  2. `ioIn-pop` then `ioEdit`: chips and tiles hidden, one property chip (scale), graph 208 px wide and inside the pane.
+  3. `inout_edit` in / scale / `[[0.3,1.3],[0.6,0.9]]` then Apply: 13 Scale keys for 12 frames, each within 0.01 of `plan()` x 100,
+     first 60, last 100; other parameters static; Undo 2 the first time and 1 after; the clip's Motion equal before and after.
+  4. Save: one store row (`v` 1, in, pop, 12, the points as sent); In has 22 tiles, Out 14; the new tile is picked.
+  5. Apply with the saved preset: keys equal to check 3.
+  6. Rename: same id, new name. Delete (two presses): row and tile gone, the pick is `pop`, the clip's keys unchanged, Remove still
+     one Undo.
+  7. Out Anticipate: its position chip greyed, Save off.
+  8. Slide with `[[0.2,-0.2],[0.7,1.1]]` at Strength 50 and 200: the frame-0 Position key equals the built-in Slide's.
+  9. Edits and saves without Apply: the chain's key counts unchanged.
+  10. `asistent.keyframer.curves` byte-identical; `keyframer_info` works.
+  11. After 20 `inout_edit` calls the graph's node count is unchanged; no panel errors.
+  12. Soak (the reviewer's condition): 30 or more save / rename / delete rounds with the preview looping, no crash report.
+  13. Whether UXP reports `buttons` on pointer moves during a drag, and that a point can be dragged at all (pointer capture,
+      `getBoundingClientRect`).
+  14. Delete armed, then a press on the graph, then Delete: only armed again, nothing deleted.
+- [ ] USER: the editor in Premiere: the Curves button on the summary line (also at 240 px), the editor's look and scroll in a small panel, the drag feel, own tiles' look and place, the preview after a drag, playback of an edited curve.
 - [ ] Later: move the Keyframer onto `curvegraph.js` (its own editor stays as it is until then).
 - [ ] Each phase: version bump (manifest + config), CHANGELOG, PROJECT_STATUS, TODO, BUGS, PROGRESS, INDEX. Push only on the user's yes.
 

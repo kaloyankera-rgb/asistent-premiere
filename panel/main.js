@@ -2240,12 +2240,12 @@ async function afterExport(path) {
   const sequence = await premiereCheck.exportedSequence(await premiere.activeProject());
   return { sequence, done: await engine.exportDone(path, "complete", "bridge", sequence) };
 }
-createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION, hooks: { learnFromExport, afterExport, tracker: () => trackerPage, brand: () => brandPage, keyframer: () => keyframerPage } }).loop();
+createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION, hooks: { learnFromExport, afterExport, tracker: () => trackerPage, brand: () => brandPage, keyframer: () => keyframerPage, inout: () => inoutPage } }).loop();
 setInterval(() => {
   if (!state.busy) refreshHeader();
 }, 4000);
 
 // browser preview only (preview/boot.js sets this; inside Premiere it never exists): sample results fill the views
 if (typeof window !== "undefined" && typeof window.__asistentPreview === "function") {
-  window.__asistentPreview({ tracker: () => trackerPage, silences: () => silencesPage, finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab, renderSpeakers, renderLearned, learnedView, filterCaptions, runSearch });
+  window.__asistentPreview({ inout: () => inoutPage, tracker: () => trackerPage, silences: () => silencesPage, finish, setBusy, progress, el, button, previewBlock, renderCaptionEditor, renderSubtitleModel, openTab, renderSpeakers, renderLearned, learnedView, filterCaptions, runSearch });
 }

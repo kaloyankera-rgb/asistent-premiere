@@ -128,7 +128,7 @@ first apply on a clip is 2 Undo steps and a re-apply is 1. The panel says the nu
 5. **Phase 5, steps 1-4 built in 0.10.135:** own presets as a registry behind `inoutplan.js` (points curves on the base's one-piece
    properties), the store rules (`inoutpresets.js`, key `asistent.inout.presets`), the point-curve maths and graph rules
    (`curvegraph.js`, not mounted yet), own tiles and drafts in `inoutui.js`. Not installed or bridge-tested.
-   **Step 5 still to do:** the editor page (`panel/inoutedit.js`): a Curves button on the dock's summary line, the editor in place
+   **Step 5 built in 0.10.136** (Phase 5 now fully built; not installed or run in Premiere): the editor page (`panel/inoutedit.js`): a Curves button on the dock's summary line, the editor in place
    of the tiles, Save as new / Rename / Delete. The Keyframer's own editor in `keyframer.js` stays as it is; moving it onto
    `curvegraph.js` is later.
 6. Each phase closes with the usual paperwork: version bump in `panel/manifest.json` and

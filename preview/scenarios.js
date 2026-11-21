@@ -65,6 +65,16 @@ function ioPress(ids) {
   }
 }
 
+// a press-and-release on the In & Out curve editor's graph at curve (x, y) (x 0..1, y -0.5..1.5): adds a point there
+function ioGraph(x, y) {
+  const svg = document.querySelector("#ioEd .kf-editor svg");
+  if (!svg) return;
+  const r = svg.getBoundingClientRect();
+  const clientX = r.left + 12 + x * (r.width - 24);
+  const clientY = r.top + r.height - r.height / 4 - y * (r.height / 2);
+  for (const type of ["pointerdown", "pointerup"]) svg.dispatchEvent(new PointerEvent(type, { bubbles: true, clientX, clientY, pointerId: 1, buttons: type === "pointerdown" ? 1 : 0 }));
+}
+
 // the Tracker page with a drawn clip: a court, a ball bouncing across it (no footage)
 // variant "box": a frame with a box drawn, not yet tracked; "busy": the first track running (live frame, 40 % done)
 // 0.10.75: shape "wide" (16:9) or "square" (1:1) instead of the vertical 9:16 court, for the adaptive layouts
@@ -277,6 +287,18 @@ window.PREVIEW_SCENARIOS = (function () {
     "inout-hover": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-slide", "ioOut-fade", "ioSideIn"]); const b = document.getElementById("ioIn-elastic");
       if (b) b.dispatchEvent(new MouseEvent("mouseenter", { bubbles: false })); } },
     "inout-done": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-slide", "ioOut-fade"]); setTimeout(() => ioPress(["ioApply"]), 150); } },
+    // In & Out Phase 5 (0.10.136): the curve editor open on Pop's Scale with one added point; and two own presets on In, one picked
+    // (seeded through the panel's store: the page reads it late, as it does on a real start)
+    "inout-editor": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-pop", "ioEdit"]); ioGraph(0.5, 1.3); } },
+    "inout-mine": {
+      store: {
+        "asistent.inout.presets": JSON.stringify([
+          { id: "mine1001", v: 1, side: "in", base: "pop", name: "My Pop", frames: 12, curves: { scale: { pts: [[0.3, 0.6], [0.6, 1.2]] } } },
+          { id: "mine1002", v: 1, side: "in", base: "slide", name: "Soft slide long name", frames: 14, curves: { pos: { pts: [[0.5, 0.8]] } } }]),
+        "asistent.inout.ui": JSON.stringify({ inPreset: "mine1002", side: "in" }),
+      },
+      run: (api) => { api.openTab("paneInOut"); },
+    },
     // 0.10.78: the preview and the motion blur switched on (Overshoot+ sample move)
     "keyframer-blur": { run: (api) => {
       api.openTab("paneKeyframer");

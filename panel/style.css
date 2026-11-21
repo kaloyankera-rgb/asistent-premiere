@@ -705,3 +705,29 @@ svg.io-ico path { fill: none; stroke: var(--text-2); stroke-width: 1.6px; stroke
 .io-act .btn.action { flex: 1; min-width: 0; margin: 0 8px 0 0; }
 .io-act .btn.io-rm { flex: none; margin: 0; padding: 7px 14px; }
 .io-sum { margin: 6px 0 0 0; font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the summary line carries the Curves button at its right end (0.10.136): the row is as tall as the old line (4 + 14 = 6 + 12), so the
+   dock does not grow; the summary keeps the room and shows an ellipsis */
+.io-sumrow { margin: 4px 0 0 0; height: 14px; }
+.io-sumrow .io-sum { flex: 1; min-width: 0; margin: 0; }
+.btn.small.io-edbtn { flex: none; box-sizing: border-box; height: 14px; margin: 0 0 0 6px; padding: 0 8px; font-size: 10px; line-height: 12px; }
+
+/* own presets (0.10.136): a tile with an accent left border, nothing else changes */
+.btn.small.io-tile.io-mine { border-left: 3px solid var(--accent); }
+.btn.small.io-tile.io-mine:hover, .btn.small.io-tile.io-mine.on, .btn.small.io-tile.io-mine.on:hover, .btn.small.io-tile.io-mine.on:active { border-left-color: var(--accent); }
+
+/* the curve editor (0.10.136): takes the place of the chips and tiles; flex rows, margins in px, no gap or grid */
+.io-ed { margin: 0 0 4px 0; }
+.io-edtop { margin: 0 0 6px 0; }
+.btn.small.io-edback { flex: none; margin: 0 6px 0 0; padding: 3px 10px; }
+.btn.small.io-edreset { flex: none; margin: 0 0 0 auto; padding: 3px 10px; }
+.io-edprops { align-items: center; margin: 0 0 2px 0; }
+.btn.small.io-edchip { flex: none; margin: 0 4px 4px 0; padding: 3px 9px; }
+.io-edgraph { justify-content: center; margin: 0; }
+.io-edgraph .kf-editor { flex: none; margin: 0; }
+.io-edhint { margin: 4px 0 8px 0; font-size: 10px; line-height: 12px; color: var(--text-3); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.io-edname { margin: 0 0 6px 0; }
+input.io-name { flex: 1; min-width: 60px; margin: 0 6px 0 0; font-size: 11px; }
+.btn.small.io-edsave { flex: none; margin: 0; padding: 4px 10px; }
+.io-edown { margin: 0; }
+.btn.small.io-edrename, .btn.small.io-eddelete { flex: none; margin: 0 6px 0 0; padding: 3px 10px; }
+.btn.small.io-eddelete { border-color: var(--err-line); color: var(--err); }

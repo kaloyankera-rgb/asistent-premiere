@@ -527,3 +527,84 @@ test("the In & Out length stepper writes the box it steps, and leaves a None sid
   assert.ok(nudge.indexOf("=== null) return;") < nudge.indexOf("commitFrames(side, box)()"), "None is checked before the commit");
   assert.match(nudge, /box\.value = String\(U\.view\(state\)\.frames\[side\]\);\s+changed\(\);/);
 });
+
+// In & Out curve editor (Phase 5 step 5): its own module, never reaches Premiere, no timer, no node made after mount, one store key
+test("the In & Out curve editor: packed, never reaches Premiere, no timer, no SVG node of its own, one store key", () => {
+  const pack = fs.readFileSync(path.join(__dirname, "..", "scripts", "package_ccx.sh"), "utf8");
+  for (const f of ["curvegraph.js", "inoutedit.js"]) assert.match(pack, new RegExp(`\\b${f.replace(".", "\\.")}\\b`));
+  const ed = fs.readFileSync(path.join(panel, "inoutedit.js"), "utf8");
+  assert.doesNotMatch(ed, /\bIO\.|premiere-inout|require\("premierepro"\)/);                       // nothing is written to Premiere from the editor
+  assert.doesNotMatch(ed, /setTimeout|setInterval|requestAnimationFrame/);                          // nothing runs by itself
+  assert.doesNotMatch(ed, /createElementNS/);                                                       // the graph's nodes are made once, by curvegraph.js
+  assert.match(ed, /P\.KEY/);
+  assert.doesNotMatch(ed, /asistent\.inout\.presets/);                                              // never a second literal of the store key
+  assert.strictEqual((ed.match(/graph\.mount\(/g) || []).length, 1);                                // the graph is mounted once and reused through set()
+  assert.doesNotMatch(ed, /style\.display|removeChild|\.remove\(\)/);                               // hidden by the property only
+  assert.doesNotMatch(ed, /createElement\("button"\)/);                                             // every button is a div.btn made with button()
+  // Apply and Remove stay the page's only writes
+  const page = fs.readFileSync(path.join(panel, "inout.js"), "utf8");
+  assert.strictEqual((page.match(/IO\.(apply|remove)\(/g) || []).length, 2);
+  assert.match(page, /require\("\.\/curvegraph\.js"\)/);
+  assert.match(page, /require\("\.\/inoutedit\.js"\)/);
+});
+
+test("the Curves button is a small button (an action button is re-enabled by the header refresh), greyed through enable() with a tip", () => {
+  const ed = fs.readFileSync(path.join(panel, "inoutedit.js"), "utf8");
+  assert.match(ed, /button\("small io-edbtn", "Curves"/);
+  assert.match(ed, /editBtn\.id = "ioEdit";/);
+  assert.doesNotMatch(ed, /button\("action/);
+  assert.match(ed, /enable\(editBtn, canOpen && !open\);/);
+  assert.match(ed, /if \(hooks\.isBusy\(\) \|\| view\(\)\.none\) return;/);                           // setBusy re-enables every small button: the press checks again
+  for (const id of ["ioEd", "ioEdBack", "ioEdReset", "ioEdName", "ioEdSave", "ioEdRename", "ioEdDelete"]) assert.match(ed, new RegExp(`"${id}"`));
+  assert.match(ed, /b\.id = `ioEdProp-\$\{p\}`;/);
+  assert.match(ed, /box\.hidden = !open;/);
+  // every button carries a tip (button() takes it) except the ones whose tip paint() sets by state: those get a data-tip in paint()
+  for (const v of ["editBtn", "reset", "save", "del"]) assert.match(ed, new RegExp(`${v}\\.setAttribute\\("data-tip"`));
+  const css = fs.readFileSync(path.join(panel, "style.css"), "utf8");
+  for (const c of [".io-ed ", ".io-mine", ".io-sumrow", "input.io-name"]) assert.ok(css.includes(c), c);
+  assert.doesNotMatch(css.slice(css.indexOf(".io-sumrow")), /\bgap\s*:|display:\s*grid|transition\s*:/);
+});
+
+test("the In & Out page reads the own presets before the stored choices, keeps the drafts in sync, and refills tiles only on save, rename, delete and a real change", () => {
+  const page = fs.readFileSync(path.join(panel, "inout.js"), "utf8");
+  assert.ok(page.indexOf("I.setCustom(") > 0 && page.indexOf("I.setCustom(") < page.indexOf("U.restore("), "own presets before U.restore at mount");
+  assert.match(page, /function remembered\(\) \{[\s\S]{0,260}?if \(busy\) \{ late = true; return; \}\s+const ownMoved = loadOwn\(\);/);                                  // and again when the store loads late
+  const remembered = page.slice(page.indexOf("function remembered() {"));
+  assert.ok(remembered.indexOf("loadOwn()") < remembered.indexOf("U.restore("), "own presets before U.restore in remembered()");
+  assert.match(page, /E\.clearDrafts\(state\);/);
+  assert.match(page, /ed\.syncDrafts\(\);[^\n]*\n\s+const v = U\.view\(state\);/);                                       // the registry follows the drafts before the view reads it
+  assert.match(page, /Object\.assign\(state, U\.afterPick\(state, side, id\)\);[^\n]*\n\s+ed\.syncDrafts\(\);/);
+  assert.match(page, /c\.innerHTML = "";/);                                                                   // the refill, in buildSide only
+  assert.strictEqual((page.match(/innerHTML = ""/g) || []).length, 3);                                        // the page, the dock (existing) and the refill
+  assert.match(page, /fills\[side\]\(\)/);
+  const paintFn = page.slice(page.indexOf("function paint() {"), page.indexOf("function pick(side, id)"));
+  assert.doesNotMatch(paintFn, /fills\[|innerHTML = ""/);                                                      // never per paint, never on hover
+  assert.match(page, /presetsBox\.hidden = ed\.isOpen\(\);/);
+  assert.match(page, /edit: \(side, prop, pts\) => ed\.edit\(side, prop, pts\)/);
+});
+
+test("the bridge reaches the In & Out page: inout_page, inout_edit, the name box in fill, the hooks object", () => {
+  const bridge = fs.readFileSync(path.join(panel, "devbridge.js"), "utf8");
+  assert.match(bridge, /async inout_page\(\) \{[^}]*hooks\.inout\(\)\.info\(\)/);
+  assert.match(bridge, /async inout_edit\(a\) \{[^}]*hooks\.inout\(\)\.edit\(a\.side, a\.prop, a\.pts\)/);
+  assert.match(bridge, /"kfBlurAmount", "ioEdName"\]\.includes\(a\.id\)/);
+  assert.match(main, /inout: \(\) => inoutPage \} \}\)\.loop\(\);/);
+});
+
+// 0.10.136 (review): before the panel store has loaded it answers with an empty list, and a write then would replace the presets saved
+// earlier; a reload of the stored choices never changes the registry under a running Apply; a press on the graph cancels an armed Delete
+test("In & Out editor: no Save, Rename or Delete before the store has loaded; no reload under a write", () => {
+  const ed = fs.readFileSync(path.join(panel, "inoutedit.js"), "utf8");
+  assert.match(ed, /const ready = \(\) => typeof store\.loaded !== "function" \|\| store\.loaded\(\);/);
+  for (const fn of ["onSave", "onRename", "onDelete"]) {
+    const body = ed.slice(ed.indexOf(`function ${fn}()`), ed.indexOf("store", ed.indexOf(`function ${fn}()`) + 400) + 400);
+    assert.match(body.slice(0, body.indexOf("disarm();") > 0 ? body.indexOf("disarm();") : 400), /\|\| notReady\(\)\) return;/, `${fn} checks the store first`);
+  }
+  assert.strictEqual((ed.match(/store\.setItem\(/g) || []).length, 1, "one place writes the list");
+  assert.match(ed, /enable\(save, e\.canSave && !busy\(\) && ready\(\)\);/);
+  assert.match(ed, /enable\(del, e\.isOwn && !busy\(\) && ready\(\)\);/);
+  const commit = ed.slice(ed.indexOf("function commit(pts, dragging)"), ed.indexOf("function disarm()"));
+  assert.match(commit, /disarm\(\);/);
+  const page = fs.readFileSync(path.join(panel, "inout.js"), "utf8");
+  assert.match(page, /if \(late\) \{[\s\S]{0,160}?late = false;\s+remembered\(\);/);
+});
