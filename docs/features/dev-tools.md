@@ -50,7 +50,9 @@ Editors only meet the Log tab and the Lumetri probe button in Settings.
 - CSS: `panel/cssprobe.js`. Preview: `preview/index.html`, `boot.js`, `scenarios.js`, `shoot.js`.
 - UI: `panel/index.html` (`paneLog`, `paneSettings`, `probe`), `panel/main.js`. Logging: `config.setup_logging` (1 MB, 3 backups).
 - Benchmarks: `scripts/bench_asr.py`, `bench_subtitles.py`, `bench_decode.py`, `bench_tracker.py`, `bench_tracker_hard.py`,
-  `engine/asistent/bench/`, `requirements-bench.txt`, `docs/BENCHMARK.md`. Also `check_subtitles.py`, `measure_style.py`.
+  `engine/asistent/bench/`, `requirements-bench.txt`, `docs/BENCHMARK.md`. Also `check_subtitles.py`, `measure_style.py`
+  (`placement` / `placement-report` with `placement_measure.py`, `placement_report.py`, `placement_vision.swift`), and
+  `placement_replay.py` + `placement_rule_cli.js` (fits the Move off faces lanes, replays the panel's rule; docs/SUBTITLE_PLACEMENT.md).
 - ReShape: `scripts/reshape_guard.py`, `reshape_golden.py`, `docs/ROLLBACK.md`. Hook: `scripts/githooks/pre-commit`.
 
 ## Status

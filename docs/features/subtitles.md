@@ -13,7 +13,9 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
    optionally Max words (1-4), Case (Normal / ALL CAPS) and Line break (On + colour), type names or `чуто => казано`
    corrections in the box if needed, press Make subtitles.
 2. Select all the captions and restyle them together in Properties. Optional: Upgrade Caption to Graphic, select the
-   graphics, press Move off faces (only Position changes, one Undo step; hand-moved lines stay).
+   graphics, press Move off faces (only Position changes, one Undo step; hand-moved lines stay). Since 0.10.141 each
+   Style has its measured lane and a line moves only when a face or other on-screen text would be covered, also after a
+   zoom (docs/SUBTITLE_PLACEMENT.md); 16:9 keeps the old rule.
 3. Captions tab: type a wrong word right, Apply and rebuild (no new recognition, seconds). Also Who speaks per track,
    Lines to check, search, Learned, Export transcript. Settings > Subtitles: ElevenLabs key, Turn off, Remove key.
 
@@ -40,6 +42,9 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
   new pair is placed and checked, the lines of Asistent's OWN earlier pair are removed in one step (`removeLines`), only when
   every line's time matches the record kept by sequence guid (`captionstate.py`). Empty tracks stay (no script deletes a
   caption track). This is the only removal allowed.
+- Move off faces (0.10.141): `placementplan.js` `LANES`, `planLanes`, `momentsPerLine` (hard cap 240), `selectChanges`
+  (no-free-place lines are not written); ReShape's base is the old `shotTop` from the old frames. Measured rule and replay:
+  docs/SUBTITLE_PLACEMENT.md, `scripts/placement_replay.py` (must not get worse).
 - Max words, Case, Line break (0.10.138-0.10.139) are copies of the style (`with_max_words`, `with_case`, `with_line_break`),
   never for ReShape; off, every style gives exactly the old captions. Line break's colour is `<font color>` on the bottom line
   of the Bulgarian .srt only (the JSON, the panel and the English stay plain text).
@@ -72,6 +77,7 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
 - Client styles (0.10.18-0.10.22), 0.10.61 cuts: not seen by the user in Premiere.
 - 0.10.138 Max words and Case, 0.10.139 Line break, 0.10.140 Export transcript with a time on every sentence: installed,
   awaiting the user's look (TODO SUB); open: whether Premiere keeps the .srt colour.
+- 0.10.141 Move off faces by lane: installed, the user: "works splendid" on one video; bridge probes open (TODO MOF).
 - Windows: untested (host install, CEP path, learning folder). Latest release v0.10.118. Open: BUGS "Limits of
   subtitles by ElevenLabs"; TODO V119, SEG, SL, S, A.
 
@@ -80,5 +86,5 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
   `test_bgnorm.py`, `test_numbers.py`, `test_english.py`, `test_lexicon_by_ear.py`, `test_consensus.py`, `test_corrections.py`.
 - Recognition and ReShape: `test_asr.py`, `test_recognition_profiles.py`, `test_cloudasr.py`, `test_reshape_baseline.py`.
 - Learning, review, styles, bench: `test_learning.py`, `test_speakers.py`, `test_review.py`, `test_transcript.py`,
-  `test_framefaces.py`, `test_hostbridge.py`, `test_*_style.py`, `test_bench*.py`; node: `subtitleplan`, `captionplan`,
-  `captionplace`, `captionedit`, `reviewplan`, `placementplan` (`tests/*.test.js`).
+  `test_framefaces.py`, `test_placement_replay.py`, `test_hostbridge.py`, `test_*_style.py`, `test_bench*.py`; node: `subtitleplan`, `captionplan`,
+  `captionplace`, `captionedit`, `reviewplan`, `placementplan`, `placementpress` (`tests/*.test.js`).

@@ -306,3 +306,18 @@ def test_review_reads_an_asistent_run_and_refuses_other_files(engine, tmp_path):
     code, data = call("POST", "/subtitles/review", {"json": str(folder / "r.json")})
     assert code == 200 and data["lines"][0][0]["why"] == "negation" and data["summary"]["lines_to_check"] == 1
     assert call("POST", "/subtitles/review", {"json": str(tmp_path / "r.json")})[0] == 400
+
+
+def test_captions_faces_deletes_the_frames_when_the_face_detector_is_missing(engine, monkeypatch, tmp_path):
+    """The exported frames are removed on the error path too; an empty frame list only asks for the run's style and rows."""
+    from asistent import framefaces
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    (tmp_path / "frames").mkdir()
+    f = tmp_path / "frames" / "x.png"
+    f.write_bytes(b"png")
+    monkeypatch.setattr(framefaces.faces, "available", lambda: False)
+    status, body = call("POST", "/captions/faces", {"frames": [{"path": str(f), "t": 1.0}], "project": "", "graphics": []})
+    assert status >= 400 and "face detector" in json.dumps(body)
+    assert not f.exists()
+    status, body = call("POST", "/captions/faces", {"frames": [], "project": "", "graphics": []})
+    assert status == 200 and body["frames"] == [] and body["preset"] == "" and body["lines"] == {} and body["reshape"] is False

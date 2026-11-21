@@ -46,12 +46,24 @@ def _ensure() -> str | None:
     return exe
 
 
+BATCH = 40               # frames per recognition process: one slow or crashing batch costs only its own frames
+BATCH_TIMEOUT = 90.0     # seconds per batch
+
+
 def read(paths: list[str]) -> list[list[dict]]:
     """[image path] -> per image the text lines {text, x, y, w, h, confidence} (fractions, top-left origin); [] when
-    recognition is not available."""
+    recognition is not available, and [] for the frames of a batch that timed out or failed (the others keep their text)."""
     exe = _ensure() if paths else None
     if not exe:
         return [[] for _ in paths]
-    r = subprocess.run([exe, *paths], capture_output=True, text=True, timeout=120)
-    out = [json.loads(ln) for ln in r.stdout.splitlines() if ln.strip().startswith("[")]
-    return out if len(out) == len(paths) else [[] for _ in paths]
+    out: list[list[dict]] = []
+    for i in range(0, len(paths), BATCH):
+        chunk = paths[i:i + BATCH]
+        try:
+            r = subprocess.run([exe, *chunk], capture_output=True, text=True, timeout=BATCH_TIMEOUT)
+            res = [json.loads(ln) for ln in r.stdout.splitlines() if ln.strip().startswith("[")]
+        except (subprocess.SubprocessError, OSError, ValueError) as e:
+            log.warning("ocr: a batch of %d frames gave no text (%s)", len(chunk), e)
+            res = []
+        out.extend(res if len(res) == len(chunk) else [[] for _ in chunk])
+    return out

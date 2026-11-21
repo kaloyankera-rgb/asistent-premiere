@@ -44,6 +44,7 @@ New feature: copy [features/_TEMPLATE.md](features/_TEMPLATE.md), keep it under 
 | [BULGARIAN_TRANSCRIPTION_GUIDE.md](BULGARIAN_TRANSCRIPTION_GUIDE.md) | **Read before touching the subtitle pipeline.** Rules and the regression table. |
 | [BENCHMARK.md](BENCHMARK.md) | Recognition benchmark and the table every recognition change is judged by. |
 | [SUBTITLE_STYLE.md](SUBTITLE_STYLE.md), [SUBTITLE_STYLES/](SUBTITLE_STYLES/GSTROY.md) | Subtitle styles; one measured file per client (AULA, Beauty Sector, Credissimo, ЕКОПАК, GStroy). |
+| [SUBTITLE_PLACEMENT.md](SUBTITLE_PLACEMENT.md) | Where subtitles sit, measured on 25 client videos; the Move off faces rule and its replay (0.10.141). |
 | [CLIENT_COLOR/](CLIENT_COLOR/GSTROY.md) | Colour findings per client (proposals only). |
 | [../COLOR_CORRECTION_PLAN.md](../COLOR_CORRECTION_PLAN.md), [color-spec/](color-spec/00_START_HERE.md) | Colour engine plan and spec package (contrast, saturation and the rest not built). |
 | [BRAND_KIT.md](BRAND_KIT.md), [TRACKER.md](TRACKER.md) | Deep references behind the Brand and Tracker pages. |

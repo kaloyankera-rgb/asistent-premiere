@@ -31,6 +31,36 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.141 - Move off faces rebuilt from 25 client videos: a lane per Style, moves only when something is covered (2026-11-22, installed, the user: "works splendid" on one video)
+
+- **The user's report:** "it doesn't do anything almost": every client got ReShape's chin rule, which lands where the
+  lines already sat; it looked at the largest face only, at 3 frames per shot (a face a zoom brings in was averaged away),
+  could put a line above a low face (editors never do), and ignored other on-screen text.
+- **Measured first** (docs/SUBTITLE_PLACEMENT.md): 25 finished 9:16 videos of 14 clients, 2022 chunks. Editors keep a lane
+  (centre 0.488), move down under a face (never above), off other text either way, and do not follow zooms.
+- **The new rule** (all Styles; ReShape keeps its chin rule as the base, the user's decision): a lane per Style (top of
+  the first line) fitted on half the videos; a shot's base max(lane, chin + 0.05); per line, on its own frames, a drop
+  under every face (from 3 % of the frame tall) or to the free side of other text, from the line where a zoom or a face
+  moving in causes it until free again; a line with no free place is left where it was and listed. Moves only between
+  lines and at cuts (keyframes at cuts as before). One Undo; hand-moved and keyframed lines left alone. 16:9 keeps the old
+  rule (no data yet).
+- **Zooms:** Motion and Transform (`AE.ADBE Geometry*`) Scale/Position keyframes on the clip and on adjustment layers above
+  it (reversed clips mapped from the out side) add frames at each zoom; camera zooms are caught by the per-line frames.
+- **Frames:** one at every line's middle (start and end for long lines or a zoom), hard cap 240 (zoom and cut lines first);
+  ReShape also its old 3 per shot for the base. OCR in batches of 40 (90 s each; a failed batch costs only its frames);
+  frames deleted on every path, also when the face detector is missing.
+- **Engine:** `/captions/faces` answers `{frames, preset, reshape, ocr, lines}`; per frame also `boxes` (each line's own
+  text box), `other` (other text) and `lines`; two-row chunks found as one block; `<font color>` stripped before matching.
+- **Result line:** "Moved N of M lines" with reasons (in the lane, under a face, off on-screen text, a zoom brought a face,
+  a face moved in, no free place, with times), per-shot rows, "Nothing was measured: no line moved" when no frame came back.
+- **Replay on 12 held-out videos:** face covered 0.0 % (editors 0.3 %, fixed lane 2.3 %), face or text 0.8 % (1.3 %, 9.3 %),
+  never above a face; centre error 0.037 (target 0.033 missed; fixed lane 0.046); moves inside a shot 7.7 % (editors 13 %).
+- **Dev tools (no client data):** `measure_style.py placement | placement-report`, `placement_measure.py`,
+  `placement_report.py`, `placement_vision.swift`, `placement_replay.py`, `placement_rule_cli.js`.
+- **Checks:** Node 613 pass, Python 1131 passed / 24 skipped, ReShape subtitle golden identical; rules-reviewer BLOCK (frame
+  cap, OCR timeout and frame leak, "no free place" lines written, ReShape with no frames) fixed, PASS with notes on the
+  re-check. Bridge probes not run; the user's press on one video: "works splendid".
+
 ## 0.10.140 - Export transcript: a time on every sentence (2026-11-22, installed, pushed, awaiting the user's look)
 
 - **The bug (the user, 2026-11-21: "the timings on the text are not right"):** a voice-over cut tight has no pause, so the whole

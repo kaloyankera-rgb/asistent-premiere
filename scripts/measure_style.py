@@ -8,6 +8,9 @@
   measure_style.py compare <work> <preset> [k=v …] a preset on the editors' own speech against their chunks (try values: line_chars=18)
   measure_style.py colour  <video folder> <work>   where the grade ends: skin, mid-tones, white balance, contrast, saturation
   measure_style.py pace    <video folder> <work>   cuts and mean shot length, loudness (LUFS), loudness range, true peak
+  measure_style.py placement <video folder> <work> [--only tag|word …] [--jobs 4]  WHERE the subtitles sit against faces, hands,
+                           salient objects, other text, cuts and zooms (placement_measure.py + placement_vision.swift; numbers only)
+  measure_style.py placement-report <work>         the tables from the placement run (per client and overall)
 
 How GStroy and Credissimo were measured (docs/SUBTITLE_STYLES/). The video folder is only read (the office share: never write,
 move or delete there); everything goes into <work>, which must be outside the repo: client words and frames are private.
@@ -335,11 +338,29 @@ def cmd_pace(a):
               np.median([r["lufs"] for r in rows if r["lufs"] is not None]), np.median([r["peak"] for r in rows if r["peak"] is not None])))
 
 
+# ---------------------------------------------------------------- where the subtitles sit (own files, dev only)
+
+def cmd_placement(a):
+    import placement_measure as PM
+    keep, skip = PM.list_videos(a.folder)
+    os.makedirs(a.work, exist_ok=True)
+    json.dump({"videos": keep, "skipped": skip}, open(os.path.join(a.work, "index.json"), "w"), ensure_ascii=False, indent=1)
+    for s in skip:
+        print("skipped:", s["file"][:30], "-", s["why"])
+    PM.run_all(keep, a.work, a.jobs, a.only)
+
+
+def cmd_placement_report(a):
+    import placement_report as PR
+    PR.report(a.work)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
     for name, args in (("frames", ("folder", "work")), ("chunks", ("work",)), ("asr", ("work",)), ("timing", ("work",)),
-                       ("compare", ("work", "preset")), ("colour", ("folder", "work")), ("pace", ("folder", "work"))):
+                       ("compare", ("work", "preset")), ("colour", ("folder", "work")), ("pace", ("folder", "work")),
+                       ("placement", ("folder", "work")), ("placement-report", ("work",))):
         s = sub.add_parser(name)
         for x in args:
             s.add_argument(x)
@@ -348,10 +369,13 @@ def main():
             s.add_argument("--latin", action="store_true", help="the subtitles also have Latin capitals (English names)")
         if name == "compare":
             s.add_argument("set", nargs="*", help="preset values to try, key=value")
+        if name == "placement":
+            s.add_argument("--only", nargs="*", default=None, help="only these videos (tag 01 … or a word of the file name)")
+            s.add_argument("--jobs", type=int, default=4)
     a = p.parse_args()
     if os.path.abspath(getattr(a, "work", "/")).startswith(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))):
         sys.exit("The work folder must be outside the repo (client words and frames are private).")
-    globals()["cmd_" + a.cmd](a)
+    globals()["cmd_" + a.cmd.replace("-", "_")](a)
 
 
 if __name__ == "__main__":

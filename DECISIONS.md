@@ -1,5 +1,21 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-22: Move off faces places by a lane per Style and moves only on a collision (0.10.141)
+- **Measured before building** (docs/SUBTITLE_PLACEMENT.md): editors keep a lane, move under a face (never above), off other
+  text either way, and do not follow zooms. The old rule (ReShape's chin + 0.11 for everyone) landed where the lines already
+  sat, which is why the user saw "almost nothing".
+- **The user's choices:** the line moves only when a zoom (or anything) makes a face or text collide, not with every zoom;
+  "like the editors" (about 90 % stay); all clients may be named in the docs; the measuring scripts are committed (no
+  client data; the per-chunk data and frames stay in `<app>/dev/placement/`).
+- **ReShape's placement gets the collision moves** (the user: "Give it the new collision moves"): its own base (chin + 0.11,
+  above a low face, from the old 3 frames per shot) is unchanged and equals the old result when nothing collides; text and
+  per-line face collisions now move its lines too. A two-row ReShape chunk would be centred half a line lower than the old
+  rule; ReShape's style is one row, so it does not occur. ReShape's subtitle output is untouched (golden identical).
+- **Hands and products are not avoided:** no avoidance was measurable and the detectors are unreliable for it.
+- **A line with no free place is left where it was** and listed ("nothing uncertain applied").
+- **16:9 keeps the old rule** until 16:9 videos are measured. Two replay targets were missed (centre error 0.037 against
+  0.033; fewer moves than the editors); the user chose to build it anyway after seeing the numbers.
+
 ## 2026-11-22: subtitles Max words, Case, Line break; the transcript's times per sentence (0.10.138-0.10.140)
 - **Max words is a hard cap** (the user asked for "maximum 3 words or 2 words"): never more, both lines counted. The one exception
   is a single counted unit (a number with what it counts), which is never split. ReShape is excluded (frozen); 16:9 goes through

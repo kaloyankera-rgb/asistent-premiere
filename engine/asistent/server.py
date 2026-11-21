@@ -22,8 +22,11 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /subtitles/transcript {json, times?} -> {path, paragraphs}: the subtitles as a .txt next to the SRT, shown in Finder (0.10.66)
   POST /subtitles/review     {json} -> what to check per caption line (review.py; reads the run's JSON, changes nothing)
   GET  /panel/store         the panel's settings {values}; POST /panel/store {key, value|null} (survive panel updates)
-  POST /captions/faces      {frames: [{path, t}], project, graphics: [{id, start, end}]} -> per frame faces and each graphic's
-                             measured text centre (Mac text recognition), as fractions (Move off faces; frames deleted after)
+  POST /captions/faces      {frames: [{path, t}], project, graphics: [{id, start, end}]} -> {frames, preset, reshape, ocr}: per frame
+                             faces, each graphic's measured text centre / box / SRT rows and the other text on screen; frames [] only asks for preset, reshape,
+                             ocr and `lines` (the SRT rows of every graphic sent, measured or not) (Mac text
+                             recognition), as fractions; preset = the newest run's style, reshape = a ReShape project, ocr = false
+                             on Windows: faces only (Move off faces; frames deleted after)
   POST /subtitles/play       {start} Premiere plays from there in the Program Monitor (Captions tab ▶); {stop, from, until} stops it
                              if the playhead is still inside that passage
   POST /captions/graphics    {"captions": [{start, end, text}], "preset", "sequence", "project"?} -> every line as a text
@@ -608,10 +611,24 @@ class Handler(BaseHTTPRequestHandler):
                 v = body.get("value")
                 return self._send(200, panelstore.put(str(body.get("key") or ""), v if v is None else str(v)))
             if self.path == "/captions/faces":           # Move off faces: faces in frames the panel exported (numbers only)
-                if not framefaces.faces.available():
-                    raise ValueError("The face detector is not installed (OpenCV and models/face_detection_yunet_2023mar.onnx).")
-                return self._send(200, {"frames": framefaces.measure(body.get("frames"), str(body.get("project") or ""),
-                                                                     body.get("graphics") if isinstance(body.get("graphics"), list) else None)})
+                project = str(body.get("project") or "")
+                graphics = body.get("graphics") if isinstance(body.get("graphics"), list) else None
+                sent = body.get("frames") if isinstance(body.get("frames"), list) else []
+                try:
+                    # an empty list is the panel asking only for the run's style, the rows of each graphic and whether text
+                    # recognition exists, before it exports anything
+                    if sent and not framefaces.faces.available():
+                        raise ValueError("The face detector is not installed (OpenCV and models/face_detection_yunet_2023mar.onnx).")
+                    frames = framefaces.measure(sent, project, graphics) if sent else []
+                finally:
+                    framefaces.discard(sent)             # the exported frames go on every path, also the error ones
+                # lane placement (2026-11-22): the client's style from the newest subtitle run (the panel's Style may have been
+                # changed since), whether it is a ReShape project (its own rule), the SRT rows of every graphic and whether text
+                # recognition ran (Windows has none)
+                info = framefaces.run_info(project)
+                reshape = info["preset"] == "reshape" or bool(project and roughcut_job.is_reshape_run(os.path.dirname(os.path.abspath(project)), info["media"]))
+                return self._send(200, {"frames": frames, "preset": info["preset"], "reshape": reshape, "ocr": framefaces.ocr.available(),
+                                        "lines": framefaces.rows_for(project, graphics)})
             if self.path == "/subtitles/play":           # Captions tab ▶: Premiere's own playback through the host (0.10.11)
                 if body.get("stop"):
                     return self._send(200, hostbridge.run("play_stop", {"from": float(body.get("from") or 0.0),

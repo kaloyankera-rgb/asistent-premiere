@@ -7,6 +7,14 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
+## MOF. Move off faces 0.10.141 (2026-11-22)
+- [x] USER: one video, "works splendid".
+- [ ] USER: more clients (the user will report), a sequence with punch-ins / Scale keyframes, a ReShape project.
+- [ ] Bridge probes in NEW TEST: zoom keyframe times on a footage clip, a Transform effect, an adjustment layer and a reversed
+      clip; seconds per press (frames + OCR in batches); a two-row caption's text position.
+- [ ] Measure a few 16:9 subtitled videos, then give 16:9 the lane rule. More GStroy videos.
+- [ ] Long ReShape edits (more than about 80 shots) lose the per-line collision frames (the base frames are outside the cap).
+
 ## SUB. Verify 0.10.138-0.10.140 (2026-11-22): subtitles options and the transcript
 - [x] Install (0.10.140, 2026-11-22).
 - [ ] USER: Max words 2 and 3 on a 9:16 and a 16:9 sequence: never more words; „8 евро“ stays together.
@@ -470,7 +478,7 @@ UnifiedPluginInstallerAgent on Windows, test there), manual sync for short clips
   (Montserrat Black 52, white, glow) once; install Montserrat Black (not shipped: only Bold is).
 - [ ] Probe in NEW TEST whether an SRT `<font color="#94D000">` tag survives Premiere's caption import (then the green words
   could arrive coloured); otherwise the editor colours them by hand from the list.
-- [ ] Move off faces uses ReShape's chin rule; GStroy keeps a fixed height (centre 0.50): a per-style placement if it matters.
+- [x] Move off faces per style: 0.10.141 (a lane per Style, docs/SUBTITLE_PLACEMENT.md).
 - [ ] Colour: per-client targets (GStroy skin 0.48, mid 0.54, docs/CLIENT_COLOR/GSTROY.md) only with the user's decision; better:
   pair graded clips with their originals to learn the actual moves.
 - [ ] Credissimo (0.10.19, `credissimo` preset, docs/SUBTITLE_STYLES/CREDISSIMO.md): USER: try it in NEW TEST on a Credissimo

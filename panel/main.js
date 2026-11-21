@@ -19,6 +19,7 @@ const { describeResult, maxWords, letterCase, lineBreak, hexColour, styleColour 
 const { describePlacement } = require("./captionplan.js");
 const reviewplan = require("./reviewplan.js");
 const premierePlacement = require("./premiere-placement.js");
+const placementplan = require("./placementplan.js");
 const captionedit = require("./captionedit.js");
 const premiereRough = require("./premiere-roughcut.js");
 const premiereLabels = require("./premiere-labels.js");
@@ -1056,12 +1057,18 @@ async function onMoveOffFaces() {
   progress(0.05, "Reading the selected subtitle graphics…");
   try {
     const project = await premiere.activeProject();
-    const r = await premierePlacement.moveOffFaces(project, progress);
+    const r = await premierePlacement.moveOffFaces(project, progress, { style: $("subtitleStyle").value });
     if (r.noGraphics) {
       finish("Select the subtitle graphics first (after right-click > Upgrade Caption to Graphic on the captions).", false);
       return;
     }
+    if (r.mode === "lanes" || r.mode === "reshape") {          // the lane rule (2026-11-22): placementplan.describe makes the text
+      const d = placementplan.describe(r);
+      finish(d.headline, !r.nothingMeasured, d.lines.map((l) => el("div", l.cls, l.text)));
+      return;
+    }
     const lines = [];
+    if (r.note) lines.push({ cls: "muted", text: r.note });
     const clock = (t) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
     // each shot it saw (the visible clip under the lines) and what it found there, so the editor can tell the POVs apart
     for (const s of (r.shots || []).slice(0, 8)) {
