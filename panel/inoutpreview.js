@@ -1,15 +1,16 @@
 // The In & Out page's small preview (docs/IN_OUT_PLAN.md Phase 4): a box in a small frame that plays the picked In, a hold, the
 // picked Out and a pause, again and again, from the very rows Apply bakes (inoutplan.plan(), the same direction, turn, frames and
-// Strength), so what is previewed is what is written. Same technique as the Keyframer's preview (keyframer.js, 0.10.78): inline
-// SVG redrawn per frame (createElementNS, a polygon, style.opacity), a setTimeout chain at the frame rate, the .kf-pv CSS.
+// Strength), so what is previewed is what is written. Like the Keyframer's preview (keyframer.js, 0.10.78) it is inline
+// SVG on a setTimeout chain at the frame rate, but its two polygons are made once and a frame only changes `points` and the
+// opacity: since 0.10.131 nothing is created or removed per frame (that crashed Premiere's SVG painter in 0.10.130).
 // Two halves: the pure part (rows -> box values, the loop's timeline, the caption; Node-tested) and mount() (the DOM and the
 // timer). Nothing here reads or writes Premiere, and the timer only moves the picture: it stops when the pane is not showing.
 const I = require("./inoutplan.js");
 
-const W = 104;                                  // the frame (px): small, so the settings fit beside it (0.10.132; was 148 x 104)
-const H = 72;
-const BOX_W = 36;                               // the box at rest (px): a picture, not a square, so a turn can be seen
-const BOX_H = 26;
+const W = 208;                                  // the drawing (px), centred in a frame as wide as the page: it fits the narrowest panel (240 px
+const H = 94;                                   // minus the page's 12 px sides and the frame's border); 0.10.133 (was 104 x 72 beside the settings)
+const BOX_W = 46;                               // the box at rest (px): a picture, not a square, so a turn can be seen
+const BOX_H = 32;
 const FPS = 30;                                 // the frame rate the loop is played at
 const HOLD = 15;                                // frames at rest between In and Out (0.5 s)
 const PAUSE = 24;                               // frames the last picture stays before the loop starts again (0.8 s)
@@ -83,8 +84,13 @@ function build(opts) {
   return { steps, lens: { in: count("in"), hold: count("hold"), out: count("out"), pause: count("pause") }, animated: true, fps: FPS, rest, error: null };
 }
 
-/** the line under the preview and its tooltip: what plays, from inoutui.view(state) */
-function caption(v, built) {
+/** the line inside the frame (bottom left) and its tooltip: what plays, from inoutui.view(state); `hovering`: the pointer rests on a preset */
+function caption(v, built, hovering) {
+  const c = captionOf(v, built);
+  return hovering && v.canApply ? { text: `Preview: ${c.text}`, tip: c.tip } : c;
+}
+
+function captionOf(v, built) {
   if (!v.canApply) return { text: "Nothing picked", tip: "Pick an In or an Out animation and it plays here, as Apply will write it." };
   const parts = [];
   const names = [];
@@ -103,21 +109,20 @@ function caption(v, built) {
 const NS = "http://www.w3.org/2000/svg";
 
 /**
- * Builds the preview into `host` (a card). {el (the page's div maker), visible () -> is the pane showing, debug (log a failure)}.
- * -> {set(view) (the page's choices changed: rebuild and replay), wake() (start again after the timer stopped because the pane
- * was hidden), stop(), info()}
+ * Builds the preview into `host` (the page). {el (the page's div maker), visible () -> is the pane showing, debug (log a failure)}.
+ * -> {set(view, hovering) (the page's choices changed: rebuild and replay; hovering: the caption says "Preview: ..."), wake() (start
+ * again after the timer stopped because the pane was hidden), stop(), info()}
  */
 const LOOPS = 8;
 
 function mount({ host, el, visible, debug }) {
-  const pv = el("div", "kf-pv io-pv");
+  // a frame as wide as the page, the drawing centred in it at a fixed size (UXP is not proven to scale a percent-sized svg), the caption
+  // inside the frame at the bottom left (an absolutely placed element over the frame, as the progress bar already is)
+  const pv = el("div", "io-pvframe");
   pv.innerHTML = `<svg id="ioPv" width="${W}" height="${H}"><g id="ioPvBack"></g><g id="ioPvObj"></g></svg>` +
-    '<div class="kf-pv-bar"><div id="ioPvFill" class="kf-pv-fill"></div></div>';
+    '<div id="ioPvCap" class="io-pvcap"></div><div class="kf-pv-bar"><div id="ioPvFill" class="kf-pv-fill"></div></div>';
   host.appendChild(pv);
-  const row = el("div", "row kf-pv-row");
-  const info = el("div", "kf-pv-info", "");
-  row.appendChild(info);
-  host.appendChild(row);
+  const info = pv.querySelector("#ioPvCap");
   const back = pv.querySelector("#ioPvBack");
   const objs = pv.querySelector("#ioPvObj");
   const fill = pv.querySelector("#ioPvFill");
@@ -173,9 +178,9 @@ function mount({ host, el, visible, debug }) {
     loops = 0;
     if (timer === null && !failed && built.animated && visible()) tick();
   }
-  function set(view) {
+  function set(view, hovering) {
     // paint() runs on every press and blur: the same picks must not restart the loop
-    const now = JSON.stringify([view.canApply, view.opts, view.frames]);
+    const now = JSON.stringify([view.canApply, view.opts, view.frames, !!hovering]);
     if (now === sig) return wake();
     sig = now;
     stop();
@@ -183,7 +188,7 @@ function mount({ host, el, visible, debug }) {
     loops = 0;
     built = build(view.opts);
     at = 0;
-    const cap = caption(view, built);
+    const cap = caption(view, built, hovering);
     info.textContent = cap.text;
     info.setAttribute("data-tip", cap.tip);
     restBox.setAttribute("points", corners(built.rest));

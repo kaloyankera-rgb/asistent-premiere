@@ -480,9 +480,18 @@ test("the In & Out page: pane, Motion button, dock, mount line and packed files"
   // every button of the page is made with button() (a div.btn) and carries a tip
   assert.doesNotMatch(page, /createElement\("button"\)/);
   // 0.10.132: the In | Out switch, ids kept for the bridge, the hover plays a preset without picking it (never saved, never written)
-  for (const id of ["ioSideIn", "ioSideOut", "ioInFrames", "ioOutFrames", "ioStrength", "ioBlurSwitch", "ioApply", "ioRemove"]) assert.match(page, new RegExp(`"${id}"`));
+  for (const id of ["ioSideIn", "ioSideOut", "ioInFrames", "ioOutFrames", "ioStrength", "ioBlurSwitch", "ioApply", "ioRemove", "ioFramesMinus", "ioFramesPlus"]) assert.match(page, new RegExp(`"${id}"`));
+  assert.match(page, /b\.id = `ioFilter-\$\{id\}`/);                                  // 0.10.133: ioFilter-all / -move / -scale / -spin / -fade
   assert.match(page, /b\.id = `\$\{idPrefix\}-\$\{id\}`/);                           // ioDir-left ... ioTurn-ccw
-  assert.match(page, /b\.id = `io\$\{title\}-\$\{id\}`/);                              // ioIn-<id> / ioOut-<id>, both lists built
+  assert.match(page, /b\.id = `io\$\{title\}-\$\{t\.id\}`/);                           // ioIn-<id> / ioOut-<id>: every tile of both sides is built
+  assert.match(page, /buildSide\("in", "In"/);
+  assert.match(page, /buildSide\("out", "Out"/);
+  assert.match(page, /for \(const t of U\.tiles\(side\)\)/);                               // all of a side's tiles, filtered or not
+  assert.match(page, /b\.hidden = !show;/);                                                // a filtered-out tile is hidden by the property, never removed
+  assert.match(page, /lists\[side\]\.hidden = v\.side !== side;/);
+  assert.doesNotMatch(page, /removeChild|\.remove\(\)|style\.display/);
+  assert.match(page, /Object\.assign\(state, U\.afterPick\(state, side, id\)\)/);          // a pick shows its side and, when filtered out, goes back to All
+  assert.doesNotMatch(page, /createElement\("svg"\)|createElementNS/);                    // icons are static markup, made once
   assert.match(page, /addEventListener\("mouseenter"/);
   assert.match(page, /addEventListener\("mouseleave"/);
   const hoverFn = page.slice(page.indexOf('b.addEventListener("mouseenter"'), page.indexOf('buttons.push(b)'));
@@ -497,8 +506,18 @@ test("the In & Out preview draws only, stops when hidden and is mounted by the p
   assert.match(pv, /if \(!visible\(\)\) return;/);                                  // a hidden pane ends the chain
   assert.doesNotMatch(pv, /setInterval|requestAnimationFrame/);
   const page = fs.readFileSync(path.join(panel, "inout.js"), "utf8");
-  assert.match(page, /PV\.mount\(\{ host: pvCol, el, visible: \(\) => !root\.hidden && root\.offsetWidth > 0/);
-  assert.match(page, /preview\.set\(hover \? U\.hoverView\(state, hover\.side, hover\.id\) : U\.view\(state\)\);/);
+  assert.match(page, /PV\.mount\(\{ host: root, el, visible: \(\) => !root\.hidden && root\.offsetWidth > 0/);
+  assert.match(page, /preview\.set\(hover \? U\.hoverView\(state, hover\.side, hover\.id\) : U\.view\(state\), !!hover\);/);
   assert.match(page, /const wake = \(\) => \{ if \(!busy\) preview\.wake\(\); \};/);           // 0.10.132: not while Apply or Remove writes
   assert.match(page, /root\.addEventListener\("pointerover", wake\)/);
+});
+
+// 0.10.133 (review): paint() never rewrites a focused box, so the stepper writes the box itself; otherwise the box's own
+// blur / Enter / Apply commit reads the old number back and the press is lost.
+test("the In & Out length stepper writes the box it steps, and leaves a None side alone", () => {
+  const page = fs.readFileSync(path.join(__dirname, "..", "panel", "inout.js"), "utf8");
+  const nudge = page.slice(page.indexOf("const nudge = (dir) => {"), page.indexOf("const minusBtn"));
+  assert.match(nudge, /if \(busy\) return;/);
+  assert.ok(nudge.indexOf("=== null) return;") < nudge.indexOf("commitFrames(side, box)()"), "None is checked before the commit");
+  assert.match(nudge, /box\.value = String\(U\.view\(state\)\.frames\[side\]\);\s+changed\(\);/);
 });

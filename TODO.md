@@ -37,7 +37,7 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] USER: click the Motion and Brand settings labels and card backgrounds in real use: no other tab opens, nothing is placed.
 
 ## IO. In & Out animations (`docs/IN_OUT_PLAN.md`, the user's approval 2026-11-21; 0.10.124 = Phase 0 desk + Phase 1 maths)
-0.10.127 = Phase 2 (`panel/premiere-inout.js`): built and bridge-tested. 0.10.129 = Phase 3, the page (`panel/inout.js`, `panel/inoutui.js`): bridge-tested on 0.10.128, awaiting the user's look. 0.10.130 = Phase 4, the preview card (`panel/inoutpreview.js`): built, Node-tested, not installed; rebuilt compact in 0.10.132 (the page's top card, In | Out switch, hover preview, dock summary). Phase 5 remains.
+0.10.127 = Phase 2 (`panel/premiere-inout.js`): built and bridge-tested. 0.10.129 = Phase 3, the page (`panel/inout.js`, `panel/inoutui.js`): bridge-tested on 0.10.128, awaiting the user's look. 0.10.130 = Phase 4, the preview card (`panel/inoutpreview.js`): built, Node-tested, not installed; rebuilt compact in 0.10.132, then as Tiles in 0.10.133 (the user chose layout A of three mockups: preview on top, In | Out switch, filter chips, tiles, dock with stepper and drawn Edge / Turn icons). Phase 5 remains.
 - [x] Live probes P1-P9 ran in NEW TEST 2026-11-21 (`docs/probes/inout-phase0.md`); test sequence "Asistent probe – In Out" kept.
 - [x] Decision recorded: owned Transform (DECISIONS 2026-11-21).
 - [ ] Probe a type-tool text clip (only a Basic Title MOGRT was measured) and the Keyframer on a trimmed + sped-up clip (BUGS).
@@ -64,12 +64,14 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] USER: the look in Premiere, next to the reference: the page (card layout, greyed rows, dock, the four Motion buttons at narrow
       widths, tooltips) and the playback, blur on and off. The bridge reads the DOM and cannot see either.
 - [x] Phase 4 (0.10.130): the preview card on the page, built and Node-tested (14 tests); rules-reviewer PASS. The motion blur toggle is in since Phase 3.
-- [ ] Review (rules-reviewer) of 0.10.132, then install (it carries 0.10.130 too) and bridge-test the compact page and the preview: the
-      timer stops when the pane is hidden, after 8 plays, during Apply / Remove, and after a draw failure; `openTab` wakes it. Not run yet.
-- [ ] 0.10.132 measured in the browser harness only: pane 479-499 px at 240, 378-401 px at 300 (about 425 px after the Blur label got its
-      own row), 355 px at 420; no horizontal overflow. Bridge: the In | Out switch, the hover preview, the dock summary, the 300 px layout.
-- [ ] USER: 0.10.132 in Premiere: do the arrow glyphs ← ↑ ↓ → ↻ ↺ render in UXP's font (if not, inline SVG icons); does a 300 px panel get
-      the side-by-side layout; does hovering a preset play it in the preview without picking it.
+- [ ] Review (rules-reviewer) of 0.10.133, then install and bridge-test the Tiles page and the preview: the timer stops when the pane
+      is hidden, after 8 plays, during Apply / Remove, and after a draw failure; `openTab` wakes it; the filter chips; a pick by id
+      from another side; the hover preview; the dock summary. Not run yet.
+- [ ] 0.10.133 measured in the browser harness only: page content with the All filter 540 px for In (21 tiles) and 432 px for Out
+      (14 tiles) at 300 and 420 px; 756 / 540 px at 240 px (2 columns); dock 125 px (151 at 240 when Edge wraps). Bridge: the real column count.
+- [ ] USER: 0.10.133 in Premiere: the column count and tile look (3 columns, 2 below 280 px), the icons, the preview frame (in a wide
+      panel a slide appears and disappears at the edge of the drawing, some way inside the frame), and whether hovering a tile plays it
+      in the preview without picking it.
 - [ ] USER: the preview's drawing, its layout in the card and its loop speed in Premiere (the bridge reads the DOM only).
 - [ ] In & Out page small things: the bridge's `fill` allowlist lacks `ioInFrames`, `ioOutFrames`, `ioStrength` (tests set them
       through `uxp_eval`); `remembered()` after a late store load was not exercised live.

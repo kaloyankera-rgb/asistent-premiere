@@ -31,7 +31,54 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
-## 0.10.132 - In & Out page rebuilt compact (2026-11-21, installed, reviewed, bridge-tested, not pushed, awaiting the user's look)
+## 0.10.133 - In & Out page as Tiles, the user's choice of layout A (2026-11-21, installed, reviewed, bridge-tested, not pushed, awaiting the user's look)
+- **Why:** the user asked for three different layouts, "optimized for fast and easy use", and chose A. Three working mockups were
+  put on a design canvas: A Tiles, B Two columns, C Quick pairs. The user answered "A Tiles". It replaces the compact layout of
+  0.10.132 (installed and bridge-tested, but never seen approved by the user).
+- **Now, top to bottom:** the preview full width (a drawing of 208 x 94 px centred in a full-width frame, a 46 x 32 px box, the
+  caption inside the frame; while the pointer is on a preset it reads "Preview: ..."). Then the In | Out switch, whose labels show
+  the current picks. Then filter chips All / Move / Scale / Spin / Fade (one filter for both sides, remembered; old saved values
+  open on All; None is always shown). Then the active side's presets as tiles in 3 columns (2 columns below 280 px), each with a
+  small drawn icon of what moves.
+- **Picks and hover:** all tiles of both sides always exist; the other side and filtered-out tiles are hidden. A pick by id shows
+  its side and resets the filter to All when the tile would be hidden. Hovering a tile plays it in the preview without picking.
+- **Dock (always visible):** the active side's length as a stepper (minus, frames, plus); Edge as four drawn arrow buttons and Turn as
+  two, when they apply; Strength % and a "Blur on / off" pill; Apply (wide) and Remove; then the summary and status lines. Edge and
+  Turn sit in the dock, so the tiles never move on a pick. The arrow characters of 0.10.132 are gone (drawn SVG icons).
+- **Unchanged:** hide and grey rules, status and Undo wording, Apply and Remove behaviour, `premiere-inout.js`, `inoutplan.js`, and
+  the preview's drawing rule (two SVG shapes made once, nothing added or removed per frame).
+- **Files:** `panel/inout.js`, `panel/inoutui.js` (FILTERS, tiles, shownTiles, afterPick, filter in restore / snapshot / view),
+  `panel/inoutpreview.js`, `panel/style.css` (the `.io-*` block replaced), `preview/scenarios.js` and `preview/shoot.js` (new
+  scenarios `inout-scale` and `inout-hover`), `tests/inoutui.test.js`, `tests/wiring.test.js`, `tests/inoutpreview.test.js`.
+- **Measured in the browser harness only:** page content with the All filter 540 px for In (21 tiles) and 432 px for Out (14
+  tiles) at 300 and 420 px; 756 px and 540 px at 240 px (2 columns); the dock 125 px (151 px at 240 px when Edge wraps). With a
+  filter on, the list is 1 to 3 rows. Screenshots at 240, 300 and 420 px read.
+- **Tests:** Node 494 pass (490 at 0.10.132). No Python file changed; pytest not reported for this version.
+- **Not run yet:** the review verdict, the install and the bridge test.
+- **Not verified in Premiere (the user's look needed):** the real panel's column count and tile look, the preview frame (in a wide
+  panel a slide appears and disappears at the edge of the drawing, some way inside the frame), the icons, the hover.
+- **Git:** 0.10.131 was pushed to GitHub on 2026-11-21 (`improvements/2026-11` at `1a20ae9`). 0.10.132 (`d52971b`) and 0.10.133
+  are local only.
+
+- **After the first write-up of this entry:** rules-reviewer BLOCK for one bug, fixed before the install: a press on the length
+  stepper while the length box had the focus was lost or shown but not applied (paint() never rewrites a focused box, so the box's
+  own commit read the old number back); the stepper now writes the box itself. Also fixed from the review: a hover is dropped when
+  a filter hides its tile, and the stepper does nothing on a side that is None (it used to clear a remembered length). A stale
+  header comment in `inoutpreview.js` corrected. Node 495 pass (one new wiring test for the stepper).
+- **Bridge test in NEW TEST (installed 19:26, panel 487 x 523 px):** 3 tiles per row, all 35 tiles 139 x 48, no clipped name; In / All
+  372 px of tiles (7 rows), Out / All 264 px (5 rows); dock 151 px, stepper and Edge on one row, Blur pill at the right end; preview
+  svg centred in its frame, caption inside it; every tile icon drawn with a stroke. Filters hide the right tiles, a pick by id under
+  a filter goes back to All, a pick of a visible tile keeps the filter. Tile positions identical for Pop, Slide and Spin In. Stepper:
+  +3 and -1 as expected, nothing on a None side, the Out side changes only its own length, and with the box focused and 20 typed a
+  plus gives 21 in the box, the summary and the store. Hover changes only the preview and its caption; 20 quick pairs leave one box;
+  a filter that hides the hovered tile ends the hover. The preview stops on another tab, restarts on return, rests after 8 plays.
+  Apply (In Slide from the top 14f, Out Fade 11f: 16 position keys and 12 opacity keys, 2 Undo steps named) and Remove left the
+  chain as found, including a Transform of the user's own on that clip, which was not touched. No "arrived at" or error line in the
+  engine log since the install.
+- **Seen in that test, open:** at that panel height only about 2 tile rows show between the preview and the dock (the scrolling
+  area is 307 px and the preview, switch and chips take about 208 px). The Out switch button is 1 px wider than the page.
+
+## 0.10.132 - In & Out page rebuilt compact (2026-11-21, installed, reviewed, bridge-tested, not pushed, replaced by 0.10.133 before the user's look)
 - **Why:** the user, 2026-11-21: "we also need a better UI for this its super unoptimized". At a 300 px panel the page was about
   1600 px of scrolling: intro card, preview card, In list (20), Out list (13), Settings card, stacked.
 - **Now:** the intro card is gone (its sentence is in the Apply tooltip). One top card holds the preview and the settings beside

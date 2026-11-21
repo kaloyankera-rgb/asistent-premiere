@@ -5,6 +5,9 @@ const I = require("./inoutplan.js");
 
 const NONE = "none";
 const PROP_LABEL = { pos: "Position", scale: "Scale", rot: "Rotation", op: "Opacity" };
+// the filter chips above the tiles (0.10.133): the plan's groups under shorter names, one filter for both sides
+const FILTERS = [["all", "All"], ["move", "Move"], ["scale", "Scale"], ["spin", "Spin"], ["fade", "Fade"]];
+const GROUP_FILTER = { pos: "move", scale: "scale", rot: "spin", op: "fade" };
 const SHOWN_SKIPS = 4;                                  // the status line lists this many skipped clips, then "and N more"
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -26,6 +29,7 @@ function clampStrength(v) {
   return n === null ? I.STRENGTH_DEFAULT : clamp(n, I.STRENGTH_MIN, I.STRENGTH_MAX);
 }
 
+const validFilter = (f) => (FILTERS.some(([id]) => id === f) ? f : "all");
 const validPreset = (side, id) => (id && I.find(side, id) ? id : NONE);
 
 /**
@@ -44,18 +48,43 @@ function restore(saved) {
     strength: s.strength === undefined || s.strength === null ? I.STRENGTH_DEFAULT : clampStrength(s.strength),
     blur: !!s.blur,
     side: s.side === "out" ? "out" : "in",                // which preset list shows (a UI choice; saved values from before 0.10.132 have none)
+    filter: validFilter(s.filter),                         // which group of tiles shows (0.10.133; none saved before: All)
   };
 }
 
 /** what to store: the same fields, nothing else */
 function snapshot(state) {
   return { inPreset: state.inPreset, outPreset: state.outPreset, inFrames: state.inFrames, outFrames: state.outFrames,
-    direction: state.direction, turn: state.turn, strength: state.strength, blur: !!state.blur, side: state.side === "out" ? "out" : "in" };
+    direction: state.direction, turn: state.turn, strength: state.strength, blur: !!state.blur, side: state.side === "out" ? "out" : "in",
+    filter: validFilter(state.filter) };
+}
+
+/** a side's tiles in display order: None first, then the presets by group: [{id, name, filter ("" for None), preset}] */
+function tiles(side) {
+  const out = [{ id: NONE, name: "None", filter: "", preset: null }];
+  for (const g of I.groups(side)) for (const p of g.presets) out.push({ id: p.id, name: p.name, filter: GROUP_FILTER[g.id] || "", preset: p });
+  return out;
+}
+
+/** the ids of the tiles a filter shows on a side (None always); the page hides the rest, they stay in the page for the bridge */
+function shownTiles(side, filter) {
+  const f = validFilter(filter);
+  return tiles(side).filter((t) => f === "all" || t.filter === "" || t.filter === f).map((t) => t.id);
+}
+
+/**
+ * What a pick of tile `id` on `side` changes in the state (a patch): the preset, the side the page follows to, and the filter, which
+ * goes back to All when the picked tile is filtered out (a pick by id from the bridge must be seen).
+ */
+function afterPick(state, side, id) {
+  const s = side === "out" ? "out" : "in";
+  const shown = shownTiles(s, state.filter).includes(id);
+  return { [`${s}Preset`]: id, side: s, filter: shown ? validFilter(state.filter) : "all" };
 }
 
 /**
  * What the controls show for this state:
- * {side (the list showing), labels: {in, out} (the In | Out switch's texts: "In · Slide", "Out · None"), summary (the dock's one line),
+ * {side (the list showing), filter, shown: {in, out} (the ids of the tiles the filter shows), labels: {in, out} (the In | Out switch's texts: "In · Slide", "Out · None"), summary (the dock's one line),
  * mode: "in" | "out" | "both" | null, canApply, direction, turn, strength (enabled), strengthTip, frames: {in, out} (what the boxes show:
  * the typed value, else the preset's default, null while the side is None), opts: what Apply sends to premiere-inout.apply}
  */
@@ -72,6 +101,8 @@ function view(state) {
   const part = (label, p, n) => `${label} ${p.name} ${n}f`;
   return {
     side: state.side === "out" ? "out" : "in",
+    filter: validFilter(state.filter),
+    shown: { in: shownTiles("in", state.filter), out: shownTiles("out", state.filter) },
     labels: { in: `In · ${inP ? inP.name : "None"}`, out: `Out · ${outP ? outP.name : "None"}` },
     summary: mode ? [inP ? part("In", inP, frames.in) : "", outP ? part("Out", outP, frames.out) : ""].filter(Boolean).join(" · ") : "Nothing picked",
     mode,
@@ -174,4 +205,4 @@ function status(kind, res) {
   return lines;
 }
 
-module.exports = { NONE, PROP_LABEL, PICK_FIRST, clampFrames, clampStrength, framesAfterTyping, restore, snapshot, view, hoverView, presetTip, undoLine, status, statusFor };
+module.exports = { FILTERS, tiles, shownTiles, afterPick, NONE, PROP_LABEL, PICK_FIRST, clampFrames, clampStrength, framesAfterTyping, restore, snapshot, view, hoverView, presetTip, undoLine, status, statusFor };

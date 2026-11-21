@@ -193,3 +193,11 @@ test("the running preview never removes or creates an SVG node after it is built
     Object.assign(global, real);
   }
 });
+
+test("caption: while the pointer rests on a tile it says Preview first (nothing picked stays as it is)", () => {
+  const v = U.view({ ...U.restore({}), inPreset: "elastic" });
+  assert.strictEqual(P.caption(v, P.build(v.opts), true).text, "Preview: In Elastic");
+  assert.strictEqual(P.caption(v, P.build(v.opts), false).text, "In Elastic");
+  const none = U.view(U.restore({}));
+  assert.strictEqual(P.caption(none, P.build(none.opts), true).text, "Nothing picked");
+});

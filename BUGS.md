@@ -65,14 +65,17 @@
 - Platform limit (Premiere 26.5.3 UXP): a button inside a hidden pane keeps the rectangle it had when the pane was last shown, so
   rectangle tests alone cannot tell what is on screen. The net therefore also reads the `hidden` property up the tree.
 
-## In & Out preview (0.10.130-0.10.132, limits)
+## In & Out preview and Tiles page (0.10.130-0.10.133, limits)
+- Tiles page, measured in Premiere at a 487 x 523 px panel (0.10.133): only about 2 tile rows show between the preview and the dock (scroll area 307 px; preview, switch and chips about 208 px; dock 151 px). Ideas not built: a fourth column in a wide panel, Strength and Blur on the stepper row when it fits, a lower preview.
+- The Out switch button is 1 px wider than the page (right edge 460 against 459).
 - Seen once through the bridge (0.10.131): on the very first visit to In & Out after the panel loads, the preview with remembered picks did not start; later visits did. A pointer move over the page or a new pick starts it. Not reproduced, cause not looked into (possibly the pane has no width yet when `openTab` wakes it).
 - The bridge has no hook for the page's `preview.info()`; the 0.10.131 test read the DOM instead.
 - 0.10.130 crashed Premiere 26.5.3 in the SVG painter (`SvgGeometryNode::prePaint`) while the preview looped. Rule since 0.10.131: a looping SVG animation in the panel never removes or creates nodes per frame, it only changes attributes. The Keyframer preview still recreates nodes but plays once per press; no crash from it is known.
-- The preview frame is a fixed 104 x 72 px with a 36 x 26 px box since 0.10.132 (148 x 104 and 52 x 36 before): it shows the motion, not the clip's real size.
-- Unknown until the user looks in Premiere (0.10.132): whether the arrow glyphs ← ↑ ↓ → ↻ ↺ on the Edge and Turn buttons render in UXP's font. If not, they become inline SVG icons. Seen only in Chrome.
-- Unknown (0.10.132): whether a 300 px panel really gets the side-by-side layout (preview beside the settings) in UXP. The browser harness measured the page at 240, 300 and 420 px only; UXP's real layout width is not known.
-- Unknown (0.10.132): the hover preview's behaviour in Premiere (pointing at a preset plays it without picking it). Not seen in Premiere.
+- The preview frame is a drawing of 208 x 94 px centred in a full-width frame, with a 46 x 32 px box, since 0.10.133 (104 x 72 and 36 x 26 in 0.10.132): it shows the motion, not the clip's real size.
+- Limit (0.10.133, seen in the harness, not yet in Premiere): in a wide panel a slide appears and disappears at the edge of the drawing, some way inside the frame. Not fixed.
+- Unknown (0.10.133): the real column count of the tiles in UXP (3 columns, 2 below 280 px). The browser harness measured 240, 300 and 420 px only; UXP's real layout width is not known.
+- Unknown (0.10.133): the drawn Edge and Turn icons and the tile icons in Premiere (seen only in Chrome).
+- Unknown (0.10.132, still open for 0.10.133): the hover preview's behaviour in Premiere (pointing at a tile plays it without picking it). Not seen in Premiere.
 - The preview does not draw motion blur (the blur is applied by Premiere only).
 - UXP can report a hidden pane as visible for a while (stale sizes): the loop then runs up to 8 plays before it rests.
 

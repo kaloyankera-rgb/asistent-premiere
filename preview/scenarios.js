@@ -273,6 +273,9 @@ window.PREVIEW_SCENARIOS = (function () {
     "inout-edge": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-slide", "ioOut-anticipate", "ioDir-top"]); } },
     "inout-turn": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-spinIn", "ioOut-fade", "ioTurn-ccw", "ioBlurSwitch"]); } },
     "inout-out": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-pop", "ioOut-spinOut", "ioTurn-ccw"]); } },
+    "inout-scale": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-popElastic", "ioOut-shrink", "ioFilter-scale"]); } },
+    "inout-hover": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-slide", "ioOut-fade", "ioSideIn"]); const b = document.getElementById("ioIn-elastic");
+      if (b) b.dispatchEvent(new MouseEvent("mouseenter", { bubbles: false })); } },
     "inout-done": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-slide", "ioOut-fade"]); setTimeout(() => ioPress(["ioApply"]), 150); } },
     // 0.10.78: the preview and the motion blur switched on (Overshoot+ sample move)
     "keyframer-blur": { run: (api) => {

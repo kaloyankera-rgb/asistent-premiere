@@ -649,37 +649,56 @@ input.sl-num { width: 36px; margin: 0; }
 /* Settings > Subtitles: the ElevenLabs key field (0.10.119) */
 input.cloud-key { flex: 1 1 auto; min-width: 0; font-size: 11px; }
 
-/* ---------------------------------------------------------------- the In & Out page (Phase 3): flex rows only. A row of
-   controls, a short label over each group of presets, a row greyed while its control changes nothing (opacity as .kf-blur-row.off). */
-.io-group { margin: 6px 0 0 0; font-size: 10px; color: var(--text-3); }
+/* ---------------------------------------------------------------- the In & Out page (Phase 3, tiles since 0.10.133): flex rows only, margins in
+   px and % (no gap, grid or transitions). A row greys while its control changes nothing (opacity as .kf-blur-row.off). */
 .io-off { opacity: 0.45; }
 /* the fourth Motion button: its label stays on one line, the buttons give up some padding in a very narrow panel */
 #tabInOut { white-space: nowrap; }
 @media (max-width: 260px) { .btn.mside { padding: 4px 3px; } }
 
-/* ---------------------------------------------------------------- In & Out, compact (0.10.132). The top card is a wrapping flex row: the
-   preview column and the settings column share a line while both fit (the settings column has a minimum width), else the settings go
-   under the preview. Preset buttons are smaller than the page default; the In | Out switch shows one list at a time. */
-.io-top { align-items: flex-start; }
-.io-pvcol { flex: none; width: 106px; margin: 0 8px 6px 0; }
-.io-pvcol .kf-pv-row { margin-top: 2px; }
-.kf-pv.io-pv { width: 104px; height: 74px; }
-.io-set { flex: 1; min-width: 134px; }
-.io-line { margin-top: 6px; }
-.io-line:first-child { margin-top: 0; }
-.io-pair { flex: none; margin: 0 10px 0 0; }
-.io-pair:last-child { margin-right: 0; }
-.io-l { flex: none; margin: 0 4px 0 0; font-size: 11px; color: var(--text-2); }
-.io-set input.kf-num { width: 30px; }
-.io-line.wrap .io-pair { margin-bottom: 4px; }
-.io-line.wrap { margin-bottom: -4px; }
-.io-seg-line { margin-top: 4px; min-height: 24px; }       /* kept when Edge and Turn are both hidden: the list below must not jump under the pointer */
-.io-seg-line .io-pair { margin-top: 2px; }
-.btn.small.io-glyph { flex: none; width: 23px; padding: 2px 0; margin: 0 3px 0 0; text-align: center; }
-.io-switch { align-items: stretch; margin: 0 0 4px 0; }
-.btn.small.io-seg { flex: 1; min-width: 0; margin: 0 4px 0 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the preview: a frame as wide as the page with the drawing (a fixed size, inoutpreview.js) centred in it; the caption sits inside, bottom left */
+.io-pvframe { position: relative; box-sizing: border-box; display: flex; flex-direction: row; align-items: center; justify-content: center;
+  height: 96px; margin: 0 0 8px 0; border-radius: 8px; overflow: hidden; background-color: var(--stage); border: 1px solid var(--line-strong); }
+.io-pvframe svg { flex: none; }
+.io-pvcap { position: absolute; left: 8px; right: 8px; bottom: 6px; font-size: 10px; line-height: 12px; color: var(--text-2); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
+/* the In | Out switch (two equal buttons) and the filter chips (five equal pills in one row) */
+.io-switch { align-items: stretch; margin: 0 0 6px 0; }
+.btn.small.io-seg { flex: 1; min-width: 0; margin: 0 6px 0 0; padding: 6px 4px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: bold; }
 .io-switch .btn.small.io-seg:last-child { margin-right: 0; }
-.io-list .btn.small { padding: 2px 6px; margin: 0 3px 3px 0; }
-.io-list .kf-presets { margin-top: 0; }
-.io-list .io-group { margin: 3px 0 2px 0; font-size: 10px; line-height: 12px; }
-.io-sum { margin: 4px 0 0 0; font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.io-chips { margin: 0 0 8px 0; }
+.btn.small.io-chip { flex: 1; min-width: 0; margin: 0 4px 0 0; padding: 3px 0; border-radius: 12px; text-align: center; white-space: nowrap; overflow: hidden; }
+.io-chips .btn.small.io-chip:last-child { margin-right: 0; }
+/* the tiles: three to a row (two in a narrow panel); the page sets e3 / e2 on the last tile of a row, so no :nth-child is needed */
+.io-tiles { align-items: flex-start; }
+.btn.small.io-tile { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 31.2%; height: 48px;
+  margin: 0 3% 6px 0; padding: 0 2px; }
+.btn.small.io-tile.e3 { margin-right: 0; }
+.btn.small.io-tile .io-tn { max-width: 100%; font-size: 11px; line-height: 14px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+svg.io-ico { flex: none; }
+svg.io-ico path { fill: none; stroke: var(--text-2); stroke-width: 1.6px; stroke-linecap: round; stroke-linejoin: round; }
+.btn.small.io-tile.on svg.io-ico path, .btn.small.io-glyph.on svg.io-ico path { stroke: var(--sel); }
+.btn.io-tile:hover svg.io-ico path, .btn.io-glyph:hover svg.io-ico path { stroke: var(--text); }
+@media (max-width: 279px) {
+  .btn.small.io-tile { width: 48%; margin-right: 4%; }
+  .btn.small.io-tile.e3 { margin-right: 4%; }
+  .btn.small.io-tile.e2 { margin-right: 0; }
+}
+
+/* the dock: row a (length stepper, Edge, Turn), row b (Strength, Blur pill), row c (Apply, Remove), the summary */
+.io-ctl { align-items: center; }
+.io-pair { flex: none; margin: 0 8px 4px 0; }
+.io-l { flex: none; margin: 0 4px 0 0; font-size: 11px; color: var(--text-2); }
+.io-ctl .io-l { min-width: 22px; }
+.io-line { margin: 0 0 8px 0; }
+.io-line .io-pair { margin-bottom: 0; }
+.io-line .io-pair.io-blur { margin: 0 0 0 auto; }
+.io-pair input.kf-num { width: 30px; }
+.btn.small.io-glyph { flex: none; display: flex; flex-direction: row; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0;
+  margin: 0 2px 0 0; font-size: 14px; line-height: 14px; }
+.io-pair .kf-unit { margin-left: 3px; }
+.btn.small.io-pill { flex: none; margin: 0; padding: 3px 10px; border-radius: 12px; }
+.io-act { margin: 0; }
+.io-act .btn.action { flex: 1; min-width: 0; margin: 0 8px 0 0; }
+.io-act .btn.io-rm { flex: none; margin: 0; padding: 7px 14px; }
+.io-sum { margin: 6px 0 0 0; font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

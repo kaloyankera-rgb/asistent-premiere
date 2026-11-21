@@ -9,7 +9,7 @@ const st = (o) => Object.assign(U.restore(null), o);
 const texts = (lines) => lines.map((l) => l.text);
 
 test("restore: defaults, junk and unknown ids become safe values", () => {
-  assert.deepStrictEqual(U.restore(null), { inPreset: "none", outPreset: "none", inFrames: null, outFrames: null, direction: "left", turn: "cw", strength: 100, blur: false, side: "in" });
+  assert.deepStrictEqual(U.restore(null), { inPreset: "none", outPreset: "none", inFrames: null, outFrames: null, direction: "left", turn: "cw", strength: 100, blur: false, side: "in", filter: "all" });
   const r = U.restore({ inPreset: "nope", outPreset: "fade", inFrames: "7.4", outFrames: 99999, direction: "up", turn: "x", strength: 1, blur: 1 });
   assert.strictEqual(r.inPreset, "none");
   assert.strictEqual(r.outPreset, "fade");
@@ -201,4 +201,47 @@ test("hoverView: the hovered preset replaces that side only, nothing in the stat
   assert.strictEqual(U.hoverView(s, "in", U.NONE).opts.inPreset, null);             // hovering None shows a side without animation
   assert.strictEqual(U.hoverView(s, "in", "nope").opts.inPreset, null);             // an unknown id is None
   assert.deepStrictEqual(U.hoverView(s, "in", "slide"), U.view(s));                 // hovering the picked one changes nothing
+});
+
+test("filter: remembered with the other UI choices, one for both sides; saved values without it open on All", () => {
+  assert.strictEqual(U.restore({ inPreset: "pop" }).filter, "all");                // saved before 0.10.133: no field
+  assert.strictEqual(U.restore({ filter: "spin" }).filter, "spin");
+  assert.strictEqual(U.restore({ filter: "sideways" }).filter, "all");
+  assert.strictEqual(U.snapshot(st({ filter: "fade" })).filter, "fade");
+  assert.strictEqual(U.snapshot(st({ filter: "nope" })).filter, "all");
+  assert.deepStrictEqual(U.restore(U.snapshot(st({ filter: "scale", side: "out" }))), st({ filter: "scale", side: "out" }));
+  assert.strictEqual(U.view(st({ filter: "move" })).filter, "move");
+  assert.deepStrictEqual(U.FILTERS.map(([id]) => id), ["all", "move", "scale", "spin", "fade"]);
+});
+
+test("tiles: None first, then the presets by group; the filter shows one group and always None, both sides listed in view()", () => {
+  for (const side of ["in", "out"]) {
+    const all = U.tiles(side);
+    assert.strictEqual(all[0].id, U.NONE);
+    assert.strictEqual(all.length, (side === "in" ? I.IN_PRESETS : I.OUT_PRESETS).length + 1);   // every preset has a tile
+    assert.deepStrictEqual(U.shownTiles(side, "all"), all.map((t) => t.id));
+    let shownTotal = 0;
+    for (const [f] of U.FILTERS.slice(1)) {
+      const ids = U.shownTiles(side, f);
+      assert.ok(ids.includes(U.NONE), "None is shown whatever the filter");
+      assert.ok(ids.length > 1, `${side} ${f} shows some presets`);
+      assert.ok(U.tiles(side).filter((t) => ids.includes(t.id) && t.preset).every((t) => t.filter === f));
+      shownTotal += ids.length - 1;
+    }
+    assert.strictEqual(shownTotal, all.length - 1);                                  // the four filters together cover every preset once
+  }
+  assert.deepStrictEqual(U.shownTiles("in", "scale").slice(0, 2), [U.NONE, "pop"]);
+  assert.ok(U.shownTiles("out", "move").includes("anticipate") && !U.shownTiles("out", "move").includes("fade"));
+  assert.deepStrictEqual(U.shownTiles("in", "junk"), U.shownTiles("in", "all"));       // an unknown filter is All
+  const v = U.view(st({ filter: "fade" }));
+  assert.deepStrictEqual(v.shown.in, U.shownTiles("in", "fade"));
+  assert.deepStrictEqual(v.shown.out, U.shownTiles("out", "fade"));
+});
+
+test("afterPick: the pick shows its side; a filtered-out tile sends the filter back to All, a shown one and None keep it", () => {
+  const s = st({ side: "in", filter: "scale" });
+  assert.deepStrictEqual(U.afterPick(s, "out", "shrink"), { outPreset: "shrink", side: "out", filter: "scale" });
+  assert.deepStrictEqual(U.afterPick(s, "out", "fade"), { outPreset: "fade", side: "out", filter: "all" });   // Fade is not in Scale
+  assert.deepStrictEqual(U.afterPick(s, "in", U.NONE), { inPreset: U.NONE, side: "in", filter: "scale" });
+  assert.deepStrictEqual(U.afterPick(st({ filter: "all" }), "in", "slide"), { inPreset: "slide", side: "in", filter: "all" });
 });
