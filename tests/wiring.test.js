@@ -479,6 +479,14 @@ test("the In & Out page: pane, Motion button, dock, mount line and packed files"
   assert.doesNotMatch(page, /setTimeout|setInterval/);                            // nothing runs by itself (the preview's timer is in inoutpreview.js)
   // every button of the page is made with button() (a div.btn) and carries a tip
   assert.doesNotMatch(page, /createElement\("button"\)/);
+  // 0.10.132: the In | Out switch, ids kept for the bridge, the hover plays a preset without picking it (never saved, never written)
+  for (const id of ["ioSideIn", "ioSideOut", "ioInFrames", "ioOutFrames", "ioStrength", "ioBlurSwitch", "ioApply", "ioRemove"]) assert.match(page, new RegExp(`"${id}"`));
+  assert.match(page, /b\.id = `\$\{idPrefix\}-\$\{id\}`/);                           // ioDir-left ... ioTurn-ccw
+  assert.match(page, /b\.id = `io\$\{title\}-\$\{id\}`/);                              // ioIn-<id> / ioOut-<id>, both lists built
+  assert.match(page, /addEventListener\("mouseenter"/);
+  assert.match(page, /addEventListener\("mouseleave"/);
+  const hoverFn = page.slice(page.indexOf('b.addEventListener("mouseenter"'), page.indexOf('buttons.push(b)'));
+  assert.doesNotMatch(hoverFn, /state\[|keep\(|changed\(|IO\./);                         // a hover is not a choice and never writes
 });
 
 // In & Out preview (Phase 4): it only draws; it never reaches Premiere, stops its timer when the pane is hidden, and the page wakes it
@@ -489,7 +497,8 @@ test("the In & Out preview draws only, stops when hidden and is mounted by the p
   assert.match(pv, /if \(!visible\(\)\) return;/);                                  // a hidden pane ends the chain
   assert.doesNotMatch(pv, /setInterval|requestAnimationFrame/);
   const page = fs.readFileSync(path.join(panel, "inout.js"), "utf8");
-  assert.match(page, /PV\.mount\(\{ host: card\(\), el, visible: \(\) => !root\.hidden && root\.offsetWidth > 0/);
-  assert.match(page, /preview\.set\(v\);/);
-  assert.match(page, /root\.addEventListener\("pointerover", preview\.wake\)/);
+  assert.match(page, /PV\.mount\(\{ host: pvCol, el, visible: \(\) => !root\.hidden && root\.offsetWidth > 0/);
+  assert.match(page, /preview\.set\(hover \? U\.hoverView\(state, hover\.side, hover\.id\) : U\.view\(state\)\);/);
+  assert.match(page, /const wake = \(\) => \{ if \(!busy\) preview\.wake\(\); \};/);           // 0.10.132: not while Apply or Remove writes
+  assert.match(page, /root\.addEventListener\("pointerover", wake\)/);
 });

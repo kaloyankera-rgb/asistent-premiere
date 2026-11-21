@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.131 (2026-11-21)
+# Project status: Asistent 0.10.132 (2026-11-21)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,7 +6,8 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
-- 0.10.131 (stray-press fix on every page; In & Out Phase 4, the preview card; the preview no longer recreates its SVG shapes after 0.10.130 crashed Premiere in the SVG painter at 18:18:44): installed, Node 487 pass, pytest 954 passed / 24 skipped, not released. The user has not confirmed the click fix or seen the preview in Premiere.
+- 0.10.132 (In & Out page rebuilt compact: one top card with the preview, In | Out switch, hover preview, dock summary): installed, Node 490 pass, rules-reviewer PASS, bridge-tested in NEW TEST, not pushed, not released. The user has not seen it in Premiere.
+- 0.10.131 (stray-press fix on every page; the preview no longer recreates its SVG shapes after 0.10.130 crashed Premiere in the SVG painter at 18:18:44): pushed to GitHub 2026-11-21 with the user's yes (`improvements/2026-11` at `1a20ae9`); installed, Node 487 pass, pytest 954 passed / 24 skipped, not released. The user has not confirmed the click fix.
 - 0.10.123 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`,
   pushed to `origin/main` at `348d2ee`.
 - Last published release: v0.10.118 (2026-11-19). 0.10.119 and 0.10.120 are pushed but not released, 0.10.121-0.10.123 committed, not pushed, so the editors'
@@ -20,9 +21,9 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
   TODO V119. [subtitles](docs/features/subtitles.md)
 - Cut silences (0.10.121 ElevenLabs words, 0.10.122 audit fixes): built and tested outside Premiere, not installed. Open: the
   host razor on odd frame rates (detected, not fixed). TODO V122, AUD.
-- In & Out animations (0.10.130, plan `docs/IN_OUT_PLAN.md`): Phases 0-4 built. Phase 2: one owned Transform per clip, baked keys,
+- In & Out animations (0.10.132, plan `docs/IN_OUT_PLAN.md`): Phases 0-4 built. Phase 2: one owned Transform per clip, baked keys,
   apply / re-apply / remove. Phase 3: the page (Motion → In & Out), bridge-tested on 0.10.128, awaiting the user's look.
-  Phase 4 (0.10.130): the preview card, Node-tested, not yet installed or bridge-tested. Next: Phase 5 (later).
+  Phase 4 (preview card, 0.10.130; rebuilt compact in 0.10.132): installed and bridge-tested. Next: Phase 5 (later).
   Open: Strength on presets where it changes nothing; the limits in BUGS.md.
   [in-out](docs/features/in-out.md)
 - Local recognition experiments (`NEXT` profile) paused behind a development switch; the held-back runs were stopped.
@@ -30,8 +31,9 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 ## Waiting for a check in Premiere (newest first)
 - 0.10.130: clicks on the Motion and Brand settings no longer open other tabs or press buttons of other pages (the stray-press net skips
   hidden panes). The user's real use to confirm. [tracker](docs/features/tracker.md)
-- 0.10.129-0.10.130: In & Out page (card layout, greyed Strength, the dock, the four Motion buttons at narrow widths, tooltips), the
-  preview card's drawing and loop speed, and the motion in playback next to the reference (blur on and off). [in-out](docs/features/in-out.md)
+- 0.10.132: In & Out page rebuilt compact: whether the arrow glyphs (← ↑ ↓ → ↻ ↺) render in UXP's font, whether a 300 px panel gets the
+  side-by-side layout, and the hover preview. Earlier In & Out looks (0.10.129-0.10.130) are still open too, and so is the motion in
+  playback next to the reference (blur on and off). [in-out](docs/features/in-out.md)
 - 0.10.121: Cut silences with Detect = AI-assisted (or Cut = AI rough cut): the result says "words recognised by
   ElevenLabs Scribe v3", faster than before; a ReShape project stays on this computer. [cut-silences](docs/features/cut-silences.md)
 - 0.10.119-0.10.120: one ReShape run (same captions as before), switch off and run again (Auto confirmed 2026-11-21).
@@ -60,5 +62,5 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 ## Next
 1. The user's next press of Cut silences on "Lokal 2" (0.10.123), then the checks above (TODO V122).
 2. Release 0.10.123 when the user asks.
-3. Install 0.10.130 and bridge-test it (pytest and the bridge test not yet run); then the user's look at the In & Out page, its preview and its playback in Premiere. Phase 5 later.
+3. The user's look at the compact In & Out page in Premiere (arrow glyphs, layout, hover, playback). Not run for 0.10.132: the Python suite (no Python changed since 0.10.130). Phase 5 later.
 4. `TODO.md` in its order.

@@ -114,7 +114,7 @@ or the snapshot in `docs/dev-workflow/`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
   (954 pass + 24 skipped at 0.10.122; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
   some tests write into the real app folder, so run them with `HOME` pointed at a scratch folder holding a copy of `models/lexicon`) and
-  `node --test tests/*.test.js` (487 tests at 0.10.131);
+  `node --test tests/*.test.js` (490 tests at 0.10.132);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Fix audio never splits a clip that carries effects or keyframes: overwriteClip drops them (measured 2026-11-08, DECISIONS).
 - Premiere tests only in the user's test projects `TEST.prproj` or `NEW TEST.prproj` (Ludi Glavi/Projects; the user's choice

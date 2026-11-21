@@ -43,18 +43,20 @@ function restore(saved) {
     turn: I.TURNS.includes(s.turn) ? s.turn : "cw",
     strength: s.strength === undefined || s.strength === null ? I.STRENGTH_DEFAULT : clampStrength(s.strength),
     blur: !!s.blur,
+    side: s.side === "out" ? "out" : "in",                // which preset list shows (a UI choice; saved values from before 0.10.132 have none)
   };
 }
 
 /** what to store: the same fields, nothing else */
 function snapshot(state) {
   return { inPreset: state.inPreset, outPreset: state.outPreset, inFrames: state.inFrames, outFrames: state.outFrames,
-    direction: state.direction, turn: state.turn, strength: state.strength, blur: !!state.blur };
+    direction: state.direction, turn: state.turn, strength: state.strength, blur: !!state.blur, side: state.side === "out" ? "out" : "in" };
 }
 
 /**
  * What the controls show for this state:
- * {mode: "in" | "out" | "both" | null, canApply, direction, turn, strength (enabled), strengthTip, frames: {in, out} (what the boxes show:
+ * {side (the list showing), labels: {in, out} (the In | Out switch's texts: "In · Slide", "Out · None"), summary (the dock's one line),
+ * mode: "in" | "out" | "both" | null, canApply, direction, turn, strength (enabled), strengthTip, frames: {in, out} (what the boxes show:
  * the typed value, else the preset's default, null while the side is None), opts: what Apply sends to premiere-inout.apply}
  */
 function view(state) {
@@ -67,7 +69,11 @@ function view(state) {
     out: outP ? (state.outFrames !== null ? state.outFrames : I.defaultFrames("out", outP.id)) : null,
   };
   const mode = inP && outP ? "both" : inP ? "in" : outP ? "out" : null;
+  const part = (label, p, n) => `${label} ${p.name} ${n}f`;
   return {
+    side: state.side === "out" ? "out" : "in",
+    labels: { in: `In · ${inP ? inP.name : "None"}`, out: `Out · ${outP ? outP.name : "None"}` },
+    summary: mode ? [inP ? part("In", inP, frames.in) : "", outP ? part("Out", outP, frames.out) : ""].filter(Boolean).join(" · ") : "Nothing picked",
     mode,
     canApply: !!mode,
     direction: needs.some((n) => n.direction),
@@ -83,6 +89,15 @@ function view(state) {
       direction: state.direction, turn: state.turn, strength: state.strength, blur: !!state.blur,
     },
   };
+}
+
+/**
+ * The view while the pointer rests on a preset button (`side`, `id`): the picks as they are, but that side showing `id` (None allowed),
+ * so the preview can play it. Never stored, never written; the page goes back to view(state) when the pointer leaves.
+ */
+function hoverView(state, side, id) {
+  const key = side === "out" ? "outPreset" : "inPreset";
+  return view({ ...state, [key]: validPreset(side === "out" ? "out" : "in", id) });
 }
 
 /**
@@ -159,4 +174,4 @@ function status(kind, res) {
   return lines;
 }
 
-module.exports = { NONE, PROP_LABEL, PICK_FIRST, clampFrames, clampStrength, framesAfterTyping, restore, snapshot, view, presetTip, undoLine, status, statusFor };
+module.exports = { NONE, PROP_LABEL, PICK_FIRST, clampFrames, clampStrength, framesAfterTyping, restore, snapshot, view, hoverView, presetTip, undoLine, status, statusFor };

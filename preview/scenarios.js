@@ -272,6 +272,7 @@ window.PREVIEW_SCENARIOS = (function () {
     inout: { run: (api) => api.openTab("paneInOut") },
     "inout-edge": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-slide", "ioOut-anticipate", "ioDir-top"]); } },
     "inout-turn": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-spinIn", "ioOut-fade", "ioTurn-ccw", "ioBlurSwitch"]); } },
+    "inout-out": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-pop", "ioOut-spinOut", "ioTurn-ccw"]); } },
     "inout-done": { run: (api) => { api.openTab("paneInOut"); ioPress(["ioIn-slide", "ioOut-fade"]); setTimeout(() => ioPress(["ioApply"]), 150); } },
     // 0.10.78: the preview and the motion blur switched on (Overshoot+ sample move)
     "keyframer-blur": { run: (api) => {

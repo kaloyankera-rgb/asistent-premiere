@@ -65,11 +65,14 @@
 - Platform limit (Premiere 26.5.3 UXP): a button inside a hidden pane keeps the rectangle it had when the pane was last shown, so
   rectangle tests alone cannot tell what is on screen. The net therefore also reads the `hidden` property up the tree.
 
-## In & Out preview (0.10.130, limits)
+## In & Out preview (0.10.130-0.10.132, limits)
 - Seen once through the bridge (0.10.131): on the very first visit to In & Out after the panel loads, the preview with remembered picks did not start; later visits did. A pointer move over the page or a new pick starts it. Not reproduced, cause not looked into (possibly the pane has no width yet when `openTab` wakes it).
 - The bridge has no hook for the page's `preview.info()`; the 0.10.131 test read the DOM instead.
 - 0.10.130 crashed Premiere 26.5.3 in the SVG painter (`SvgGeometryNode::prePaint`) while the preview looped. Rule since 0.10.131: a looping SVG animation in the panel never removes or creates nodes per frame, it only changes attributes. The Keyframer preview still recreates nodes but plays once per press; no crash from it is known.
-- The preview frame is a fixed 148 x 104 px with a 52 x 36 px box: it shows the motion, not the clip's real size.
+- The preview frame is a fixed 104 x 72 px with a 36 x 26 px box since 0.10.132 (148 x 104 and 52 x 36 before): it shows the motion, not the clip's real size.
+- Unknown until the user looks in Premiere (0.10.132): whether the arrow glyphs ← ↑ ↓ → ↻ ↺ on the Edge and Turn buttons render in UXP's font. If not, they become inline SVG icons. Seen only in Chrome.
+- Unknown (0.10.132): whether a 300 px panel really gets the side-by-side layout (preview beside the settings) in UXP. The browser harness measured the page at 240, 300 and 420 px only; UXP's real layout width is not known.
+- Unknown (0.10.132): the hover preview's behaviour in Premiere (pointing at a preset plays it without picking it). Not seen in Premiere.
 - The preview does not draw motion blur (the blur is applied by Premiere only).
 - UXP can report a hidden pane as visible for a while (stale sizes): the loop then runs up to 8 plays before it rests.
 

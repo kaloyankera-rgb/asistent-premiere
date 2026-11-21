@@ -31,6 +31,44 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.132 - In & Out page rebuilt compact (2026-11-21, installed, reviewed, bridge-tested, not pushed, awaiting the user's look)
+- **Why:** the user, 2026-11-21: "we also need a better UI for this its super unoptimized". At a 300 px panel the page was about
+  1600 px of scrolling: intro card, preview card, In list (20), Out list (13), Settings card, stacked.
+- **Now:** the intro card is gone (its sentence is in the Apply tooltip). One top card holds the preview and the settings beside
+  it, or under it in a narrow panel: In and Out frames on one row, Strength % and a labelled Blur switch, Edge as four arrow
+  buttons, Turn as two. The preview is 104 x 72 px with a 36 x 26 px box (was 148 x 104 and 52 x 36).
+- **In | Out switch:** the buttons show the current pick ("In · Slide", "Out · Anticipate"), and only that side's preset list
+  shows, in smaller buttons. The side is remembered in `asistent.inout.ui`; old saved values open on In; a pick by id also shows
+  its side.
+- **Hover:** pointing at a preset plays it in the preview without picking it. A hover is never saved and never writes to Premiere
+  (`inoutui.hoverView`, pure).
+- **Dock:** a one-line summary under Apply and Remove, for example "In Slide 12f · Out Anticipate 16f".
+- **Measured in the browser harness** (pane top to the last card, one side): 479-499 px at 240 px, 378-401 px at 300 px (about
+  425 px after the Blur label got its own row), 355 px at 420 px. No horizontal overflow. Screenshots at 240, 300 and 420 read.
+- **Unchanged:** every earlier id (`ioIn-*`, `ioOut-*`, `ioDir-*`, `ioTurn-*`, `ioInFrames`, `ioOutFrames`, `ioStrength`,
+  `ioBlurSwitch`, `ioApply`, `ioRemove`); the hide and grey rules; `premiere-inout.js` and `inoutplan.js`; the preview's drawing
+  code (two SVG shapes made once).
+- **Files:** `panel/inout.js`, `panel/inoutui.js`, `panel/inoutpreview.js` (constants), `panel/style.css` (`.io-row` removed;
+  `.io-top`, `.io-pvcol`, `.io-set`, `.io-pair`, `.io-glyph`, `.io-seg`, `.io-list`, `.io-sum` added), `preview/scenarios.js` and
+  `preview/shoot.js` (new scenario `inout-out`), `tests/inoutui.test.js`, `tests/wiring.test.js`.
+- **Tests:** Node 490 pass (487 at 0.10.131). No Python file changed; pytest not reported for this version. Review verdict, install
+  and bridge test: not yet.
+- **Not verified in Premiere (the user's look needed):** whether the arrow glyphs ← ↑ ↓ → ↻ ↺ render in UXP's font (fallback:
+  inline SVG icons); whether a 300 px panel really gets the side-by-side layout in UXP; the hover preview's behaviour.
+- **Git:** 0.10.131 was pushed to GitHub on 2026-11-21 with the user's yes (branch `improvements/2026-11` at `1a20ae9`). 0.10.132
+  is not pushed.
+
+- **After the first write-up of this entry:** rules-reviewer PASS, no must-fix. Five of its notes taken before the install: the Edge /
+  Turn line keeps its height when empty (the list must not jump under the pointer), a hover is dropped when its list is hidden or the
+  pointer leaves the page, the side switch does nothing while busy, a number typed without Enter counts on Apply (the commits now run
+  before the busy flag; broken since 0.10.129), and pointer moves do not restart the preview while Apply or Remove writes.
+- **Bridge test in NEW TEST (installed 18:50, panel 484 px wide):** preview and settings side by side; first card to last card 365-367 px
+  on both sides; no overflow; edge and turn buttons on one row, 23 x 20 px. Side switch keeps the hidden side's pick; a pick by id shows
+  its side. Hover on Elastic changed only the preview and its caption, the stored choice stayed; 20 quick enter / leave pairs left one
+  box in the preview. The preview stops on another tab, restarts on return, rests after 8 plays. Apply (Pop: 13 scale keys, 2 Undo
+  steps named) and Remove left the chain as found. No "arrived at" or error line in the engine log since the install. The list still
+  moves 2 px when the Edge row appears. Not typed through the bridge: the frames boxes (no fill id). Not seen by anyone: what is painted.
+
 ## 0.10.131 - The In & Out preview no longer crashes Premiere (2026-11-21, installed, not released, awaiting the user's look)
 - **Crash:** 0.10.130 was installed at 18:17 and Premiere 26.5.3 crashed at 18:18:44 during the bridge test, six seconds after the
   In & Out page was opened with the preview looping. Crash report: EXC_BAD_ACCESS on the main thread in UXP's SVG painter

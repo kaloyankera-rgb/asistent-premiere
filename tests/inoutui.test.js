@@ -9,7 +9,7 @@ const st = (o) => Object.assign(U.restore(null), o);
 const texts = (lines) => lines.map((l) => l.text);
 
 test("restore: defaults, junk and unknown ids become safe values", () => {
-  assert.deepStrictEqual(U.restore(null), { inPreset: "none", outPreset: "none", inFrames: null, outFrames: null, direction: "left", turn: "cw", strength: 100, blur: false });
+  assert.deepStrictEqual(U.restore(null), { inPreset: "none", outPreset: "none", inFrames: null, outFrames: null, direction: "left", turn: "cw", strength: 100, blur: false, side: "in" });
   const r = U.restore({ inPreset: "nope", outPreset: "fade", inFrames: "7.4", outFrames: 99999, direction: "up", turn: "x", strength: 1, blur: 1 });
   assert.strictEqual(r.inPreset, "none");
   assert.strictEqual(r.outPreset, "fade");
@@ -165,4 +165,40 @@ test("statusFor: the reason Apply is off while both are None, a press result oth
   assert.strictEqual(U.statusFor(st({ inPreset: "pop" }), res), res);           // a result stays until the page forgets it
   assert.strictEqual(U.statusFor(st({}), res), res);                            // and wins over the hint (a Remove with both None)
   assert.deepStrictEqual(U.statusFor(st({ inPreset: "pop" }), []), []);
+});
+
+test("side: the list showing is remembered, an old saved value without it opens on In, junk too", () => {
+  assert.strictEqual(U.restore({ inPreset: "pop" }).side, "in");                  // saved before 0.10.132: no field
+  assert.strictEqual(U.restore({ side: "out" }).side, "out");
+  assert.strictEqual(U.restore({ side: "sideways" }).side, "in");
+  assert.strictEqual(U.snapshot(st({ side: "out" })).side, "out");
+  assert.deepStrictEqual(U.restore(U.snapshot(st({ side: "out", outPreset: "fade" }))), st({ side: "out", outPreset: "fade" }));
+  assert.strictEqual(U.view(st({ side: "out" })).side, "out");
+  assert.strictEqual(U.view(st({})).side, "in");
+});
+
+test("view: the switch labels show each side's pick, the summary is one short line", () => {
+  assert.deepStrictEqual(U.view(st({})).labels, { in: "In · None", out: "Out · None" });
+  assert.strictEqual(U.view(st({})).summary, "Nothing picked");
+  const v = U.view(st({ inPreset: "slide", outPreset: "anticipate", outFrames: 16 }));
+  assert.deepStrictEqual(v.labels, { in: "In · Slide", out: "Out · Anticipate" });
+  assert.strictEqual(v.summary, "In Slide 12f · Out Anticipate 16f");
+  assert.strictEqual(U.view(st({ outPreset: "fade" })).summary, "Out Fade 10f");     // a None side is left out
+  assert.strictEqual(U.view(st({ inPreset: "pop", inFrames: 20 })).summary, "In Pop 20f");
+});
+
+test("hoverView: the hovered preset replaces that side only, nothing in the state changes", () => {
+  const s = st({ inPreset: "slide", outPreset: "fade", strength: 150, inFrames: 9, outFrames: null, direction: "top" });
+  const before = JSON.stringify(s);
+  const h = U.hoverView(s, "out", "anticipate");
+  assert.strictEqual(h.opts.outPreset, "anticipate");
+  assert.strictEqual(h.opts.inPreset, "slide");                                     // the other side keeps its pick
+  assert.strictEqual(h.opts.inFrames, 9);                                           // typed frames and settings carry over
+  assert.strictEqual(h.opts.outFrames, I.defaultFrames("out", "anticipate"));       // the hovered preset's own length
+  assert.strictEqual(h.opts.strength, 150);
+  assert.strictEqual(h.opts.direction, "top");
+  assert.strictEqual(JSON.stringify(s), before);                                    // never stored: the state is untouched
+  assert.strictEqual(U.hoverView(s, "in", U.NONE).opts.inPreset, null);             // hovering None shows a side without animation
+  assert.strictEqual(U.hoverView(s, "in", "nope").opts.inPreset, null);             // an unknown id is None
+  assert.deepStrictEqual(U.hoverView(s, "in", "slide"), U.view(s));                 // hovering the picked one changes nothing
 });

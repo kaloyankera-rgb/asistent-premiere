@@ -6,10 +6,10 @@
 // timer). Nothing here reads or writes Premiere, and the timer only moves the picture: it stops when the pane is not showing.
 const I = require("./inoutplan.js");
 
-const W = 148;                                  // the frame (px): the Keyframer preview's drawing size
-const H = 104;
-const BOX_W = 52;                               // the box at rest (px): a picture, not a square, so a turn can be seen
-const BOX_H = 36;
+const W = 104;                                  // the frame (px): small, so the settings fit beside it (0.10.132; was 148 x 104)
+const H = 72;
+const BOX_W = 36;                               // the box at rest (px): a picture, not a square, so a turn can be seen
+const BOX_H = 26;
 const FPS = 30;                                 // the frame rate the loop is played at
 const HOLD = 15;                                // frames at rest between In and Out (0.5 s)
 const PAUSE = 24;                               // frames the last picture stays before the loop starts again (0.8 s)
@@ -110,8 +110,7 @@ const NS = "http://www.w3.org/2000/svg";
 const LOOPS = 8;
 
 function mount({ host, el, visible, debug }) {
-  host.appendChild(el("div", "title", "Preview"));
-  const pv = el("div", "kf-pv");
+  const pv = el("div", "kf-pv io-pv");
   pv.innerHTML = `<svg id="ioPv" width="${W}" height="${H}"><g id="ioPvBack"></g><g id="ioPvObj"></g></svg>` +
     '<div class="kf-pv-bar"><div id="ioPvFill" class="kf-pv-fill"></div></div>';
   host.appendChild(pv);

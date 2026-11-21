@@ -651,9 +651,35 @@ input.cloud-key { flex: 1 1 auto; min-width: 0; font-size: 11px; }
 
 /* ---------------------------------------------------------------- the In & Out page (Phase 3): flex rows only. A row of
    controls, a short label over each group of presets, a row greyed while its control changes nothing (opacity as .kf-blur-row.off). */
-.io-row { align-items: center; margin-top: 6px; }
 .io-group { margin: 6px 0 0 0; font-size: 10px; color: var(--text-3); }
 .io-off { opacity: 0.45; }
 /* the fourth Motion button: its label stays on one line, the buttons give up some padding in a very narrow panel */
 #tabInOut { white-space: nowrap; }
 @media (max-width: 260px) { .btn.mside { padding: 4px 3px; } }
+
+/* ---------------------------------------------------------------- In & Out, compact (0.10.132). The top card is a wrapping flex row: the
+   preview column and the settings column share a line while both fit (the settings column has a minimum width), else the settings go
+   under the preview. Preset buttons are smaller than the page default; the In | Out switch shows one list at a time. */
+.io-top { align-items: flex-start; }
+.io-pvcol { flex: none; width: 106px; margin: 0 8px 6px 0; }
+.io-pvcol .kf-pv-row { margin-top: 2px; }
+.kf-pv.io-pv { width: 104px; height: 74px; }
+.io-set { flex: 1; min-width: 134px; }
+.io-line { margin-top: 6px; }
+.io-line:first-child { margin-top: 0; }
+.io-pair { flex: none; margin: 0 10px 0 0; }
+.io-pair:last-child { margin-right: 0; }
+.io-l { flex: none; margin: 0 4px 0 0; font-size: 11px; color: var(--text-2); }
+.io-set input.kf-num { width: 30px; }
+.io-line.wrap .io-pair { margin-bottom: 4px; }
+.io-line.wrap { margin-bottom: -4px; }
+.io-seg-line { margin-top: 4px; min-height: 24px; }       /* kept when Edge and Turn are both hidden: the list below must not jump under the pointer */
+.io-seg-line .io-pair { margin-top: 2px; }
+.btn.small.io-glyph { flex: none; width: 23px; padding: 2px 0; margin: 0 3px 0 0; text-align: center; }
+.io-switch { align-items: stretch; margin: 0 0 4px 0; }
+.btn.small.io-seg { flex: 1; min-width: 0; margin: 0 4px 0 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.io-switch .btn.small.io-seg:last-child { margin-right: 0; }
+.io-list .btn.small { padding: 2px 6px; margin: 0 3px 3px 0; }
+.io-list .kf-presets { margin-top: 0; }
+.io-list .io-group { margin: 3px 0 2px 0; font-size: 10px; line-height: 12px; }
+.io-sum { margin: 4px 0 0 0; font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
