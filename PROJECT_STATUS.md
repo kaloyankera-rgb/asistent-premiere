@@ -16,10 +16,11 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - 0.10.133 (In & Out page as Tiles, the user's choice of layout A): installed, Node 495 pass, rules-reviewer BLOCK fixed (stepper with a focused box), bridge-tested in NEW TEST, not pushed, not released. The user has not seen it in Premiere. Open: at a 523 px tall panel only about 2 tile rows show above the dock.
 - 0.10.132 (compact In & Out page, replaced by 0.10.133 before the user's look): local only (`7552dca`), installed and bridge-tested earlier; not pushed.
 - 0.10.131 (stray-press fix on every page; the preview no longer recreates its SVG shapes after 0.10.130 crashed Premiere in the SVG painter at 18:18:44): pushed to GitHub 2026-11-21 with the user's yes (`improvements/2026-11` at `c2397d0`); installed, Node 487 pass, pytest 954 passed / 24 skipped, not released. The user has not confirmed the click fix.
-- 0.10.123 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`,
-  pushed to `origin/main` at `683953b`.
+- 0.10.141 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`
+  and `origin/main` at the same commit.
 - Last published release: v0.10.141 (2026-11-22, the user's word "publish to the others"; main fast-forwarded to 6a0b5bc). It carries
   0.10.119-0.10.141, including parts the user has not seen in Premiere (Cut silences audit, In & Out, Max words / Case / Line break).
+  Releases only when the user asks (`scripts/publish_release.sh`).
 - Windows: largely untested (`scripts/setup_win.ps1` and the Windows installer never run by the user). See
   [install-and-update](docs/features/install-and-update.md).
 
