@@ -357,14 +357,15 @@ test("times(): frame to media seconds on a trimmed and a sped-up clip", () => {
   const trimmed = I.times({ inPt: 12.5, speed: 1 }, 25);
   assert.ok(near(trimmed.at(0), 12.5) && near(trimmed.at(50), 14.5));
   const fast = I.times({ inPt: 3, speed: 2 }, 25);                   // 2x: a sequence frame spans 2 frames of media
-  assert.ok(near(fast.step, 0.08) && near(fast.at(10), 3.8));
+  // measured in Premiere (probe P7): a sped clip's In point is in timeline seconds, so the keys start at inPt * speed
+  assert.ok(near(fast.step, 0.08) && near(fast.at(0), 6) && near(fast.at(10), 6.8));
   const slow = I.times({ inPt: 1, speed: 0.5 }, 30);
-  assert.ok(near(slow.at(30), 1.5));
+  assert.ok(near(slow.at(0), 0.5) && near(slow.at(30), 1));
   assert.ok(near(I.times({ inPt: 2 }, 25).at(25), 3), "no speed means normal speed");
   assert.ok(I.times({ inPt: 0, speed: 1, reversed: true }, 25).error);
   assert.ok(I.times({ inPt: 0, speed: -1 }, 25).error);
   assert.ok(I.times({ inPt: 0, speed: 1 }, 0).error && I.times({ inPt: 0, speed: 1 }, NaN).error);
   // the out rows land on the clip's last frame: first frame + (frames - 1) steps
   const r = I.plan({ clip: { frames: 50 }, outPreset: "fade", outFrames: 5 });
-  assert.ok(near(fast.at(r.out[r.out.length - 1].f), 3 + 49 * 0.08));
+  assert.ok(near(fast.at(r.out[r.out.length - 1].f), 6 + 49 * 0.08));
 });

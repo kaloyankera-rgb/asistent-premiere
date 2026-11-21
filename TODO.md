@@ -32,11 +32,9 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 
 ## IO. In & Out animations (`docs/IN_OUT_PLAN.md`, the user's approval 2026-11-21; 0.10.124 = Phase 0 desk + Phase 1 maths)
 Nothing in the panel yet. Phase 1 is `panel/inoutplan.js`, unit-neutral; no page, no Premiere code, not in the zip.
-- [ ] Run the remaining live probes P6, P7, P9 in NEW TEST through the bridge (`docs/probes/inout-phase0.md`, scripts
-      `docs/probes/inout/`; P1-P5 and P8 passed 2026-11-21). First `ASISTENT_LANE=26 python3 scripts/dev_cmd.py ping` must
-      answer NEW TEST. Needs in the active sequence, nothing under or above: a trimmed clip, the same at 200 % and 50 %,
-      a Premiere text, two clips with two Motion Position keys each. Write each result in the probe page's table.
-- [ ] Record the decision owned Transform or Motion fallback in `DECISIONS.md` on the user's word (footage: owned Transform supported by P1-P5, P8; text waits for P9).
+- [x] Live probes P1-P9 ran in NEW TEST 2026-11-21 (`docs/probes/inout-phase0.md`); test sequence "Asistent probe – In Out" kept.
+- [x] Decision recorded: owned Transform (DECISIONS 2026-11-21).
+- [ ] Probe a type-tool text clip (only a Basic Title MOGRT was measured) and the Keyframer on a trimmed + sped-up clip (BUGS).
 - [ ] USER: clips A-F in NEW TEST: are the old test squares (V3, 650-890 s, bin "Asistent test") still there, or prepare new ones?
 - [ ] USER: Strength. It changes nothing on In Slide, Whip, Fade, Zoom In and Out Slide, Whip, Drop, Shrink, Fade (a clip that
       must start or end fully off screen cannot travel less). The plan says "Strength scales travel distance": keep the
@@ -213,7 +211,7 @@ first; brand profiles deferred.
   Stash of clips likely via exportAsProject/importSequences, OpenCV MIL + optical flow, no scripted adjustment layer.
 - [x] P-A6 drag in the panel works (SVG and divs); the temporary probe code was removed in 0.10.31.
 - [ ] Phase 0 leftovers for the builds: P-A2 on a sped-up clip (Keyframer), P-A4 with a hand-drawn tracked mask (optional).
-  (The sped-up clip is also probe P7 in In & Out, TODO IO; kept here until P7 runs.)
+  (Measured for In & Out by probe P7, 2026-11-21: step right, base `inPt × |speed|`; the Keyframer itself still to check, BUGS.)
 - [x] **A1b Keyframer bounce** (0.10.33, verified through the bridge). USER: try Elastic on a title popping in and Ping-pong
   on a logo; say if the default strength (20 % overshoot, 50 % height) feels right.
 - [x] **A1 Keyframer** (0.10.32, branch feature/keyframer; verified through the bridge). USER: drag the handles, try Overshoot

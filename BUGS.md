@@ -7,6 +7,11 @@
 > out on 2026-11-21 are in [docs/history/BUGS_fixed_to_0.10.120.md](docs/history/BUGS_fixed_to_0.10.120.md). Per feature:
 > the Status section of its page in `docs/features/` ([docs/INDEX.md](docs/INDEX.md)).
 
+## Keyframer on a clip that is both trimmed and sped up (found 2026-11-21, not measured in the Keyframer itself)
+- The In/Out probe P7 measured that keys on a sped clip sit at `inPt × |speed| + …`, because Premiere reports the In point in
+  timeline seconds. `premiere-keyframes.js` reads existing keys (so shaping between them is right) but anything it places
+  from `inPt` alone, and the blur's window, may be off on such a clip. To check with the probe sequence in NEW TEST.
+
 ## Limits of subtitles by ElevenLabs (0.10.119; also Cut silences' AI words since 0.10.121)
 - The sound of the selected clips leaves the computer. ElevenLabs keeps uploads by default; Asistent deletes each transcript
   after use, but their docs do not say that this also removes their copy of the sound (no-retention is an enterprise feature).

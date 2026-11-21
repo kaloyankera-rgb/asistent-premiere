@@ -1,6 +1,6 @@
 # In & Out animations
 
-<!-- Status: Phase 1 built in 0.10.124, not wired, not installed. Plan: docs/IN_OUT_PLAN.md. Probe notes: docs/probes/inout-phase0.md. -->
+<!-- Status: Phase 0 probes done and Phase 1 maths built (0.10.125); not wired, not installed. Plan: docs/IN_OUT_PLAN.md. Probes: docs/probes/inout-phase0.md. -->
 
 ## What it does
 Motion tab, planned: pick an In animation and an Out animation for the selected video clips (Position, Scale,
@@ -20,7 +20,7 @@ Remove takes the owned Transform off again.
 - Measured limits to reuse: Scale above about 400 % blends straight (`blurplan.SCALE_MAX`); pins at each end of a key run.
 
 ## Decisions
-- Owned Transform, not Motion: recommended in the plan, supported for footage by probes P1-P5 and P8 (2026-11-21); text graphics wait for P9. Not in DECISIONS yet.
+- Owned Transform, not Motion: decided 2026-11-21 after probes P1-P9 (DECISIONS). On a clip with a Graphic group it goes before the group; the pivot there is the frame's centre, so the Anchor Point moves to the text for scale and rotation presets.
 - Open (the user's word needed): Strength changes nothing on presets that must start or end fully off screen (see Status).
   Also to look at with it: at Strength 200, In Bounce's first hop goes all the way back off screen before landing.
 
@@ -32,7 +32,7 @@ Remove takes the owned Transform off again.
 - Probes: `docs/probes/inout-phase0.md`, scripts `docs/probes/inout/` (P1-P5, P8 run 2026-11-21).
 
 ## Status
-- Since 0.10.124. Phase 0 desk findings done; live probes P1-P5 and P8 passed (units: Position = fraction of the layer, Scale %, Rotation degrees clockwise, Opacity 0-100; no crop at the layer's bounds; blur works; Undo per press). P6, P7, P9 not run.
+- Since 0.10.124. Phase 0 done in 0.10.125: probes P1-P9 ran (units: Position = fraction of the layer, Scale %, Rotation degrees clockwise, Opacity 0-100; no crop at the layer's bounds; blur works; Undo per press; safe next to the blur's Transform; key base `inPt × |speed|`). Not tested: a type-tool text clip.
 - Phase 1 (`inoutplan.js`): built and Node-tested, outside Premiere. Not wired, not installed, not in the zip.
 - Phase 2 (apply, remove, record): not started. Phases 3-5: TODO IO.
 - Open questions: (a) owned Transform or Motion fallback, after the probes; (b) Strength on presets that cannot travel less
@@ -47,4 +47,4 @@ Remove takes the owned Transform off again.
   finite rows in range, In starts on the first frame and rests at the end, Out ends on the last frame, direction and turn,
   Strength (travel, overshoot, scale, rotation, Bounce / Drop hops, `needs().strength`), scale clamp, In + Out longer than
   the clip, In + Out meeting on one frame, In only / Out only / Both, key cap and bad input, frame rounding, `times()`.
-- Node suite 433 pass at 0.10.124 (412 before). Python unchanged (954 pass, 24 skipped).
+- Node suite 433 pass at 0.10.125 (412 before the feature). Python unchanged (954 pass, 24 skipped). Live test material: NEW TEST, sequence "Asistent probe – In Out".

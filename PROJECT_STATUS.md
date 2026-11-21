@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.124 (2026-11-21)
+# Project status: Asistent 0.10.125 (2026-11-21)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,7 +6,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
-- 0.10.124 (In & Out, Phase 1 only): built, NOT installed, NOT wired; live probes P1-P5 and P8 passed, P6 / P7 / P9 wait for test clips. Nothing in the panel changed.
+- 0.10.125 (In & Out, Phase 0 probes + Phase 1 maths): built, NOT installed, NOT wired. Probes P1-P9 all ran in NEW TEST. Nothing in the panel changed.
 - 0.10.123 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`,
   pushed to `origin/main` at `348d2ee`.
 - Last published release: v0.10.118 (2026-11-19). 0.10.119 and 0.10.120 are pushed but not released, 0.10.121-0.10.123 committed, not pushed, so the editors'
@@ -20,10 +20,9 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
   TODO V119. [subtitles](docs/features/subtitles.md)
 - Cut silences (0.10.121 ElevenLabs words, 0.10.122 audit fixes): built and tested outside Premiere, not installed. Open: the
   host razor on odd frame rates (detected, not fixed). TODO V122, AUD.
-- In & Out animations (0.10.124, plan `docs/IN_OUT_PLAN.md`): Phase 0 desk findings done; live probes P1-P9 not run (Premiere
-  held a client project). `panel/inoutplan.js` (preset tables and maths, 21 Node tests) is built but not used by any page.
-  Open: owned Transform holds for footage (P1-P5, P8 passed 2026-11-21), text graphics wait for P9, P6 and P7 not run; Strength on presets that start or end off screen; two hooks.
-  [in-out](docs/features/in-out.md), TODO IO.
+- In & Out animations (0.10.125, plan `docs/IN_OUT_PLAN.md`): Phase 0 done (probes P1-P9, `docs/probes/inout-phase0.md`; decision:
+  owned Transform, DECISIONS 2026-11-21) and Phase 1 maths built (`panel/inoutplan.js`). Next: Phase 2 (`premiere-inout.js`).
+  Open (the user's word): Strength on presets where it changes nothing; two protective hooks in the blur and the Keyframer.
 - Local recognition experiments (`NEXT` profile) paused behind a development switch; the held-back runs were stopped.
 
 ## Waiting for a check in Premiere (newest first)
@@ -54,5 +53,5 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 ## Next
 1. The user's next press of Cut silences on "Lokal 2" (0.10.123), then the checks above (TODO V122).
 2. Release 0.10.123 when the user asks.
-3. In & Out: run the rest of the probes (P6, P7, P9: need a trimmed, a 200 %, a 50 % clip, a Premiere text, two clips with Motion keys), then record the decision.
+3. In & Out: Phase 2 (apply, re-apply, remove, record), tested in NEW TEST's sequence "Asistent probe – In Out".
 4. `TODO.md` in its order.

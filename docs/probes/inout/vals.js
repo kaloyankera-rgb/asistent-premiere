@@ -1,0 +1,1 @@
+const out=[];for(const x of sel){const o=await mine(x.ti);const g=await comps(x.ti);out.push({clip:x.name,n:g.n,chain:g.all.map((q)=>q.m).join('>'),tagged:o?o.i:null,keys:o?(await keys(o.l[1])).length:0,v:o&&(await keys(o.l[1])).length?await val(o.l[1],0.3003):null,shutter:o?await val(o.l[10],0):null});}return out;

@@ -690,3 +690,15 @@ a lot): settings were chosen for what they prevent, then checked on synthetic co
 - **Why:** the copies way crashed Premiere 26.5.3 inside its UXP layer on long selections (2 of 8 runs after every panel-side change, CHANGELOG 0.10.99-0.10.107); ExtendScript does not go through that layer.
 - **Decision (the user, 2026-11-15: "Yes"):** the host duplicates the editor's sequence (`Sequence.clone()`), razors the duplicate, removes from it what is not a kept piece (`TrackItem.remove(false, false)`) and moves the pieces together. This is the one exception to "the host never removes anything": only in the sequence `as_rough_cut` start made, checked by id and name in every later phase, and the razor only runs when that sequence is the one in front. The editor's own sequence is never touched. `wiring.test.js` keeps every other host function free of `.remove(`.
 - **Kept:** the copies way as a fallback without the host (at most 40 pieces). Removing track items through UXP stays forbidden.
+
+## 2026-11-21: In & Out animations write to an Asistent-owned Transform, never to Motion (0.10.125, not built yet)
+- **Why:** the plan (`docs/IN_OUT_PLAN.md`) recommended it and asked Phase 0 to confirm. Probes P1-P9 in NEW TEST
+  (`docs/probes/inout-phase0.md`): the effect at rest leaves the picture bit-identical; it acts after Motion around the
+  clip's visible centre and crops nothing at the layer's bounds; per-frame keys land exactly and Shutter Angle blurs them;
+  Undo is per press, not per clip; the blur's Transform and ours never touched each other in either order; on a text
+  graphic it works fully when inserted before the Graphic group. None of the four fallback triggers fired.
+- **Decision:** one owned Transform (`AE.ADBE Geometry2`) per clip, recognised by a static tag in Skew Axis (Skew 0)
+  plus the record `asistent.inout.v1`; the editor's Motion, Opacity and own Transform are never written. On a clip with a
+  Graphic group it is inserted before the group. Key time of frame f: `inPt × |speed| + f × |speed| / fps`.
+- **Not decided:** Strength on presets that cannot travel less; the two protective hooks in the blur and the Keyframer
+  (the user's word). Not tested: a type-tool text clip.

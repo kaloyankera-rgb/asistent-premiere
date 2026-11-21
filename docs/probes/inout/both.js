@@ -1,0 +1,4 @@
+const out=[];for(const x of sel){const g=await comps(x.ti);const geo=g.geo.map((o)=>o.i);const o=await mine(x.ti);const row={clip:x.name,start:+x.start.toFixed(2),chain:g.all.map((q)=>q.m.replace('AE.ADBE ','')).join('>'),geoIdx:geo,tagged:o?o.i:null,tagPosTimes:o?(await keys(o.l[1])).map((t)=>+t.toFixed(4)):null};
+ const others=[];for(const q of g.geo){if(o&&q.i===o.i)continue;const l=await prm(q.c);others.push({i:q.i,skewAxis:await val(l[6],0),posKeys:(await keys(l[1])).length,posFirst:(await keys(l[1])).slice(0,2).map((t)=>+t.toFixed(4)),shutter:await val(l[10],0),scale:await val(l[3],0)});}
+ row.otherTransforms=others;
+ const mo=g.all.find((q)=>q.m==='AE.ADBE Motion');const ml=await prm(mo.c);row.motionPosKeys=(await keys(ml.find((p)=>String(p.displayName).toLowerCase()==='position'))).map((t)=>+t.toFixed(4));out.push(row);}return out;

@@ -4,12 +4,10 @@ Plan: `../IN_OUT_PLAN.md`. Two halves:
 
 - **Desk half, done 2026-11-21:** what the code and earlier probes already settle (below). Read from the repo; nothing
   was run in Premiere.
-- **Live half, partly run 2026-11-21:** P1-P5 and P8 passed; P6, P7 and P9 wait for test clips. Scripts in `inout/`,
-  results in the table at the end.
+- **Live half, run 2026-11-21:** P1-P9 all ran in NEW TEST; scripts in `inout/`, results in the table at the end.
 
-The owned-Transform-or-Motion decision: the probes so far support the owned Transform for footage; text graphics wait
-for P9. Not recorded in `DECISIONS.md` until the user says so. Phase 1 (`panel/inoutplan.js`) was built before the live
-half on the user's word, unit-neutral, so no live answer can invalidate it.
+Decision: the owned Transform (DECISIONS 2026-11-21). Phase 1 (`panel/inoutplan.js`) was built before the live half
+on the user's word, unit-neutral; the probes changed one line of it (the key base in `times`).
 
 ## Desk findings
 
@@ -123,10 +121,10 @@ again, nothing tagged is left, the exported frames are deleted, the project was 
 | P3 | **Pass.** Rotation in degrees, clockwise positive; Scale in percent; **Opacity 0-100**, rest 100 | 45° and 20° fits (IoU 0.997 / 0.999; the opposite sign 0.63 / 0.77); Scale 50 → exactly half, centre kept; Scale 200 → 2.00 ± 0.01; Opacity 50 → alpha 127, 25 → 64, colour unchanged |
 | P4 | **Pass.** On a clip moved and scaled with Motion the pivot is the clip's own visible centre, Position is a fraction of the Motion-scaled picture, and **nothing is cropped at the layer's bounds** | rotation and scale keep the centre at (80.5, 167.5) exactly; x 0.75 → +34 px (33.75), x 1.0 → +67.6 (67.5), y 0.75 → +60 (60); area ratio 1.00 with the picture moved past its original rectangle |
 | P5 | **Pass.** Per-frame keys land exactly and Shutter Angle blurs them | 11 keys, error 3e-15 frame, linear between keys, no extra key at 0; at 180° the edge smears over 5 px for 10.8 px of travel per frame (0.46; expected 0.4-0.6), max alpha gradient 255 → 48 |
-| P6 | **Not run** | needs a clip with two hand-made Motion Position keys and the Keyframer's buttons |
-| P7 | **Not run** beyond speed 1, In 0 (exact, from P5) | no trimmed, 200 % or 50 % clip with nothing under it in the sequence |
+| P6 | **Pass.** The blur's Transform and the tagged one never touch each other, in either order | ours first, then Keyframer Apply with blur on, amount changed, blur off, Apply, Undo last; and blur first, then ours, same steps: the tagged Transform's key times identical after every step, never adopted or removed (its index moves when the blur's goes). The Keyframer **does list and tick** "Transform › Position" from ours: the `readSelection` hook is needed. Per-frame keys were left alone by Apply; sparse keys or a Hold / Premiere-ease curve not tested |
+| P7 | **Pass for the step, correction for the base.** `step = \|speed\| / fps` is right at 200 % and 50 %; the key base is `inPt × \|speed\|`, not `inPt` | plain, 200 %, 50 %: x at the four sample frames 0.3815 / 0.5 / 0.6185 / 0.7, identical; trimmed at speed 1: the same when sampled mid-frame; trimmed 200 % (In 2) and trimmed 50 % (In 1): with `inPt` every key missed the visible media (x stuck at 0.7 / 0.3), with `inPt × speed` 0.3815 / 0.50 / 0.62 / 0.7. `readTimeline`'s `outPt − inPt` always equals `end − start` (timeline units) |
 | P8 | **Pass.** Per press, not per clip: add = 2 Undo steps for 3 clips (append, tag), keys = 1, re-apply = 1, remove = 1 | `qe.project.undo()` through the host, state read after each step: every undo acted on all three clips at once |
-| P9 | **Not run** | no Premiere text graphic in the sequence |
+| P9 | **Pass with a condition: insert BEFORE the Graphic group.** Appended after the text, only Position acts | Basic Title MOGRT, chain `Opacity > Motion > Graphic Group > Text`. Append: Position moves the text (+68 px, expected 67.5), Rotation, Scale, Opacity do nothing. Insert at the group's index: Position (+68; y +96), Rotation 45°, Scale 200 / 50 (width 2× / half), Opacity 50 (alpha 218 → 109) all act; per-frame keys land (In 3599.96 s); `clean.js` restores the chain. **Pivot = the frame's centre, not the text's**; the group and the text move one index down while ours is there. A type-tool text clip was not tested |
 
 Rest values read after the add (index, UXP name, value): 0 Anchor Point [0.5, 0.5] · 1 Position [0.5, 0.5] · 2 "" (Uniform
 Scale) true · 3 Scale 100 · 4 " " (Scale Width) 100 · 5 Skew 0 · 6 Skew Axis 0 · 7 Rotation 0 · 8 Opacity 100 · 9 ""
@@ -137,20 +135,29 @@ correction is needed; an offset of the sequence frame becomes Position by dividi
 fraction of the frame (Motion scale × fit); `o` × 100 is Opacity. The first Apply is **3 steps if the tag is its own
 step** (append, tag, keys): write the tag in the same transaction as the keys to keep the plan's 2.
 
-Against "What forces the Motion fallback": P1 and P2 / P4 do not force it. P9 (text) and P6 (next to the blur) are still
-unknown. Recommendation: owned Transform for footage and stills now; text graphics stay undecided until P9.
+Against "What forces the Motion fallback": none of the four triggers fired. **Decision: the owned Transform**, for
+footage and for graphics (DECISIONS 2026-11-21); on a clip with a Graphic group it is inserted before the group.
 
-Notes from the run: the active sequence changed once while the tester was reading (not by the tester): `pre.js` should
-guard the sequence name. `shot` prints the exact path (`<stamp>_<n>_dev_<name>.png`); `meas` must read the alpha channel
-(`cv2.imread(f, -1)`), since a grayscale read loses Opacity and the layer mask, and camera footage is not a bright shape
-on black.
+What Phase 2 has to do because of the second round: key base `inPt × |speed|` (now in `inoutplan.times`); on graphics
+insert before the group and set Anchor Point (and Position with it) to the text's centre for scale and rotation presets;
+hide the tagged Transform from the Keyframer's list; sample mid-frame in tests. The same base probably applies to the
+Keyframer's own keys on a clip that is both trimmed and sped up (BUGS, not measured there).
 
-Still to run, and what it needs in the active sequence (V2 or V3, nothing under or above, 2 s or more): **P7** a clip
-with In > 0, the same at 200 % and at 50 %; **P9** a text made in Premiere; **P6** two clips, each with two Motion
-Position keys.
+Notes from the runs: the active sequence changed once while the tester was reading (not by the tester): `pre.js` takes an
+optional `const SEQ='name';` guard. `shot` prints the exact path (`<stamp>_<n>_dev_<name>.png`); `meas` only suits a
+bright shape on black: footage and Opacity are measured on the alpha channel (`cv2.imread(f, -1)`).
+
+Test material left in NEW TEST (saved): sequence **"Asistent probe – In Out"**, V1: plain clip 0-9 s, trimmed (In 2)
+14-21 s, 200 % 24-28.5 s, 50 % 36-45 s, two clips with two Motion Position keys 60-69 s and 72-81 s, 50 % with In 1
+101-109 s; V2: a Basic Title text 90-95 s. How they were made, for Phase 2's tests: `createSequenceFromMedia`;
+`SequenceEditor.createOverwriteItemAction` (frame-aligned ticks); `createSetInPointAction` (head trim, moves the start);
+speed only through the host's QE `item.setSpeed(speed, "00;00;00;00", false, false, false)` (clips at even QE indices);
+text with `insertMogrtFromPath` and Premiere's own Basic Title; Keyframer buttons through `kfclick.js` (the bridge's
+`click "Apply"` hits the Anchor page's button). More helpers in `inout/`: `mkkeys.js`, `kfdom.js`, `untick.js`,
+`both.js`, `vals.js`, `motion_read.js`.
 
 ## Open questions for the user
 
-- Clips A-F in NEW TEST: are the old test squares still there, or will new ones be prepared?
 - May Phase 2 add two small protective hooks in existing files: the `+1` count check in the blur's `addOwn`, and
-  `readSelection` skipping In/Out's Transform?
+  `readSelection` skipping In/Out's Transform (P6 showed the Keyframer lists and ticks ours)?
+- Strength on the presets where it changes nothing (feature page).

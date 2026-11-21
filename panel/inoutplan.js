@@ -360,14 +360,15 @@ function plan(opts) {
     props: { in: propsIn, out: propsOut }, total };
 }
 
-// ---------------------------------------------------------------- adapters (constants pending the Phase 0 probe)
-// These are the only places that may need a correction once the probe has measured Premiere; everything above is unit-free.
+// ---------------------------------------------------------------- adapters (measured by the Phase 0 probe, 2026-11-21)
+// The only places that know anything about Premiere; everything above is unit-free. docs/probes/inout-phase0.md has the numbers.
 
 /**
- * Frame f (counted from the clip's first sequence frame) -> media seconds: inPt + f * |speed| / fps, the maths of
- * premiere-keyframes.js (readSelection: step = |speed| / fps, keys at media time). PENDING PHASE 0: the sped-up clip's key
- * times have not been measured in Premiere yet (docs/features/keyframer.md), so this is the Keyframer's assumption.
- * clip: {inPt (media seconds), speed (1 = normal; negative = reversed, refused)} -> {step, at(f), error}
+ * Frame f (counted from the clip's first sequence frame) -> the key's time: inPt * |speed| + f * |speed| / fps.
+ * Measured (probe P7): the step |speed| / fps is right at 200 % and 50 %, and the base is inPt * |speed|, because Premiere
+ * reports a sped clip's In point in timeline seconds (outPt - inPt always equals end - start) while keys sit at media
+ * time. With inPt alone, every key of a trimmed 200 % clip landed before the visible media.
+ * clip: {inPt (as readTimeline gives it), speed (1 = normal; negative = reversed, refused)} -> {step, at(f), error}
  */
 function times(clip, fps) {
   const c = clip || {};
@@ -376,12 +377,15 @@ function times(clip, fps) {
   if (c.reversed || speed < 0) return { step: NaN, at: null, error: "the clip plays in reverse" };
   const inPt = Number.isFinite(c.inPt) ? c.inPt : 0;
   const step = Math.abs(speed) / fps;
-  return { step, at: (f) => inPt + f * step };
+  const base = inPt * Math.abs(speed);
+  return { step, at: (f) => base + f * step };
 }
 
-// Transform units (Position / Rotation / Opacity of AE.ADBE Geometry2) are NOT adapted yet: they are unmeasured. The intended
-// route for Position, Scale and Rotation is blurplan.rel (the Transform that shows the same picture as the clip's Motion),
-// with dx / dy times the sequence size (or the exit distance when plan().exit says so) as the offset.
+// Transform units (AE.ADBE Geometry2), measured (probes P2-P4, P9), for premiere-inout.js: Position is a fraction of the
+// layer and the effect acts after Motion around the clip's visible centre, so dx / dy (fractions of the frame) are divided by
+// the clip's on-screen size as a fraction of the frame; Scale = s * 100; Rotation = r in degrees, clockwise positive;
+// Opacity = o * 100. On a text graphic the Transform goes BEFORE the Graphic group and pivots on the frame's centre, so the
+// Anchor Point has to move to the text for scale and rotation presets.
 
 module.exports = {
   IN_PRESETS, OUT_PRESETS, GROUPS, DIRECTIONS, TURNS, REST, PROP_NAMES,

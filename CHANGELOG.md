@@ -31,6 +31,19 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.125 - In & Out animations: Phase 0 live probes, the key base on sped-up clips (2026-11-21, not installed, not wired)
+- Probes P1-P9 ran in NEW TEST through the bridge, no crash (`docs/probes/inout-phase0.md`). Measured: Transform's Position is a
+  fraction of the layer, Scale percent, Rotation degrees clockwise, Opacity 0-100; at rest the picture is bit-identical; it acts
+  after Motion around the clip's visible centre and crops nothing; per-frame keys + Shutter Angle blur; Undo per press (add 2,
+  keys 1, re-apply 1) for three clips; the blur's Transform and the tagged one never touch each other; on a text graphic it
+  works when inserted before the Graphic group (appended: Position only) and pivots on the frame's centre.
+- **Decision (DECISIONS):** In & Out writes to an Asistent-owned Transform, never to Motion.
+- **Fixed in `inoutplan.times`:** a key's time is `inPt × |speed| + f × |speed| / fps`. With `inPt` alone every key of a
+  trimmed 200 % clip landed before the visible media (measured). Unit notes for Phase 2 in the module.
+- BUGS: the Keyframer on a clip that is both trimmed and sped up may have the same base problem (to check).
+- NEW TEST now holds the sequence "Asistent probe – In Out" (plain, trimmed, 200 %, 50 %, Motion-keyed clips, a text) for
+  the next phases' tests. Tests: 433 Node. Nothing in the panel changed; not installed.
+
 ## 0.10.124 - In & Out animations: Phase 0 desk findings and Phase 1 maths (2026-11-21, not installed, not wired)
 - Plan `docs/IN_OUT_PLAN.md` (approved 2026-11-21): In and Out animations for the selected clips, with separate preset lists.
   This version is the first two steps only. Nothing is in the panel yet: no page, no Premiere code, not in the zip.

@@ -1,0 +1,1 @@
+const out=[];for(const x of sel){const g=await comps(x.ti);const mo=g.all.find((o)=>o.m==='AE.ADBE Motion');const l=await prm(mo.c);const r=[];for(const p of l)r.push([p.displayName,await val(p,x.inPt),await mb(p,'isTimeVarying')]);out.push({clip:x.name,motion:r});}return out;
