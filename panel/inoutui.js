@@ -2,6 +2,7 @@
 // the remembered choices cleaned up, the tooltip of a preset and the status sentences of a result. The page is inout.js, the
 // Premiere side premiere-inout.js, the presets and their maths inoutplan.js.
 const I = require("./inoutplan.js");
+const P = require("./inoutpresets.js");
 
 const NONE = "none";
 const PROP_LABEL = { pos: "Position", scale: "Scale", rot: "Rotation", op: "Opacity" };
@@ -30,7 +31,23 @@ function clampStrength(v) {
 }
 
 const validFilter = (f) => (FILTERS.some(([id]) => id === f) ? f : "all");
-const validPreset = (side, id) => (id && I.find(side, id) ? id : NONE);
+// the unsaved draft is never a pick that is remembered or hovered: only the page's editor state holds it (state.drafts)
+const validPreset = (side, id) => (id && id !== I.DRAFT && I.find(side, id) ? id : NONE);
+const sideOf = (side) => (side === "out" ? "out" : "in");
+const EDITED = " (edited)";
+const draftOf = (state, side) => (state && state.drafts && state.drafts[side]) || null;
+// a draft counts only while a preset is picked on that side and the registry really holds it (the page keeps I.setDraft in sync)
+// and the draft is an edit of that very pick (its base is the pick, or the pick's base): a pick changed behind the editor's back
+// (the stored choices read again) never plays or applies the draft of another preset
+const draftOn = (state, side) => {
+  const d = draftOf(state, side);
+  const pick = d && state[`${side}Preset`] !== NONE ? I.find(side, state[`${side}Preset`]) : null;
+  return !!pick && pick.id !== I.DRAFT && d.base === (pick.custom ? pick.base : pick.id) && !!I.find(side, I.DRAFT);
+};
+const baseNameOf = (side, preset) => {
+  const b = preset && I.find(side, preset.custom ? preset.base : preset.id);
+  return b ? b.name : preset ? preset.name : "";
+};
 
 /**
  * The remembered choices (a stored object, anything) -> a complete state. inFrames / outFrames are null until the editor typed a
@@ -59,9 +76,17 @@ function snapshot(state) {
     filter: validFilter(state.filter) };
 }
 
-/** a side's tiles in display order: None first, then the presets by group: [{id, name, filter ("" for None), preset}] */
+/**
+ * a side's tiles in display order: None first, then the editor's own presets (Phase 5), then the built-ins by group:
+ * [{id, name, filter ("" for None), preset}]. An own tile has the base's filter (the page draws the icon from `filter`, so it
+ * shows the base's icon and sits under All and under its base's chip) plus mine: true and base (the built-in id).
+ */
 function tiles(side) {
   const out = [{ id: NONE, name: "None", filter: "", preset: null }];
+  for (const p of I.customOf(side)) {
+    const b = I.find(side, p.base);
+    out.push({ id: p.id, name: p.name, filter: GROUP_FILTER[b ? b.group : p.group] || "", preset: p, mine: true, base: p.base });
+  }
   for (const g of I.groups(side)) for (const p of g.presets) out.push({ id: p.id, name: p.name, filter: GROUP_FILTER[g.id] || "", preset: p });
   return out;
 }
@@ -73,13 +98,27 @@ function shownTiles(side, filter) {
 }
 
 /**
- * What a pick of tile `id` on `side` changes in the state (a patch): the preset, the side the page follows to, and the filter, which
- * goes back to All when the picked tile is filtered out (a pick by id from the bridge must be seen).
+ * What a pick of tile `id` on `side` changes in the state (a patch): the preset, the side the page follows to, the filter, which
+ * goes back to All when the picked tile is filtered out (a pick by id from the bridge must be seen), and the drafts: a pick ends
+ * that side's unsaved draft (the other side's stays).
  */
 function afterPick(state, side, id) {
-  const s = side === "out" ? "out" : "in";
+  const s = sideOf(side);
   const shown = shownTiles(s, state.filter).includes(id);
-  return { [`${s}Preset`]: id, side: s, filter: shown ? validFilter(state.filter) : "all" };
+  return { [`${s}Preset`]: id, side: s, filter: shown ? validFilter(state.filter) : "all", drafts: { in: draftOf(state, "in"), out: draftOf(state, "out"), [s]: null } };
+}
+
+/**
+ * What deleting the own preset `id` (built on built-in `base`) changes in the state (a patch): the side that had it picked falls back
+ * to its base (not None) and loses its draft; the other side is untouched. The page deletes the stored row itself.
+ */
+function afterDelete(state, side, id, base) {
+  const s = sideOf(side);
+  const key = `${s}Preset`;
+  const drafts = { in: draftOf(state, "in"), out: draftOf(state, "out") };
+  if (state[key] !== id) return { drafts };
+  drafts[s] = null;
+  return { [key]: validPreset(s, base), drafts };
 }
 
 /**
@@ -89,8 +128,13 @@ function afterPick(state, side, id) {
  * the typed value, else the preset's default, null while the side is None), opts: what Apply sends to premiere-inout.apply}
  */
 function view(state) {
-  const inP = state.inPreset !== NONE ? I.find("in", state.inPreset) : null;
-  const outP = state.outPreset !== NONE ? I.find("out", state.outPreset) : null;
+  // a side with an unsaved draft hands I.DRAFT on (to the preview and to Apply) instead of its pick
+  const idOf = (side) => (draftOn(state, side) ? I.DRAFT : state[`${side}Preset`]);
+  const inId = idOf("in");
+  const outId = idOf("out");
+  const inP = inId !== NONE ? I.find("in", inId) : null;
+  const outP = outId !== NONE ? I.find("out", outId) : null;
+  const shownName = (side, p) => (p.id === I.DRAFT ? baseNameOf(side, p) + EDITED : p.name);
   const needs = [inP, outP].filter(Boolean).map((p) => I.needs(p));
   const strength = needs.some((n) => n.strength);
   const frames = {
@@ -98,13 +142,13 @@ function view(state) {
     out: outP ? (state.outFrames !== null ? state.outFrames : I.defaultFrames("out", outP.id)) : null,
   };
   const mode = inP && outP ? "both" : inP ? "in" : outP ? "out" : null;
-  const part = (label, p, n) => `${label} ${p.name} ${n}f`;
+  const part = (label, side, p, n) => `${label} ${shownName(side, p)} ${n}f`;
   return {
     side: state.side === "out" ? "out" : "in",
     filter: validFilter(state.filter),
     shown: { in: shownTiles("in", state.filter), out: shownTiles("out", state.filter) },
-    labels: { in: `In · ${inP ? inP.name : "None"}`, out: `Out · ${outP ? outP.name : "None"}` },
-    summary: mode ? [inP ? part("In", inP, frames.in) : "", outP ? part("Out", outP, frames.out) : ""].filter(Boolean).join(" · ") : "Nothing picked",
+    labels: { in: `In · ${inP ? shownName("in", inP) : "None"}`, out: `Out · ${outP ? shownName("out", outP) : "None"}` },
+    summary: mode ? [inP ? part("In", "in", inP, frames.in) : "", outP ? part("Out", "out", outP, frames.out) : ""].filter(Boolean).join(" · ") : "Nothing picked",
     mode,
     canApply: !!mode,
     direction: needs.some((n) => n.direction),
@@ -127,8 +171,31 @@ function view(state) {
  * so the preview can play it. Never stored, never written; the page goes back to view(state) when the pointer leaves.
  */
 function hoverView(state, side, id) {
-  const key = side === "out" ? "outPreset" : "inPreset";
-  return view({ ...state, [key]: validPreset(side === "out" ? "out" : "in", id) });
+  const s = sideOf(side);
+  const key = `${s}Preset`;
+  const pick = validPreset(s, id);
+  if (draftOn(state, s) && pick === state[key]) return view(state);       // the pointer rests on the tile being edited: keep showing the edit
+  // a hovered tile plays as itself, not as the side's draft
+  return view({ ...state, [key]: pick, drafts: { in: draftOf(state, "in"), out: draftOf(state, "out"), [s]: null } });
+}
+
+/**
+ * What the curve editor shows for the side showing: {side, id (the pick), base (the built-in id it is built on), baseName, isOwn (an own
+ * preset is picked: Rename and Delete show), props: [{prop, label, ok, why, edited}] (animated properties only, the page's order; ok false
+ * = greyed with `why` as its tooltip; edited = the draft has a curve for it), canSave (a draft with at least one edited curve),
+ * defaultName (P.nextName over `raw`, the stored list), none (the side's pick is None: the editor cannot open)}.
+ */
+function editorView(state, raw) {
+  const side = sideOf(state.side);
+  const id = state[`${side}Preset`];
+  const p = id !== NONE ? I.find(side, id) : null;
+  if (!p) return { side, id: NONE, base: null, baseName: "", isOwn: false, props: [], canSave: false, defaultName: "", none: true };
+  const baseId = p.custom ? p.base : p.id;
+  const baseName = baseNameOf(side, p);
+  const d = draftOf(state, side);
+  const curves = d && d.curves && typeof d.curves === "object" ? d.curves : {};
+  const props = I.editable(side, id).map((e) => ({ prop: e.prop, label: PROP_LABEL[e.prop], ok: e.ok, why: e.why, edited: !!curves[e.prop] }));
+  return { side, id, base: baseId, baseName, isOwn: !!p.custom, props, canSave: !!d && props.some((x) => x.edited), defaultName: P.nextName(raw, side, baseName), none: false };
 }
 
 /**
@@ -162,7 +229,9 @@ function presetTip(side, preset) {
   const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
   const need = I.needs(preset);
   const asks = [need.direction ? "choose the edge below" : "", need.turn ? "choose the turn below" : ""].filter(Boolean).join(" and ");
-  return `${preset.name} (${side}): animates ${list}.${asks ? ` Also ${asks}.` : ""} Default length ${preset.frames} frames.`;
+  const tail = `${asks ? ` Also ${asks}.` : ""} Default length ${preset.frames} frames.`;
+  if (preset.custom) return `Your preset ${preset.name}, based on ${baseNameOf(side, preset)}. Animates ${list}.${tail}`;
+  return `${preset.name} (${side}): animates ${list}.${tail}`;
 }
 
 const plural = (n, one, many) => (n === 1 ? one : many);
@@ -205,4 +274,4 @@ function status(kind, res) {
   return lines;
 }
 
-module.exports = { FILTERS, tiles, shownTiles, afterPick, NONE, PROP_LABEL, PICK_FIRST, clampFrames, clampStrength, framesAfterTyping, restore, snapshot, view, hoverView, presetTip, undoLine, status, statusFor };
+module.exports = { FILTERS, tiles, shownTiles, afterPick, NONE, PROP_LABEL, PICK_FIRST, clampFrames, clampStrength, framesAfterTyping, restore, snapshot, view, hoverView, editorView, afterDelete, presetTip, undoLine, status, statusFor };

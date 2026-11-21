@@ -37,7 +37,7 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] USER: click the Motion and Brand settings labels and card backgrounds in real use: no other tab opens, nothing is placed.
 
 ## IO. In & Out animations (`docs/IN_OUT_PLAN.md`, the user's approval 2026-11-21; 0.10.124 = Phase 0 desk + Phase 1 maths)
-0.10.127 = Phase 2 (`panel/premiere-inout.js`): built and bridge-tested. 0.10.129 = Phase 3, the page (`panel/inout.js`, `panel/inoutui.js`): bridge-tested on 0.10.128, awaiting the user's look. 0.10.130 = Phase 4, the preview card (`panel/inoutpreview.js`): built, Node-tested, not installed; rebuilt compact in 0.10.132, then as Tiles in 0.10.133 (the user chose layout A of three mockups: preview on top, In | Out switch, filter chips, tiles, dock with stepper and drawn Edge / Turn icons). Phase 5 remains.
+0.10.127 = Phase 2 (`panel/premiere-inout.js`): built and bridge-tested. 0.10.129 = Phase 3, the page (`panel/inout.js`, `panel/inoutui.js`): bridge-tested on 0.10.128, awaiting the user's look. 0.10.130 = Phase 4, the preview card (`panel/inoutpreview.js`): built, Node-tested, not installed; rebuilt compact in 0.10.132, then as Tiles in 0.10.133 (the user chose layout A of three mockups: preview on top, In | Out switch, filter chips, tiles, dock with stepper and drawn Edge / Turn icons). 0.10.135 = Phase 5 steps 1-4 (own presets, curve maths and registry, store rules, curve-graph rules): built, Node-tested, not installed. Step 5 (the editor page) remains.
 - [x] Live probes P1-P9 ran in NEW TEST 2026-11-21 (`docs/probes/inout-phase0.md`); test sequence "Asistent probe – In Out" kept.
 - [x] Decision recorded: owned Transform (DECISIONS 2026-11-21).
 - [ ] Probe a type-tool text clip (only a Basic Title MOGRT was measured) and the Keyframer on a trimmed + sped-up clip (BUGS).
@@ -76,7 +76,11 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] USER: the preview's drawing, its layout in the card and its loop speed in Premiere (the bridge reads the DOM only).
 - [ ] In & Out page small things: the bridge's `fill` allowlist lacks `ioInFrames`, `ioOutFrames`, `ioStrength` (tests set them
       through `uxp_eval`); `remembered()` after a late store load was not exercised live.
-- [ ] Phase 5 (later): per-property curve editor (reuse `keyframer.js`) and "Save as new preset" into `asistent.inout.presets`.
+- [x] Phase 5 steps 1-4 (0.10.135): own presets as a registry in `inoutplan.js`, store rules in `panel/inoutpresets.js`, point-curve maths, graph rules in `panel/curvegraph.js` (not mounted yet), own tiles and drafts in `inoutui.js`. Node 553 pass; rules-reviewer BLOCK on the first pass fixed, PASS on the second.
+- [ ] Phase 5 step 5, the editor page: new `panel/inoutedit.js`; hooks in `panel/inout.js` (Curves button on the dock's summary line, the editor in place of the tiles, Save as new / Rename / Delete), `style.css`, `main.js`; `devbridge.js` commands `inout_page` and `inout_edit` with `ioEdName` in the `fill` allowlist; pack `curvegraph.js` and `inoutedit.js` in `scripts/package_ccx.sh`; wiring tests; preview scenarios `inout-editor` and `inout-mine`.
+- [ ] Step 5 bridge checks: eleven, to be listed when step 5 starts; not run.
+- [ ] USER: the editor page's look in Premiere, after step 5 is built and installed. Nothing to decide for steps 1-4.
+- [ ] Later: move the Keyframer onto `curvegraph.js` (its own editor stays as it is until then).
 - [ ] Each phase: version bump (manifest + config), CHANGELOG, PROJECT_STATUS, TODO, BUGS, PROGRESS, INDEX. Push only on the user's yes.
 
 ## V121. Verify 0.10.121 (2026-11-21): Cut silences' AI words by ElevenLabs

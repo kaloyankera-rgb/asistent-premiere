@@ -31,6 +31,37 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.135 - In & Out own presets: Phase 5 foundation (2026-11-21, not installed, not pushed, nothing visible changed yet)
+
+- **The plan:** the user approved the Phase 5 plan on 2026-11-21 ("approved", then "Go ahead"). This version builds steps 1-4 of it.
+  Step 5, the editor page (a "Curves" button on the dock's summary line, the editor in place of the tiles, Save as new / Rename /
+  Delete), is not built, so the panel looks the same as in 0.10.134.
+- **`panel/inoutplan.js`:** an own preset is a built-in base whose one-piece properties get point curves (`{kind:"points"}` from
+  `keyframeplan.js`). A registry behind `find(side, id)` lets the preview and Apply get own presets with no change of their own.
+  New: `setCustom` (returns how many rows were kept and which were dropped, with a reason), `setDraft`, `resolve`, `customOf`,
+  `editable`, `curveFor`, `DRAFT`, `PRESET_V`. An id may be used once across both sides. For a point curve only, Strength scales
+  from the first frame within 0.5 % of the target (judged on the baked frames).
+- **`panel/inoutpresets.js` (new, pure):** the rules for the store list `asistent.inout.presets`: name and length limits, add,
+  rename, remove, next name. Rows of other versions are kept byte for byte. A save never stores a row the maths would refuse.
+- **`panel/curvegraph.js` (new, pure rules and a mount):** a points-curve editor with the Keyframer's own limits (grab 12 px, add
+  gap 0.015, drag gap 0.012, y -0.5 to 1.5, 16 points, double press 350 ms, Alt for a corner). The mount uses a fixed pool of 16
+  circles and 16 squares, creates no node after mount and runs no timer. No page mounts it and it is not packed yet; both come
+  with step 5. The Keyframer's own editor is untouched.
+- **`panel/inoutui.js`:** own tiles right after None (with the base's filter and icon); drafts in `view()`; `editorView(state, raw)`;
+  `afterDelete` falls back to the base preset; `afterPick` ends that side's draft; an unknown or draft id restores as None. With no
+  own presets and no drafts everything is as in 0.10.134.
+- **Review:** rules-reviewer BLOCK on the first pass: a one-frame pop on the arrival frame of a steep own curve at Strength other
+  than 100; `added()` could save a row the maths drops; `set()` and a missed pointer release in the graph. All three fixed, with
+  tests. Second pass: PASS; its three smaller points fixed too (the graph's missed-release check applies only where the press
+  reported a button, `inoutpresets.js` is in the packing test, a draft counts only for the preset it was made on).
+- **Built-in results unchanged:** a pinned hash test in `tests/inoutplan.test.js`, plus a one-off comparison of 13,233 `plan()` /
+  `needs()` outputs against the 0.10.134 code: identical.
+- `scripts/package_ccx.sh` packs `inoutpresets.js`.
+- **Tests:** Node 553 pass (495 at 0.10.134). New: `tests/inoutpresets.test.js`, `tests/curvegraph.test.js`; `tests/inoutplan.test.js`
+  and `tests/inoutui.test.js` extended. No Python file changed; pytest not run.
+- **Not verified:** not installed (the user still has 0.10.134 to try), not bridge-tested (nothing to press yet), not pushed. The
+  graph has never run in UXP.
+
 ## 0.10.134 - In & Out tiles: a pick is seen on the first click (2026-11-21, installed, not pushed, cause not proven, awaiting the user's look)
 
 - **The user's report (0.10.133):** "I have to double click the buttons for them to work".

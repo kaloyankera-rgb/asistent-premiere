@@ -1,5 +1,16 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-21: In & Out own presets, Phase 5 foundation (0.10.135)
+- **The user approved the Phase 5 plan on 2026-11-21 ("approved", then "Go ahead").** Built: steps 1-4. Step 5, the editor page, is not built.
+- **Points editor only.** No two-handle bezier mode.
+- **Multi-piece properties are not editable in this phase:** Out Anticipate position, Pop Out scale, Swing Out rotation.
+- **A saved preset keeps its base, curves and default length.** Not Edge, Turn, Strength, Blur or the start and end values: those are read from the base at load.
+- **Apply with unsaved edits writes the edited curve,** labelled "(edited)" in the tile and the summary.
+- **Own tiles sit right after None.**
+- **Save as new / Rename / Delete, no overwrite.** Deleting a picked own preset falls back to its base.
+- **The Keyframer's editor is left untouched.** It shares only the maths; `panel/curvegraph.js` is the new module, not yet used by the Keyframer.
+- **A registry inside `inoutplan.js`** (`find(side, id)`) rather than a list passed through eight call sites, so the preview and Apply get own presets with no change of their own.
+
 ## 2026-11-21: no Claude credit in commits; history rewritten once
 - **The user: "Remove him you have permission and stop adding him"** (Claude was listed as a contributor on GitHub because 197 of
   199 commit messages ended with a `Co-Authored-By: Claude ...` line). From now on no commit carries such a line.

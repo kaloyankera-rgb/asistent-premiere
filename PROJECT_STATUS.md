@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.134 (2026-11-21)
+# Project status: Asistent 0.10.135 (2026-11-21)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,6 +6,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
+- 0.10.135 (In & Out Phase 5 foundation: own presets, point curves, preset store, curve-graph rules; nothing visible changes): not installed, Node 553 pass, rules-reviewer PASS on the second pass (three smaller points of it fixed too), not bridge-tested, not pushed.
 - 0.10.134 (In & Out tiles: a pick is seen on the first click, after the user's "I have to double click"): installed, Node 495 pass, not pushed. The presses were always registered on the first click (log); the cause of not seeing them is not proven, each tile press now logs the tile's computed look. Awaiting the user's try.
 - 0.10.133 (In & Out page as Tiles, the user's choice of layout A): installed, Node 495 pass, rules-reviewer BLOCK fixed (stepper with a focused box), bridge-tested in NEW TEST, not pushed, not released. The user has not seen it in Premiere. Open: at a 523 px tall panel only about 2 tile rows show above the dock.
 - 0.10.132 (compact In & Out page, replaced by 0.10.133 before the user's look): local only (`7552dca`), installed and bridge-tested earlier; not pushed.
@@ -23,9 +24,10 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
   TODO V119. [subtitles](docs/features/subtitles.md)
 - Cut silences (0.10.121 ElevenLabs words, 0.10.122 audit fixes): built and tested outside Premiere, not installed. Open: the
   host razor on odd frame rates (detected, not fixed). TODO V122, AUD.
-- In & Out animations (0.10.133, plan `docs/IN_OUT_PLAN.md`): Phases 0-4 built. Phase 2: one owned Transform per clip, baked keys,
-  apply / re-apply / remove. Phase 3: the page (Motion → In & Out), bridge-tested on 0.10.128, awaiting the user's look.
-  Phase 4 (preview card, 0.10.130; the page rebuilt as Tiles in 0.10.133, not yet installed or bridge-tested). Next: Phase 5 (later).
+- In & Out animations (0.10.135, plan `docs/IN_OUT_PLAN.md`): Phases 0-4 built; Phase 5 steps 1-4 built in 0.10.135 (own presets as
+  a registry behind `inoutplan.js`, store rules, point-curve maths, curve-graph rules; nothing visible yet, not installed, not
+  bridge-tested). Next: step 5, the editor page (Curves button, Save as new / Rename / Delete). The user's look at the Tiles page
+  (0.10.133-0.10.134) is still open.
   Open: Strength on presets where it changes nothing; the limits in BUGS.md.
   [in-out](docs/features/in-out.md)
 - Local recognition experiments (`NEXT` profile) paused behind a development switch; the held-back runs were stopped.
@@ -64,5 +66,5 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 ## Next
 1. The user's next press of Cut silences on "Lokal 2" (0.10.123), then the checks above (TODO V122).
 2. Release 0.10.123 when the user asks.
-3. Review, install and bridge test of 0.10.133 (the Tiles page), then the user's look in Premiere (columns, tiles, icons, preview, hover, playback). Not run yet. The Python suite is not run for it (no Python changed since 0.10.130). Phase 5 later.
+3. Review, install and bridge test of 0.10.133 (the Tiles page), then the user's look in Premiere (columns, tiles, icons, preview, hover, playback). Not run yet. The Python suite is not run for it (no Python changed since 0.10.130). Then Phase 5 step 5 (the editor page).
 4. `TODO.md` in its order.

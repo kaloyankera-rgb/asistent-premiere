@@ -1,6 +1,6 @@
 # In & Out animations
 
-<!-- Status: Tiles page (0.10.133): not installed, not reviewed, Node-tested (494 pass), bridge test not run. 0.10.132 (compact page) was local only and is replaced. Phase 4 preview (0.10.130) and Phase 3 page (0.10.129): the page was bridge-tested on 0.10.128 and installed on the dev Mac, not released. The user has not looked at any of it in Premiere yet. Plan: docs/IN_OUT_PLAN.md. -->
+<!-- Status: Phase 5 steps 1-4 (0.10.135, own presets): not installed, Node-tested (553 pass), rules-reviewer PASS on the second pass (three smaller points of it fixed too), not bridge-tested, nothing visible yet. Tiles page (0.10.133): not installed, not reviewed, Node-tested (494 pass), bridge test not run. 0.10.132 (compact page) was local only and is replaced. Phase 4 preview (0.10.130) and Phase 3 page (0.10.129): the page was bridge-tested on 0.10.128 and installed on the dev Mac, not released. The user has not looked at any of it in Premiere yet. Plan: docs/IN_OUT_PLAN.md. -->
 
 ## What it does
 Motion → In & Out: pick an In and/or an Out animation (ready-made presets: Position, Scale, Rotation, Opacity, as in Easify 4)
@@ -41,7 +41,13 @@ Nothing is applied by itself. The one timer is the Preview's; it only redraws th
   failure. `inout.js` wakes it on open (`inoutPage.wake()` from `openTab`).
 - A looping SVG in the panel changes attributes only; it never creates or removes nodes per frame (the 0.10.130 crash).
 
+- Built-in presets are pinned by a golden hash test (`inoutplan.test.js`) and a one-off comparison (13,233 `plan()` / `needs()` outputs identical to 0.10.134). Own presets reach the preview and Apply only through `find(side, id)` in `inoutplan.js`.
+- An own id is unique across both sides. `setCustom` drops a row the maths refuses and says why (`dropped`). Rows of other store versions are kept byte for byte.
+- Multi-piece properties (Out Anticipate position, Pop Out scale, Swing Out rotation) cannot be edited. A saved preset keeps base, curves and default length only.
+- Strength on a point curve starts from the first frame within 0.5 % of the target (judged on the baked frames).
+
 ## Decisions
+- Phase 5 (the user approved the plan 2026-11-21: "approved", then "Go ahead"): points editor only, no two-handle bezier mode; multi-piece properties not editable; a saved preset keeps base, curves and default length (not Edge, Turn, Strength, Blur or start/end values, read from the base at load); Apply with unsaved edits writes the edited curve, labelled "(edited)"; own tiles right after None; Save as new / Rename / Delete, no overwrite; deleting a picked own preset falls back to its base; the Keyframer's editor is untouched and shares only the maths; the registry lives in `inoutplan.js` rather than a list passed through eight call sites.
 - Owned Transform, not Motion (DECISIONS 2026-11-21, after probes P1-P9). On a clip with a Graphic group it goes before the group.
 - Hooks in existing files (the user's go-ahead 2026-11-21, "continue"): the blur's `addOwn` needs the Transform count to rise by
   exactly one; the Keyframer's `readSelection` skips In/Out's tagged Transform.
@@ -86,9 +92,14 @@ Nothing is applied by itself. The one timer is the Preview's; it only redraws th
   `premiere-inout.js`, `inoutui.js`, `inoutpreview.js`, `inout.js`).
 - Preview: `preview/fake-inout.js`; scenarios in `preview/scenarios.js` (`inout-edge`, `inout-turn`, `inout-out`, `inout-scale`,
   `inout-hover`, `inout-done`; the last two added in 0.10.133); `preview/shoot.js` shoots them for the browser harness.
-- Not yet built: Phase 5 (per-property curve editor, own presets).
+- `panel/inoutpresets.js` (Phase 5, pure): `KEY` (`asistent.inout.presets`), `V`, `NAME_MAX` 24, `CUSTOM_MAX` 60, `parse`, `added`, `renamed`, `removed`, `nextName`, `cleanName`. Row `{id: "mine<digits>", v: 1, side, base, name, frames, curves: {<prop>: {pts}}}`. Packed by `scripts/package_ccx.sh`.
+- `panel/curvegraph.js` (Phase 5, pure rules and `mount()`): `geometry`, `nearest`, `add`, `move`, `remove`, `corner`; a fixed pool of 16 circles and 16 squares, no node created or removed after mount, no timer. Not mounted or packed yet (step 5).
+- `panel/inoutplan.js` registry (0.10.135): `setCustom`, `setDraft`, `resolve`, `customOf`, `editable`, `curveFor`, `DRAFT` ("draft"), `PRESET_V` (1). Own presets are the built-in base with `{kind:"points"}` curves from `keyframeplan.js`.
+- `panel/inoutui.js` (0.10.135): own tiles right after None (`mine: true`), drafts in `view()`, `editorView(state, raw)`, `afterDelete`; `afterPick` ends that side's draft.
+- Not yet built: Phase 5 step 5, the editor page (`panel/inoutedit.js`, the Curves button, Save as new / Rename / Delete).
 
 ## Status
+- Phase 5 steps 1-4 (0.10.135): built, Node 553 pass; the one-off comparison of 13,233 outputs against 0.10.134 identical. rules-reviewer BLOCK on the first pass fixed (a one-frame pop on an arrival frame at Strength other than 100; `added()` could save a row the maths drops; `set()` and a missed release in the graph); PASS on the second pass, its three smaller points fixed too (the graph's missed-release check only where the press reported a button, `inoutpresets.js` in the packing test, a draft counts only for the preset it was made on). Not installed, not bridge-tested, nothing visible in the panel.
 - Phase 0-1 (0.10.124-0.10.125): probes P1-P9 in NEW TEST; `inoutplan.js` maths.
 - Phase 2 (0.10.127): bridge NEW TEST, 13 checks passed (key values on plain, trimmed, 200 %, 50 % clips and a Basic Title; frame 0
   off screen; Undo 2 / 1 / 1; blur; refusals write nothing); rotation re-checked live on five clips (25 runs).
@@ -122,6 +133,7 @@ Nothing is applied by itself. The one timer is the Preview's; it only redraws th
   one-side loops, typed frames, directions, turns, Strength, opacity presets, every preset's loop, a plan error, the caption.
 - `tests/wiring.test.js`: the page's hooks and ids (tiles, filter chips, dock stepper and icons), the mount line, the packing list,
   and the preview's rules (draws only, one timer, stops when hidden, mounted and woken by the page).
+- Node suite 553 pass at 0.10.135 (495 at 0.10.134, 494 at 0.10.133, 490 at 0.10.132, 487 at 0.10.131, 486 at 0.10.130). New in 0.10.135: `tests/inoutpresets.test.js`, `tests/curvegraph.test.js`; `tests/inoutplan.test.js` (pinned hash) and `tests/inoutui.test.js` extended. No Python changed; pytest not run.
 - Node suite 494 pass at 0.10.133 (490 at 0.10.132, 487 at 0.10.131, 486 at 0.10.130). No Python file changed in 0.10.133; pytest not
   reported for it.
 - Live test material: NEW TEST, sequence "Asistent probe – In Out".

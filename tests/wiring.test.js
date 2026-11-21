@@ -469,7 +469,7 @@ test("the In & Out page: pane, Motion button, dock, mount line and packed files"
   assert.match(main, /show\("ioDock", pane === "paneInOut"\)/);
   assert.match(main, /require\("\.\/inout\.js"\)\.mount\(\{ \$, el, button, enable, bindTips, premiere \}\)/);
   assert.match(main, /inoutPage\.remembered\(\)/);
-  for (const f of ["inout.js", "inoutui.js", "inoutplan.js", "premiere-inout.js", "inoutpreview.js"]) assert.match(pack, new RegExp(`\\b${f.replace(".", "\\.")}\\b`));
+  for (const f of ["inout.js", "inoutui.js", "inoutpresets.js", "inoutplan.js", "premiere-inout.js", "inoutpreview.js"]) assert.match(pack, new RegExp(`\\b${f.replace(".", "\\.")}\\b`));
   const page = fs.readFileSync(path.join(panel, "inout.js"), "utf8");
   assert.match(page, /const dock = \$\("ioDock"\) \|\| host;/);
   assert.match(page, /store\.setItem\(KEY, /);

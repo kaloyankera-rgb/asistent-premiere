@@ -125,9 +125,12 @@ first apply on a clip is 2 Undo steps and a re-apply is 1. The panel says the nu
 2. `premiere-inout.js`: apply, re-apply, remove, record. Live test through the bridge.
 3. The page, the hooks, packaging, wiring tests. One look by the user in Premiere.
 4. **Built in 0.10.130:** the motion blur toggle (since Phase 3) and a small preview of the picked preset (`panel/inoutpreview.js`, the Keyframer's technique). Not yet installed or bridge-tested.
-5. **Later:** per-property curve editor (reuse the Keyframer's editor in `keyframer.js`) and
-   "Save as new preset" into store key `asistent.inout.presets`, same shape as
-   `asistent.keyframer.curves`.
+5. **Phase 5, steps 1-4 built in 0.10.135:** own presets as a registry behind `inoutplan.js` (points curves on the base's one-piece
+   properties), the store rules (`inoutpresets.js`, key `asistent.inout.presets`), the point-curve maths and graph rules
+   (`curvegraph.js`, not mounted yet), own tiles and drafts in `inoutui.js`. Not installed or bridge-tested.
+   **Step 5 still to do:** the editor page (`panel/inoutedit.js`): a Curves button on the dock's summary line, the editor in place
+   of the tiles, Save as new / Rename / Delete. The Keyframer's own editor in `keyframer.js` stays as it is; moving it onto
+   `curvegraph.js` is later.
 6. Each phase closes with the usual paperwork: version bump in `panel/manifest.json` and
    `engine/asistent/config.py`, CHANGELOG, PROJECT_STATUS, TODO, BUGS, PROGRESS, INDEX row.
    Push only on the user's yes.

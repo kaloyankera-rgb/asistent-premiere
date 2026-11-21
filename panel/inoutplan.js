@@ -131,12 +131,125 @@ const OUT_PRESETS = [
 
 const TABLES = { in: IN_PRESETS, out: OUT_PRESETS };
 
-// ---------------------------------------------------------------- helpers for the page
-/** the preset of `side` ("in" | "out") with this id, or null */
+// ---------------------------------------------------------------- own presets (Phase 5)
+// An own preset is a built-in row whose per-property curves are replaced by point curves (keyframeplan's {kind: "points"}), and
+// its own name and length. Only the spec is stored (by inoutpresets.js); the row is rebuilt from the base every time, so values,
+// exit, edge, follow, directional and turns can never drift from the base. Rows live in a registry behind find(), so the preview
+// and Apply (both go through find / plan) need no change. The registry is per side: a row of the other side is never found.
+const PRESET_V = 1;                            // the spec version this module reads; a higher one is refused, never guessed at
+const DRAFT = "draft";                         // the id of the one unsaved draft per side
+const OWN_ID = /^mine\d+$/;
+const NAME_MAX = 24;
+const REGISTRY = { in: new Map(), out: new Map() };   // saved own rows by id
+const DRAFTS = { in: null, out: null };
+
+const isPoints = (c) => !!c && typeof c === "object" && !Array.isArray(c) && c.kind === "points";
+
+/** the preset of `side` ("in" | "out") with this id, or null: built-ins first, then that side's own rows and its draft */
 function find(side, id) {
-  return (TABLES[side] || []).find((p) => p.id === id) || null;
+  const table = TABLES[side];
+  if (!table) return null;
+  const built = table.find((p) => p.id === id);
+  if (built) return built;
+  if (id === DRAFT) return DRAFTS[side];
+  return REGISTRY[side].get(id) || null;
 }
 
+// A property can be edited as one point curve only when it is one piece (from / to). A `path` property (Anticipate's position,
+// Pop Out's scale, Swing Out's rotation) is several pieces with their own curves: one curve cannot stand for it.
+const WHY_PATH = "a multi-step motion (pull-back or overshoot): one curve cannot replace it";
+
+function editableOf(preset) {
+  return animates(preset).map((n) => {
+    const pr = preset.props.find((x) => x.prop === n);
+    return pr.path ? { prop: n, ok: false, why: WHY_PATH } : { prop: n, ok: true, why: "" };
+  });
+}
+
+/** which properties of a preset (built-in or own) can be edited: [{prop, ok, why}] in the page's order, [] when unknown */
+function editable(side, id) {
+  const p = find(side, id);
+  return p ? editableOf(p) : [];
+}
+
+/** the points of one property's curve: the stored ones, else the base curve as points to drag; null when it cannot be edited */
+function curveFor(side, id, prop) {
+  const p = find(side, id);
+  const pr = p && p.props.find((x) => x.prop === prop);
+  if (!pr || pr.path) return null;
+  const c = curveOf(pr.curve);
+  return isPoints(c) ? c.pts.map((q) => q.slice()) : K.toPoints(c);
+}
+
+/**
+ * A spec -> {row} (a clone of the base row with the edited curves) or {error: "why"}. `id` is the row's id: "mine<digits>" for a
+ * saved one, DRAFT for the unsaved one.
+ */
+function resolve(spec, id) {
+  if (!spec || typeof spec !== "object") return { error: "not a preset" };
+  if (id !== DRAFT && !(typeof id === "string" && OWN_ID.test(id))) return { error: "bad id" };
+  if (!Number.isInteger(spec.v) || spec.v < 1) return { error: "no version" };
+  if (spec.v > PRESET_V) return { error: `made by a newer version (${spec.v})` };
+  const side = spec.side;
+  if (side !== "in" && side !== "out") return { error: "bad side" };
+  const base = TABLES[side].find((p) => p.id === spec.base);
+  if (!base) return { error: `unknown base "${spec.base}" on the ${side} side` };
+  if (typeof spec.name !== "string" || !spec.name.trim() || spec.name.length > NAME_MAX) return { error: `the name must be 1-${NAME_MAX} characters` };
+  if (!Number.isInteger(spec.frames) || spec.frames < FRAMES_MIN || spec.frames > FRAMES_MAX) return { error: "bad frames" };
+  const curves = spec.curves === undefined || spec.curves === null ? {} : spec.curves;
+  if (typeof curves !== "object" || Array.isArray(curves)) return { error: "bad curves" };
+  const ed = editableOf(base);
+  const props = base.props.map((pr) => Object.assign({}, pr));
+  for (const name of Object.keys(curves)) {
+    const e = ed.find((x) => x.prop === name);
+    if (!e) return { error: `${base.name} does not animate ${name}` };
+    if (!e.ok) return { error: `${name} of ${base.name} cannot be edited: ${e.why}` };
+    const c = curves[name];
+    if (!c || !K.pointsOk(c.pts)) return { error: `the points of ${name} are not valid` };
+    props.find((x) => x.prop === name).curve = { kind: "points", pts: c.pts.map((q) => q.slice()) };
+  }
+  const row = Object.assign({}, base, { id, name: spec.name, frames: spec.frames, side, custom: true, base: base.id, props });
+  return { row };
+}
+
+/**
+ * Replace the saved own presets with these specs -> {kept (how many), dropped: [{id, why}]}. A spec that does not resolve, an id
+ * that is not mine<digits> or is used twice (on either side) is dropped with a reason, the rest is kept. [] clears.
+ */
+function setCustom(rawList) {
+  const next = { in: new Map(), out: new Map() };
+  const dropped = [];
+  let kept = 0;
+  for (const spec of Array.isArray(rawList) ? rawList : []) {
+    const id = spec && typeof spec === "object" && typeof spec.id === "string" ? spec.id : "?";
+    const r = OWN_ID.test(id) ? resolve(spec, id) : { error: "bad id" };
+    if (r.error) { dropped.push({ id, why: r.error }); continue; }
+    if (next.in.has(id) || next.out.has(id)) { dropped.push({ id, why: "id used twice" }); continue; }
+    next[r.row.side].set(id, r.row);
+    kept++;
+  }
+  REGISTRY.in = next.in;
+  REGISTRY.out = next.out;
+  return { kept, dropped };
+}
+
+/** the one unsaved draft of a side (id DRAFT), or null to clear it -> the row; null when the spec does not resolve (the draft is cleared too) */
+function setDraft(side, spec) {
+  if (side !== "in" && side !== "out") return null;
+  DRAFTS[side] = null;
+  if (spec === null || spec === undefined) return null;
+  const r = spec.side === side ? resolve(spec, DRAFT) : { error: "wrong side" };
+  if (r.error) return null;
+  DRAFTS[side] = r.row;
+  return r.row;
+}
+
+/** the saved own rows of a side, in the order they were given */
+function customOf(side) {
+  return REGISTRY[side] ? [...REGISTRY[side].values()] : [];
+}
+
+// ---------------------------------------------------------------- helpers for the page
 /** [{id, name, presets: [row]}] in display order, empty groups left out */
 function groups(side) {
   return GROUPS.map((g) => ({ id: g.id, name: g.name, presets: (TABLES[side] || []).filter((p) => p.group === g.id) })).filter((g) => g.presets.length);
@@ -153,7 +266,7 @@ const STRENGTH_FREE = new WeakMap();
 // length), not a hand list, so a new table row is judged correctly with no code change.
 function strengthMatters(preset) {
   if (!STRENGTH_FREE.has(preset)) {
-    const side = IN_PRESETS.includes(preset) ? "in" : "out";
+    const side = preset.side || (IN_PRESETS.includes(preset) ? "in" : "out");   // own rows carry their side
     const at = (strength) => JSON.stringify(rows(side, preset, preset.frames, 0, { strength, direction: "left", turn: "cw" }).rows);
     STRENGTH_FREE.set(preset, at(STRENGTH_MIN) !== at(STRENGTH_MAX));
   }
@@ -213,12 +326,17 @@ function sample(side, pr, n, k) {
     // progress per frame of the piece, from the shared bake (values 0 -> 1 at step 1: time is in frames)
     const p = [0, ...K.bake([{ t: 0, v: 0 }, { t: len, v: 1 }], b.curve, 1).add.map((x) => x.v), 1];
     let arrived = false;
+    // An own point curve may dip before it moves, and "turned back" would then mean frame 1: it has arrived on the first
+    // frame that is within 0.5 % of the target or past it. That frame and every later one is scaled (judged on the frames
+    // themselves, so no frame past the target is ever left at full size between two scaled ones).
+    const own = isPoints(b.curve);
     for (let j = 1; j <= len; j++) {
       let pj = p[j];
       if (hasFixed && j < len) {
         // arrival = the first frame at the target, or the first one that has already turned back (a bounce touches the
         // target between two frames and never shows exactly 1)
-        if (!arrived && (pj >= 1 - 1e-9 || pj < p[j - 1] - 1e-12)) arrived = true;
+        if (own) arrived = arrived || pj >= 0.995;
+        else if (!arrived && (pj >= 1 - 1e-9 || pj < p[j - 1] - 1e-12)) arrived = true;
         if (arrived) pj = 1 + (pj - 1) * k;
       }
       out.push(j === len ? dev(b) : K.lerp(dev(a), dev(b), pj));
@@ -515,4 +633,5 @@ module.exports = {
   IN_PRESETS, OUT_PRESETS, GROUPS, DIRECTIONS, TURNS, REST, PROP_NAMES,
   STRENGTH_DEFAULT, STRENGTH_MIN, STRENGTH_MAX, FRAMES_MIN, FRAMES_MAX, SCALE_MAX, SCALE_MIN, PIN,
   plan, times, find, groups, animates, needs, defaultFrames,
+  DRAFT, PRESET_V, setCustom, setDraft, resolve, customOf, editable, curveFor,
 };

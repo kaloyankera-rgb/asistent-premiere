@@ -369,3 +369,305 @@ test("times(): frame to media seconds on a trimmed and a sped-up clip", () => {
   const r = I.plan({ clip: { frames: 50 }, outPreset: "fade", outFrames: 5 });
   assert.ok(near(fast.at(r.out[r.out.length - 1].f), 6 + 49 * 0.08));
 });
+
+// ---------------------------------------------------------------- Phase 5: own presets
+const crypto = require("crypto");
+const reset = () => { I.setCustom([]); I.setDraft("in", null); I.setDraft("out", null); };
+const spec = (side, base, over) => Object.assign({ id: "mine1", v: 1, side, base, name: "Mine", frames: (I.find(side, base) || { frames: 12 }).frames, curves: {} }, over);
+const pts = (...q) => ({ pts: q });
+const EXTREME = pts([0.1, 1.5], [0.3, -0.5], [0.5, 1.5], [0.7, -0.5], [0.9, 1.5]);
+const tableOf = (side) => (side === "in" ? I.IN_PRESETS : I.OUT_PRESETS);
+const planFor = (side, id, o) => go(Object.assign({ [side === "in" ? "inPreset" : "outPreset"]: id }, o));
+const rowsOf = (side, id, o) => planFor(side, id, o)[side];
+
+test("built-in rows are unchanged by Phase 5", () => {
+  // sha1 of plan() and needs() for all 33 built-ins at three strengths and two edge / turn pairs, computed from the code of
+  // 0.10.134 (before own presets existed) and pinned: a built-in result must never change
+  const PINNED = { 25: "1e503261977ff8b742a5c640b9a110443881ee5a", 100: "6fc3245d65428d8ad3add2445864705da97bf6f7", 200: "9614974f4e5b9a5bab58ffe96d94b3735908abba" };
+  reset();
+  for (const strength of [25, 100, 200]) {
+    const all = [];
+    for (const side of ["in", "out"]) {
+      for (const p of tableOf(side)) {
+        for (const [direction, turn] of [["left", "cw"], ["top", "ccw"]]) {
+          all.push([side, p.id, direction, turn, planFor(side, p.id, { strength, direction, turn }), I.needs(p)]);
+        }
+      }
+    }
+    assert.strictEqual(all.length, 66);
+    assert.strictEqual(crypto.createHash("sha1").update(JSON.stringify(all)).digest("hex"), PINNED[strength], `strength ${strength}`);
+  }
+});
+
+test("a custom curve changes only its own property (Twist Pop)", () => {
+  reset();
+  const base = ins("twistPop");
+  const row = I.setDraft("in", spec("in", "twistPop", { curves: { rot: pts([0.5, 0.2]) } }));
+  assert.ok(row && row.custom && row.base === "twistPop" && row.id === I.DRAFT && row.side === "in");
+  const mine = ins(I.DRAFT);
+  assert.strictEqual(mine.length, base.length);
+  let rotDiffers = false;
+  mine.forEach((m, i) => {
+    assert.strictEqual(m.f, base[i].f);
+    for (const k of ["dx", "dy", "s", "o"]) assert.strictEqual(m[k], base[i][k], `${k} of frame ${i}`);
+    if (m.r !== base[i].r) rotDiffers = true;
+  });
+  assert.ok(rotDiffers, "rotation follows the new curve");
+  // the base table's own row is untouched
+  assert.strictEqual(I.find("in", "twistPop").props[1].curve, "cubicOut");
+  reset();
+});
+
+test("custom rows start and end where the base does", () => {
+  for (const side of ["in", "out"]) {
+    for (const p of tableOf(side)) {
+      const curves = {};
+      for (const e of I.editable(side, p.id)) if (e.ok) curves[e.prop] = pts([0.3, -0.5], [0.7, 1.5]);
+      if (!Object.keys(curves).length) continue;
+      reset();
+      assert.ok(I.setDraft(side, spec(side, p.id, { curves })), `${side}/${p.id} resolves`);
+      for (const strength of [25, 100, 200]) {
+        const a = rowsOf(side, p.id, { strength });
+        const b = rowsOf(side, I.DRAFT, { strength });
+        assert.deepStrictEqual(b[0], a[0], `${side}/${p.id} first row at ${strength}`);
+        assert.deepStrictEqual(b[b.length - 1], a[a.length - 1], `${side}/${p.id} last row at ${strength}`);
+      }
+    }
+  }
+  reset();
+});
+
+test("extreme points stay finite; scale in range; opacity 0..1", () => {
+  for (const side of ["in", "out"]) {
+    for (const p of tableOf(side)) {
+      const curves = {};
+      for (const e of I.editable(side, p.id)) if (e.ok) curves[e.prop] = EXTREME;
+      reset();
+      if (!Object.keys(curves).length) continue;
+      I.setDraft(side, spec(side, p.id, { curves }));
+      for (const strength of [25, 200]) {
+        for (const r of rowsOf(side, I.DRAFT, { strength })) {
+          for (const k of ["dx", "dy", "s", "r", "o"]) assert.ok(Number.isFinite(r[k]), `${side}/${p.id} ${k}`);
+          assert.ok(r.s >= I.SCALE_MIN && r.s <= I.SCALE_MAX, `${side}/${p.id} scale ${r.s}`);
+          assert.ok(r.o >= 0 && r.o <= 1, `${side}/${p.id} opacity ${r.o}`);
+        }
+      }
+    }
+  }
+  reset();
+});
+
+test("an exit preset whose curve dips first is fully off on frame 0 and unscaled before arrival, at every strength", () => {
+  // In Slide at Strength 100: dx = progress - 1, so the frames' own progress is 1 + dx. Arrival = the first frame at 0.995 or past it;
+  // before it nothing is scaled, from it on every frame's distance from the target is k times the Strength-100 one (no frame left out).
+  const curves = [
+    [pts([0.15, -0.4], [0.6, 1.2]), null], [pts([0.1, -0.5], [0.5, 0.3], [0.8, 1.4]), null], [pts([0.5, -0.5], [0.99, -0.5]), null],
+    [pts([0.01, 1.5], [0.5, 1.2]), 100], [pts([0.01, 1.5], [0.5, 1.2]), 200], [pts([0.012, 1.5], [0.03, 1.5], [0.5, 1.2]), 1000],   // steep: past the target at once
+  ];
+  let anyScaled = false;
+  for (const [c, frames] of curves) {
+    reset();
+    const over = frames ? { curves: { pos: c }, frames } : { curves: { pos: c } };
+    I.setDraft("in", spec("in", "slide", over));
+    I.setDraft("out", spec("out", "slide", over));
+    const clip = { clip: { frames: 3000 } };
+    const ref = rowsOf("in", I.DRAFT, Object.assign({ strength: 100 }, clip));
+    const n = ref.length - 1;
+    let arrive = -1;
+    for (let j = 1; j < n && arrive < 0; j++) if (1 + ref[j].dx >= 0.995) arrive = j;
+    for (const strength of [25, 50, 150, 200]) {
+      const k = strength / 100;
+      const r = rowsOf("in", I.DRAFT, Object.assign({ strength }, clip));
+      assert.strictEqual(r[0].dx, -1, `In frame 0 fully off at ${strength}`);
+      for (let j = 1; j < n; j++) {
+        if (arrive < 0 || j < arrive) assert.deepStrictEqual(r[j], ref[j], `In frame ${j} unscaled at ${strength}`);
+        else {
+          assert.ok(Math.abs(r[j].dx - ref[j].dx * k) < 1e-9, `In frame ${j} of ${n} scaled by ${k}: ${r[j].dx} against ${ref[j].dx}`);
+          if (Math.abs(ref[j].dx) > 1e-6) anyScaled = true;
+        }
+      }
+      assert.strictEqual(r[n].dx, 0, "In ends at rest");
+      const o = rowsOf("out", I.DRAFT, Object.assign({ strength }, clip));
+      assert.strictEqual(o[0].dx, 0);
+      assert.strictEqual(o[o.length - 1].dx, -1, `Out last frame fully off at ${strength}`);
+    }
+  }
+  assert.ok(anyScaled, "frames from the arrival on follow Strength");
+  reset();
+});
+
+test("Strength is judged from the custom rows", () => {
+  reset();
+  const never = I.setDraft("in", spec("in", "slide", { curves: { pos: pts([0.5, 0.5]) } }));
+  assert.strictEqual(I.needs(never).strength, false);
+  const over = I.setDraft("in", spec("in", "slide", { curves: { pos: pts([0.3, 1.3], [0.6, 1.0]) } }));
+  assert.strictEqual(I.needs(over).strength, true);
+  // an Out row is judged as Out: a custom Out Slide that overshoots after arrival matters, one that never does not
+  const outNever = I.setDraft("out", spec("out", "slide", { curves: { pos: pts([0.5, 0.5]) } }));
+  const outOver = I.setDraft("out", spec("out", "slide", { curves: { pos: pts([0.3, 1.3], [0.6, 1.0]) } }));
+  assert.strictEqual(I.needs(outOver).strength, true);
+  assert.strictEqual(I.needs(outNever).strength, false);
+  // built-ins are measured exactly as before
+  assert.strictEqual(I.needs(I.find("in", "overshoot")).strength, true);
+  assert.strictEqual(I.needs(I.find("in", "slide")).strength, false);
+  reset();
+});
+
+test("resolve refuses: unknown base, wrong side, newer version, bad curves, bad points, bad frames, bad id, bad name", () => {
+  reset();
+  const refused = (s, id = "mine1") => { const r = I.resolve(s, id); assert.ok(r.error && !r.row, JSON.stringify(s)); return r.error; };
+  assert.ok(I.resolve(spec("in", "slide"), "mine1").row, "a plain spec resolves");
+  refused(spec("in", "nope"));
+  refused(spec("in", "anticipate"));                                   // an Out base on the In side
+  refused(spec("out", "overshoot"));
+  refused(spec("in", "slide", { v: I.PRESET_V + 1 }));
+  refused(spec("in", "slide", { v: undefined }));
+  refused(spec("in", "slide", { side: "sideways" }));
+  refused(spec("in", "slide", { curves: { rot: pts([0.5, 0.5]) } }));   // Slide does not animate rotation
+  refused(spec("in", "slide", { curves: { nope: pts([0.5, 0.5]) } }));
+  for (const [side, id, prop] of [["out", "anticipate", "pos"], ["out", "popOut", "scale"], ["out", "swingOut", "rot"]]) {
+    refused(spec(side, id, { curves: { [prop]: pts([0.5, 0.5]) } }));
+  }
+  for (const bad of [pts([0.5, 2]), pts([0.5, -0.6]), pts([0.5, NaN]), pts([0.6, 0.5], [0.5, 0.5]), pts([0.001, 0.5]), pts([0.999, 0.5]),
+    pts(), { pts: [] }, { pts: Array.from({ length: 17 }, (_, i) => [(i + 1) / 18, 0.5]) }, { pts: "x" }, {}, null]) {
+    refused(spec("in", "slide", { curves: { pos: bad } }));
+  }
+  for (const f of [0, -3, 1001, 12.5, "12", NaN, null]) refused(spec("in", "slide", { frames: f }));
+  for (const id of ["slide", "mine", "mineX", "mine1x", "draft1", "", null, undefined, 5]) assert.ok(I.resolve(spec("in", "slide"), id).error, `id ${id}`);
+  assert.ok(I.resolve(spec("in", "slide"), I.DRAFT).row, "DRAFT is a valid id for resolve");
+  for (const name of ["", "   ", "x".repeat(25), 7, null]) refused(spec("in", "slide", { name }));
+  assert.ok(I.resolve(spec("in", "slide", { name: "x".repeat(24) }), "mine1").row);
+  refused(null);
+  refused("slide");
+  // frames inside the module's range are accepted
+  assert.ok(I.resolve(spec("in", "slide", { frames: I.FRAMES_MIN }), "mine1").row);
+  assert.ok(I.resolve(spec("in", "slide", { frames: I.FRAMES_MAX }), "mine1").row);
+  // a draft that does not resolve is not kept
+  assert.strictEqual(I.setDraft("in", spec("in", "nope")), null);
+  assert.strictEqual(I.find("in", I.DRAFT), null);
+  assert.strictEqual(I.setDraft("in", spec("out", "slide")), null, "a spec of the other side is not a draft of this one");
+  assert.strictEqual(I.setDraft("sideways", spec("in", "slide")), null);
+  reset();
+});
+
+test("setCustom keeps the good rows and reports the dropped", () => {
+  reset();
+  const r = I.setCustom([
+    spec("in", "pop", { id: "mine10", name: "Good in", curves: { scale: pts([0.4, 1.2]) } }),
+    spec("out", "fade", { id: "mine11", name: "Good out" }),
+    spec("in", "nope", { id: "mine12" }),
+    spec("in", "pop", { id: "mine10", name: "Twice" }),
+    spec("in", "pop", { id: "draft" }),
+    spec("in", "pop", { id: "slide" }),
+    spec("in", "pop", { id: "mine13", v: 2 }),
+    spec("out", "popOut", { id: "mine14", curves: { scale: pts([0.5, 0.5]) } }),
+    null,
+    "text",
+  ]);
+  assert.strictEqual(r.kept, 2);
+  assert.deepStrictEqual(r.dropped.map((d) => d.id), ["mine12", "mine10", "draft", "slide", "mine13", "mine14", "?", "?"]);
+  assert.ok(r.dropped.every((d) => typeof d.why === "string" && d.why.length));
+  assert.deepStrictEqual(I.customOf("in").map((x) => x.id), ["mine10"]);
+  assert.deepStrictEqual(I.customOf("out").map((x) => x.id), ["mine11"]);
+  assert.strictEqual(I.find("in", "mine10").name, "Good in", "the first of two equal ids is kept");
+  assert.strictEqual(I.setCustom("not a list").kept, 0);
+  assert.deepStrictEqual(I.customOf("in"), []);
+  reset();
+});
+
+test("no built-in id is draft or mine<digits>; find prefers built-ins", () => {
+  reset();
+  for (const side of ["in", "out"]) {
+    for (const p of tableOf(side)) assert.ok(p.id !== I.DRAFT && !/^mine\d+$/.test(p.id), `${side}/${p.id}`);
+  }
+  I.setCustom([spec("in", "slide", { id: "mine1" })]);
+  I.setDraft("in", spec("in", "slide"));
+  for (const side of ["in", "out"]) for (const p of tableOf(side)) assert.strictEqual(I.find(side, p.id), p);
+  assert.strictEqual(I.find("in", "mine1").custom, true);
+  assert.strictEqual(I.find("in", "nothing"), null);
+  assert.strictEqual(I.find("sideways", "mine1"), null);
+  reset();
+});
+
+test("In and Out own presets stay separate", () => {
+  reset();
+  const got = I.setCustom([spec("in", "pop", { id: "mine7", name: "In seven" }), spec("out", "fade", { id: "mine7", name: "Out seven" }), spec("out", "shrink", { id: "mine8" })]);
+  assert.deepStrictEqual(got, { kept: 2, dropped: [{ id: "mine7", why: "id used twice" }] }, "an id is one row: delete and rename go by id alone");
+  assert.strictEqual(I.find("in", "mine7").name, "In seven");
+  assert.strictEqual(I.find("out", "mine7"), null, "an In row is never an Out row");
+  assert.strictEqual(I.find("in", "mine8"), null, "an Out row is never an In row");
+  assert.deepStrictEqual(I.customOf("in").map((x) => x.id), ["mine7"]);
+  assert.deepStrictEqual(I.customOf("out").map((x) => x.id), ["mine8"]);
+  I.setDraft("in", spec("in", "fade"));
+  assert.ok(I.find("in", I.DRAFT));
+  assert.strictEqual(I.find("out", I.DRAFT), null);
+  assert.strictEqual(planFor("in", "mine8").error, 'unknown In preset "mine8"');
+  assert.ok(!planFor("out", "mine8").error);
+  assert.strictEqual(go({ inPreset: "mine7", outPreset: "mine8" }).error, undefined);
+  reset();
+});
+
+test("a custom curve does not change the key total", () => {
+  reset();
+  for (const [side, id, frames] of [["in", "elastic", 24], ["in", "twistPop", 14], ["out", "swingOut", 16], ["out", "slideFade", 12]]) {
+    const curves = {};
+    for (const e of I.editable(side, id)) if (e.ok) curves[e.prop] = EXTREME;
+    I.setDraft(side, spec(side, id, { curves }));
+    for (const f of [undefined, 1, 5, 40]) {
+      const o = f === undefined ? {} : { [side === "in" ? "inFrames" : "outFrames"]: f };
+      assert.strictEqual(planFor(side, I.DRAFT, o).total, planFor(side, id, o).total, `${side}/${id} frames ${f}`);
+    }
+  }
+  // the cap is the same: lengths that are too long are refused for both, with the same text
+  const big = { clip: { frames: 5000 }, inFrames: 1000, outFrames: 1000 };
+  I.setCustom([spec("in", "twistPop", { id: "mine1", frames: 1000, curves: { rot: EXTREME } }), spec("out", "swingOut", { id: "mine2", frames: 1000, curves: { op: EXTREME } })]);
+  const own = I.plan(Object.assign({ inPreset: "mine1", outPreset: "mine2" }, big));
+  const built = I.plan(Object.assign({ inPreset: "twistPop", outPreset: "swingOut" }, big));
+  assert.ok(built.error && own.error === built.error, built.error);
+  assert.ok(I.capCheck([2000, 2000]), "the per-press cap is unchanged");
+  reset();
+});
+
+test("setCustom([]) and setDraft(side, null) clear", () => {
+  reset();
+  I.setCustom([spec("in", "pop", { id: "mine3" }), spec("out", "fade", { id: "mine4" })]);
+  I.setDraft("in", spec("in", "pop"));
+  I.setDraft("out", spec("out", "fade"));
+  assert.ok(I.find("in", "mine3") && I.find("out", "mine4") && I.find("in", I.DRAFT) && I.find("out", I.DRAFT));
+  assert.strictEqual(I.setDraft("in", null), null);
+  assert.strictEqual(I.find("in", I.DRAFT), null);
+  assert.ok(I.find("out", I.DRAFT), "the other side's draft stays");
+  assert.deepStrictEqual(I.setCustom([]), { kept: 0, dropped: [] });
+  assert.strictEqual(I.find("in", "mine3"), null);
+  assert.strictEqual(I.find("out", "mine4"), null);
+  assert.deepStrictEqual([I.customOf("in"), I.customOf("out")], [[], []]);
+  assert.ok(I.find("out", I.DRAFT), "setCustom does not touch drafts");
+  I.setDraft("out", null);
+  assert.strictEqual(I.find("out", I.DRAFT), null);
+  assert.ok(planFor("in", "pop").in.length, "built-ins still plan");
+  reset();
+});
+
+test("editable() and curveFor() describe what can be dragged", () => {
+  reset();
+  const ok = (side, id) => I.editable(side, id).map((e) => `${e.prop}:${e.ok}`).join(",");
+  assert.strictEqual(ok("in", "twistPop"), "scale:true,rot:true");
+  assert.strictEqual(ok("out", "anticipate"), "pos:false");
+  assert.strictEqual(ok("out", "popOut"), "scale:false");
+  assert.strictEqual(ok("out", "swingOut"), "rot:false,op:true");
+  assert.ok(I.editable("out", "anticipate")[0].why.length > 0);
+  assert.deepStrictEqual(I.editable("in", "nothing"), []);
+  assert.ok(K.pointsOk(I.curveFor("in", "slide", "pos")));
+  assert.ok(K.pointsOk(I.curveFor("in", "elastic", "pos")));
+  assert.strictEqual(I.curveFor("out", "anticipate", "pos"), null);
+  assert.strictEqual(I.curveFor("in", "slide", "rot"), null);
+  assert.strictEqual(I.curveFor("in", "nothing", "pos"), null);
+  const mine = [[0.3, 0.8], [0.7, 1.1, 1]];
+  I.setDraft("in", spec("in", "twistPop", { curves: { rot: { pts: mine } } }));
+  assert.deepStrictEqual(I.curveFor("in", I.DRAFT, "rot"), mine);
+  assert.notStrictEqual(I.curveFor("in", I.DRAFT, "rot")[0], mine[0], "a copy, not the stored array");
+  assert.ok(K.pointsOk(I.curveFor("in", I.DRAFT, "scale")), "an unedited property gives the base curve as points");
+  assert.deepStrictEqual(I.editable("in", I.DRAFT), I.editable("in", "twistPop"));
+  assert.strictEqual(I.PRESET_V, 1);
+  reset();
+});

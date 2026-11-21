@@ -43,6 +43,8 @@ blur that follows each frame's speed. A live preview plays the motion next to th
 - Store keys: `asistent.keyframer.curves`, `.live`, `.blur`. No engine endpoint and no host function.
 - Test bridge (`panel/devbridge.js`): `keyframer_info`, `fill kfBlurAmount`, `uxp_eval`.
 
+- Points-editing rules (geometry, add, move, remove, corner, the Keyframer's limits) also live in `panel/curvegraph.js` (0.10.135, In & Out's curve editor). The Keyframer does not use that module yet; its own editor is unchanged.
+
 ## Status
 - Since 0.10.32 (curves), 0.10.33 Elastic / Bounce / repeat, 0.10.68 Custom, 0.10.72 live, 0.10.88 blur and preview,
   0.10.115 the dock. Current build 0.10.120.

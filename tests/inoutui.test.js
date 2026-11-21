@@ -238,10 +238,203 @@ test("tiles: None first, then the presets by group; the filter shows one group a
   assert.deepStrictEqual(v.shown.out, U.shownTiles("out", "fade"));
 });
 
+const noDrafts = { in: null, out: null };
 test("afterPick: the pick shows its side; a filtered-out tile sends the filter back to All, a shown one and None keep it", () => {
   const s = st({ side: "in", filter: "scale" });
-  assert.deepStrictEqual(U.afterPick(s, "out", "shrink"), { outPreset: "shrink", side: "out", filter: "scale" });
-  assert.deepStrictEqual(U.afterPick(s, "out", "fade"), { outPreset: "fade", side: "out", filter: "all" });   // Fade is not in Scale
-  assert.deepStrictEqual(U.afterPick(s, "in", U.NONE), { inPreset: U.NONE, side: "in", filter: "scale" });
-  assert.deepStrictEqual(U.afterPick(st({ filter: "all" }), "in", "slide"), { inPreset: "slide", side: "in", filter: "all" });
+  assert.deepStrictEqual(U.afterPick(s, "out", "shrink"), { outPreset: "shrink", side: "out", filter: "scale", drafts: noDrafts });
+  assert.deepStrictEqual(U.afterPick(s, "out", "fade"), { outPreset: "fade", side: "out", filter: "all", drafts: noDrafts });   // Fade is not in Scale
+  assert.deepStrictEqual(U.afterPick(s, "in", U.NONE), { inPreset: U.NONE, side: "in", filter: "scale", drafts: noDrafts });
+  assert.deepStrictEqual(U.afterPick(st({ filter: "all" }), "in", "slide"), { inPreset: "slide", side: "in", filter: "all", drafts: noDrafts });
+});
+
+// ---------------------------------------------------------------- Phase 5: own presets and the unsaved draft
+const reset = () => { I.setCustom([]); I.setDraft("in", null); I.setDraft("out", null); };
+const pts = (...q) => ({ pts: q });
+const own = (id, side, base, name, extra) => Object.assign({ id, v: 1, side, base, name, frames: I.find(side, base).frames, curves: { [I.animates(I.find(side, base))[0]]: pts([0.5, 0.5]) } }, extra);
+const draftSpec = (side, base, curves) => ({ v: 1, side, base, name: "My draft", frames: I.find(side, base).frames, curves });
+const withOwn = (fn) => () => { reset(); try { fn(); } finally { reset(); } };
+
+test("with no own presets tiles() is unchanged", withOwn(() => {
+  for (const side of ["in", "out"]) {
+    const expected = [{ id: U.NONE, name: "None", filter: "", preset: null }];
+    const F = { pos: "move", scale: "scale", rot: "spin", op: "fade" };
+    for (const g of I.groups(side)) for (const p of g.presets) expected.push({ id: p.id, name: p.name, filter: F[g.id], preset: p });
+    assert.deepStrictEqual(U.tiles(side), expected);
+  }
+  assert.deepStrictEqual(U.view(st({ inPreset: "slide", outPreset: "fade" })).shown.in.slice(0, 2), [U.NONE, "slide"]);
+}));
+
+test("own tiles sit right after None with the base's icon and filter", withOwn(() => {
+  I.setCustom([own("mine1", "in", "pop", "My Pop"), own("mine2", "in", "slideFade", "Soft"), own("mine3", "out", "shrink", "Out mine")]);
+  const t = U.tiles("in");
+  assert.deepStrictEqual(t.slice(0, 3).map((x) => x.id), [U.NONE, "mine1", "mine2"]);
+  assert.strictEqual(t.length, I.IN_PRESETS.length + 3);                           // None, two own, every built-in
+  assert.deepStrictEqual([t[1].name, t[1].filter, t[1].mine, t[1].base], ["My Pop", "scale", true, "pop"]);   // Pop's group is Scale
+  assert.strictEqual(t[1].filter, t.find((x) => x.id === "pop").filter);          // the page draws the icon from `filter`: the base's
+  assert.strictEqual(t[2].filter, "fade");                                          // Slide Fade is in the Opacity group
+  assert.strictEqual(t[1].preset.id, "mine1");
+  assert.ok(t.slice(3).every((x) => !x.mine));
+  assert.deepStrictEqual(U.tiles("out").slice(0, 2).map((x) => x.id), [U.NONE, "mine3"]);   // the other side's own row stays on its side
+  assert.ok(U.shownTiles("in", "all").includes("mine1") && U.shownTiles("in", "all").includes("mine2"));
+  assert.ok(U.shownTiles("in", "scale").includes("mine1") && !U.shownTiles("in", "scale").includes("mine2"));   // an own tile follows its base's filter
+  assert.ok(U.shownTiles("in", "fade").includes("mine2") && !U.shownTiles("in", "fade").includes("mine1"));
+  assert.deepStrictEqual(U.afterPick(st({ filter: "scale" }), "in", "mine2").filter, "all");   // a pick that the filter hides resets it
+  assert.deepStrictEqual(U.afterPick(st({ filter: "scale" }), "in", "mine1").filter, "scale");
+}));
+
+test("a draft sends DRAFT to preview and Apply and says (edited)", withOwn(() => {
+  I.setDraft("in", draftSpec("in", "pop", { scale: pts([0.4, 0.8]) }));
+  const s = st({ inPreset: "pop", outPreset: "fade", drafts: { in: { base: "pop" }, out: null } });
+  const v = U.view(s);
+  assert.strictEqual(v.opts.inPreset, I.DRAFT);
+  assert.strictEqual(v.opts.outPreset, "fade");                                     // the other side keeps its pick
+  assert.strictEqual(v.labels.in, "In · Pop (edited)");
+  assert.strictEqual(v.labels.out, "Out · Fade");
+  assert.strictEqual(v.summary, "In Pop (edited) 12f · Out Fade 10f");
+  assert.strictEqual(v.mode, "both");
+  assert.strictEqual(v.frames.in, 12);                                              // the draft's own length when none is typed
+  assert.strictEqual(U.hoverView(s, "out", "fade").opts.inPreset, I.DRAFT);         // hovering the other side still shows the edit
+  assert.strictEqual(U.hoverView(s, "in", "pop").opts.inPreset, I.DRAFT);           // and so does hovering the tile being edited
+  assert.strictEqual(U.hoverView(s, "in", "slide").opts.inPreset, "slide");         // another tile plays as itself
+  assert.strictEqual(U.hoverView(s, "in", U.NONE).opts.inPreset, null);
+  assert.strictEqual(s.drafts.in.base, "pop");                                      // never changed
+  const noDraft = U.view(st({ inPreset: "pop", outPreset: "fade" }));               // without drafts: as before
+  assert.strictEqual(noDraft.opts.inPreset, "pop");
+  assert.strictEqual(noDraft.labels.in, "In · Pop");
+  assert.deepStrictEqual(U.view(st({ inPreset: "pop", drafts: noDrafts })), U.view(st({ inPreset: "pop" })));
+  I.setDraft("in", null);                                                           // the page did not sync the registry: the pick is shown
+  assert.strictEqual(U.view(s).opts.inPreset, "pop");
+  const noneSide = st({ inPreset: "none", drafts: { in: { base: "pop" }, out: null } });   // a draft on a None side is ignored
+  assert.strictEqual(U.view(noneSide).opts.inPreset, null);
+}));
+
+test("a draft on an own preset names the base and the label stays short", withOwn(() => {
+  I.setCustom([own("mine7", "out", "shrink", "Back and out")]);
+  I.setDraft("out", draftSpec("out", "shrink", { scale: pts([0.5, 0.2]) }));
+  const v = U.view(st({ outPreset: "mine7", side: "out", drafts: { in: null, out: { base: "shrink" } } }));
+  assert.strictEqual(v.labels.out, "Out · Shrink (edited)");
+  assert.strictEqual(v.opts.outPreset, I.DRAFT);
+  assert.strictEqual(U.view(st({ outPreset: "mine7" })).labels.out, "Out · Back and out");   // saved: its own name
+  assert.strictEqual(U.view(st({ outPreset: "mine7" })).opts.outPreset, "mine7");
+}));
+
+test("editorView lists only animated props and greys the multi-piece ones", withOwn(() => {
+  const e = U.editorView(st({ inPreset: "twistPop", side: "in" }), []);
+  assert.deepStrictEqual(e.props.map((p) => [p.prop, p.label, p.ok, p.edited]), [["scale", "Scale", true, false], ["rot", "Rotation", true, false]]);
+  assert.deepStrictEqual([e.side, e.id, e.base, e.isOwn, e.none, e.canSave], ["in", "twistPop", "twistPop", false, false, false]);
+  const o = U.editorView(st({ outPreset: "anticipate", side: "out" }), []);
+  assert.deepStrictEqual(o.props.map((p) => [p.prop, p.ok]), [["pos", false]]);     // Anticipate's position is a multi-step path
+  assert.ok(o.props[0].why.length > 10);
+  const sw = U.editorView(st({ outPreset: "swingOut", side: "out" }), []);
+  assert.deepStrictEqual(sw.props.map((p) => [p.prop, p.ok]), [["rot", false], ["op", true]]);
+  assert.strictEqual(sw.props.find((p) => p.prop === "op").why, "");
+  assert.deepStrictEqual(U.editorView(st({ inPreset: "rollIn", side: "in" }), []).props.map((p) => p.prop), ["pos", "rot"]);   // the page's order
+  assert.strictEqual(U.editorView(st({ inPreset: "pop", outPreset: "fade", side: "out" }), []).id, "fade");   // the side showing
+}));
+
+test("editorView: None cannot open, defaultName is the next free My <Base>, an own pick shows isOwn and its base", withOwn(() => {
+  const none = U.editorView(st({ side: "in" }), []);
+  assert.deepStrictEqual([none.none, none.props, none.canSave, none.isOwn, none.id], [true, [], false, false, "none"]);
+  assert.strictEqual(U.editorView(st({ inPreset: "pop" }), []).defaultName, "My Pop");
+  assert.strictEqual(U.editorView(st({ inPreset: "pop" })).defaultName, "My Pop");           // no list yet
+  const raw = [{ id: "mine1", v: 1, side: "in", base: "pop", name: "My Pop", frames: 12, curves: {} }];
+  assert.strictEqual(U.editorView(st({ inPreset: "pop" }), raw).defaultName, "My Pop 2");
+  assert.strictEqual(U.editorView(st({ outPreset: "shrink", side: "out" }), raw).defaultName, "My Shrink");   // names are per side
+  I.setCustom([own("mine1", "in", "popFade", "Mine")]);
+  const e = U.editorView(st({ inPreset: "mine1" }), raw);
+  assert.deepStrictEqual([e.isOwn, e.base, e.baseName, e.none], [true, "popFade", "Pop Fade", false]);
+  assert.deepStrictEqual(e.props.map((p) => p.prop), ["scale", "op"]);
+  assert.strictEqual(e.defaultName, "My Pop Fade");                                           // from the base's name, not "My Mine"
+  assert.strictEqual(U.editorView(st({ inPreset: "mine404" }), raw).none, true);              // an id the registry lost
+}));
+
+test("canSave needs an edited curve", withOwn(() => {
+  const base = { inPreset: "twistPop", side: "in" };
+  assert.strictEqual(U.editorView(st(base), []).canSave, false);                               // no draft
+  assert.strictEqual(U.editorView(st({ ...base, drafts: { in: { base: "twistPop", curves: {} }, out: null } }), []).canSave, false);
+  assert.strictEqual(U.editorView(st({ ...base, drafts: { in: { base: "twistPop" }, out: null } }), []).canSave, false);
+  const e = U.editorView(st({ ...base, drafts: { in: { base: "twistPop", curves: { rot: pts([0.5, 0.5]) } }, out: null } }), []);
+  assert.strictEqual(e.canSave, true);
+  assert.deepStrictEqual(e.props.map((p) => [p.prop, p.edited]), [["scale", false], ["rot", true]]);
+  const other = U.editorView(st({ ...base, drafts: { in: null, out: { base: "fade", curves: { op: pts([0.5, 0.5]) } } } }), []);
+  assert.strictEqual(other.canSave, false);                                                    // the other side's draft does not count
+}));
+
+test("afterDelete falls back to the base", withOwn(() => {
+  const s = st({ inPreset: "mine1", outPreset: "mine2", drafts: { in: { base: "pop" }, out: { base: "shrink" } } });
+  const p = U.afterDelete(s, "in", "mine1", "pop");
+  assert.strictEqual(p.inPreset, "pop");                                                       // the base, not None
+  assert.strictEqual(p.outPreset, undefined);                                                  // the other side is untouched
+  assert.deepStrictEqual(p.drafts, { in: null, out: { base: "shrink" } });                    // its draft is dropped, the other side's stays
+  const other = U.afterDelete(st({ inPreset: "slide", outPreset: "mine2", drafts: { in: { base: "slide" }, out: null } }), "in", "mine1", "pop");
+  assert.deepStrictEqual(other, { drafts: { in: { base: "slide" }, out: null } });           // that side had another pick: nothing changes
+  assert.strictEqual(U.afterDelete(st({ outPreset: "mine2" }), "out", "mine2", "popOut").outPreset, "popOut");
+  assert.strictEqual(U.afterDelete(st({ inPreset: "mine1" }), "in", "mine1", "nope").inPreset, "none");   // a base this version lost reads as None
+  assert.deepStrictEqual(Object.assign(st({ inPreset: "mine1" }), U.afterDelete(st({ inPreset: "mine1" }), "in", "mine1", "pop")).inPreset, "pop");
+}));
+
+test("a pick ends that side's draft only", withOwn(() => {
+  const s = st({ inPreset: "pop", outPreset: "fade", drafts: { in: { base: "pop" }, out: { base: "fade" } } });
+  assert.deepStrictEqual(U.afterPick(s, "in", "slide").drafts, { in: null, out: { base: "fade" } });
+  assert.deepStrictEqual(U.afterPick(s, "out", "shrink").drafts, { in: { base: "pop" }, out: null });
+  assert.deepStrictEqual(U.afterPick(s, "in", U.NONE).drafts, { in: null, out: { base: "fade" } });
+  assert.deepStrictEqual(U.afterPick(s, "in", "pop").drafts, { in: null, out: { base: "fade" } });   // re-picking the same tile also ends it
+  assert.deepStrictEqual(U.afterPick(st({}), "in", "pop").drafts, noDrafts);                // a state with no drafts field at all
+}));
+
+test("snapshot never stores a draft", withOwn(() => {
+  const snap = U.snapshot(st({ inPreset: "pop", drafts: { in: { base: "pop", curves: {} }, out: null } }));
+  assert.ok(!("drafts" in snap));
+  assert.ok(!JSON.stringify(snap).includes("draft"));
+  assert.deepStrictEqual(Object.keys(snap).sort(), ["blur", "direction", "filter", "inFrames", "inPreset", "outFrames", "outPreset", "side", "strength", "turn"]);
+  assert.ok(!("drafts" in U.restore(snap)));                                                  // and restore adds none
+}));
+
+test("an own pick is remembered by id; a deleted pick restores as None", withOwn(() => {
+  I.setCustom([own("mine5", "in", "pop", "My Pop")]);
+  const snap = U.snapshot(st({ inPreset: "mine5" }));
+  assert.strictEqual(snap.inPreset, "mine5");
+  assert.strictEqual(U.restore(snap).inPreset, "mine5");
+  assert.strictEqual(U.restore({ outPreset: "mine5" }).outPreset, "none");                    // an own id of the other side is not found
+  I.setCustom([]);                                                                            // the row is gone
+  assert.strictEqual(U.restore(snap).inPreset, "none");
+  assert.strictEqual(U.restore({ inPreset: "mine999", outPreset: "mine1" }).outPreset, "none");
+}));
+
+test("a stored draft id restores as None", withOwn(() => {
+  assert.strictEqual(U.restore({ inPreset: "draft" }).inPreset, "none");
+  I.setDraft("in", draftSpec("in", "pop", { scale: pts([0.4, 0.8]) }));                       // even while the registry holds a draft
+  assert.strictEqual(U.restore({ inPreset: "draft", outPreset: "draft" }).inPreset, "none");
+  assert.strictEqual(U.restore({ outPreset: "draft" }).outPreset, "none");
+  assert.strictEqual(U.hoverView(st({}), "in", "draft").opts.inPreset, null);                 // nor can a hover play the draft by id
+}));
+
+test("presetTip for an own preset names it and its base, then what the base moves", withOwn(() => {
+  I.setCustom([own("mine1", "in", "slideFade", "Soft Slide", { frames: 20 }), own("mine2", "out", "twistShrink", "Spin away")]);
+  const tip = U.presetTip("in", I.find("in", "mine1"));
+  assert.strictEqual(tip, "Your preset Soft Slide, based on Slide Fade. Animates Position and Opacity. Also choose the edge below. Default length 20 frames.");
+  assert.match(U.presetTip("out", I.find("out", "mine2")), /^Your preset Spin away, based on Twist Shrink\. Animates Scale and Rotation\. Also choose the turn below\./);
+  assert.match(U.presetTip("in", I.find("in", "pop")), /^Pop \(in\): animates Scale\./);          // a built-in tip is as before
+  assert.ok(U.tiles("in").filter((t) => t.mine).every((t) => /^Your preset /.test(U.presetTip("in", t.preset))));
+}));
+
+test("hoverView: hovering an own tile plays it like any tile", withOwn(() => {
+  I.setCustom([own("mine1", "in", "pop", "My Pop", { frames: 17 })]);
+  const s = st({ inPreset: "slide", outPreset: "fade" });
+  const h = U.hoverView(s, "in", "mine1");
+  assert.strictEqual(h.opts.inPreset, "mine1");
+  assert.strictEqual(h.opts.inFrames, 17);                                                   // its own length
+  assert.strictEqual(h.opts.outPreset, "fade");
+  assert.strictEqual(s.inPreset, "slide");
+}));
+
+test("a draft of another preset is not shown: the pick changed behind the editor", () => {
+  I.setCustom([]);
+  const d = { base: "pop", name: "x", frames: 12, curves: { scale: { pts: [[0.3, 1.2]] } } };
+  I.setDraft("in", Object.assign({ v: 1, side: "in" }, d));
+  const state = Object.assign(U.restore({ inPreset: "pop" }), { drafts: { in: d, out: null } });
+  assert.strictEqual(U.view(state).opts.inPreset, I.DRAFT);
+  assert.strictEqual(U.view(Object.assign({}, state, { inPreset: "slide" })).opts.inPreset, "slide");
+  assert.strictEqual(U.view(Object.assign({}, state, { inPreset: "slide" })).labels.in, "In · Slide");
+  I.setDraft("in", null);
 });
