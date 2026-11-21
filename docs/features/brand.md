@@ -53,8 +53,7 @@ press and its Premiere limits): [docs/BRAND_KIT.md](../BRAND_KIT.md), 113 lines.
   Premiere text (0.10.112, letters measured 232,28,40 for #ED1C24) and the colour range. The user has not confirmed the
   tab as a whole in Premiere. The rest of "Still to check" in BRAND_KIT.md (placement over clips, At end, MOGRT, drop,
   offline) is unverified.
-- Latest: 0.10.116 Apply row and Copy row, seen only in the browser preview (PROJECT_STATUS: waiting for a check in
-  Premiere). Latest release v0.10.118.
+- Latest: 0.10.115-0.10.116 colour Apply on text made in Premiere: confirmed fine by the user 2026-11-21. Latest release v0.10.118.
 - Windows: untested (font install with the registry entry, `clip`, `explorer /select`).
 - Limits: BUGS "Platform limitations" (Brand tab line). Open TODO: section BK (Premiere checks, user run, Windows, SVG to
   PNG later). `docs/BRAND_KIT.md` still says "not installed, not run" and `ppro.Color` unmeasured: outdated.

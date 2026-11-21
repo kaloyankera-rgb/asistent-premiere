@@ -53,7 +53,7 @@ as information only. Both only read: no file is opened, moved or changed.
 
 ## Status
 - Since: Show exports 0.10.3 (fixed 0.10.5, 0.10.7), Export check 0.10.39, cards 0.10.111. Latest line: 0.10.115-0.10.116
-  installed, the cards "seen in the panel's DOM", next export still to look at (TODO V96).
+  installed; the Export check cards confirmed fine by the user on a real export, 2026-11-21.
 - Mac: Show exports seen on the user's real export (0.10.5) and on a real Premiere export through the bridge (0.10.7); Export
   check verified through the bridge in Premiere 26.5.2 (a 128 s export checked in 20.7 s, real letterbox found, 0.10.41-0.10.42; a
   scripted export, 0.10.62). Unverified: the Export tab's event reaching the panel, and the comparison with the sequence on a real

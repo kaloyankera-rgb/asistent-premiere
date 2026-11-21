@@ -48,11 +48,11 @@ blur that follows each frame's speed. A live preview plays the motion next to th
   0.10.115 the dock. Current build 0.10.120.
 - Tried in Premiere 26.5.x through the test bridge (NEW TEST): bake, replace, Undo last, live, blur measured on rendered
   frames, dock measured. The user has used it in Premiere (their requests quote it); a look at the preview, blur controls and
-  dock is still open. Latest status line: PROJECT_STATUS 0.10.115 (dock "measured"), 0.10.88 (blur).
+  dock is still open (the dock's buttons staying at the bottom: confirmed by the user 2026-11-21). Latest status line: PROJECT_STATUS 0.10.115 (dock "measured"), 0.10.88 (blur).
 - Windows: untested.
 - Open: BUGS "Keyframer's record cannot tell Premiere's graphics apart" (`clipKey` is media + In point, so two Premiere
-  graphics share a record); blur limit above; the Premiere crash note. Not measured: a sped-up clip (TODO CP leftovers).
-- TODO: section N (user checks), CP leftovers, V96 line "0.10.115: Keyframer dock".
+  graphics share a record); blur limit above; the crash of 2026-11-15 not seen again (user, 2026-11-21). Not measured: a sped-up clip (TODO CP leftovers).
+- TODO: section N (user checks), CP leftovers.
 
 ## Tests
 - `tests/keyframeplan.test.js` curves, bake, presets, Custom points, repeat, `shapedFn` for every kind.

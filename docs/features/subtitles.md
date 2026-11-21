@@ -62,7 +62,8 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
 - Since 0.9.42 (caption track 0.9.45 verified in Premiere by the user 2026-11-01; learning test passed 2026-11-04; Move
   off faces seen on one shot 2026-11-09; review helpers confirmed 2026-11-08).
 - Latest: 0.10.119 ElevenLabs (650 wrong words of 4171 locally, 365 with Scribe, about 14x faster). The user's first run
-  froze; fixed in 0.10.120 (a shout read as a 1000-letter word). Installed; the next run in Premiere not yet done.
+  froze; fixed in 0.10.120 (a shout read as a 1000-letter word). The user, 2026-11-21: works in Premiere on two videos,
+  fast and accurate. Still to run: ReShape on its own clip, and Auto with the switch off.
 - Client styles (0.10.18-0.10.22), 0.10.61 cuts, Export transcript (0.10.66): not seen by the user in Premiere.
 - Windows: untested (host install, CEP path, learning folder). Latest release v0.10.118. Open: BUGS "Limits of
   subtitles by ElevenLabs"; TODO V119, SEG, SL, S, A.

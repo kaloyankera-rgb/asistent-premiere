@@ -2,6 +2,33 @@
 
 Kept word for word. Each fix is also in `CHANGELOG.md` under its version. Open bugs and limits: [../../BUGS.md](../../BUGS.md).
 
+## CONFIRMED BY THE USER (2026-11-21): no Premiere crash since 0.10.118
+- The user has had no crash since the settle-and-fresh-handle fixes (0.10.87 Keyframer, 0.10.118 Lumetri / Tint). If one
+  comes back: note the time and the step; crash reports are in `~/Library/Logs/DiagnosticReports/Adobe Premiere Pro 2026-*.ips`.
+- **Premiere crashed on Exposure +0.5 pressed twice fast (2026-11-18 11:48, the user's GStroy project, 26.5.3):** two clips
+  without a Lumetri; no crash report written. Treated as the same Premiere fault as the Keyframer crash below; 0.10.118 settles
+  60 ms and reads the effects from a fresh handle after every Lumetri / Tint add and between queued presses. If it happens
+  again, note the time and whether the clips already had a Lumetri.
+- **Premiere crashed once while testing 0.10.86 (2026-11-15 04:07, NEW TEST, recovered on relaunch):** inside UXP, turning a
+  Premiere object into JavaScript (`napi_wrap` from `CallProperty`; the pointer read was text: a freed object), right after
+  the Keyframer added its motion blur Transform. The same step ran fine about ten times before and after; Lumetri and Tint
+  add effects the same way. 0.10.87 keeps the new effect referenced, waits 60 ms and reads the chain from a fresh handle. If
+  it happens again, the crash report is in `~/Library/Logs/DiagnosticReports/Adobe Premiere Pro 2026-*.ips`.
+
+## CONFIRMED BY THE USER (2026-11-21): Tracker Track / Stop on the first click (0.10.77)
+- **Fixed in 0.10.77, not yet confirmed by the user (2026-11-15):** Track and Stop in the Tracker needed several clicks (the
+  user's screen recording): Track's tooltip stayed up while it was clicked and only the last press reached the log. Likely the
+  picture kept the pointer captured after the box was drawn. Captures are released by hand now, and a press landing on a button
+  but delivered elsewhere presses that button (log: "press for ... arrived at ..."); if that line never shows and presses are
+  still lost, the cause is elsewhere.
+
+## SUPERSEDED (2026-11-21): rough cut bugs, the rough cut was replaced by Cut silences (0.10.65)
+- The user, 2026-11-21: the rough cut is no more, Cut silences replaced it; the sideways vertical footage is believed fixed.
+- **Rough cut: vertical footage comes in sideways (2026-11-03, 0.9.64; 0.9.67 describes rotated files upright in the XML, UNVERIFIED).** The Masterhaus files (fx31033, C0736: 3840×2160, display matrix `rotation=90`) are upright in the source sequence (Premiere reads the flag on a normal import) but sideways and letterboxed in the rough cut, with no rotation in Effect Controls: the XML's `<file>` says 3840×2160 and the master clips the import makes do not take the flag. Probe XMLs (A as now, B 2160×3840, C no `<media>` in `<file>`) in the session scratchpad; the fix waits for TEST.prproj.
+
+- **Rough cut: an unused quiet audio track counts as sound (2026-11-03, 0.9.63; 0.9.67 leaves out audio on a muted track or a disabled clip, UNVERIFIED: needs `isMuted`/`isDisabled` in Premiere 26.0.2).** The camera's own mic (A1) selected next to the lavalier tracks makes the stretches where only that camera records look like speech; they stay and leave gaps in the other camera's row (44.8 s in the last run, more with A1 selected). Workaround: delete (or do not select) the unused track; then the time no selected audio covers is cut whole (162 s in that run; the result says so). Proposed fix, not built: audio on a muted or disabled track is ignored for speech and left out of the rough cut.
+- **Rough cut: the user says the effects of „Оправи звука“ do not transfer (2026-11-03, 0.9.63).** Read back on the new sequence in TEST.prproj: Volume level and Dynamics → Limiter -6 dB are on every piece and match the source. Not checked and not readable by any API: the L/L and R/R channel routing (the new clips use the full media file through the XML, not the „… L …“/„… R …“ subclips). The user was asked which effect is missing.
+
 ## FIXED (0.10.120): subtitles froze at "Aligning the words to the sound…"
 - ElevenLabs wrote a shout as one 1000-letter word and the dictionary's neighbour search (used when the project has learned
   fixes or correction lines) ran for minutes, holding the whole engine. CHANGELOG 0.10.120. Still true: a long pure-Python

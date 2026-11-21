@@ -29,22 +29,8 @@
 - The preview's dynamic checkboxes and text-field `change` events were never run in UXP (browser preview only).
 
 ## Open bugs
-- **Premiere crashed on Exposure +0.5 pressed twice fast (2026-11-18 11:48, the user's GStroy project, 26.5.3):** two clips
-  without a Lumetri; no crash report written. Treated as the same Premiere fault as the Keyframer crash below; 0.10.118 settles
-  60 ms and reads the effects from a fresh handle after every Lumetri / Tint add and between queued presses. If it happens
-  again, note the time and whether the clips already had a Lumetri.
-- **Premiere crashed once while testing 0.10.86 (2026-11-15 04:07, NEW TEST, recovered on relaunch):** inside UXP, turning a
-  Premiere object into JavaScript (`napi_wrap` from `CallProperty`; the pointer read was text: a freed object), right after
-  the Keyframer added its motion blur Transform. The same step ran fine about ten times before and after; Lumetri and Tint
-  add effects the same way. 0.10.87 keeps the new effect referenced, waits 60 ms and reads the chain from a fresh handle. If
-  it happens again, the crash report is in `~/Library/Logs/DiagnosticReports/Adobe Premiere Pro 2026-*.ips`.
 - **Limit (0.10.88):** motion blur leaves a frame sharp when the picture grows more than 4x within the shutter time (Premiere
   then blends every frame's blur straight from start to end); typically the first frame of a pop from scale 0.
-- **Fixed in 0.10.77, not yet confirmed by the user (2026-11-15):** Track and Stop in the Tracker needed several clicks (the
-  user's screen recording): Track's tooltip stayed up while it was clicked and only the last press reached the log. Likely the
-  picture kept the pointer captured after the box was drawn. Captures are released by hand now, and a press landing on a button
-  but delivered elsewhere presses that button (log: "press for ... arrived at ..."); if that line never shows and presses are
-  still lost, the cause is elsewhere.
 - **Fixed in 0.10.71 (2026-11-14):** Adobe's installer listed only 0.10.71 but Premiere's own plugin list
   (`UXP/PluginsInfo/v1/premierepro.json`) kept 0.10.70 first, and Premiere loaded 0.10.70 even after a restart. `install_panel`
   now also reads that list and does the remove + install cycle when it holds another version. The case below is the same bug.
@@ -88,10 +74,6 @@
   V1 corrected the switched-off V2 clip; A1 also took A2 and A3). Unverified in Premiere. Still open from the same recording:
   after the press the Program monitor showed the switched-off V2 clip (check in NEW TEST whether adding Lumetri to a
   switched-off clip turns it on in Premiere 26.0.2).
-- **Rough cut: vertical footage comes in sideways (2026-11-03, 0.9.64; 0.9.67 describes rotated files upright in the XML, UNVERIFIED).** The Masterhaus files (fx31033, C0736: 3840×2160, display matrix `rotation=90`) are upright in the source sequence (Premiere reads the flag on a normal import) but sideways and letterboxed in the rough cut, with no rotation in Effect Controls: the XML's `<file>` says 3840×2160 and the master clips the import makes do not take the flag. Probe XMLs (A as now, B 2160×3840, C no `<media>` in `<file>`) in the session scratchpad; the fix waits for TEST.prproj.
-
-- **Rough cut: an unused quiet audio track counts as sound (2026-11-03, 0.9.63; 0.9.67 leaves out audio on a muted track or a disabled clip, UNVERIFIED: needs `isMuted`/`isDisabled` in Premiere 26.0.2).** The camera's own mic (A1) selected next to the lavalier tracks makes the stretches where only that camera records look like speech; they stay and leave gaps in the other camera's row (44.8 s in the last run, more with A1 selected). Workaround: delete (or do not select) the unused track; then the time no selected audio covers is cut whole (162 s in that run; the result says so). Proposed fix, not built: audio on a muted or disabled track is ignored for speech and left out of the rough cut.
-- **Rough cut: the user says the effects of „Оправи звука“ do not transfer (2026-11-03, 0.9.63).** Read back on the new sequence in TEST.prproj: Volume level and Dynamics → Limiter -6 dB are on every piece and match the source. Not checked and not readable by any API: the L/L and R/R channel routing (the new clips use the full media file through the XML, not the „… L …“/„… R …“ subclips). The user was asked which effect is missing.
 - **Subtitles: wrong words are corrected by the editor since 0.9.67 (Captions tab).** The recognition itself still misreads far-microphone speech at random (see CHANGELOG 0.9.67).
 - **Subtitles 0.9.48:** valid-word mis-hearings are invisible to the checks („той за градината“ for „то и за градината“, „Превърна“ at 6 s context); „го взимам“ may be a swallowed „взимаме“; a clip that starts inside a word keeps only the rest of it; the panel's flag list can contain false alarms (breath, hum). Older: **Subtitles 0.9.47:** timing can still be 50-120 ms off at some caption switches inside continuous speech (aligner resolution); an old Asistent caption track must be deleted by hand before a new run can be placed (no API to delete one; since 0.9.97 its lines are removed and only the empty track is left). „трябваше“ (corrected) is timed from its neighbours, not found by the aligner. „Я“, „то и за градината“, „свършил“ remain marked „?“.
 - **Subtitles 0.9.97 (fixed 0.9.98): a word right at a cut could vanish** when a cut-out retake of it was close before the clip (the aligner placed it there); the media between clips is now silent for Whisper.

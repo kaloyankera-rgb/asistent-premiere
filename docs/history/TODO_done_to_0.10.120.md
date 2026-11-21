@@ -4,6 +4,21 @@ Kept word for word. V94 and V95 check the clone path that the host cut of 0.10.1
 are repeated in V119); C2 and P8 are the shipped Phase 7 and Phase 8 plans; U and L check panel versions long replaced
 (0.10.59 layout); T1 is done by the documentation reorganisation of 2026-11-21. Open tasks: [../../TODO.md](../../TODO.md).
 
+## DROPPED (2026-11-21): rough cut tasks, the rough cut is retired
+The user, 2026-11-21: "Rough cut is no more we have cut silences now" (Silences replaced it in 0.10.65). From TODO F, EL, A and I.
+- [ ] **Rough cut "a bit inaccurate"** (the user): needs one example (where: cut too much, too little, wrong take, mid-word).
+- [ ] **EL4. Rough cut.** What editors restore or remove after Asistent's rough cut (where its cut rules are wrong); ties in with
+  I9 (rough-cut review).
+- **Rough cut too slow and not a good cut (the user, 2026-11-09).** Log: a 10-minute video (48 items, IVO7V97xx) spent its time in
+  speech recognition (Whisper large-v3 on the CPU, int8 beam 5) and was cancelled after 326 s; the cutting itself takes seconds
+  (388 s of footage cut in 2.7-4.8 s once the words were known). Options to measure: reuse words the subtitle run already
+  recognised for the same media; a faster recognizer just for the rough cut (whisper.cpp measured 7.3x faster, but invented a line,
+  so only where takes are matched, never for subtitles); greedy decoding for the rough cut only. Ask the user what was wrong with
+  the cut (cut too much / too little / wrong take / mid-word) and look at a run before changing the rules.
+- **I9. Transcript editing and rough-cut review.** The Review tab of docs/ROUGHCUT_PLAN.md: keep/remove per passage with ▶ (reuse
+  listen.py), compare takes, restore a removed passage, the reason for each cut, rebuild as ROUGH vN+1 (new sequence). Number,
+  negation, name protections stay (takes.py); never cut on similarity alone. Accept: an editor's override survives the rebuild.
+
 ## V95. Verify 0.10.95 (2026-11-15)
 - [ ] Cut silences, Auto, on IMG_9422 (Lokali): the red-labelled parts are gone, the green ones stay, the result says how many
       seconds of quieter voices went. Same on the "Lokali" IMG_9423 clip: no error, no crash; if Premiere refuses a piece the

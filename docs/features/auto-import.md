@@ -46,13 +46,12 @@ appear in Premiere. It is on by itself and watches the folder the project is sav
 ## Status
 - Since 0.7.0 (folder sync, verified by the user in Premiere with Epidemic music / SFX and Shutterstock B-roll);
   on by default since 0.10.113. 0.10.113-0.10.115 were checked in NEW TEST through the bridge (it watches
-  Ludi Glavi/Projects, steady over a restart). An import through the new default by the user: not yet tried.
+  Ludi Glavi/Projects, steady over a restart). The new default in a new project: confirmed fine by the user 2026-11-21.
 - Folder drop (0.10.67): not tried in Premiere. Whether Premiere's UXP hands the panel the dropped path is unknown; the
   panel logs "import drop: …" and then says to use "Other folder…".
-- Latest status line: 0.10.115-0.10.116 waiting for a check in Premiere (PROJECT_STATUS). Latest release v0.10.118.
+- Latest status line: 0.10.115-0.10.116 confirmed by the user 2026-11-21. Latest release v0.10.118.
 - Windows: untested (watchdog, `settle`, folder picker never run on the PC).
-- Open: TODO V section "0.10.115: a NEW project" (a new project watches its folder; an export there is not imported).
-  BUGS: the recovery-copy limit above.
+- Open: BUGS: the recovery-copy limit above.
 
 ## Tests
 - `tests/test_importer.py`: classify, settle, binding, auto_bind, exports skipped, depth and repository rules.

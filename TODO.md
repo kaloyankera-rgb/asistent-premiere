@@ -8,8 +8,9 @@ Work rule for every step: implement → tests → bump version (manifest + confi
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
 ## V119. Verify 0.10.119 (2026-11-21): subtitles by ElevenLabs
-- [ ] USER (Premiere restarted): Settings > Subtitles shows "On (key ending …)". Make subtitles in Auto on a non-ReShape clip
+- [x] USER (Premiere restarted): Settings > Subtitles shows "On (key ending …)". Make subtitles in Auto on a non-ReShape clip
       in NEW TEST: the result says "Words by ElevenLabs Scribe v3", the words and the wait against the same clip before.
+      The user, 2026-11-21: works after the 0.10.120 fix, tried on 2 videos, "pretty fast and accurate".
 - [ ] The Lokali pieces (4a1a): „Карал ли си някога реална кола? Не. А карал ли си на симулатор? Да.“ with ElevenLabs.
 - [ ] ReShape on its own clip: the same captions as before, no "Words by" line.
 - [ ] Turn off in Settings, run Auto again: recognised on this computer as before.
@@ -22,13 +23,14 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
       faster but 18 words worse on the tuning clips) and decide whether it replaces `STRICT` as the no-internet fallback.
 
 ## V96. Verify 0.10.96 (2026-11-15): Cut silences rebuilt
-- [ ] 0.10.115: the tab row: names readable, the open tab clearly marked, no yellow box; the page fades in when you switch.
-- [ ] 0.10.115: Keyframer: open presets and settings, scroll: Apply, Undo last and Update live stay at the bottom.
-- [ ] 0.10.115: select a text you made in Premiere (white), Brand > a colour > Apply to selected: the letters take the colour, a
+The user, 2026-11-21: the five 0.10.115 checks (tab row, Keyframer buttons, Brand colour, Auto import, Export check) are fine.
+- [x] 0.10.115: the tab row: names readable, the open tab clearly marked, no yellow box; the page fades in when you switch.
+- [x] 0.10.115: Keyframer: open presets and settings, scroll: Apply, Undo last and Update live stay at the bottom.
+- [x] 0.10.115: select a text you made in Premiere (white), Brand > a colour > Apply to selected: the letters take the colour, a
       black outline stays black. One Cmd+Z per step (a new Tint is two).
-- [ ] 0.10.115: a NEW project: Auto import says "Watching <its folder>" by itself; download an asset into that folder (or a
+- [x] 0.10.115: a NEW project: Auto import says "Watching <its folder>" by itself; download an asset into that folder (or a
       subfolder): it is imported; export into the same folder: the export is not imported. Switch it off: it stays off.
-- [ ] 0.10.115: the next export: Export check shows each thing to look at in a card (where, what to check), passes in one line.
+- [x] 0.10.115: the next export: Export check shows each thing to look at in a card (where, what to check), passes in one line.
 - [ ] 0.10.110: run Cut silences again on the same sequence (Remove, or keep the spaces and close the gaps): no little clips and no
       1-frame gaps between the clips. Hover the Silences options: a short summary, then one row per choice with its name in bold.
 - [ ] 0.10.109: Cut silences on the whole 5-minute POV sequence in NEW TEST (your recording's case), Remove: no crash; the new
@@ -118,7 +120,6 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
   60 s). With many clips (Pulse, 48 items) the time is recognition itself: a faster recognizer for the rough cut only (its words
   are never shown) needs the user's choice: large-v3-turbo (about 1.6 GB download, same engine, Windows too) or whisper.cpp on
   the GPU (built in experiments, 7.3x, one invented line seen). Greedy decoding measured: 20 % faster, worse words, not used.
-- [ ] **Rough cut "a bit inaccurate"** (the user): needs one example (where: cut too much, too little, wrong take, mid-word).
 
 - [ ] **0.10.38 Sync keeps Fix audio, no gap:** USER: in B-Roll select C0930, C0932, IMG_0357 and press Sync: iPhone on V2 over
   C0930, C0932 straight after C0930, both with their L / R copies and levels.
@@ -192,19 +193,11 @@ undo, never a silent change. Start with EL1.
   style its breaks), and which words they colour (teaches the keyword suggestions; Premiere 26.0.2 cannot read a caption's word
   colour from a script (docs/NATIVE_GRAPHICS.md): probe again in 26.5 / 27 before promising it).
 - [ ] **EL3. Sound.** Final clip volumes and where music sits under the voice, per client (targets for Fix audio).
-- [ ] **EL4. Rough cut.** What editors restore or remove after Asistent's rough cut (where its cut rules are wrong); ties in with
-  I9 (rough-cut review).
 - [ ] **EL5. The report for Claude.** `scripts/measure_learning.py` extended (or a new report): per client, what Asistent
   suggested against what the editors kept, and the pattern; Claude reads it when the user asks and proposes preset changes
   (colour targets, keyword words, line rules) as a normal version.
 
 ## A. Fix known bugs
-- **Rough cut too slow and not a good cut (the user, 2026-11-09).** Log: a 10-minute video (48 items, IVO7V97xx) spent its time in
-  speech recognition (Whisper large-v3 on the CPU, int8 beam 5) and was cancelled after 326 s; the cutting itself takes seconds
-  (388 s of footage cut in 2.7-4.8 s once the words were known). Options to measure: reuse words the subtitle run already
-  recognised for the same media; a faster recognizer just for the rough cut (whisper.cpp measured 7.3x faster, but invented a line,
-  so only where takes are matched, never for subtitles); greedy decoding for the rough cut only. Ask the user what was wrong with
-  the cut (cut too much / too little / wrong take / mid-word) and look at a run before changing the rules.
 - **0.10.34 Track names, the user:** press Cmd+Z once after Name the tracks (all names back in one step); try it on a client
   sequence with your own track names (they must stay); say whether you want colours per camera, and which.
 - **Move off faces, still to see (0.10.17):** the 17 C29 lines over the kam2/kam1 cuts (2:04.1, 2:24.6), a second press says
@@ -262,9 +255,6 @@ a row in docs/ROLLBACK.md, measured against Classic on the same inputs before it
 - **I8. Client workflow presets.** Extend `subtitle_settings` + the client learning folder (not the unfinished profiles.py draft)
   with: subtitle style choice, English on/off, terminology, audio target, aspect/safe margins, naming and export preferences; new
   keys only, the ReShape preset untouched. Accept: a second project of the same client opens with the same choices.
-- **I9. Transcript editing and rough-cut review.** The Review tab of docs/ROUGHCUT_PLAN.md: keep/remove per passage with ▶ (reuse
-  listen.py), compare takes, restore a removed passage, the reason for each cut, rebuild as ROUGH vN+1 (new sequence). Number,
-  negation, name protections stay (takes.py); never cut on similarity alone. Accept: an editor's override survives the rebuild.
 - **I10. Marketing variants.** Editor-marked hook/body/CTA regions (markers), chosen combinations built as named new sequences
   (FCP7 XML like the rough cut); no wording chosen by Asistent. Probe Media Encoder / `EncoderManager.exportSequence` before batch export.
 - **I11. Reframing and face-aware placement.** YuNet (already bundled) first: smoothed vertical crop suggestions and the planned

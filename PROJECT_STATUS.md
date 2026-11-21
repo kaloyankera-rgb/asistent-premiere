@@ -14,27 +14,21 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
   [install-and-update](docs/features/install-and-update.md).
 
 ## In progress
-- Subtitles read by ElevenLabs Scribe (0.10.119): the user's first run in Premiere froze at "Aligning the words to the
-  sound…"; fixed in 0.10.120 (a shout written as a 1000-letter word), the next run in Premiere still to come. The key
-  that was pasted into the chat on 2026-11-21 should be replaced with a new one. TODO V119.
-  [subtitles](docs/features/subtitles.md)
+- Subtitles read by ElevenLabs Scribe (0.10.119-0.10.120): works in Premiere (the user, 2026-11-21: two videos, fast and
+  accurate). Still open: one ReShape run, the switch-off run, and replacing the key pasted into the chat on 2026-11-21.
+  TODO V119. [subtitles](docs/features/subtitles.md)
 - Local recognition experiments (`NEXT` profile) paused behind a development switch; the held-back runs were stopped.
 
 ## Waiting for a check in Premiere (newest first)
-- 0.10.119-0.10.120: the Settings > Subtitles card, one Auto run, one ReShape run (same captions as before), switch off
-  and run again. [subtitles](docs/features/subtitles.md)
-- 0.10.118: Exposure ±0.5 pressed twice fast no longer crashes (settle after a Lumetri / Tint add).
-  [color](docs/features/color.md)
+- 0.10.119-0.10.120: one ReShape run (same captions as before), switch off and run again (Auto confirmed 2026-11-21).
+  [subtitles](docs/features/subtitles.md)
 - 0.10.117: Sync accepts short takes whose camera clocks wander up to 2.0 s. [sync](docs/features/sync.md)
-- 0.10.115-0.10.116: the restyled tab row; Keyframer's dock; Brand colour Apply / Copy rows and Apply on text made in
-  Premiere; Auto import on by default in a new project; Export check cards. [brand](docs/features/brand.md),
-  [keyframer](docs/features/keyframer.md), [auto-import](docs/features/auto-import.md),
-  [exports](docs/features/exports.md)
 - 0.10.96-0.10.110: Cut silences rebuilt (options, Preview) and cut by the host in a duplicate sequence; checked in NEW TEST
   through the bridge, the user's own run on a long sequence still to come. [cut-silences](docs/features/cut-silences.md)
 - 0.10.88-0.10.93: Keyframer motion blur and live preview (look); Anchor on text made in Premiere.
   [keyframer](docs/features/keyframer.md), [anchor](docs/features/anchor.md)
-- 0.10.73-0.10.77: Tracker zoom, layout and the object's colours on real footage (Track / Stop presses by the user).
+- 0.10.73-0.10.76: Tracker zoom, layout and the object's colours on real footage (Track / Stop on the first click
+  confirmed 2026-11-21).
   [tracker](docs/features/tracker.md)
 - 0.10.71: Brand tab as a whole; `ppro.Color`'s range unmeasured. [brand](docs/features/brand.md)
 - 0.10.67: a folder dropped on the Auto import row. [auto-import](docs/features/auto-import.md)
@@ -43,12 +37,10 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - Full checklists per version: `TODO.md` (sections V119, V96 and on).
 
 ## Open problems
-- Premiere crashes once in a while inside its scripting layer (Exposure +0.5 twice fast, 2026-11-18; Keyframer, 2026-11-15).
-  `BUGS.md` "Open bugs".
 - Keyframer's record key cannot tell Premiere's graphics apart. `BUGS.md`, [keyframer](docs/features/keyframer.md).
 - Everything else open: `BUGS.md` (open bugs and platform limits) and `TODO.md` (tasks in priority order).
 
 ## Next
-1. The user's checks above, starting with subtitles by ElevenLabs.
+1. The user's checks above, starting with Cut silences on a long sequence.
 2. Release 0.10.120 when the user asks.
 3. `TODO.md` in its order.

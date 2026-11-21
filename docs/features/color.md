@@ -61,10 +61,9 @@ Lumetri in one press, then checks a frame and takes back whatever got worse. Und
 - Since: Phase 6 engine 0.8.0, Lumetri apply 0.9.x, buttons split 0.9.58, one-click apply 0.9.99, +-0.5 steps 0.9.88 and 0.10.1.
   Latest line: 0.10.118 installed, untested in Premiere (CHANGELOG).
 - Mac: Auto color and Match POVs used by the user in Premiere (Match POVs on the GStroy pairs at 0.9.32; S-Log3 under a LUT
-  layer on Pulse at 0.10.26-0.10.29). Not yet tried: the 0.10.29 overshoot step back (TODO F), the 0.10.118 settle.
+  layer on Pulse at 0.10.26-0.10.29). Not yet tried: the 0.10.29 overshoot step back (TODO F). No crash since the 0.10.118 settle (the user, 2026-11-21).
 - Windows: untested; Shot Match and colour frames never run there (TODO W).
-- Open: two anchors can differ by 2 stops on one clip, skin target 0.62 may be too bright (TODO A, B9); crash note in `BUGS.md`
-  "Open bugs" (Exposure +0.5 twice fast); TODO B8 (test matrix `docs/color-spec/05_TEST_MATRIX.csv`) and I6.
+- Open: two anchors can differ by 2 stops on one clip, skin target 0.62 may be too bright (TODO A, B9); TODO B8 (test matrix `docs/color-spec/05_TEST_MATRIX.csv`) and I6.
 
 ## Tests
 - `tests/test_color.py` (analysis, check, calibration), `test_shotmatch.py`, `test_managed.py`, `test_real_skin.py` (real

@@ -52,7 +52,7 @@ keys so the object stays put on screen ("Lock to it"). Each frame is marked sure
 - Tried in Premiere 26.5.2 through the test bridge on a synthetic 4K clip: within 0.5 px in Premiere's own frames, scale
   and rotation right, Detach and the refusal over the editor's keys checked. The user ran it on a real clip (their ball
   recording, 2026-11-15); the engine scored 13 of 57 hand-marked ball frames followed, 4 off, 40 lost. Latest status
-  line: PROJECT_STATUS 0.10.77. Not yet confirmed by the user: Track and Stop acting on the first press.
+  line: PROJECT_STATUS 0.10.77. Track and Stop act on the first press: confirmed by the user 2026-11-21.
 - Windows: untested (the OpenCV wheel exists, not run there).
 - Open limits: bending shapes, objects the colour of their surroundings moving fast, no corner pin (docs/TRACKER.md "Limits").
 - TODO: section N (user checks), CP A3 / A3b "Later if wanted" (Stabilise, 9:16 reframe on a face, corner pin).
