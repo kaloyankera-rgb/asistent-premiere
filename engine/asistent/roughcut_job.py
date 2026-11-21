@@ -6,7 +6,8 @@ XML as a new sequence.
 
 Nothing here talks to Premiere. Words come from the same Whisper readings as the subtitles (cached by their audio, so a
 second run with another mode or tempo costs seconds); without the speech model the pauses are cut from the energy and
-Silero alone, and the result says so.
+Silero alone, and the result says so. Since 0.10.121 Cut silences' AI-assisted words come from ElevenLabs Scribe when the
+editor saved a key and left the switch on (the user, 2026-11-21), never in a ReShape project (`is_reshape`).
 """
 from __future__ import annotations
 
@@ -15,11 +16,12 @@ import logging
 
 import numpy as np
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
-from . import asr, edl, media, pauses, silence, speechmap, subtitles, takes, vad, xmeml
+from . import asr, cloudasr, edl, learning, media, pauses, recognition, silence, speechmap, subtitles, takes, vad, xmeml
 from .dialoguemix import ASR_SR, build_mix, read_segment
 from .subtitle_job import PAD, _cached, _inside, _same_word, _store, plan_windows, read_window, window_audio
 
@@ -43,6 +45,29 @@ PART = 30.0
 # the subtitles never see them; a subtitle reading of the same audio (large-v3) is still reused when it is there, at no cost.
 TURBO_KEY = "turbo3-"      # 0.10.45: read with asr.ROUGH_COMPRESSION (the 0.10.40 "turbo-" readings are not reused)
 ROUGH_KEY = "rough3-"      # 0.10.45: the rough cut's own large-v3 reading (asr.ROUGH_COMPRESSION)
+# 0.10.121 (the user, 2026-11-21: "can we also use elevenlabs there to recognize speech faster"): Cut silences' AI-assisted
+# words are read by Scribe like the subtitles' (recognition.CLOUD), never in a ReShape project: its subtitles are frozen on
+# this computer and its sound stays here too. ReShape is known by its folder ("ReShape", or the doctor's name the Brand tab
+# uses for it), also when Finder mounted a deeper folder of the share as its own volume (learning._mounts).
+RESHAPE_MARKS = ("reshape", "решейп", "denkov", "денков")
+
+
+def is_reshape(folder: str) -> bool:
+    """Is this project folder (or the share path behind its mount) a ReShape one?"""
+    if not folder:
+        return False
+    path = os.path.abspath(folder)
+    paths = [path]
+    for _host, remote, point in learning._mounts():
+        if path == point or path.startswith(point + "/"):
+            paths.append(remote + path[len(point):])
+    parts = [re.sub(r"[^0-9a-zа-я]", "", part.lower()) for p in paths for part in re.split(r"[\\/]", p)]
+    return any(m in part for part in parts for m in RESHAPE_MARKS)
+
+
+def use_cloud(out_dir: str) -> bool:
+    """Scribe reads the words of this Cut silences run: a key is saved, the switch is on and it is not a ReShape project."""
+    return cloudasr.available() and not is_reshape(out_dir)
 
 
 def model(fast: bool = False) -> str | None:
@@ -74,6 +99,26 @@ def read_rough(win: dict, kind: str, progress, cancelled) -> dict:
         entry = {"words": asr.transcribe(y, None, progress, cancelled, model=kind, compression=asr.ROUGH_COMPRESSION)}
         _store(key, entry)
     return {"y": y, "key": key, "entry": entry, "cached": cached}
+
+
+def read_cloud(win: dict, kind: str | None, progress, cancelled) -> dict:
+    """One window's words from Scribe. The reading is the subtitles' own (same sound, same request, same cache key: an empty
+    prompt and recognition.CLOUD's tag), so a window either feature already sent is never sent again. When ElevenLabs cannot
+    read it, the window is read on this computer as before ("fallback": the reason), or gives no words without a model."""
+    y, key = window_audio(win, "", recognition.CLOUD)
+    entry = _cached(key) or {}
+    if "words" in entry:
+        return {"y": y, "key": key, "entry": entry, "cached": True}
+    try:
+        # only the sound goes, as for the subtitles (cloudasr.py says what leaves the computer and why)
+        entry = {"words": cloudasr.transcribe(y, progress, cancelled, recognition.CLOUD.cloud), "by": recognition.CLOUD.cloud}
+    except cloudasr.CloudError as e:
+        log.warning("silences: %s; this window is recognised on this computer", e)
+        if not kind:
+            return {"y": y, "key": key, "entry": {"words": []}, "cached": False, "fallback": str(e), "missed": True}
+        return {**read_rough(win, kind, progress, cancelled), "fallback": str(e)}
+    _store(key, entry)
+    return {"y": y, "key": key, "entry": entry, "cached": False}
 
 
 def split_long(segments: list[dict], read=read_segment, part: float = PART) -> list[dict]:
@@ -165,17 +210,17 @@ def validate(body: dict) -> dict:
             "quiet": bool(sil and sil["mode"] != "silence")}
 
 
-def _words(segments: list[dict], progress, cancelled, fast: bool = False) -> tuple[list[dict], dict]:
+def _words(segments: list[dict], progress, cancelled, fast: bool = False, cloud: bool = False) -> tuple[list[dict], dict]:
     """Whisper words of the pieces in SEQUENCE seconds (verbatim, no spelling work: the cut needs where speech is, not how it
-    is spelled) and a note on how they were made."""
+    is spelled) and a note on how they were made. `cloud`: Scribe reads them (read_cloud), this computer only where it fails."""
     kind = model(fast)
-    if not kind:
+    if not kind and not cloud:
         return [], {"asr": False, "note": "No speech model: the pauses were found only by the sound level and Silero."}
     wins = plan_windows(segments)
     # fewer windows than readers (one long clip): long pieces are read in parts, unless the subtitles' readings of the same
     # media are all there to reuse. With as many windows as readers splitting only adds work (REVO, three clips of 102-190 s:
-    # 106 s as three windows, 167 s as sixteen parts)
-    if len(wins) < asr.workers() and not all("words" in (_cached(window_audio(w, "")[1]) or {}) for w in wins):
+    # 106 s as three windows, 167 s as sixteen parts). Scribe reads a whole window in seconds: no parts
+    if not cloud and len(wins) < asr.workers() and not all("words" in (_cached(window_audio(w, "")[1]) or {}) for w in wins):
         parts = split_long(segments)
         if len(parts) > len(segments):
             wins = plan_windows(parts, max_window=PART + 2 * PAD + 10.0)
@@ -187,7 +232,7 @@ def _words(segments: list[dict], progress, cancelled, fast: bool = False) -> tup
         def on_progress(f, m):
             frac[i] = f
             progress(sum(a * b for a, b in zip(frac, shares)), m)
-        return read_rough(wins[i], kind, on_progress, cancelled)
+        return (read_cloud if cloud else read_rough)(wins[i], kind, on_progress, cancelled)
 
     reads = [None] * len(wins)
     order = sorted(range(len(wins)), key=lambda i: -(wins[i]["b"] - wins[i]["a"]))
@@ -212,7 +257,18 @@ def _words(segments: list[dict], progress, cancelled, fast: bool = False) -> tup
     for w in words:
         if not any(_same_word(w, u) for u in unique[-3:]):
             unique.append(w)
-    return unique, {"asr": True, "cached": all(r["cached"] for r in reads), "windows": len(wins), "model": kind}
+    how = {"asr": True, "cached": all(r["cached"] for r in reads), "windows": len(wins), "model": kind}
+    if cloud:
+        # who read the words, for the result line (as the subtitles report it): "local" windows were read on this computer,
+        # "missed" ones gave no words (no model here either)
+        missed = sum(1 for r in reads if r.get("missed"))
+        how.update({"model": recognition.CLOUD.cloud, "recognizer": {
+            "name": cloudasr.NAME, "windows": len(wins), "local": sum(1 for r in reads if r.get("fallback") and not r.get("missed")),
+            "missed": missed, "fallback": sorted({r["fallback"] for r in reads if r.get("fallback")})}})
+        if missed == len(wins):
+            how.update({"asr": False, "note": "ElevenLabs could not read the speech and there is no speech model on this computer: "
+                                              "detected without recognition (no hesitation sounds, no repeated takes)."})
+    return unique, how
 
 
 def _version(folder: str, stem: str) -> int:
@@ -324,15 +380,15 @@ def run(body: dict, progress: Callable[[float, str], None], cancelled: Callable[
 _WORDS: dict = {}                                 # the words of the last selections (AI): a preview after a changed setting reads nothing again
 
 
-def _silence_words(dialogue: list[dict], fast: bool, progress, cancelled) -> tuple[list[dict], dict]:
-    """The recognised words for AI-assisted detection, remembered by what was selected (the readings themselves are cached
-    by their audio as well, like the subtitles')."""
-    key = (fast, tuple((d["path"], round(d["start"], 3), round(d["end"], 3), round(d["at"], 3), d.get("side")) for d in dialogue))
+def _silence_words(dialogue: list[dict], fast: bool, progress, cancelled, cloud: bool = False) -> tuple[list[dict], dict]:
+    """The recognised words for AI-assisted detection, remembered by what was selected and by who reads them (the readings
+    themselves are cached by their audio as well, like the subtitles')."""
+    key = (fast, cloud, tuple((d["path"], round(d["start"], 3), round(d["end"], 3), round(d["at"], 3), d.get("side")) for d in dialogue))
     if key not in _WORDS:
-        if not model(fast):
+        if not cloud and not model(fast):
             return [], {"asr": False, "note": "No speech model on this computer: detected without recognition (no hesitation sounds, no repeated takes)."}
         mix = build_mix(dialogue, lambda f, m: progress(0.1 * f, m), cancelled)
-        _WORDS[key] = _words(mix["segments"], lambda f, m: progress(0.1 + 0.9 * f, m), cancelled, fast)
+        _WORDS[key] = _words(mix["segments"], lambda f, m: progress(0.1 + 0.9 * f, m), cancelled, fast, cloud)
         while len(_WORDS) > 4:
             _WORDS.pop(next(iter(_WORDS)))
     return _WORDS[key]
@@ -352,7 +408,7 @@ def run_silence(p: dict, progress, cancelled, t0: float) -> dict:
     det = silence.detect(dialogue, t_start, t_end, progress=lambda f, m: progress((0.25 if ai else 0.75) * f, m), cancelled=cancelled, s=s)
     words, how, groups = [], {"asr": False}, []
     if ai:
-        words, how = _silence_words(dialogue, p["fast"], lambda f, m: progress(0.25 + 0.5 * f, m), cancelled)
+        words, how = _silence_words(dialogue, p["fast"], lambda f, m: progress(0.25 + 0.5 * f, m), cancelled, use_cloud(p["out_dir"]))
         if s["mode"] == "ai" and words:
             groups = takes.find(words)
     pl = silence.plan(det, s, t_start, words, groups)
@@ -380,7 +436,7 @@ def run_silence(p: dict, progress, cancelled, t0: float) -> dict:
         "suggest_db": silence.suggest_threshold([i.get("main") for i in det["items"]]),
         "tracks": tracks, "listen": s["listen"],
         "what": s["mode"], "takes": [g for g in groups if g.get("applied") or g.get("listed")], "takes_cut_s": round(sum(g.get("cut_s", 0.0) for g in groups), 2),
-        "speech": {"asr": bool(how.get("asr")), "note": how.get("note"), "words": len(words),
+        "speech": {"asr": bool(how.get("asr")), "note": how.get("note"), "words": len(words), "recognizer": how.get("recognizer"),
                    "vad": any(i["vad"] for i in det["items"]), "listened": det["items"]},
         "skipped": p["skipped"],
     }

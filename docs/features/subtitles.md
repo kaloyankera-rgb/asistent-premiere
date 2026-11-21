@@ -21,7 +21,8 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
   cache keys and result keys. Pinned by `tests/test_recognition_profiles.py`, `tests/test_reshape_baseline.py` and
   `scripts/reshape_golden.py check` (must stay identical). `scripts/reshape_guard.py` lists the protected files; touching
   one needs a golden check and a DECISIONS entry. New code in them is an optional argument whose default is the old call.
-- The one cloud exception (the user, 2026-11-21, 0.10.119): every style but ReShape's may be read by ElevenLabs Scribe v3
+- The first cloud exception (the user, 2026-11-21, 0.10.119; the second is Cut silences' AI words, 0.10.121, which share these
+  readings by cache key): every style but ReShape's may be read by ElevenLabs Scribe v3
   when a key is saved and the switch is on. Only the sound of the windows goes, never picture, names, prompt or corrections.
   No other feature may use it. `cloudasr.py` is the only module that sends anything out. The key stays in
   `<app>/elevenlabs.key`, is never returned to the panel, never printed or committed. Failure falls back to this computer

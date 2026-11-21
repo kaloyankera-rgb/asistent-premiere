@@ -2,7 +2,7 @@
 
 Start here. To change a feature, read its page below before the code, and update that page in the same commit.
 Each page has the same sections: what it does, how to use it, key points (do not break), decisions, code map,
-status, tests. Status as of 0.10.120 (2026-11-21).
+status, tests. Status as of 0.10.121 (2026-11-21).
 
 ## Features
 
@@ -10,13 +10,13 @@ status, tests. Status as of 0.10.120 (2026-11-21).
 |---|---|---|---|---|
 | Sync | Lines up cameras and lavaliers by shared sound in a new SYNC sequence | [sync](features/sync.md) | Verified; 0.10.117 not tried | Untested |
 | Fix audio | L/L and R/R copies, level to -17 LUFS, peak under -6 dBFS | [fix-audio](features/fix-audio.md) | Split verified; Undo count unverified | Untested |
-| Cut silences | Silences, off-mic voices and repeated takes cut in a duplicate sequence | [cut-silences](features/cut-silences.md) | Bridge-tested 0.10.110; user's presses open | Untested |
+| Cut silences | Silences, off-mic voices and repeated takes cut in a duplicate sequence | [cut-silences](features/cut-silences.md) | Bridge-tested 0.10.110; ElevenLabs AI words 0.10.121; user's presses open | Untested |
 | Track names | Tracks named POV 1, POV 2, Mic n, Subtitles BG / EN; camera colours | [track-names](features/track-names.md) | Bridge-tested; Cmd+Z unverified | Untested |
 | Color | Auto color (white balance + exposure), Match POVs, Exposure ±0.5, Before / after | [color](features/color.md) | Used by the user; 0.10.118 untested | Untested |
 | Learn from exports | Editors' Lumetri noted next to Auto color's, per client and camera | [color-learning](features/color-learning.md) | Bridge-verified; real Export untried | Untested |
 | Before export | Check export: offline, gaps, picture that does not fill, safe area, peaks | [export-check-before](features/export-check-before.md) | Bridge-verified; not tried by the user | Untested |
 | Show exports, Export check | Finished export shown in Finder; FFmpeg measures the file | [exports](features/exports.md) | Seen on a real export; event unverified | Untested |
-| Subtitles | Bulgarian speech to SRT and a caption track; Captions tab fixes and learning | [subtitles](features/subtitles.md) | Core verified; 0.10.119-0.10.120 run open | Untested |
+| Subtitles | Bulgarian speech to SRT and a caption track; Captions tab fixes and learning | [subtitles](features/subtitles.md) | Core verified; ElevenLabs Auto verified 2026-11-21, ReShape and switch-off runs open | Untested |
 | Auto import | Watches the project's folder, imports new files into type bins | [auto-import](features/auto-import.md) | Verified; default-on bridge-tested | Untested |
 | Brand | The client's brand kit in Premiere: place, colours, MOGRTs, fonts | [brand](features/brand.md) | Installed; not tried by the user | Untested |
 | Keyframer | Curves between keyframes, repeats, motion blur, live preview | [keyframer](features/keyframer.md) | Bridge-tested; user's look open | Untested |

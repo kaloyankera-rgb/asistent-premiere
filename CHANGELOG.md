@@ -31,6 +31,23 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.121 - Cut silences: AI-assisted words by ElevenLabs, about 4x faster and better at takes (2026-11-21, not installed yet: `release_mac.sh` waits for the user; untested in Premiere)
+- The user (2026-11-21): "can we also use elevenlabs there to recognize speech faster make the cuts more precise?". Only the
+  AI parts of Cut silences recognise speech (Detect = AI-assisted, needed for hesitation sounds, and Cut = AI rough cut for
+  repeated takes); Automatic and Manual dB stay as they were, without words. Where the cut sits still comes from each
+  microphone's level every 10 ms: the words decide what goes (a hesitation, an older take), never the cut's edge.
+- `roughcut_job.read_cloud`: when ElevenLabs is on (key saved, switch on), each window of the dialogue mix is read by Scribe
+  v3 instead of Whisper large-v3. It is the subtitles' own reading (same sound, same request, same cache key), so a window
+  either feature sent is never sent again. A window ElevenLabs cannot read is read on this computer as before (no model here:
+  no words there) and the result says why. Never in a ReShape project (`is_reshape`: "ReShape" / "Решейп" / the doctor's
+  name in the project's folder or in the share path behind a deeper Finder mount).
+- Panel: the preview and the result say "N words recognised by ElevenLabs Scribe v3", and name what it could not read.
+- Measured on IMG_9422 (Lokali, 3:56, AI rough cut + hesitation sounds, empty caches): recognition 139 s with large-v3, 34 s
+  with Scribe; 581 against 662 words; Scribe heard two hesitation sounds Whisper left out (neither cut: both are glued to
+  speech, the rule cuts only a hesitation standing alone) and found the repeated take „А карал ли си някога на симулатор?“ /
+  „А карал ли си на симулатор?“ that Whisper's reading missed (1.6 s cut). Silence and off-mic cuts identical.
+- Tests: 7 new Python (`tests/test_silence_cloud.py`), 1 new Node test and new checks in another; 901 Python + 384 Node pass.
+
 ## 0.10.120 - Subtitles froze at "Aligning the words to the sound…" on a clip with a shout (2026-11-21, installed, untested in Premiere)
 - The user's first run of 0.10.119 in Premiere (NEW TEST, 6 pieces of IMG_9423, 29 s): the bar stood at "Aligning the words
   to the sound…" for minutes and the engine stopped answering. Cause: ElevenLabs wrote a shout as one word of 1000 letters

@@ -7,9 +7,10 @@ in about a twentieth of the time (docs/BENCHMARK.md). So every style but ReShape
 
 What leaves the computer, and when:
 - only the SOUND of the windows being subtitled (16 kHz mono, the pieces the editor selected, silence between them), never
-  picture, file names, project names, the names prompt or the editor's corrections;
-- only when the editor saved a key AND left the switch on (`status()`); never for the ReShape style (recognition.py), never
-  for the rough cut, Cut silences or anything else;
+  picture, file names, project names, the names prompt or the editor's corrections; since 0.10.121 also the same windows of
+  Cut silences' dialogue mix for its AI-assisted words (roughcut_job.read_cloud; the user, 2026-11-21);
+- only when the editor saved a key AND left the switch on (`status()`); never for the ReShape style (recognition.py) or a
+  ReShape project's Cut silences (roughcut_job.is_reshape), never for anything else;
 - ElevenLabs keeps uploads by default (its no-retention mode is for enterprise plans), so every transcript is deleted there
   as soon as its words are back (`forget`, best effort: a failure is logged, the words are still used).
 When ElevenLabs cannot be reached or refuses, the caller reads the window on this computer instead and says so in the result.

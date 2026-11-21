@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.120 (2026-11-21)
+# Project status: Asistent 0.10.121 (2026-11-21)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,9 +6,9 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
-- 0.10.120 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`,
+- 0.10.121 committed, NOT installed yet (`scripts/release_mac.sh` waits for the user's go); 0.10.120 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`,
   pushed to `origin/main` at `348d2ee`.
-- Last published release: v0.10.118 (2026-11-19). 0.10.119 and 0.10.120 are pushed but not released, so the editors'
+- Last published release: v0.10.118 (2026-11-19). 0.10.119 and 0.10.120 are pushed but not released, 0.10.121 committed, not pushed, so the editors'
   panels do not offer them yet. Releases only when the user asks (`scripts/publish_release.sh`).
 - Windows: largely untested (`scripts/setup_win.ps1` and the Windows installer never run by the user). See
   [install-and-update](docs/features/install-and-update.md).
@@ -17,9 +17,12 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - Subtitles read by ElevenLabs Scribe (0.10.119-0.10.120): works in Premiere (the user, 2026-11-21: two videos, fast and
   accurate). Still open: one ReShape run, the switch-off run, and replacing the key pasted into the chat on 2026-11-21.
   TODO V119. [subtitles](docs/features/subtitles.md)
+- Cut silences' AI words by ElevenLabs (0.10.121): built and measured outside Premiere, not installed yet; the user's first run to come. TODO V121.
 - Local recognition experiments (`NEXT` profile) paused behind a development switch; the held-back runs were stopped.
 
 ## Waiting for a check in Premiere (newest first)
+- 0.10.121: Cut silences with Detect = AI-assisted (or Cut = AI rough cut): the result says "words recognised by
+  ElevenLabs Scribe v3", faster than before; a ReShape project stays on this computer. [cut-silences](docs/features/cut-silences.md)
 - 0.10.119-0.10.120: one ReShape run (same captions as before), switch off and run again (Auto confirmed 2026-11-21).
   [subtitles](docs/features/subtitles.md)
 - 0.10.117: Sync accepts short takes whose camera clocks wander up to 2.0 s. [sync](docs/features/sync.md)
@@ -42,5 +45,5 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 
 ## Next
 1. The user's checks above, starting with Cut silences on a long sequence.
-2. Release 0.10.120 when the user asks.
+2. Release 0.10.121 when the user asks.
 3. `TODO.md` in its order.

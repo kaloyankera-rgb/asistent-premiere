@@ -2,6 +2,7 @@
 // left out, how the engine's answer is told, and how the sequence Premiere made from the XML is checked against it.
 
 const { planDialogue } = require("./subtitleplan.js");
+const { recognizerNote } = require("./silenceplan.js");
 
 const MODE_LABEL = { safe: "safe", smart: "smart" };
 
@@ -110,9 +111,11 @@ function describeSilences(r, placed) {
   const manual = r.threshold !== null && r.threshold !== undefined;
   lines.push({ cls: "line", text: !manual
     ? `Listened to ${mics.length} sound ${mics.length === 1 ? "clip" : "clips"}, each with its own threshold${sp.vad ? "; Silero kept quiet speech and dropped clicks" : " (Silero is not available: the level alone)"}` +
-      `${r.method === "ai" && sp.asr ? `; ${sp.words} words recognised` : ""}.`
+      `${r.method === "ai" && sp.asr ? `; ${sp.words} words recognised${sp.recognizer ? ` by ${sp.recognizer.name}` : ""}` : ""}.`
     : `Threshold ${r.threshold} dB on all ${mics.length} sound ${mics.length === 1 ? "clip" : "clips"}: what stays under it goes, speech or not.` });
   if (r.method === "ai" && !sp.asr) lines.push({ cls: "warn", text: sp.note || "No speech model: detected without recognition." });
+  const cloudNote = recognizerNote(sp.recognizer);
+  if (r.method === "ai" && cloudNote) lines.push({ cls: "warn", text: cloudNote });
   for (const m of mics.slice(0, 6)) {
     if (m.floor === null || m.floor === undefined) continue;
     lines.push({ cls: "reason", text: `${m.name}: noise ${m.floor} dB` + (m.voice !== null && m.voice !== undefined ? `, voice ${m.voice} dB` : "") +

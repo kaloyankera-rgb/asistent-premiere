@@ -7,6 +7,17 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
+## V121. Verify 0.10.121 (2026-11-21): Cut silences' AI words by ElevenLabs
+- [ ] USER: in NEW TEST select a talking clip, Silences > options: Detect = AI-assisted, Remove hesitation sounds on, Preview:
+      "N words recognised by ElevenLabs Scribe v3" and noticeably faster than before; then Cut silences.
+- [ ] Cut = AI rough cut on a recording with repeated takes (the Lokali clip IMG_9422: „А карал ли си някога на симулатор?“ /
+      „А карал ли си на симулатор?“): the earlier take goes.
+- [ ] Subtitles first, then Cut silences on the same clips (or the other way round): the second one sends nothing (fast).
+- [ ] Hesitation sounds Scribe writes („Ааа,“) are cut only when they stand alone between pauses; on IMG_9422 both were glued to
+      speech and stayed. Look on a recording with many „ъъъ“ whether that rule is too careful.
+- [ ] Maybe later: send a long piece in parts at the same time (about 0.16 s per second of sound now, one 4-minute window took
+      34 s); parts would not be shared with the subtitles' readings and depend on ElevenLabs' limit of requests at once.
+
 ## V119. Verify 0.10.119 (2026-11-21): subtitles by ElevenLabs
 - [x] USER (Premiere restarted): Settings > Subtitles shows "On (key ending …)". Make subtitles in Auto on a non-ReShape clip
       in NEW TEST: the result says "Words by ElevenLabs Scribe v3", the words and the wait against the same clip before.
@@ -17,8 +28,8 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] USER: delete the API key that was pasted into the chat (ElevenLabs > Developers > API keys) and save a new one in
       Settings > Subtitles. For client work: the Starter plan (the free plan has no commercial rights).
 - [ ] Office computers: each needs the key saved once in Settings > Subtitles (or decide on one shared key).
-- [ ] Not built: the names of a project as Scribe "keyterms" (a paid add-on, about $0.05 per hour); the rough cut and Cut
-      silences still read on this computer.
+- [ ] Not built: the names of a project as Scribe "keyterms" (a paid add-on, about $0.05 per hour). Cut silences' AI words read
+      through ElevenLabs since 0.10.121 (V121).
 - [ ] Local path, paused: finish the held-back runs of `NEXT` (full precision + guarded second reading; `part: 30` is 2.8x
       faster but 18 words worse on the tuning clips) and decide whether it replaces `STRICT` as the no-internet fallback.
 

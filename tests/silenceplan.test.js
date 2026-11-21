@@ -94,4 +94,7 @@ test("a part turned around is the editor's choice: it goes to the engine, and th
   assert.strictEqual(SP.describeRegion(regions[0]), "0:30–0:50 (20 s) · a voice 12 dB under the main voice · stays (your choice)");
   assert.match(SP.micLines(result)[0].text, /^A2 lav\.wav: noise -63 dB, main voice -22\.3 dB, speech from -46 dB\.$/);
   assert.match(SP.describePreview({ ...result, method: "ai", speech: { asr: false, note: "No speech model on this computer." } }, [])[1].text, /No speech model/);
+  const byScribe = SP.describePreview({ ...result, method: "ai", speech: { asr: true, words: 57, recognizer: { name: "ElevenLabs Scribe v3", windows: 1, local: 0, missed: 0, fallback: [] } } }, []).map((l) => l.text);
+  assert.ok(byScribe.includes("57 words recognised by ElevenLabs Scribe v3.") && !byScribe.some((t) => /could not read/.test(t)), byScribe.join("\n"));
+  assert.ok(!SP.describePreview({ ...result, method: "ai", speech: { asr: true, words: 57 } }, []).some((l) => /recognised by/.test(l.text)));
 });

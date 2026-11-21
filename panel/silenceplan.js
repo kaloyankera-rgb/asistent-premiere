@@ -189,7 +189,22 @@ function describePreview(result, regions) {
   if (t.restored) lines.push({ cls: "reason", text: `${t.restored} kept by you.` });
   const sp = result.speech || {};
   if (result.method === "ai" && !sp.asr) lines.push({ cls: "warn", text: sp.note || "No speech model: detected without recognition." });
+  if (result.method === "ai" && sp.asr && sp.recognizer) lines.push({ cls: "reason", text: `${sp.words} words recognised by ${sp.recognizer.name}.` });
+  const cloudNote = recognizerNote(sp.recognizer);
+  if (result.method === "ai" && cloudNote) lines.push({ cls: "warn", text: cloudNote });
   return lines;
+}
+
+/**
+ * 0.10.121: what the result says when ElevenLabs could not read some of the speech (null when it read all of it, or was not
+ * asked). `rec` is the engine's speech.recognizer: { name, windows, local, missed, fallback: [reasons] }.
+ */
+function recognizerNote(rec) {
+  if (!rec || !(rec.local || rec.missed)) return null;
+  const n = rec.local + rec.missed;
+  const part = n >= rec.windows ? "the speech" : `${n} of ${rec.windows} parts of the speech`;
+  const why = (rec.fallback || []).length ? `: ${rec.fallback.join("; ")}` : "";
+  return `${rec.name} could not read ${part}${why}. ` + (rec.missed ? "No words there (no speech model on this computer)." : "Read on this computer instead.");
 }
 
 /** One region in words: "1:02–1:14 · off-mic voice · a voice 12 dB under the main voice · goes". */
@@ -212,5 +227,5 @@ function micLines(result) {
   return lines;
 }
 
-module.exports = { PACING, MODES, METHODS, ACTIONS, RANGES, MODE_LABEL, METHOD_LABEL, ACTION_LABEL, KIND_LABEL, readOptions, payloadOptions, signature,
+module.exports = { recognizerNote, PACING, MODES, METHODS, ACTIONS, RANGES, MODE_LABEL, METHOD_LABEL, ACTION_LABEL, KIND_LABEL, readOptions, payloadOptions, signature,
   clock, view, zoomed, scrolled, columns, toggled, overridesOf, totals, kindsLine, describePreview, describeRegion, micLines };

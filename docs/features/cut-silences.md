@@ -34,9 +34,13 @@ own clips cut. The editor's sequence is not touched. Preview shows what would go
 - The preview and the cut share one code path; the editor's choices go back as time ranges (0.10.96).
 - Repeated takes: matched with difflib, never on similarity alone; a plain repeat is cut (last full take stays), a take
   said differently (other number or content words) is only listed; takes over 90 s apart are not matched.
-- Speech recognition for the cut is local (large-v3, own cache keys `rough3-`); no cloud (ElevenLabs is subtitles only).
+- AI-assisted words (hesitations, takes): ElevenLabs Scribe when its key is saved and the switch is on (`read_cloud`, 0.10.121),
+  sharing the subtitles' cache key; else, and for any window it cannot read, local large-v3 (own cache keys `rough3-`).
+  Never in a ReShape project (`is_reshape`, by folder and mount). Words decide what goes, the 10 ms level decides where.
+  Automatic and Manual dB never use words and never send anything.
 
 ## Decisions
+- AI words through ElevenLabs, ReShape local: DECISIONS 2026-11-21 (0.10.121).
 - Silences replaces the rough cut in the panel, no recognition: DECISIONS 2026-11-12.
 - Regions the editor can turn around; Manual dB is the level alone: DECISIONS 2026-11-15 (0.10.96).
 - Auto cuts voices 8 dB under the main voice: DECISIONS 2026-11-15 (0.10.95).
@@ -50,23 +54,24 @@ own clips cut. The editor's sequence is not touched. Preview shows what would go
   `roughcutplan.js` (pure: plan, report, verify), `premiere-roughcut.js` (touches Premiere: `readInput`, `hostPlan`,
   `hostCut`, `placeClones`, `place`); `engine.js` `startRoughcut`, `roughCut`, `roughLink`; `index.html` row `secRough`, button `rough`.
 - Engine: `silence.py` (`measure`, `label_item`, `detect`, `plan`, `settings`), `roughcut_job.py` (`validate`, `run`,
-  `run_silence`), `vad.py` (Silero), `edl.py`, `xmeml.py`, `takes.py`; `server.py` `POST /roughcut`, `/roughcut/cut`, `/roughcut/link`.
+  `run_silence`, `read_cloud`, `use_cloud`, `is_reshape`), `vad.py` (Silero), `edl.py`, `xmeml.py`, `takes.py`; `server.py` `POST /roughcut`, `/roughcut/cut`, `/roughcut/link`.
 - Older Phase 8 (Safe / Smart: `speechmap.py`, `pauses.py`, branch of `roughcut_job.run`) is still in the engine but the
   panel no longer offers it; the Fast switch (`/roughcut/model/download`) is gone from the panel.
 - Host: `host/host.jsx` `as_rough_cut` with `as_cut_start`, `as_cut_razor`, `as_cut_clean`, `as_cut_move`, `as_cut_finish`.
 
 ## Status
-- Since 0.10.65 (Silences), rebuilt in 0.10.96, host cut since 0.10.108-0.10.109, 0.10.110 latest (installed).
+- Since 0.10.65 (Silences), rebuilt in 0.10.96, host cut since 0.10.108-0.10.109, ElevenLabs for AI words 0.10.121 (not installed yet;
+  measured outside Premiere on IMG_9422: recognition 139 -> 34 s, one repeated take Whisper missed; not yet run by the user).
 - Through the bridge in NEW TEST: 17 runs on 52 clips, 0 crashes, every piece verified; 0.10.110 checked on the user's
   v83 and SYNC sequences. The user ran 0.10.96 once (options showed and ran, 0.10.97); the 0.10.109/0.10.110 presses by
   the user, the preview look at panel width and the tooltips are unverified (TODO V96).
 - Windows: untested.
 - Limits (BUGS "Limits of Cut silences 0.10.96"): no audio crossfades or J/L cuts; Manual dB is one number for all
   microphones; hesitation sounds only when Whisper writes them; a take repeated without a pause is listed, not cut.
-- Open: TODO V96 (verify list), TODO SIL (an empty channel blocks cuts, waiting for the user), TODO I9 (Review tab, not built).
+- Open: TODO V121, V96 (verify lists), TODO SIL (an empty channel blocks cuts, waiting for the user).
 
 ## Tests
 - `tests/test_silence.py` (levels, Silero, modes, pacing, edges), `test_roughcut.py` (speech map, pauses, EDL, XML, job),
-  `test_takes.py` (repeated takes).
+  `test_takes.py` (repeated takes), `test_silence_cloud.py` (ElevenLabs, ReShape by folder, fallback, shared reading).
 - `tests/silenceplan.test.js`, `roughcutplan.test.js`, `roughcutclones.test.js` (copies in batches, `hostPlan`),
   `hostroughcut.test.js` (host cut against a model of Premiere), `wiring.test.js`, `tiptext.test.js` (tooltip rows).

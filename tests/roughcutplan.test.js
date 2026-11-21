@@ -161,6 +161,24 @@ test("Cut silences: the result says what went, how it listened and each micropho
   assert.match(at, /420 words recognised/);
   assert.match(at, /0:12: repeated take ×2; kept #2 "Добър ден на всички", the other was cut \(3\.2 s\)/);
   assert.match(at, /0:40: repeated take \(nearly the same\) ×2: nothing cut \(said differently\), review it/);
+  assert.ok(!/ElevenLabs/.test(at), at);
+  // 0.10.121: words by ElevenLabs say so; a part it could not read says why and what happened instead
+  const rec = { name: "ElevenLabs Scribe v3", windows: 3, local: 0, missed: 0, fallback: [] };
+  const cloud = R.describeResult({ ...r, what: "ai", method: "ai", speech: { ...r.speech, asr: true, words: 420, recognizer: rec }, takes: [] }, null);
+  const ct = cloud.lines.map((l) => l.text).join("\n");
+  assert.match(ct, /420 words recognised by ElevenLabs Scribe v3\./);
+  assert.ok(!/could not read/.test(ct), ct);
+  const part = R.describeResult({ ...r, what: "ai", method: "ai", takes: [],
+    speech: { ...r.speech, asr: true, words: 300, recognizer: { ...rec, local: 1, fallback: ["ElevenLabs could not be reached (no internet?)"] } } }, null);
+  assert.ok(part.lines.some((l) => l.cls === "warn" && /^ElevenLabs Scribe v3 could not read 1 of 3 parts of the speech: ElevenLabs could not be reached \(no internet\?\)\. Read on this computer instead\.$/.test(l.text)));
+});
+
+test("Cut silences (0.10.121): the preview names who read the words and what ElevenLabs could not read", () => {
+  const SP = require("../panel/silenceplan.js");
+  assert.strictEqual(SP.recognizerNote(null), null);
+  assert.strictEqual(SP.recognizerNote({ name: "ElevenLabs Scribe v3", windows: 2, local: 0, missed: 0, fallback: [] }), null);
+  assert.strictEqual(SP.recognizerNote({ name: "ElevenLabs Scribe v3", windows: 2, local: 0, missed: 2, fallback: ["the ElevenLabs account has no transcription time left this month"] }),
+    "ElevenLabs Scribe v3 could not read the speech: the ElevenLabs account has no transcription time left this month. No words there (no speech model on this computer).");
 });
 
 test("Cut silences (0.10.96): the range is the selection, In to Out, or the whole sequence", () => {

@@ -53,7 +53,7 @@ or the snapshot in `docs/dev-workflow/`.
     styles on this computer as shipped in 0.10.95-0.10.118 (`DEFAULT`); `NEXT` = local experiments, tried with
     `ASISTENT_RECOGNITION=next:{fields}` (development only) and scored by the benchmark before anything becomes a default
   - `cloudasr.py` (0.10.119) ElevenLabs Scribe: the one module that sends anything off the computer, and only the sound of the
-    windows being subtitled; key in `<app>/elevenlabs.key` (never returned to the panel), switch in `<app>/cloud.json`, each
+    windows being subtitled or read for Cut silences' AI words (0.10.121, `roughcut_job.read_cloud`, the subtitles' cache key); key in `<app>/elevenlabs.key` (never returned to the panel), switch in `<app>/cloud.json`, each
     transcript deleted at ElevenLabs after use; a failure falls back to this computer and is named in the result
   - `learning.py` (the editors' fixes recorded per project into the client's "… Subtitle Learning" office folder, used in the next
     videos by confirmations and context), `audiocheck.py` (Whisper scores the heard and the fixed words: a learned fix that fits
@@ -111,9 +111,9 @@ or the snapshot in `docs/dev-workflow/`.
   `scripts/release_mac.sh` (packs `.ccx`, removes + installs it with Adobe's UnifiedPluginInstallerAgent
   without a dialog, restarts the engine LaunchAgent) → git commit. The user asked not to double-click `.ccx`.
 - Tests: `"$HOME/Library/Application Support/Asistent/venv/bin/python" -m pytest tests -q -W error -p no:cacheprovider`
-  (894 pass + 24 skipped at 0.10.120; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
+  (901 pass + 24 skipped at 0.10.121; `test_real_footage.py` needs the GStroy footage on this Mac, skipped elsewhere: `ASISTENT_REAL_FOOTAGE=<path>`;
   some tests write into the real app folder, so run them with `HOME` pointed at a scratch folder holding a copy of `models/lexicon`) and
-  `node --test tests/*.test.js` (383 tests at 0.10.120);
+  `node --test tests/*.test.js` (384 tests at 0.10.121);
   a new panel module must also be added to the zip list in `scripts/package_ccx.sh` (a test checks it).
 - Fix audio never splits a clip that carries effects or keyframes: overwriteClip drops them (measured 2026-11-08, DECISIONS).
 - Premiere tests only in the user's test projects `TEST.prproj` or `NEW TEST.prproj` (Ludi Glavi/Projects; the user's choice
@@ -177,7 +177,9 @@ or the snapshot in `docs/dev-workflow/`.
 - Sync works from the timeline selection and builds a new `SYNC – <sequence>`; the user's sequence is read only.
 - No AI voices, no paid tools, no cloud, nothing uploaded. The one exception (the user, 2026-11-21, 0.10.119, after the
   benchmark of DECISIONS): subtitles of every style but ReShape's may be read by ElevenLabs Scribe when the editor saved a key
-  and left the switch on; only the sound of the selected clips goes, nothing else, and no other feature may use it.
+  and left the switch on; only the sound of the selected clips goes, nothing else. The second exception (the user, 2026-11-21,
+  0.10.121): Cut silences' AI-assisted words (hesitation sounds, repeated takes), same key and switch, never in a ReShape
+  project (`roughcut_job.is_reshape`). No other feature may use it.
 - The office server (`/Volumes/Production` and every office share) is read only (the user, 2026-11-20): nothing there is
   written, renamed, moved or deleted by Claude or by a development script; ask before any touch. Benchmarks and tests that read
   it write only on this computer, with an empty `project` and a scratch `HOME` (a real run would write `Asistent_subtitles` next

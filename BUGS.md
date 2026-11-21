@@ -7,7 +7,7 @@
 > out on 2026-11-21 are in [docs/history/BUGS_fixed_to_0.10.120.md](docs/history/BUGS_fixed_to_0.10.120.md). Per feature:
 > the Status section of its page in `docs/features/` ([docs/INDEX.md](docs/INDEX.md)).
 
-## Limits of subtitles by ElevenLabs (0.10.119)
+## Limits of subtitles by ElevenLabs (0.10.119; also Cut silences' AI words since 0.10.121)
 - The sound of the selected clips leaves the computer. ElevenLabs keeps uploads by default; Asistent deletes each transcript
   after use, but their docs do not say that this also removes their copy of the sound (no-retention is an enterprise feature).
 - Fast talk between several people and street sound stay hard: GStroy's held-back interviews 26.5 % wrong (36 % locally).
@@ -24,7 +24,8 @@
 ## Limits of Cut silences 0.10.96 (known, by design or not built)
 - No audio crossfade at the cuts and no J / L cuts: UXP 26 has no audio-transition action; the host (QE) route is not probed.
 - Manual dB is one number for every microphone: with two microphones recorded at different levels it cannot fit both; Automatic can.
-- Hesitation sounds go only when they stand alone between two pauses, and only those Whisper writes down (it often leaves them out).
+- Hesitation sounds go only when they stand alone between two pauses, and only those the recognizer writes down (Whisper often
+  leaves them out; Scribe wrote two that Whisper missed on IMG_9422, both glued to speech, so neither went).
 - A repeated take said again without a pause is listed, never cut. Takes more than 90 s apart are not matched (`takes.WINDOW_S`).
 - The preview's dynamic checkboxes and text-field `change` events were never run in UXP (browser preview only).
 

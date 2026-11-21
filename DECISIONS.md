@@ -1,5 +1,17 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-21: Cut silences may read its AI words through ElevenLabs too; the second cloud exception (0.10.121)
+- **Decision (the user, 2026-11-21: "Do it", after asking whether ElevenLabs could make Cut silences faster and more precise):**
+  Cut silences' AI-assisted words (hesitation sounds, repeated takes) are read by Scribe when the editor saved a key and left
+  the switch on: the same switch and key as the subtitles, and the same rule for what leaves the computer (only the sound of
+  the selected clips' dialogue mix, each transcript deleted at ElevenLabs after use).
+- **ReShape stays local** here too (Claude's default, the user did not object): a project in a ReShape folder is never sent.
+  Cut silences has no style to say so, so the project folder does (`roughcut_job.is_reshape`).
+- **The words decide what, the level decides where:** no word timestamps from any recognizer are as exact as the 10 ms level,
+  so Scribe changes which passages go, not where a cut sits. Automatic and Manual dB never use words and never send anything.
+- **One reading for both features:** Cut silences stores and looks up Scribe's reading under the subtitles' key (empty prompt,
+  `recognition.CLOUD`'s tag); the request is the same, so the words are the same.
+
 ## 2026-11-21: subtitles may be recognised by ElevenLabs; the first exception to "no cloud, no paid tools" (0.10.119)
 The user's audit of 2026-11-20: Bulgarian words in the Auto style come out wrong on every client but ReShape, and the wait is
 too long. ReShape is "perfect how it is" and out of every change.
@@ -13,7 +25,7 @@ too long. ReShape is "perfect how it is" and out of every change.
   nothing uploaded" and "no paid tools", made by the user after seeing the table and the price (free plan for trying; client
   work needs the Starter plan, about $6 a month for about 27 hours).
 - **What leaves the computer:** only the sound of the windows being subtitled; never picture, file or project names, the names
-  prompt or the corrections. Never for ReShape, the rough cut, Cut silences or anything else. ElevenLabs keeps uploads by
+  prompt or the corrections. Never for ReShape, the rough cut, Cut silences or anything else (Cut silences' AI words allowed since 0.10.121, above). ElevenLabs keeps uploads by
   default (no-retention is an enterprise feature), so each transcript is deleted there as soon as its words are back; whether
   that also removes their copy of the sound is not stated in their docs.
 - **When it fails** (no internet, key refused, no time left): that window is read on this computer by the shipped profile and
