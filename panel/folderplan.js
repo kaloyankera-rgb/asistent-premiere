@@ -1,4 +1,4 @@
-// The Folders page's rules (0.10.143, the user 2026-11-22: favourite folders one press away inside Premiere). Pure: the list
+// The Folders page's rules (0.10.144, the user 2026-11-22: favourite folders one press away inside Premiere). Pure: the list
 // the panel's store keeps, labels, colours, order, and paths relative to the open project. Nothing here touches Premiere,
 // the disk or the engine; folders.js does, and the engine opens a folder in Finder / Explorer (reveal.open_folder).
 //

@@ -31,19 +31,9 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
-## 0.10.143 - Fix audio no longer balances the two speakers against each other (2026-11-22)
-- The user: "balance audio tracks" broke some videos: when it lowered A1 or A2 and left the other higher, one person ended up
-  much quieter than the other. Speaker balance (`audio.balance`) is now off by default: Fix audio splits L/L and R/R, levels
-  each side on its own to -17 LUFS with the peak under -6 dBFS (both sides together still held under the ceiling by an equal
-  cut), and puts the Dynamics Limiter at -6 dB. Nothing is lowered to match the other speaker, and a side once judged as having
-  "no speaker of its own" is levelled like any other (the room-noise rule, noise at most -55 dBFS, still limits it).
-- `analyze_item` / `analyze_items` default `balance_tol=None`; `POST /audio` balances only when `balance_db` is sent (the panel
-  never sends it). `balance()` is kept for later. Tests: a new default-levelling test; the balance tests pass the tolerance
-  explicitly.
-
-## 0.10.143 - Folders tab: favourite folders one press away (2026-11-22, installed, not tried in Premiere)
+## 0.10.144 - Folders tab: favourite folders one press away (2026-11-22, installed, not tried in Premiere)
 The user (2026-11-22) wanted folder shortcuts inside Premiere, in Asistent, on its own tab. Read only: nothing in Premiere or the
-folders changes. Page: `docs/features/folders.md`.
+folders changes. Page: `docs/features/folders.md`. First committed as 0.10.143 (56ad1a2) while another session's Fix audio change also took 0.10.143; renumbered so the installer replaces the panel (a same-version install keeps the old one). The same commit had dropped the 0.10.142 heading here by mistake; put back.
 - **Folders tab**: each saved folder is a button; a press opens it in Finder / Explorer through the engine (`reveal.open_folder`,
   `POST /folders/open`; a missing folder or a file is refused). Buttons whose folder is not there now are dimmed
   (`POST /folders/exist`).
@@ -56,7 +46,17 @@ folders changes. Page: `docs/features/folders.md`.
 - Tests: Node 620 pass (6 new in `folderplan.test.js`), Python 1141 passed / 24 skipped (2 new); preview scenarios `folders-empty`,
   `folders`, `folders-edit` looked at in 240 / 300 / 420 px.
 
- after the colour audit: right clients, footage only, measurements kept (2026-11-22, installed, committed 39d0903, untested in Premiere: the user tries it at the office on Monday)
+## 0.10.143 - Fix audio no longer balances the two speakers against each other (2026-11-22)
+- The user: "balance audio tracks" broke some videos: when it lowered A1 or A2 and left the other higher, one person ended up
+  much quieter than the other. Speaker balance (`audio.balance`) is now off by default: Fix audio splits L/L and R/R, levels
+  each side on its own to -17 LUFS with the peak under -6 dBFS (both sides together still held under the ceiling by an equal
+  cut), and puts the Dynamics Limiter at -6 dB. Nothing is lowered to match the other speaker, and a side once judged as having
+  "no speaker of its own" is levelled like any other (the room-noise rule, noise at most -55 dBFS, still limits it).
+- `analyze_item` / `analyze_items` default `balance_tol=None`; `POST /audio` balances only when `balance_db` is sent (the panel
+  never sends it). `balance()` is kept for later. Tests: a new default-levelling test; the balance tests pass the tolerance
+  explicitly.
+
+## 0.10.142 - Colour learning fixed after the colour audit: right clients, footage only, measurements kept (2026-11-22, installed, committed 39d0903, untested in Premiere: the user tries it at the office on Monday)
 The colour audit of 2026-11-22 (`docs/CLIENT_COLOR/AUDIT_2026-11-22.md`) compared ~1,600 recorded clips (the editors' Lumetri next
 to Auto color's suggestion). It found the learning records unfit for fitting targets; this version fixes the recording and the
 report. Nothing in Premiere is written; Auto color itself is unchanged.

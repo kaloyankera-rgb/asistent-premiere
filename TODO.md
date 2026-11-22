@@ -7,7 +7,7 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
-## FLD. Folders tab (0.10.143, 2026-11-22)
+## FLD. Folders tab (0.10.144, 2026-11-22)
 - [ ] USER: restart Premiere, open the Folders tab: does the tab row look right at your panel width?
 - [ ] USER: drop a folder from Finder on the page. If it says "Premiere did not pass the dropped folder", the drop does not work in
       Premiere's UXP (then `grep "folders drop" engine.log` shows what came); Add folder… is the way. Press a button: Finder opens.

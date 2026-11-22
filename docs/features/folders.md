@@ -22,7 +22,7 @@ Add folder…; Edit renames, colours, moves and deletes buttons, and can make a 
 - No right-click menu (Premiere's UXP gives a panel none): Edit mode instead. No drag to reorder: ↑ / ↓.
 - Whether Premiere's UXP hands the panel a dropped folder's path is unverified (as for Auto import's drop, 0.10.67): the drop is
   logged as "folders drop: …" in engine.log; Add folder… always works.
-- Four text tabs overflowed the tab row at 300 and 240 px (preview, 0.10.143): narrower padding under 360 px, the folder icon
+- Four text tabs overflowed the tab row at 300 and 240 px (preview, 0.10.144): narrower padding under 360 px, the folder icon
   under 280 px, names shorten with an ellipsis rather than push Log and Settings out.
 
 ## Decisions
@@ -38,7 +38,7 @@ Add folder…; Edit renames, colours, moves and deletes buttons, and can make a 
 - Host: none.
 
 ## Status
-- Since 0.10.143 (2026-11-22): installed on the development Mac; tests pass; looked at in the browser preview at 240 / 300 / 420
+- Since 0.10.144 (2026-11-22): installed on the development Mac; tests pass; looked at in the browser preview at 240 / 300 / 420
   px. Not yet tried in Premiere (the user's look, a drop from Finder, a press). Windows: untested (`explorer.exe <folder>`).
 - Open: TODO FLD.
 

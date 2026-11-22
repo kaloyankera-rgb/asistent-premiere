@@ -104,7 +104,7 @@ drive the engine. The Host header is checked against DNS rebinding.
                              (filecheck.py, its report in /exports/recent as "check")
   GET  /exports/recent       {items: [{id, name, path, at, shown, note}]} for the Log tab
   POST /exports/reveal       {"id"} show an export from the list again (only files the engine itself recorded)
-  POST /folders/open         {"path"} open a folder in Finder / Explorer (the Folders page, 0.10.143) -> {ok} or 404
+  POST /folders/open         {"path"} open a folder in Finder / Explorer (the Folders page, 0.10.144) -> {ok} or 404
   POST /folders/exist        {"paths": [...]} -> {"exist": [bool, ...]} (read only)
 """
 from __future__ import annotations

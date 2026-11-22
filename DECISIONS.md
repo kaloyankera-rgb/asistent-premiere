@@ -13,7 +13,7 @@
 - Edit mode instead of a right-click menu (Premiere's UXP gives a panel no context menu) and ↑ / ↓ instead of drag to reorder.
 - Read only: opening a folder is the only action; office server folders are only opened.
 
-; Saturation and Contrast allowed per client (the colour audit)
+## 2026-11-22: colour is learned from every editor; Saturation and Contrast allowed per client (the colour audit)
 - After the colour audit (docs/CLIENT_COLOR/AUDIT_2026-11-22.md) the user decided: Auto color learns from the grades of **all**
   editors in the exported projects, not only the user's.
 - Auto color **may set Saturation and Contrast per client**, learned from the editors (lifts the rule "only Exposure / Temperature /

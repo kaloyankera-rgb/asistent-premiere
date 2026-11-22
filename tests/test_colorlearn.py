@@ -179,7 +179,7 @@ def test_suggestion_keeps_the_measurements(tmp_path, monkeypatch):
     assert set(look) == {"black", "white", "contrast", "saturation", "clipped"} and look["white"] >= look["black"]
 
 
-def test_folder_endpoints(engine, tmp_path, monkeypatch):  # noqa: F811 (the Folders page, 0.10.143: lives here for the engine fixture)
+def test_folder_endpoints(engine, tmp_path, monkeypatch):  # noqa: F811 (the Folders page, 0.10.144: lives here for the engine fixture)
     from asistent import reveal
     opened = []
     monkeypatch.setattr(reveal.subprocess, "Popen", lambda cmd, **kw: opened.append(cmd))

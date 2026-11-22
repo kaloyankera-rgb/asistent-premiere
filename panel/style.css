@@ -59,7 +59,7 @@
   --w-flag: #ffc945;
   --w-cut-tint: rgba(255, 255, 255, 0.05);
   --w-flag-tint: rgba(255, 201, 69, 0.14);
-  /* the Folders page's button colours (0.10.143) */
+  /* the Folders page's button colours (0.10.144) */
   --fd-red: #e5534b;
   --fd-orange: #f0883e;
   --fd-yellow: #e3b341;
@@ -136,7 +136,7 @@ body {
 .btn.tab.icon { padding: 5px 6px; margin-right: 0; margin-left: 2px; display: flex; flex-direction: row; align-items: center; }
 .btn.tab.icon svg.i path, .btn.tab.icon svg.i circle { stroke: var(--tab-text); }
 .btn.tab.icon:hover svg.i path, .btn.tab.icon:hover svg.i circle, .btn.tab.icon.on svg.i path, .btn.tab.icon.on svg.i circle { stroke: var(--text); }
-/* four text tabs since Folders (0.10.143): tighter at narrow widths so Log and Settings stay in view (measured in the preview:
+/* four text tabs since Folders (0.10.144): tighter at narrow widths so Log and Settings stay in view (measured in the preview:
    at 300 px and 240 px the row overflowed), and a name shortens with an ellipsis rather than pushing the icons out */
 .btn.tab { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .btn.tab.icon { flex: none; }
@@ -760,7 +760,7 @@ input.io-name { flex: 1; min-width: 60px; margin: 0 6px 0 0; font-size: 11px; }
 .btn.small.io-edrename, .btn.small.io-eddelete { flex: none; margin: 0 6px 0 0; padding: 3px 10px; }
 .btn.small.io-eddelete { border-color: var(--err-line); color: var(--err); }
 
-/* the Folders page (0.10.143): favourite folders as buttons; colour = a stripe on the left, the label stays readable */
+/* the Folders page (0.10.144): favourite folders as buttons; colour = a stripe on the left, the label stays readable */
 #paneFolders.dropping { outline: 2px dashed var(--sel); outline-offset: -2px; }
 .fd-title { min-width: 0; }
 .fd-grid { display: flex; flex-direction: row; flex-wrap: wrap; }

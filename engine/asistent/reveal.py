@@ -1,4 +1,4 @@
-"""Show one file in Finder (Mac) or Explorer (Windows), selected, or open a folder there (the Folders page, 0.10.143). Only
+"""Show one file in Finder (Mac) or Explorer (Windows), selected, or open a folder there (the Folders page, 0.10.144). Only
 shows: never opens a file in its app, plays, moves, renames or writes anything. UXP cannot do either, so the engine does it."""
 from __future__ import annotations
 

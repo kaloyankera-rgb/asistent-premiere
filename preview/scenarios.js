@@ -1,7 +1,7 @@
 // The panel states the preview can show (?s=name). Texts are copied from what main.js and the plan modules really
 // write, so a screenshot shows real lengths; numbers and clip names are made up (no client material).
 
-// made-up favourite folders for the Folders page (0.10.143)
+// made-up favourite folders for the Folders page (0.10.144)
 function foldersDemo() {
   return JSON.stringify({ items: [
     { id: "f1", label: "Downloads", path: "/Users/editor/Downloads", rel: null, color: "none" },
@@ -288,7 +288,7 @@ window.PREVIEW_SCENARIOS = (function () {
       run: (api) => { api.openTab("paneBrand"); setTimeout(() => { const b = [...document.querySelectorAll("#paneBrand .btn")].find((x) => x.textContent === "Manage"); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); }, 120); } },
     "brand-offline": { engine: { brandKits: brandKits(), brandKit: { ...brandKit(), online: false, note: "The kit's folder is not reachable (/Volumes/Production/Brand Kits/Northwind): showing what this computer read last (2026-11-14 12:01). Files with a copy here still work." } },
       thumb: brandThumb, run: (api) => api.openTab("paneBrand") },
-    // 0.10.143: the Folders page, empty, with made-up folders (one follows the project, one on a drive that is not there), and Edit
+    // 0.10.144: the Folders page, empty, with made-up folders (one follows the project, one on a drive that is not there), and Edit
     "folders-empty": { run: (api) => api.openTab("paneFolders") },
     folders: { store: { "asistent.folders": foldersDemo() }, run: (api) => api.openTab("paneFolders") },
     "folders-edit": { store: { "asistent.folders": foldersDemo() },

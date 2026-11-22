@@ -155,7 +155,7 @@ function colorLearnRecord(project, sequence, clips) {
   return call("POST", "/colorlearn/record", { project, sequence, clips });
 }
 
-// the Folders page (0.10.143): open a folder in Finder / Explorer; which of the saved folders exist now
+// the Folders page (0.10.144): open a folder in Finder / Explorer; which of the saved folders exist now
 function folderOpen(path) {
   return call("POST", "/folders/open", { path });
 }

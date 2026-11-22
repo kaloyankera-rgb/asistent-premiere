@@ -613,7 +613,7 @@ def test_is_export_knows_the_file_premiere_named_and_the_ones_events_named(setup
     assert w.is_export(str(project_dir / "OLD.mp4"))
 
 
-# ---------------------------------------------------------------- the Folders page (0.10.143)
+# ---------------------------------------------------------------- the Folders page (0.10.144)
 
 def test_open_folder_commands_and_checks(monkeypatch, tmp_path):
     assert reveal.open_command("/a b/Music", "darwin") == ["open", "/a b/Music"]

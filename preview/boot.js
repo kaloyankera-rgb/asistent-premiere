@@ -60,7 +60,7 @@
     devPoll: () => Promise.reject(new Error("bridge off in the preview")),
     stashList: async () => engineState.stash || { items: [], bytes: 0 },
     brandKits: async () => engineState.brandKits || { kits: [], detected: null, roots: [], missing: [] },
-    foldersExist: async (paths) => ({ exist: paths.map((p) => !/Old drive/.test(p)) }),   // the Folders page (0.10.143)
+    foldersExist: async (paths) => ({ exist: paths.map((p) => !/Old drive/.test(p)) }),   // the Folders page (0.10.144)
     folderOpen: async () => ({ ok: true }),
     brandKit: async (id, project, sig) => (sig && engineState.brandKit && sig === engineState.brandKit.sig ? { unchanged: true } : engineState.brandKit),
     brandThumbs: async (id, rels) => ({ thumbs: Object.fromEntries(rels.map((r) => [r, S.thumb ? S.thumb(r) : null])) }),

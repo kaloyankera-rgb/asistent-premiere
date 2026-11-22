@@ -1,4 +1,4 @@
-// The Folders page (0.10.143, the user 2026-11-22): favourite folders as buttons inside Premiere; a press opens the folder in
+// The Folders page (0.10.144, the user 2026-11-22): favourite folders as buttons inside Premiere; a press opens the folder in
 // Finder / Explorer (through the engine: UXP cannot). Folders come in by a drop from Finder / Explorer or "Add folder…"; Edit
 // renames, colours, moves, deletes and switches "follows the project" (the path counted from the open project's folder, so
 // one button opens each project's own folder). Read only: nothing in Premiere, nothing in the folders is changed. The list is
