@@ -31,6 +31,18 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.146 - Asistent Folders panel: drag folders from Finder (CEP); drop hints corrected (2026-11-22, installed, not tried in Premiere)
+- **Measured**: a drag from Finder reaches Asistent's UXP panel empty in Premiere 2026 (26.5.3): no files, links or text, so the
+  drop areas on Folders, Auto import and Brand could never work. Their texts no longer offer a drop and point to Add folder… /
+  Other folder… / Add files… (0.10.145). A CEP probe panel (0.10.145) took a dropped folder with its path.
+- **Asistent Folders panel** (Window > Extensions): a second extension in the Asistent helper bundle (`host/folders.html`,
+  `host/folders-panel.js`): folders dragged from Finder become buttons (files left out), Add folder… picks several, right-click a
+  button for Rename, a colour, Follows the project, Move left / right, Delete (click twice), drag a button to move it. Opens folders
+  through the engine like the tab.
+- **One list** with the Folders tab: the engine's panel store; the CEP panel reads it every 3 s, the tab each time it is shown.
+  `host/folderplan.js` is an exact copy of `panel/folderplan.js` (tested).
+- Tests: Node 621 pass, Python 1141 passed / 24 skipped. Needs one Premiere restart for the new Asistent panel version.
+
 ## 0.10.144 - Folders tab: favourite folders one press away (2026-11-22, installed, not tried in Premiere)
 The user (2026-11-22) wanted folder shortcuts inside Premiere, in Asistent, on its own tab. Read only: nothing in Premiere or the
 folders changes. Page: `docs/features/folders.md`. First committed as 0.10.143 (56ad1a2) while another session's Fix audio change also took 0.10.143; renumbered so the installer replaces the panel (a same-version install keeps the old one). The same commit had dropped the 0.10.142 heading here by mistake; put back.

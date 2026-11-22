@@ -645,7 +645,7 @@ function mount({ $, el, button, bindTips, premiere, hooks = {} }) {
         keep();
       });
       r.appendChild(cat);
-      r.appendChild(btn("Add files…", "Copies the files you pick into this kit (also: drop files from Finder / Explorer anywhere on this page). Nothing is moved.", async () => {
+      r.appendChild(btn("Add files…", "Copies the files you pick into this kit. Nothing is moved.", async () => {
         try {
           const fs = require("uxp").storage.localFileSystem;
           const files = await fs.getFileForOpening({ allowMultiple: true });
@@ -738,11 +738,10 @@ function mount({ $, el, button, bindTips, premiere, hooks = {} }) {
       renderCategory(k, "other");
       renderNotes(k);
       const total = Object.values(k.counts || {}).reduce((n, v) => n + v, 0) + (k.colors || []).length;
-      if (!total) card().appendChild(el("div", "muted", "This kit is empty: add files in Manage, or drop them here."));
+      if (!total) card().appendChild(el("div", "muted", "This kit is empty: add files in Manage (Add files…)."));
       else if (state.query && !root.querySelector(".bk-asset")) card().appendChild(el("div", "muted", "Nothing in the kit matches."));
     }
     root.appendChild(status);
-    root.appendChild(el("div", "bk-drop", state.kit ? "Drop files here to copy them into the kit." : ""));
     bindTips(root);
     if (app) app.scrollTop = top;
     if (focus && $(focus)) {
@@ -789,7 +788,7 @@ function mount({ $, el, button, bindTips, premiere, hooks = {} }) {
     const paths = BP.droppedPaths(parts);
     premiere.debug(`brand drop: ${parts.note} -> ${paths.length} paths`);
     if (!state.kit) return say("Choose a kit first, then drop the files.", "err");
-    if (!paths.length) return say("Premiere did not pass the dropped files to the panel: use Manage > Add files….", "err");
+    if (!paths.length) return say("Premiere does not hand dragged files to this panel: use Manage > Add files… instead.", "err");
     addPaths(paths);
   });
 

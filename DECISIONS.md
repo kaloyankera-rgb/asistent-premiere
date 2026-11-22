@@ -6,6 +6,12 @@
 - Why: in real edits, lowering the louder side (or leaving a side judged as bleed unraised) made one person much quieter than the
   other. Supersedes "balance only lowers" of 2026-11-03 as a default; `audio.balance` stays in the code, unused by the panel.
 
+## 2026-11-22: Asistent Folders panel (CEP) for drag and drop
+- Measured: a drag from Finder reaches a UXP panel empty in Premiere 2026 (26.5.3), and a CEP panel with the folder's path. The user
+  chose a separate CEP panel (Window > Extensions > Asistent Folders) over an "Add from Finder" button. It lives in the existing
+  helper bundle (one install), shares the list with the Folders tab through the engine's store, and is read only like the tab.
+- Accepted: Adobe is phasing CEP out; if a Premiere drops CEP, the tab and Add folder… remain.
+
 ## 2026-11-22: Folders tab (favourite folders), its own tab
 - The user asked for folder shortcuts inside Premiere, like the free Portal extension they showed (drop folders, buttons that open
   them, names, colours, relative to the project). Built in Asistent as the Folders tab (the user's choice of placement over a

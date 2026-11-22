@@ -80,3 +80,12 @@ test("the store: saved and loaded back; broken values never break the page", () 
   assert.deepStrictEqual(FP.load({ items: [{ path: "" }, null, { path: "/a/X", color: "pink", id: "f1" }, { path: "/a/Y", id: "f1" }] })
     .map((i) => [i.id, i.label, i.color]), [["f1", "X", "none"], ["f2", "Y", "none"]]);
 });
+
+// 0.10.145: the CEP Folders panel loads its own copy of the rules (the host bundle is installed apart from the UXP panel)
+test("host/folderplan.js is an exact copy of panel/folderplan.js", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const a = fs.readFileSync(path.join(__dirname, "..", "panel", "folderplan.js"), "utf8");
+  const b = fs.readFileSync(path.join(__dirname, "..", "host", "folderplan.js"), "utf8");
+  assert.strictEqual(b, a, "copy panel/folderplan.js to host/folderplan.js after changing it");
+});

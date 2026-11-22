@@ -167,7 +167,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     const card = el("div", "card");
     const head = el("div", "cardhead");
     head.appendChild(el("div", "title fd-title", "Folders"));
-    head.appendChild(button("small", "Add folder…", `Pick a folder: it gets a button that opens it in ${app}. You can also drop folders from ${app} on this page.`, async () => {
+    head.appendChild(button("small", "Add folder…", `Pick a folder: it gets a button that opens it in ${app}.`, async () => {
       try {
         const f = await require("./premiere-import.js").pickFolder();
         if (f) addPaths([f], "picked");
@@ -185,7 +185,7 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     card.appendChild(head);
 
     if (!state.items.length) {
-      card.appendChild(el("div", "muted", `No folders yet. Drop a folder from ${app} here, or press Add folder…. Each one becomes a button that opens it in ${app}.`));
+      card.appendChild(el("div", "muted", `No folders yet. Press Add folder… to pick one, or drag folders from ${app} onto the Asistent Folders panel (Window > Extensions): each folder becomes a button that opens it in ${app}, here and there.`));
     } else if (state.edit) {
       state.items.forEach((it, k) => card.appendChild(editRow(it, k)));
     } else {
@@ -201,7 +201,6 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     }
     card.appendChild(status);
     root.appendChild(card);
-    root.appendChild(el("div", "bk-drop", `Drop folders from ${app} anywhere on this page.`));
     if (bindTips) bindTips(root);
   }
 
@@ -226,7 +225,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     const paths = droppedPaths(parts);
     debug(`folders drop: ${parts.note} -> ${paths.length} paths`);
     if (!paths.length) {
-      say("Premiere did not pass the dropped folder to the panel: use Add folder….", "err");
+      // measured 2026-11-22 (Premiere 2026): a drag from Finder reaches a UXP panel empty (no files, links or text)
+      say("Premiere does not hand dragged folders to this panel: drag them onto the Asistent Folders panel (Window > Extensions), or use Add folder….", "err");
       return;
     }
     let exist = [];
@@ -248,7 +248,12 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   render();
   return {
     async shown() {
-      state.items = FP.load(store.getItem(KEY));          // the store loads from the engine after start: read it again
+      // the list is shared with the Asistent Folders panel (CEP, 0.10.145), which writes the engine's store directly: read it fresh
+      try {
+        const fresh = ((await engine.panelStore()).values || {})[KEY];
+        if (typeof fresh === "string" && fresh !== store.getItem(KEY)) store.setItem(KEY, fresh);
+      } catch (e) { /* offline: the copy in memory */ }
+      state.items = FP.load(store.getItem(KEY));
       await projectDir();
       render();
       checkExist();

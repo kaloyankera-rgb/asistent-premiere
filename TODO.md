@@ -7,11 +7,13 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
-## FLD. Folders tab (0.10.144, 2026-11-22)
-- [ ] USER: restart Premiere, open the Folders tab: does the tab row look right at your panel width?
-- [ ] USER: drop a folder from Finder on the page. If it says "Premiere did not pass the dropped folder", the drop does not work in
-      Premiere's UXP (then `grep "folders drop" engine.log` shows what came); Add folder… is the way. Press a button: Finder opens.
-- [ ] USER: Edit: a name, a colour, ↑ / ↓, Delete twice, Follows the project in a saved project, then in another project.
+## FLD. Folders (0.10.144 tab, 0.10.146 CEP panel; 2026-11-22)
+- [x] The tab seen by the user; a drag onto the UXP panel arrives empty (measured), onto a CEP panel with the path (measured).
+- [ ] USER: restart Premiere once (new Asistent panel version), Window > Extensions > Asistent Folders: drag folders from Finder,
+      press one (Finder opens), right-click: Rename, a colour, Move, Delete twice, drag a button onto another.
+- [ ] USER: the same buttons appear on the Folders tab (and a change there shows in the panel within a few seconds).
+- [ ] USER: Follows the project in a saved project, then open another project with the same folders.
+- [ ] Later if wanted: "Add from Finder" on the tab (the engine asks Finder for its selection), Windows check.
 
 ## COL. Colour accuracy (the audit of 2026-11-22, docs/CLIENT_COLOR/AUDIT_2026-11-22.md; the user's decisions in DECISIONS)
 - [ ] Installed 2026-11-22. USER (Monday, at the office): export one graded client

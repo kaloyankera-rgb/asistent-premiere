@@ -1,0 +1,45 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Asistent Folders</title>
+<style>
+  :root { --bg: #1d1d1f; --text: #e7e8ec; --text-2: #9a9ca6; --control: #2a2b31; --control-hover: #33353c; --line: #3a3d45;
+    --sel: #ffc945; --ok: #8ddb9a; --err: #ff9a94; --menu: #111216;
+    --red: #e5534b; --orange: #f0883e; --yellow: #e3b341; --green: #3fb950; --blue: #58a6ff; --purple: #b77fd3; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 12px -apple-system, "Segoe UI", sans-serif;
+    -webkit-user-select: none; user-select: none; }
+  body { padding: 8px; box-sizing: border-box; overflow-y: auto; }
+  body.over { outline: 2px dashed var(--sel); outline-offset: -4px; }
+  .bar { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .bar .title { flex: 1; font-weight: bold; }
+  .small { padding: 3px 8px; border-radius: 5px; border: 1px solid var(--line); background: var(--control); color: var(--text); cursor: pointer; font-size: 11px; }
+  .small:hover { background: var(--control-hover); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+  .f { position: relative; padding: 8px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--control); text-align: center;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .f:hover { background: var(--control-hover); }
+  .f.missing { opacity: 0.45; }
+  .f.target { outline: 2px solid var(--sel); }
+  .f.c-red { border-left: 3px solid var(--red); } .f.c-orange { border-left: 3px solid var(--orange); }
+  .f.c-yellow { border-left: 3px solid var(--yellow); } .f.c-green { border-left: 3px solid var(--green); }
+  .f.c-blue { border-left: 3px solid var(--blue); } .f.c-purple { border-left: 3px solid var(--purple); }
+  .f input { width: 100%; box-sizing: border-box; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--sel); border-radius: 3px; padding: 1px 3px; }
+  .empty, .hint { color: var(--text-2); line-height: 16px; }
+  .hint { margin-top: 8px; font-size: 10px; text-align: center; }
+  #status { margin-top: 8px; line-height: 15px; }
+  #status.ok { color: var(--ok); } #status.err { color: var(--err); }
+  .menu { position: fixed; z-index: 10; min-width: 170px; padding: 4px 0; border-radius: 6px; background: var(--menu); border: 1px solid var(--line);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); }
+  .menu .it { padding: 5px 12px; cursor: pointer; } .menu .it:hover { background: var(--control-hover); }
+  .menu .it.off { color: var(--text-2); cursor: default; } .menu .it.off:hover { background: none; }
+  .menu .it.danger { color: var(--err); }
+  .menu .sep { height: 1px; margin: 4px 0; background: var(--line); }
+  .menu .sw { display: flex; gap: 6px; padding: 5px 12px; }
+  .menu .sw div { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--line); cursor: pointer; box-sizing: border-box; }
+  .menu .sw div.on { border: 2px solid var(--text); }
+</style></head>
+<body>
+  <div class="bar"><div class="title">Folders</div><div id="add" class="small" title="Pick a folder (or several) to add.">Add folder…</div></div>
+  <div id="list"></div>
+  <div id="status"></div>
+  <div class="hint">Drag folders from Finder here. Right-click a button for name, colour, order, delete. Drag a button to move it.</div>
+  <script src="folders-panel.js"></script>
+</body></html>

@@ -13,7 +13,7 @@ press and its Premiere limits): [docs/BRAND_KIT.md](../BRAND_KIT.md), 113 lines.
    Presets: Add a MOGRT. Fonts: Install or Copy. References: Open.
 3. Colours: a click in the Apply row colours the selected clips, a click in the Copy row copies the HEX.
 4. Manage: create, rename, duplicate, delete (moved to `_Deleted kits`), forget a client folder, library folder, add
-   files by drop or "Add files…".
+   files with "Add files…" (a drop from Finder does not reach the panel: measured 2026-11-22, the page no longer offers it).
 
 ## Key points: do not break
 - A kit is a folder: a library folder, a client folder, or `Brand Kit` above the project. `brand.json` is written by hand

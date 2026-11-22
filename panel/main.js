@@ -1912,7 +1912,7 @@ onTap($("importToggle"), () => importSwitch(null));
     const folder = dropfolder.droppedPath(parts);
     engine.log("info", `import drop: ${parts.note} -> ${folder || "no path"}`);
     if (!folder) {
-      finish("Premiere did not pass the dropped folder to the panel: use Other folder… under Auto import.", false);
+      finish("Premiere does not hand dragged folders to this panel: use Other folder… under Auto import instead.", false);
       return;
     }
     importSwitch(folder);

@@ -8,8 +8,7 @@ appear in Premiere. It is on by itself and watches the folder the project is sav
 ## How to use it
 1. Do nothing: a project with no folder of its own watches its `.prproj` folder from the panel's first status call. The
    row shows "Watching <folder>".
-2. To watch another folder, drop that folder from Finder / Explorer onto the row, or press "Other folder…" under the
-   row's more arrow. A dropped file is refused with "drop the folder it is in".
+2. To watch another folder, press "Other folder…" under the row's more arrow (a drop from Finder does not reach the panel).
 3. The switch turns it off; off is remembered for that project. The row lists the last imports.
 4. The panel must be open and idle: files are imported while no other job runs.
 
@@ -47,8 +46,7 @@ appear in Premiere. It is on by itself and watches the folder the project is sav
 - Since 0.7.0 (folder sync, verified by the user in Premiere with Epidemic music / SFX and Shutterstock B-roll);
   on by default since 0.10.113. 0.10.113-0.10.115 were checked in NEW TEST through the bridge (it watches
   Ludi Glavi/Projects, steady over a restart). The new default in a new project: confirmed fine by the user 2026-11-21.
-- Folder drop (0.10.67): not tried in Premiere. Whether Premiere's UXP hands the panel the dropped path is unknown; the
-  panel logs "import drop: …" and then says to use "Other folder…".
+- Folder drop (0.10.67): does not work: measured 2026-11-22 in Premiere 2026 (26.5.3): a drag from Finder reaches a UXP panel empty (no files, links or text), so it cannot work; the row's text no longer offers it (0.10.145). Use Other folder….
 - Latest status line: 0.10.115-0.10.116 confirmed by the user 2026-11-21. Latest release v0.10.118.
 - Windows: untested (watchdog, `settle`, folder picker never run on the PC).
 - Open: BUGS: the recovery-copy limit above.

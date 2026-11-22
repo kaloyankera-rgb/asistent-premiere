@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.contentstudio.asistent.host" ExtensionBundleVersion="0.9.45" ExtensionBundleName="Asistent Host"
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.contentstudio.asistent.host" ExtensionBundleVersion="0.10.146" ExtensionBundleName="Asistent Host"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
     <Extension Id="com.contentstudio.asistent.host" Version="0.9.45" />
+    <Extension Id="com.contentstudio.asistent.folders" Version="0.10.146" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -39,6 +40,30 @@
           <Type>Custom</Type>
           <Geometry>
             <Size><Height>1</Height><Width>1</Width></Size>
+          </Geometry>
+        </UI>
+      </DispatchInfo>
+    </Extension>
+    <!-- The Asistent Folders panel (0.10.145): a visible CEP panel, because Premiere's UXP panels get an empty drop from Finder and
+         a CEP panel gets the dropped folder's path. Window > Extensions > Asistent Folders. -->
+    <Extension Id="com.contentstudio.asistent.folders">
+      <DispatchInfo>
+        <Resources>
+          <MainPath>./folders.html</MainPath>
+          <CEFCommandLine>
+            <Parameter>--enable-nodejs</Parameter>
+            <Parameter>--mixed-context</Parameter>
+          </CEFCommandLine>
+        </Resources>
+        <Lifecycle>
+          <AutoVisible>true</AutoVisible>
+        </Lifecycle>
+        <UI>
+          <Type>Panel</Type>
+          <Menu>Asistent Folders</Menu>
+          <Geometry>
+            <Size><Height>300</Height><Width>320</Width></Size>
+            <MinSize><Height>80</Height><Width>140</Width></MinSize>
           </Geometry>
         </UI>
       </DispatchInfo>
