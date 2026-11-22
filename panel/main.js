@@ -257,12 +257,13 @@ const history = [];
 let trackerPage = null;                                   // the Tracker page (mounted below, 0.10.51)
 let inoutPage = null;                                     // the In & Out page (mounted below, Phase 3)
 let brandPage = null;                                     // the Brand page (mounted below, 0.10.71)
+let foldersPage = null;                                   // the Folders page (0.10.143)
 let silencesPage = null;                                  // Cut silences: options and preview (mounted below, 0.10.96)
 let keyframerPage = null;                                 // the Keyframer page (its info for the bridge, 0.10.72)
 
 // 0.10.59: Keyframer and Tracker share the Motion tab (a switch between them, the last one used comes back); Log and
 // Settings are icons at the right of the tab row.
-const PANES = ["paneTools", "paneKeyframer", "paneTracker", "paneAnchor", "paneInOut", "paneBrand", "paneLog", "panePreview", "paneCaptions", "paneSettings"];
+const PANES = ["paneTools", "paneKeyframer", "paneTracker", "paneAnchor", "paneInOut", "paneBrand", "paneFolders", "paneLog", "panePreview", "paneCaptions", "paneSettings"];
 const MOTION = ["paneKeyframer", "paneTracker", "paneAnchor", "paneInOut"];
 let motionSide = "paneKeyframer";
 
@@ -301,6 +302,7 @@ function openTab(pane) {
   for (const b of document.querySelectorAll(".btn.mside")) b.className = `btn mside${b.getAttribute("data-tab") === pane ? " on" : ""}`;
   if (pane === "paneTracker" && trackerPage) trackerPage.relayout();
   if (pane === "paneBrand" && brandPage) brandPage.shown();
+  if (pane === "paneFolders" && foldersPage) foldersPage.shown();
   if (pane === "paneInOut" && inoutPage) inoutPage.wake();     // its preview stops while the page is hidden
   try {
     $("app").scrollTop = 0;
@@ -2168,6 +2170,7 @@ keyframerPage = require("./keyframer.js").mount({ $, el, button, enable, bindTip
 trackerPage = require("./tracker.js").mount({ $, el, button, enable, bindTips, premiere });   // the Tracker page (0.10.51)
 require("./anchor.js").mount({ $, el, button, enable, bindTips, premiere });     // the Anchor page (0.10.69, Anchor Studio)
 inoutPage = require("./inout.js").mount({ $, el, button, enable, bindTips, premiere });   // the In & Out page (Phase 3)
+foldersPage = require("./folders.js").mount({ $, el, button, enable, bindTips, premiere });          // the Folders page (0.10.143)
 // the Brand page (0.10.71): the subtitle style it can switch is the Subtitles row's own list
 const subtitleValues = () => [...$("subtitleStyle").querySelectorAll("option")].map((o) => o.value);
 brandPage = require("./brand.js").mount({ $, el, button, enable, bindTips, premiere, hooks: {

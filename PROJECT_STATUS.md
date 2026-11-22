@@ -6,8 +6,9 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
+- 0.10.143 (Folders tab: favourite folders as buttons that open them in Finder; drop or Add folder…, Edit: name, colour, order, delete, follows the project): installed, Node 620 pass, Python 1141 passed / 24 skipped, browser preview at 240 / 300 / 420 px. Not tried in Premiere. [folders](docs/features/folders.md)
 - 0.10.143 (Fix audio: speaker balance off; each side levelled on its own to -17 LUFS, peak -6 dBFS, Limiter -6 dB): engine and tests only.
-- 0.10.142 (colour learning fixed after the colour audit: client from the project name, old records re-filed with a backup, footage only, measurements and every changed Lumetri setting kept, report in stops plus the editors' Contrast / Saturation): Python 1138 passed / 24 skipped, Node 614 pass. Installed (engine 0.10.142 running); the user tries it at the office on Monday. Audit: docs/CLIENT_COLOR/AUDIT_2026-11-22.md, next steps TODO COL.
+- 0.10.142 (colour learning fixed after the colour audit: client from the project name, old records re-filed with a backup, footage only, measurements and every changed Lumetri setting kept, report in stops plus the editors' Contrast / Saturation): Python 1138 passed / 24 skipped, Node 614 pass. Installed, committed 39d0903; the user tries it at the office on Monday. Audit: docs/CLIENT_COLOR/AUDIT_2026-11-22.md, next steps TODO COL.
 - 0.10.141 (Move off faces rebuilt: a lane per Style, moves only when a face or other text would be covered, also after a zoom; measured on 25 client videos, docs/SUBTITLE_PLACEMENT.md): installed, Node 613 pass, Python 1131 passed, rules-reviewer PASS with notes. The user: "works splendid" on one video; more clients to follow. Bridge probes (zoom keyframe times, adjustment layers, press time) not run.
 - 0.10.140 (Export transcript: every sentence on its own line with its own time; short paragraphs): installed, Python 1114 passed / 24 skipped, Node 580 pass, pushed. Awaiting the user's export.
 - 0.10.139 (Subtitles: Line break, up to 5 words, the last 1-2 on a second line in the client's colour via `<font color>` in the .srt): installed, ReShape golden identical, pushed. Untested in Premiere: whether Premiere keeps the colour.
@@ -18,7 +19,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - 0.10.133 (In & Out page as Tiles, the user's choice of layout A): installed, Node 495 pass, rules-reviewer BLOCK fixed (stepper with a focused box), bridge-tested in NEW TEST, not pushed, not released. The user has not seen it in Premiere. Open: at a 523 px tall panel only about 2 tile rows show above the dock.
 - 0.10.132 (compact In & Out page, replaced by 0.10.133 before the user's look): local only (`7552dca`), installed and bridge-tested earlier; not pushed.
 - 0.10.131 (stray-press fix on every page; the preview no longer recreates its SVG shapes after 0.10.130 crashed Premiere in the SVG painter at 18:18:44): pushed to GitHub 2026-11-21 with the user's yes (`improvements/2026-11` at `c2397d0`); installed, Node 487 pass, pytest 954 passed / 24 skipped, not released. The user has not confirmed the click fix.
-- 0.10.141 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`
+- 0.10.143 installed on the development Mac (0.10.141 published; 0.10.142-0.10.143 local, not pushed). Earlier line: 0.10.141 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`
   and `origin/main` at the same commit.
 - Last published release: v0.10.141 (2026-11-22, the user's word "publish to the others"; main fast-forwarded to 6a0b5bc). It carries
   0.10.119-0.10.141, including parts the user has not seen in Premiere (Cut silences audit, In & Out, Max words / Case / Line break).
@@ -39,6 +40,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - Local recognition experiments (`NEXT` profile) paused behind a development switch; the held-back runs were stopped.
 
 ## Waiting for a check in Premiere (newest first)
+- 0.10.143 Folders tab: the user's look at the tab row and the page; a folder dropped from Finder (does Premiere pass the path?); a press opens Finder. TODO FLD.
 - 0.10.143 Fix audio on a two-person video: both speakers at a similar level, no side lowered for balance. [fix-audio](docs/features/fix-audio.md)
 - 0.10.142 after install: export a graded client video, then Color > What the editors did (right client, Contrast / Saturation line). TODO COL.
 - 0.10.141 Move off faces on more clients (the user is trying it); a press over zooms and on a ReShape project. TODO MOF.

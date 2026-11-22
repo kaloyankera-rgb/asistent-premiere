@@ -6,7 +6,14 @@
 - Why: in real edits, lowering the louder side (or leaving a side judged as bleed unraised) made one person much quieter than the
   other. Supersedes "balance only lowers" of 2026-11-03 as a default; `audio.balance` stays in the code, unused by the panel.
 
-## 2026-11-22: colour is learned from every editor; Saturation and Contrast allowed per client (the colour audit)
+## 2026-11-22: Folders tab (favourite folders), its own tab
+- The user asked for folder shortcuts inside Premiere, like the free Portal extension they showed (drop folders, buttons that open
+  them, names, colours, relative to the project). Built in Asistent as the Folders tab (the user's choice of placement over a
+  Tools row or a strip on every tab). Own code and own name; nothing of Portal's is used.
+- Edit mode instead of a right-click menu (Premiere's UXP gives a panel no context menu) and ↑ / ↓ instead of drag to reorder.
+- Read only: opening a folder is the only action; office server folders are only opened.
+
+; Saturation and Contrast allowed per client (the colour audit)
 - After the colour audit (docs/CLIENT_COLOR/AUDIT_2026-11-22.md) the user decided: Auto color learns from the grades of **all**
   editors in the exported projects, not only the user's.
 - Auto color **may set Saturation and Contrast per client**, learned from the editors (lifts the rule "only Exposure / Temperature /

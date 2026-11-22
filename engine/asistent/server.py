@@ -104,6 +104,8 @@ drive the engine. The Host header is checked against DNS rebinding.
                              (filecheck.py, its report in /exports/recent as "check")
   GET  /exports/recent       {items: [{id, name, path, at, shown, note}]} for the Log tab
   POST /exports/reveal       {"id"} show an export from the list again (only files the engine itself recorded)
+  POST /folders/open         {"path"} open a folder in Finder / Explorer (the Folders page, 0.10.143) -> {ok} or 404
+  POST /folders/exist        {"paths": [...]} -> {"exist": [bool, ...]} (read only)
 """
 from __future__ import annotations
 
@@ -911,6 +913,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, _exports().done(path if isinstance(path, str) else None,
                                                        str(body.get("kind") or "complete"), str(body.get("source") or ""),
                                                        seq if isinstance(seq, dict) else None))
+            if self.path == "/folders/open":
+                path = str(body.get("path") or "")
+                try:
+                    reveal.open_folder(path)
+                except FileNotFoundError:
+                    return self._send(404, {"error": f"The folder is not there (moved, renamed or not mounted): {path}"})
+                except OSError as e:
+                    return self._send(500, {"error": str(e)})
+                return self._send(200, {"ok": True})
+            if self.path == "/folders/exist":
+                return self._send(200, {"exist": reveal.folders_exist(body.get("paths") if isinstance(body.get("paths"), list) else [])})
             if self.path == "/exports/reveal":
                 return self._send(200, _exports().again(str(body.get("id") or "")))
             m = re.fullmatch(r"/jobs/([0-9a-f]{12})/(cancel|stop)", self.path)

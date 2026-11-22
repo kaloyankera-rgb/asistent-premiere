@@ -1,6 +1,18 @@
 // The panel states the preview can show (?s=name). Texts are copied from what main.js and the plan modules really
 // write, so a screenshot shows real lengths; numbers and clip names are made up (no client material).
 
+// made-up favourite folders for the Folders page (0.10.143)
+function foldersDemo() {
+  return JSON.stringify({ items: [
+    { id: "f1", label: "Downloads", path: "/Users/editor/Downloads", rel: null, color: "none" },
+    { id: "f2", label: "Music", path: "/Users/editor/Library/Music for edits", rel: null, color: "purple" },
+    { id: "f3", label: "SFX", path: "/Users/editor/Library/SFX", rel: null, color: "blue" },
+    { id: "f4", label: "Project assets", path: "/Users/editor/Projects/Assets", rel: "Assets", color: "green" },
+    { id: "f5", label: "Exports", path: "/Users/editor/Projects/Exports", rel: null, color: "orange" },
+    { id: "f6", label: "Archive on the old drive", path: "/Volumes/Old drive/Archive", rel: null, color: "none" },
+  ] });
+}
+
 // a made-up brand kit for the Brand page (0.10.71)
 function brandKits() {
   return { kits: [{ id: "k1", name: "Northwind", folder: "/Volumes/Production/Brand Kits/Northwind", source: "library", online: true, remote: true },
@@ -276,6 +288,11 @@ window.PREVIEW_SCENARIOS = (function () {
       run: (api) => { api.openTab("paneBrand"); setTimeout(() => { const b = [...document.querySelectorAll("#paneBrand .btn")].find((x) => x.textContent === "Manage"); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); }, 120); } },
     "brand-offline": { engine: { brandKits: brandKits(), brandKit: { ...brandKit(), online: false, note: "The kit's folder is not reachable (/Volumes/Production/Brand Kits/Northwind): showing what this computer read last (2026-11-14 12:01). Files with a copy here still work." } },
       thumb: brandThumb, run: (api) => api.openTab("paneBrand") },
+    // 0.10.143: the Folders page, empty, with made-up folders (one follows the project, one on a drive that is not there), and Edit
+    "folders-empty": { run: (api) => api.openTab("paneFolders") },
+    folders: { store: { "asistent.folders": foldersDemo() }, run: (api) => api.openTab("paneFolders") },
+    "folders-edit": { store: { "asistent.folders": foldersDemo() },
+      run: (api) => { api.openTab("paneFolders"); setTimeout(() => { const b = [...document.querySelectorAll("#paneFolders .btn")].find((x) => x.textContent === "Edit"); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); }, 150); } },
     anchor: { run: (api) => api.openTab("paneAnchor") },
     // In & Out (Phase 3): nothing picked; Slide in + Anticipate out (edge asked, Strength on); Spin in + Fade out (turn asked, Strength
     // greyed); after Apply with a made-up result

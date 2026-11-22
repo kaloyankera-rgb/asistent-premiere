@@ -611,3 +611,21 @@ def test_is_export_knows_the_file_premiere_named_and_the_ones_events_named(setup
     assert w.is_export(str(project_dir / "EDIT_V1.mp4"))
     w.settings.data["recent"] = [{"path": str(project_dir / "OLD.mp4")}]
     assert w.is_export(str(project_dir / "OLD.mp4"))
+
+
+# ---------------------------------------------------------------- the Folders page (0.10.143)
+
+def test_open_folder_commands_and_checks(monkeypatch, tmp_path):
+    assert reveal.open_command("/a b/Music", "darwin") == ["open", "/a b/Music"]
+    assert reveal.open_command("C:/a b/Music", "win32") == ["explorer.exe", "C:\\a b\\Music"]
+    opened = []
+    monkeypatch.setattr(reveal.subprocess, "Popen", lambda cmd, **kw: opened.append(cmd))
+    reveal.open_folder(str(tmp_path))
+    assert opened == [reveal.open_command(str(tmp_path))]
+    f = tmp_path / "x.mp4"
+    f.write_bytes(b"0")
+    import pytest
+    for bad in (str(f), str(tmp_path / "gone"), ""):
+        with pytest.raises(FileNotFoundError):
+            reveal.open_folder(bad)
+    assert reveal.folders_exist([str(tmp_path), str(f), str(tmp_path / "gone"), None, ""]) == [True, False, False, False, False]

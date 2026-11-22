@@ -177,3 +177,15 @@ def test_suggestion_keeps_the_measurements(tmp_path, monkeypatch):
     m, look = s["measured"], s["look"]
     assert m["y_mid"] is not None and m["frames"] == 3 and "cast_temp" in m and "at_luma" in m
     assert set(look) == {"black", "white", "contrast", "saturation", "clipped"} and look["white"] >= look["black"]
+
+
+def test_folder_endpoints(engine, tmp_path, monkeypatch):  # noqa: F811 (the Folders page, 0.10.143: lives here for the engine fixture)
+    from asistent import reveal
+    opened = []
+    monkeypatch.setattr(reveal.subprocess, "Popen", lambda cmd, **kw: opened.append(cmd))
+    code, data = call("POST", "/folders/exist", {"paths": [str(tmp_path), str(tmp_path / "gone")]})
+    assert code == 200 and data["exist"] == [True, False]
+    code, data = call("POST", "/folders/open", {"path": str(tmp_path)})
+    assert code == 200 and data["ok"] and opened
+    code, data = call("POST", "/folders/open", {"path": str(tmp_path / "gone")})
+    assert code == 404 and "not there" in data["error"]

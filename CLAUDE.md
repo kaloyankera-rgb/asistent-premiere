@@ -30,6 +30,7 @@ or the snapshot in `docs/dev-workflow/`.
   - `exportcheck.js` what the pre-export check reports (pure) · `premiere-exportcheck.js` reads the sequence for it (0.10.35)
   - `tracknames.js` which name each track gets (pure) · `premiere-labels.js` Track names: renames and camera colours in one step (0.10.34)
   - `captionedit.js` (what a typed caption correction becomes: correction lines for the engine) · `premiere-import.js` auto import · `premiere-color.js` Lumetri apply + render check
+  - `folders.js` the Folders page (0.10.143: favourite folders as buttons, opened in Finder / Explorer by the engine) · `folderplan.js` its rules (pure)
   - `brand.js` the Brand page (0.10.71, docs/BRAND_KIT.md) · `premiere-brand.js` import into the client's bin, place at the playhead / the end above everything, MOGRT through the host, Tint · `brandplan.js` its decisions (pure)
   - `silenceplan.js` Cut silences' options, preview columns and review choices (pure) · `silences.js` its options, preview and cut in the panel (0.10.96; engine `silence.py`: measure / label / plan)
   - `cssprobe.js` which CSS this UXP really supports (measured, run by the bridge's `css_probe`) · `devbridge.js` test bridge executor · `exportevents.js` Premiere's export events → the engine (0.10.7) · `premiere-probe.js` Lumetri capability probe · `moments.js` where a clip can be measured on the timeline, cameras and Shot Match moments (pure) · `colorplans.js` what each apply button applies (pure) · `layout.js` SYNC layout · `version.js` written by packaging

@@ -19,6 +19,7 @@ status, tests. Status as of 0.10.129 (2026-11-21).
 | Subtitles | Bulgarian speech to SRT and a caption track; Captions tab fixes and learning | [subtitles](features/subtitles.md) | Core verified; ElevenLabs Auto verified 2026-11-21, ReShape and switch-off runs open | Untested |
 | Auto import | Watches the project's folder, imports new files into type bins | [auto-import](features/auto-import.md) | Verified; default-on bridge-tested | Untested |
 | Brand | The client's brand kit in Premiere: place, colours, MOGRTs, fonts | [brand](features/brand.md) | Installed; not tried by the user | Untested |
+| Folders | Favourite folders as buttons that open them in Finder; colours, names, follows the project | [folders](features/folders.md) | Installed 0.10.143; not tried in Premiere | Untested |
 | Keyframer | Curves between keyframes, repeats, motion blur, live preview | [keyframer](features/keyframer.md) | Bridge-tested; user's look open | Untested |
 | Stash | Save a clip's animation or clips, apply at the playhead | [stash](features/stash.md) | Bridge-tested; not tried by the user | Untested |
 | Tracker | Track an object, attach a text or lock the clip to it | [tracker](features/tracker.md) | Bridge-tested; engine on a real clip | Untested |
