@@ -18,9 +18,11 @@
   .f:hover { background: var(--control-hover); }
   .f.missing { opacity: 0.45; }
   .f.target { outline: 2px solid var(--sel); }
-  .f.c-red { border-left: 3px solid var(--red); } .f.c-orange { border-left: 3px solid var(--orange); }
-  .f.c-yellow { border-left: 3px solid var(--yellow); } .f.c-green { border-left: 3px solid var(--green); }
-  .f.c-blue { border-left: 3px solid var(--blue); } .f.c-purple { border-left: 3px solid var(--purple); }
+  /* a coloured button is filled with its colour (the user, 2026-11-22: "the whole thing, not a small line"), dark text on it */
+  .f[class*=" c-"]:not(.c-none) { color: #16171b; font-weight: 600; border-color: transparent; }
+  .f[class*=" c-"]:not(.c-none):hover { filter: brightness(1.1); }
+  .f.c-red { background: var(--red); } .f.c-orange { background: var(--orange); } .f.c-yellow { background: var(--yellow); }
+  .f.c-green { background: var(--green); } .f.c-blue { background: var(--blue); } .f.c-purple { background: var(--purple); }
   .f input { width: 100%; box-sizing: border-box; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--sel); border-radius: 3px; padding: 1px 3px; }
   .empty, .hint { color: var(--text-2); line-height: 16px; }
   .hint { margin-top: 8px; font-size: 10px; text-align: center; }

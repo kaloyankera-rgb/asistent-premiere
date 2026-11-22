@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.146 (2026-11-22)
+# Project status: Asistent 0.10.147 (2026-11-22)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,6 +6,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
+- 0.10.147 (Folders: a colour fills the whole button, in the CEP panel and on the tab): installed. The user confirmed the Asistent Folders panel works (drag and drop, 0.10.146).
 - 0.10.146 (Asistent Folders panel, CEP, Window > Extensions: drag folders from Finder, right-click menu, shared list with the Folders tab; drop hints on Folders / Auto import / Brand corrected after the UXP drop was measured empty): installed, Node 621, Python 1141 / 24 skipped. Not tried in Premiere. [folders](docs/features/folders.md)
 - 0.10.144 (Folders tab: favourite folders as buttons that open them in Finder; drop or Add folder…, Edit: name, colour, order, delete, follows the project): installed, Node 620 pass, Python 1141 passed / 24 skipped, browser preview at 240 / 300 / 420 px. Not tried in Premiere. [folders](docs/features/folders.md)
 - 0.10.143 (Fix audio: speaker balance off; each side levelled on its own to -17 LUFS, peak -6 dBFS, Limiter -6 dB): engine and tests only.
@@ -20,7 +21,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - 0.10.133 (In & Out page as Tiles, the user's choice of layout A): installed, Node 495 pass, rules-reviewer BLOCK fixed (stepper with a focused box), bridge-tested in NEW TEST, not pushed, not released. The user has not seen it in Premiere. Open: at a 523 px tall panel only about 2 tile rows show above the dock.
 - 0.10.132 (compact In & Out page, replaced by 0.10.133 before the user's look): local only (`7552dca`), installed and bridge-tested earlier; not pushed.
 - 0.10.131 (stray-press fix on every page; the preview no longer recreates its SVG shapes after 0.10.130 crashed Premiere in the SVG painter at 18:18:44): pushed to GitHub 2026-11-21 with the user's yes (`improvements/2026-11` at `c2397d0`); installed, Node 487 pass, pytest 954 passed / 24 skipped, not released. The user has not confirmed the click fix.
-- 0.10.146 installed on the development Mac (0.10.141 published; 0.10.142-0.10.146 local, not pushed). Two sessions both used 0.10.143 on 2026-11-22 (Fix audio and Folders); Folders was renumbered 0.10.144 so the installer replaces the panel. Earlier line: 0.10.141 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`
+- 0.10.146 installed on the development Mac (0.10.141 published; 0.10.142-0.10.147 local, not pushed). Two sessions both used 0.10.143 on 2026-11-22 (Fix audio and Folders); Folders was renumbered 0.10.144 so the installer replaces the panel. Earlier line: 0.10.141 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`
   and `origin/main` at the same commit.
 - Last published release: v0.10.141 (2026-11-22, the user's word "publish to the others"; main fast-forwarded to 6a0b5bc). It carries
   0.10.119-0.10.141, including parts the user has not seen in Premiere (Cut silences audit, In & Out, Max words / Case / Line break).

@@ -31,6 +31,11 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.147 - Folders: a colour fills the whole button (2026-11-22, installed)
+- The user, after trying the Asistent Folders panel ("It works"): a colour should be the whole button, not a thin line on the left.
+  Coloured buttons are now filled with their colour, the name in dark bold text, in the CEP panel and on the Folders tab (which
+  keeps the colour under the pointer). Styles only; Node 621 pass.
+
 ## 0.10.146 - Asistent Folders panel: drag folders from Finder (CEP); drop hints corrected (2026-11-22, installed, not tried in Premiere)
 - **Measured**: a drag from Finder reaches Asistent's UXP panel empty in Premiere 2026 (26.5.3): no files, links or text, so the
   drop areas on Folders, Auto import and Brand could never work. Their texts no longer offer a drop and point to Add folder… /

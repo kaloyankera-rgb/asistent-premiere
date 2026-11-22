@@ -66,6 +66,7 @@
   --fd-green: #3fb950;
   --fd-blue: #58a6ff;
   --fd-purple: #b77fd3;
+  --fd-ink: #16171b;
   /* the tab row (0.10.111) */
   --tab-text: #c4c6ce;
   --tab-hover: rgba(255, 255, 255, 0.06);
@@ -760,19 +761,26 @@ input.io-name { flex: 1; min-width: 60px; margin: 0 6px 0 0; font-size: 11px; }
 .btn.small.io-edrename, .btn.small.io-eddelete { flex: none; margin: 0 6px 0 0; padding: 3px 10px; }
 .btn.small.io-eddelete { border-color: var(--err-line); color: var(--err); }
 
-/* the Folders page (0.10.144): favourite folders as buttons; colour = a stripe on the left, the label stays readable */
+/* the Folders page (0.10.144): favourite folders as buttons; a colour fills the whole button with dark text on it (0.10.147, the
+   user: "the whole thing, not just a small line") */
 #paneFolders.dropping { outline: 2px dashed var(--sel); outline-offset: -2px; }
 .fd-title { min-width: 0; }
 .fd-grid { display: flex; flex-direction: row; flex-wrap: wrap; }
 .btn.fd-btn { flex: 1 1 90px; min-width: 0; margin: 0 6px 6px 0; padding: 7px 8px; font-size: 12px; line-height: 16px;
   text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .btn.fd-btn.missing { opacity: 0.45; }
-.btn.fd-btn.fd-c-red { border-left: 3px solid var(--fd-red); }
-.btn.fd-btn.fd-c-orange { border-left: 3px solid var(--fd-orange); }
-.btn.fd-btn.fd-c-yellow { border-left: 3px solid var(--fd-yellow); }
-.btn.fd-btn.fd-c-green { border-left: 3px solid var(--fd-green); }
-.btn.fd-btn.fd-c-blue { border-left: 3px solid var(--fd-blue); }
-.btn.fd-btn.fd-c-purple { border-left: 3px solid var(--fd-purple); }
+.btn.fd-btn.fd-c-red { background-color: var(--fd-red); border-color: var(--fd-red); color: var(--fd-ink); font-weight: bold; }
+.btn.fd-btn.fd-c-orange { background-color: var(--fd-orange); border-color: var(--fd-orange); color: var(--fd-ink); font-weight: bold; }
+.btn.fd-btn.fd-c-yellow { background-color: var(--fd-yellow); border-color: var(--fd-yellow); color: var(--fd-ink); font-weight: bold; }
+.btn.fd-btn.fd-c-green { background-color: var(--fd-green); border-color: var(--fd-green); color: var(--fd-ink); font-weight: bold; }
+.btn.fd-btn.fd-c-blue { background-color: var(--fd-blue); border-color: var(--fd-blue); color: var(--fd-ink); font-weight: bold; }
+.btn.fd-btn.fd-c-purple { background-color: var(--fd-purple); border-color: var(--fd-purple); color: var(--fd-ink); font-weight: bold; }
+.btn.fd-btn.fd-c-red:hover, .btn.fd-btn.fd-c-red:active { background-color: var(--fd-red); border-color: var(--text); color: var(--fd-ink); }
+.btn.fd-btn.fd-c-orange:hover, .btn.fd-btn.fd-c-orange:active { background-color: var(--fd-orange); border-color: var(--text); color: var(--fd-ink); }
+.btn.fd-btn.fd-c-yellow:hover, .btn.fd-btn.fd-c-yellow:active { background-color: var(--fd-yellow); border-color: var(--text); color: var(--fd-ink); }
+.btn.fd-btn.fd-c-green:hover, .btn.fd-btn.fd-c-green:active { background-color: var(--fd-green); border-color: var(--text); color: var(--fd-ink); }
+.btn.fd-btn.fd-c-blue:hover, .btn.fd-btn.fd-c-blue:active { background-color: var(--fd-blue); border-color: var(--text); color: var(--fd-ink); }
+.btn.fd-btn.fd-c-purple:hover, .btn.fd-btn.fd-c-purple:active { background-color: var(--fd-purple); border-color: var(--text); color: var(--fd-ink); }
 .fd-line { display: flex; flex-direction: row; align-items: center; }
 .fd-edit { padding: 8px 0; border-top: 1px solid var(--glass-faint); }
 .cardhead + .fd-edit { border-top-width: 0; padding-top: 0; }

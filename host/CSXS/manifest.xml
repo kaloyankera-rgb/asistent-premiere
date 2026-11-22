@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.contentstudio.asistent.host" ExtensionBundleVersion="0.10.146" ExtensionBundleName="Asistent Host"
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.contentstudio.asistent.host" ExtensionBundleVersion="0.10.147" ExtensionBundleName="Asistent Host"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
     <Extension Id="com.contentstudio.asistent.host" Version="0.9.45" />
-    <Extension Id="com.contentstudio.asistent.folders" Version="0.10.146" />
+    <Extension Id="com.contentstudio.asistent.folders" Version="0.10.147" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
