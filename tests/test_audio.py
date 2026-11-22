@@ -255,7 +255,7 @@ def test_split_all_splits_every_stereo_clip_and_keeps_the_sum_under_the_ceiling(
     assert analyze_item(mono, force="split_all")["action"] == "none"
 
 
-# ---- balance of the two speakers (2026-11-03)
+# ---- balance of the two speakers (2026-11-03; off by default since 0.10.143, the user's decision 2026-11-22)
 
 def _two_speakers(tmp_path, louder_db=12.0, bleed_db=-30.0, seed=21):
     """L: speaker 1 at full level; R: speaker 2 `louder_db` quieter; each mic hears the other at bleed_db."""
@@ -267,11 +267,25 @@ def _two_speakers(tmp_path, louder_db=12.0, bleed_db=-30.0, seed=21):
     return synth.write_wav(tmp_path / "two.wav", [left, right]), left, right
 
 
+def test_fix_audio_levels_each_speaker_on_its_own_by_default(tmp_path):
+    # 0.10.143: lowering one side for balance left one person much quieter in real edits; by default each side is
+    # levelled to the target by itself and nothing is lowered to match the other speaker
+    from asistent.audio import analyze_item, TARGET_LUFS
+    path, _, _ = _two_speakers(tmp_path)
+    r = analyze_item(path, force="split_all")
+    assert r == analyze_item(path, force="split_all", balance_tol=None)
+    assert not any("The speakers differed" in x or "no speaker of its own" in x for x in r["reasons"])
+    for o in r["outputs"]:
+        assert "balanced_by" not in o and "balance_note" not in o
+        if not (o.get("limited_by_noise") or o.get("limited_by_peak")):
+            assert abs(o["result_lufs"] - TARGET_LUFS) <= 0.6, o
+
+
 def test_balance_lowers_only_the_louder_speaker_to_within_the_tolerance(tmp_path):
-    from asistent.audio import analyze_item, loudness
+    from asistent.audio import analyze_item, loudness, BALANCE_TOL
     path, left, right = _two_speakers(tmp_path)
     off = analyze_item(path, force="split_all", balance_tol=None)
-    on = analyze_item(path, force="split_all")
+    on = analyze_item(path, force="split_all", balance_tol=BALANCE_TOL)
     gap_before = abs(off["outputs"][0]["result_lufs"] - off["outputs"][1]["result_lufs"])
     ll, rr = on["outputs"]
     gap = abs(ll["result_lufs"] - rr["result_lufs"])
@@ -287,7 +301,7 @@ def test_balance_lowers_only_the_louder_speaker_to_within_the_tolerance(tmp_path
 def test_balance_leaves_similar_speakers_and_one_voice_on_two_mics_alone(tmp_path):
     import synth
     from asistent.audio import analyze_item
-    from asistent.audio import balance
+    from asistent.audio import balance, BALANCE_TOL
     mk = lambda route, lufs: {"route": route, "lufs": lufs, "gain_db": 1.0, "result_lufs": lufs, "result_peak_db": lufs - 10}
     similar = [mk("LL", -20.0), mk("RR", -21.5)]                   # 1.5 dB apart: equally loud
     assert balance(similar, {"dominant_L": 0.3, "dominant_R": 0.3}) == [] and [o["gain_db"] for o in similar] == [1.0, 1.0]
@@ -296,7 +310,7 @@ def test_balance_leaves_similar_speakers_and_one_voice_on_two_mics_alone(tmp_pat
     near = synth.mic([(s1, 1.0)], 2.0, 40.0, seed=3)
     far = synth.mic([(s1, 0.05)], 2.0, 40.0, seed=4)
     one = synth.write_wav(tmp_path / "one.wav", [far, near])
-    r = analyze_item(one, force="split_all")
+    r = analyze_item(one, force="split_all", balance_tol=BALANCE_TOL)
     quiet = r["outputs"][0]                                   # L = the far copy
     assert quiet["gain_db"] <= 0.0, quiet
 
@@ -304,12 +318,15 @@ def test_balance_leaves_similar_speakers_and_one_voice_on_two_mics_alone(tmp_pat
 def test_balance_never_lifts_noise_on_a_channel_without_speech(tmp_path):
     import numpy as np
     import synth
-    from asistent.audio import analyze_item
+    from asistent.audio import analyze_item, BALANCE_TOL
     s1, _ = synth.scene(60.0, seed=9)
     speech = synth.mic([(s1, 0.05)], 2.0, 40.0, seed=5)
     hiss = (np.random.default_rng(3).standard_normal(len(speech)) * 10 ** (-62 / 20)).astype(np.float32)
     path = synth.write_wav(tmp_path / "hiss.wav", [speech, hiss])
-    r = analyze_item(path, force="split_all")
+    # without balance (the default) the room-noise rule alone holds the hiss channel: raised, but its noise stays quiet
+    plain = analyze_item(path, force="split_all")["outputs"][1]
+    assert plain["lufs"] is None or plain["limited_by_noise"] and plain["result_peak_db"] < -25, plain
+    r = analyze_item(path, force="split_all", balance_tol=BALANCE_TOL)
     assert r["outputs"][1]["gain_db"] <= 0.0 or r["outputs"][1].get("limited_by_noise") or r["outputs"][1]["lufs"] is None, r["outputs"][1]
     ll, rr = r["outputs"]
     if rr["lufs"] is not None:

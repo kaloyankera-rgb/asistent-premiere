@@ -46,7 +46,7 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /sync_groups          {"paths": [...]} -> {"job": id}; groups among all clips (timeline selection)
   POST /audio                {"items": [{"path", "start", "end", "force"?}], "force"?, "target"?, "ceiling"?,
                               "phrases"?: true -> Volume keyframes that even out phrases,
-                              "balance_db"?: how far apart two speakers may be (default 2)}
+                              "balance_db"?: balance the two speakers to within this many dB (off when absent, 0.10.143)}
   GET  /stash/list, /stash/get?id=   saved animations (stash.py, <app>/stash/); POST /stash/save {stash, project},
                               /stash/delete {id}, /stash/rename {id, name}
   POST /tracker/frame {path, t, width?} -> {jpeg, width, height, w, h}; POST /tracker/track {path, from, to, step, t0, box}
@@ -249,7 +249,8 @@ def _start_audio(body: dict) -> dict:
         raise ValueError("The file is missing (offline media?): " + ", ".join(missing))
     target = float(body.get("target", -17.0))
     ceiling = float(body.get("ceiling", -6.0))
-    balance_tol = float(body.get("balance_db", 2.0))             # how far apart two speakers may be, in dB
+    # speaker balance is off unless asked for (0.10.143): each side is levelled on its own
+    balance_tol = float(body["balance_db"]) if body.get("balance_db") is not None else None
 
     def work(job):
         def progress(f, msg):

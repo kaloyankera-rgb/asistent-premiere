@@ -1,5 +1,11 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-22: Fix audio does not balance the two speakers (0.10.143)
+- The user turned off speaker balance "for now": Fix audio only splits L/L and R/R, levels each side on its own (-17 LUFS, peak
+  under -6 dBFS, the pair together under the ceiling) and puts the Dynamics Limiter at -6 dB. Nothing else.
+- Why: in real edits, lowering the louder side (or leaving a side judged as bleed unraised) made one person much quieter than the
+  other. Supersedes "balance only lowers" of 2026-11-03 as a default; `audio.balance` stays in the code, unused by the panel.
+
 ## 2026-11-22: colour is learned from every editor; Saturation and Contrast allowed per client (the colour audit)
 - After the colour audit (docs/CLIENT_COLOR/AUDIT_2026-11-22.md) the user decided: Auto color learns from the grades of **all**
   editors in the exported projects, not only the user's.

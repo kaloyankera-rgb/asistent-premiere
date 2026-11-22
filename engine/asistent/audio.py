@@ -34,6 +34,10 @@ PEAK_CEILING = -6.0
 MAX_GAIN = 30.0
 NOISE_MAX = -55.0      # dBFS: a boost may not lift the room noise above this
 BALANCE_TOL = 2.0      # dB: two speakers within this of each other count as equally loud; beyond it the louder is lowered
+# Speaker balance is OFF by default since 0.10.143 (the user's decision 2026-11-22): lowering one side, or leaving a side
+# it judged as "no speaker of its own" unraised, left one person much quieter than the other in real edits. Each side is
+# now only levelled on its own (-17 LUFS, peaks), the pair held under the ceiling together. balance() is kept for later;
+# pass balance_tol (or "balance_db" to POST /audio) to use it.
 BALANCE_MAX_CUT = 12.0 # dB: the most the louder speaker is ever lowered for balance (a whisperer is not matched to a shouter)
 OWN_SPEECH = 0.10      # share of the active frames in which a channel is >= 10 dB above the other: it carries its own speaker
 
@@ -426,7 +430,7 @@ def balance(outs: list[dict], ev: dict, tol: float = BALANCE_TOL) -> list[str]:
 
 def analyze_item(path: str, start: float = 0.0, end: float | None = None, force: str | None = None,
                  target: float = TARGET_LUFS, ceiling: float = PEAK_CEILING, phrases: bool = False,
-                 balance_tol: float = BALANCE_TOL) -> dict:
+                 balance_tol: float | None = None) -> dict:
     x = read_range(path, start, end)
     c = classify(x)
     # "split_all": the user's own workflow (2026-11-03): every stereo clip becomes L/L + R/R, whatever the analysis
@@ -508,7 +512,7 @@ def analyze_item(path: str, start: float = 0.0, end: float | None = None, force:
 
 def analyze_items(items: list[dict], force: str | None = None, target: float = TARGET_LUFS,
                   ceiling: float = PEAK_CEILING, progress=None, cancel=None, phrases: bool = False,
-                  balance_tol: float = BALANCE_TOL) -> dict:
+                  balance_tol: float | None = None) -> dict:
     """Many timeline clips at once (threads: FFmpeg and NumPy release the GIL)."""
     from concurrent.futures import ThreadPoolExecutor
     from .sync import Cancelled

@@ -3,7 +3,8 @@
 ## What it does
 The Audio row (Tools > Run, button "Fix audio"). For every selected stereo clip it makes a copy that plays only
 the left channel (L/L) in place of the audio and a copy that plays only the right channel (R/R) on the track below,
-linked to the picture. Then it evens out the level of both: loudness to -17 LUFS, the peak kept under -6 dBFS.
+linked to the picture. Then it levels each side on its own: loudness to -17 LUFS, the peak kept under -6 dBFS, and puts a
+Dynamics Limiter at -6 dB. Since 0.10.143 it does not balance the two speakers against each other.
 
 ## How to use it
 1. Select the clips in the timeline (the video or the audio; a selected video clip brings its own audio).
@@ -23,8 +24,9 @@ linked to the picture. Then it evens out the level of both: loudness to -17 LUFS
   A3+A4); a new track is added by the host when none is free (`audioplan.lowerTracks`, 0.10.45).
 - Level is the clip Volume in Premiere's scale (0.1778 = 0 dB, max 1.0 = +15 dB, `LEVEL_MAX_DB`). A clip whose Volume is
   keyframed is not touched. Clips with changed speed or reversed are skipped.
-- Balance between two speakers only ever LOWERS the louder side (at most 12 dB, tolerance 2 dB); a channel with no
-  speaker of its own is not matched or lifted (`audio.balance`).
+- No speaker balance (0.10.143, the user's decision 2026-11-22): each side is levelled to the target by itself; nothing is
+  lowered to match the other speaker. `audio.balance` (lowers the louder side, leaves a bleed-only side unraised) is kept but
+  off: only `balance_tol` / `"balance_db"` turns it on, and the panel never sends it.
 - Limiter: Dynamics with only Limiter on at -6 dB goes on every levelled clip (the Mix track is unreachable by script).
   An existing Dynamics with other settings is left alone and said.
 - The host finds the panel's project and sequence by path and id, not by what is in front (`as_target`, 0.10.25).
@@ -35,6 +37,7 @@ linked to the picture. Then it evens out the level of both: loudness to -17 LUFS
 ## Decisions
 - L/L and R/R through subclips with their own channel mapping, never Fill effects: DECISIONS 2026-11-03.
 - Limiter per clip instead of on the Mix track; balance only lowers: DECISIONS 2026-11-03.
+- Speaker balance off by default (one person ended up much quieter): DECISIONS 2026-11-22.
 - Routing/level rules (never sum channels, Volume scale, -17 LUFS, phrase leveling limits): DECISIONS "Audio" section (undated).
 - Every stereo clip is split, the analysis only informs the levels (CHANGELOG 0.9.56; supersedes the "split refused
   when both channels carry one sound" line of the "Audio" section).
@@ -50,6 +53,7 @@ linked to the picture. Then it evens out the level of both: loudness to -17 LUFS
 - Host: `host/host.jsx` `as_audio_route`, `as_route_one`, `as_side_clip`, `as_add_audio_track`, `as_target`.
 
 ## Status
+- 0.10.143: speaker balance off; awaiting the user's check on a two-person video.
 - Since 0.9.56 (split) and 0.9.57 (balance, limiter), Phase 3 "Partial verification". Verified in Premiere by the user:
   Audio Channels A1 L/L, A2 R/R (0.9.56). Several projects open: verified in 26.5.2 (0.10.25). Track order A1+A2 /
   A3+A4 verified through the bridge (0.10.47).
