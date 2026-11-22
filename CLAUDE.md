@@ -170,7 +170,8 @@ or the snapshot in `docs/dev-workflow/`.
 - Colour: one press analyses and applies high- and medium-confidence corrections at once, then the frame check takes back
   what got worse, and Before / after shows it (the user, 2026-11-04, 0.9.99: no approval step; low confidence is never
   applied); only Exposure/Temperature/Tint so far; never contrast/saturation/LUT unless the
-  colour plan's modules are implemented and verified; never touch a manual Lumetri grade (a Lumetri counts as
+  colour plan's modules are implemented and verified (the user, 2026-11-22: Saturation and Contrast per client, learned from the
+  editors, are approved to be built and measured: TODO COL, DECISIONS; never LUTs); never touch a manual Lumetri grade (a Lumetri counts as
   Asistent's own only when its full fingerprint matches one in `managed.json`). The one exception (the user, 2026-11-04,
   0.10.1): the editor's own Exposure −0.5 / +0.5 buttons move Exposure in a hand-set Lumetri too, nothing else in it, never a
   keyframed Exposure, and do not record it as Asistent's. "Untouched" means the whole Lumetri equals the untouched snapshot

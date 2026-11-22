@@ -1289,6 +1289,8 @@ async function onLearnReport() {
       box.appendChild(el("div", "name", `${c.camera}: ${c.clips} clips`));
       box.appendChild(el("div", "line", `Editors vs Auto color, middle value: exposure ${sign(c.exposure.median, " stops")} (${c.exposure.n} clips), ` +
         `temperature ${sign(c.temperature.median)}, tint ${sign(c.tint.median)} (${c.temperature.n} clips)`));
+      const own = (k) => (c[k] && c[k].changed ? `${k} changed on ${c[k].changed} of ${c[k].n} (middle ${sign(c[k].median)})` : `${k} not changed`);
+      if (c.contrast) box.appendChild(el("div", "line", `Editors' own: ${own("contrast")}, ${own("saturation")}`));
       box.appendChild(el("div", "muted", `Asistent's correction kept as it was: ${c.kept} · no correction: ${c.untouched} · graded on an adjustment layer: ${c.layer}`));
       return box;
     });

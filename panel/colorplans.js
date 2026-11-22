@@ -114,4 +114,28 @@ function lutOnlyDiff(nowSnap, baseSnap) {
   return "";
 }
 
-module.exports = { lutOnlyDiff, plansFor, corrections, mergeValues, whiteWithinCheck, WHITE_OK, statusOf, STATUS_BG };
+// Colour learning (0.10.142): every Lumetri setting that differs from an untouched Lumetri, from the two fingerprints
+// premiere-color.js already reads ("i:Name=value[~]|..."), so no extra Premiere calls. Keys are "i:Name" because Lumetri
+// repeats names (Saturation in Basic and in Creative). null when the untouched fingerprint is unknown or from another Lumetri
+// layout (different parameter names at the same index): then nothing reliable can be said.
+function lumetriDiff(snap, fresh) {
+  if (!snap || !fresh) return null;
+  const parse = (s) => s.split(/\|(?=\d+:)/).map((part) => {
+    const m = /^(\d+):([^=]*)=(.*?)(~?)$/.exec(part);
+    return m ? { i: m[1], name: m[2], value: m[3], animated: m[4] === "~" } : null;
+  });
+  const a = parse(snap);
+  const b = parse(fresh);
+  if (a.length !== b.length || a.some((x, k) => !x || !b[k] || x.name !== b[k].name)) return null;
+  const out = {};
+  a.forEach((x, k) => {
+    if (x.value === b[k].value && !x.animated) return;
+    const n = Number(x.value);
+    let v = Number.isFinite(n) && x.value !== "" && !/^"/.test(x.value) ? n : x.value;
+    if (typeof v === "string" && v.length > 160) v = `${v.slice(0, 160)}…`;          // curves and LUT blobs: enough to tell
+    out[`${x.i}:${x.name}`] = x.animated ? { value: v, keyframed: true } : v;
+  });
+  return out;
+}
+
+module.exports = { lumetriDiff, lutOnlyDiff, plansFor, corrections, mergeValues, whiteWithinCheck, WHITE_OK, statusOf, STATUS_BG };

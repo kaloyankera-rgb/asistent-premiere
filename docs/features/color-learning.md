@@ -19,14 +19,23 @@ client and camera, on this computer. It only reads: nothing in the project or th
   is read only; EL0, the learning folder per client there, still waits for the user's yes). Records stay in
   `<app>/learning/color/<client>.jsonl`.
 - The panel reads at most 150 picture clips per export (`MAX` in `premiere-colorlearn.js`, `MAX_CLIPS` in `colorlearn.py`):
-  the five Basic values, whether the Lumetri is still Asistent's own (`managed.json`), keyframes, Input LUT / Look, and a
+  the five Basic values, every other setting that differs from an untouched Lumetri (0.10.142, `colorplans.lumetriDiff` on the
+  fingerprint already read: no extra Premiere calls; null when the untouched one was never seen), whether the Lumetri is still Asistent's own (`managed.json`), keyframes, Input LUT / Look, and a
   Lumetri on an adjustment layer above the clip (its values are added to the clip's).
 - Runs on its own thread, one export at a time, never in the job pool, so a long analysis never delays Sync or subtitles.
 - Several export events fire for one export: one run per 20 s, and never while a press is running (`learnFromExport`).
 - Auto color's side is the file analysis (`color.analyze_clip`), not the value the frame check finally kept. The report counts
   only clips where Asistent was sure (high or medium) and nothing is keyframed. A re-export of a clip replaces its line.
 - Camera and picture profile come from the Sony sidecar XML, else the clip's folder name. Client: the folder holding a
-  "... Subtitle Learning" folder, else the folder under `01_CLIENTS`, else the share's first folder.
+  "... Subtitle Learning" folder, else the folder under `01_CLIENTS`, else the project file's name before "КП-n" (0.10.142: a
+  video folder mounted as its own volume filed clients under "Assets"), else the share's first folder. Older misfiled lines are
+  re-filed once per engine run on the first report (`repair`, backup in `learning/color/backup/<time>/`, nothing dropped).
+- Footage only (0.10.142, `footage`): stills, graphics and render / stock / transition / SFX / Downloads folders are not analysed
+  or recorded, and old ones are left out of the report.
+- Each line keeps what Auto color measured (`measured`: face / mid-tone brightness, casts, areas; `look`: black / white point,
+  contrast, saturation), so targets can be fitted without the files. Record format 2.
+- The report gives exposure in stops on both sides (the editors' Lumetri units converted with the probe curve at the measured
+  brightness) and the editors' own Contrast and Saturation per camera.
 - The record never changes a rule by itself. Turning it into a client colour target is a later step (TODO S, EL5).
 
 ## Decisions
@@ -42,14 +51,15 @@ client and camera, on this computer. It only reads: nothing in the project or th
 - Host: none.
 
 ## Status
-- Since: 0.10.36 (2026-11-10), installed. Latest line: still 0.10.36 behaviour; no later change recorded.
+- Since: 0.10.36 (2026-11-10), installed. Latest line: 0.10.142 (the colour audit's fixes), installed 2026-11-22, untested in Premiere.
 - Verified through the bridge on NEW TEST (own Lumetri vs a hand change, cameras from sidecars, the report). Not verified: a real
   export from the Export tab starting it (the event is logged since 0.10.7; see exports.md for what is unverified).
 - Windows: untested.
-- Open: TODO EL0 (office folders, waiting for the user), EL5 (report for Claude), the USER step of EL1 (export a graded
+- Open: TODO COL (install 0.10.142, re-measure old records at the office, fit per-client targets), EL0 (office folders, waiting for the user), EL5 (report for Claude), the USER step of EL1 (export a graded
   client video, then press What the editors did). Nothing in `BUGS.md`.
 
 ## Tests
-- `tests/test_colorlearn.py`: client from the path, record and report, an unreadable file, the queue and worker, the report
-  endpoint.
+- `tests/test_colorlearn.py`: client from the path and from the project name, footage only, every changed setting, report in
+  stops with Contrast / Saturation, the one-time re-filing with its backup, the kept measurements, record and report, an
+  unreadable file, the queue and worker, the report endpoint. `tests/colorplans.test.js`: `lumetriDiff`.
 - The panel readers (`premiere-colorlearn.js`, `learnFromExport`) have no node test; they were checked through the bridge.

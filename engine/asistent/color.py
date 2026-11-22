@@ -259,6 +259,32 @@ def measure(enc: np.ndarray, gamma: str | None = None, faces=None) -> dict:
 
 # ---------------------------------------------------------------- the decision
 
+def _med(v: list) -> float | None:
+    return round(float(np.median(v)), 4) if v else None
+
+
+def _med2(v: list) -> list | None:
+    return [round(float(np.median([c[0] for c in v])), 4), round(float(np.median([c[1] for c in v])), 4)] if v else None
+
+
+def look_stats(frames: list[np.ndarray], gamma: str | None = None) -> dict | None:
+    """The picture's look as Rec.709 shows it (medians over the frames): black and white point (1st / 99th percentile luma),
+    contrast (p90 - p10), saturation (mean max-min chroma of the unclipped lit pixels), clipped share. No face detection:
+    cheap. Colour learning keeps these next to the editors' Contrast and Saturation."""
+    rows = []
+    for f in frames:
+        view = encode(to_linear(f, gamma))
+        y = _luma(view)
+        mx, mn = np.max(view, axis=-1), np.min(view, axis=-1)
+        use = (mx < 0.97) & (y > 0.04)
+        p1, p10, p90, p99 = np.percentile(y, [1, 10, 90, 99])
+        rows.append([p1, p99, p90 - p10, float((mx - mn)[use].mean()) if use.sum() >= 50 else 0.0, float(np.mean(mx >= 0.97))])
+    if not rows:
+        return None
+    m = np.median(np.array(rows), axis=0)
+    return {k: round(float(v), 4) for k, v in zip(("black", "white", "contrast", "saturation", "clipped"), m)}
+
+
 def _round_step(stops: float) -> float:
     s = round(stops / STEP) * STEP
     return float(np.clip(s, -MAX_STOPS, MAX_STOPS))
@@ -417,6 +443,12 @@ def decide(frames: list[np.ndarray], gamma: str | None = None, source_gamma: str
                   "fix_tint": round(fix_g, 3), "balanced": balanced, "confidence": wb_conf,
                   "neutral_area": round(neutral_frac, 4), "gains": [round(v / norm, 4) for v in (r, g, b)]},
         "skin_area": round(float(np.mean([m["skin"] for m in ms])), 4),
+        # what was measured, before any target (colour learning keeps it, so targets can be refitted without the files)
+        "measured": {"y_skin": _med([m["y_skin"] for m in ms if "y_skin" in m]),
+                     "y_mid": _med([m["y_mid"] for m in ms if "y_mid" in m]),
+                     "skin_frames": sum(1 for m in ms if "y_skin" in m),
+                     "cast_neutral": _med2([m["cast_neutral"] for m in ms if "cast_neutral" in m]),
+                     "cast_world": _med2([m["cast_world"] for m in ms if "cast_world" in m])},
         "clipped": round(float(np.mean([m["clipped"] for m in ms])), 4),
         "frames": len(ms), "gamma": gamma or "rec709", "source_gamma": source_gamma or gamma or "rec709",
         "reasons": reasons, "warnings": warnings,

@@ -1,5 +1,5 @@
 // Colour learning at export in Premiere (TODO EL1, 0.10.36): when an export ends, the exported sequence's picture clips with
-// their Lumetri (the five Basic values, whether the Lumetri is still Asistent's own, keyframes, Input LUT / Look) and a
+// their Lumetri (the five Basic values, since 0.10.142 also every other setting changed from an untouched Lumetri, whether the Lumetri is still Asistent's own, keyframes, Input LUT / Look) and a
 // Lumetri on an adjustment layer above them. Read only: no transaction, nothing written; the engine analyses the files in the
 // background and keeps the record (colorlearn.py).
 const P = require("./premiere.js");
@@ -41,9 +41,11 @@ async function gather(project) {
     const mid = (x.start + x.end) / 2;
     const over = layers.filter((l) => l.track > x.track && l.start <= mid && l.end >= mid);
     let layer = null;
+    let layerChanged = null;
     for (const l of over) {
       if (!layerValues.has(l)) layerValues.set(l, await PC.readLumetri(l).catch(() => null));
       const lv = layerValues.get(l);
+      if (lv && lv.changed && Object.keys(lv.changed).length) (layerChanged = layerChanged || []).push(lv.changed);
       if (lv && lv.values) {
         layer = layer || { exposure: 0, temperature: 0, tint: 0, contrast: 0, saturation: 0 };
         for (const k of Object.keys(layer)) {
@@ -54,7 +56,8 @@ async function gather(project) {
     }
     clips.push({ path: x.path, start: x.inPt || 0, end: Number.isFinite(x.outPt) ? x.outPt : null, name: x.name,
       lumetri: lum && lum.values ? lum.values : null, owned: !!(lum && lum.owned), animated: !!(lum && lum.animated && lum.animated.length),
-      layer, lut: await lutOf(x.ti).catch(() => null) });
+      layer, lut: await lutOf(x.ti).catch(() => null),
+      changed: lum && lum.changed ? lum.changed : null, layer_changed: layerChanged });       // every changed setting (0.10.142)
   }
   return { sequence: t.sequence.name, clips, more: Math.max(0, pics.length - MAX) };
 }

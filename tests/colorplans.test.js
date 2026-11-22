@@ -176,3 +176,16 @@ test("lutOnlyDiff: the same value under another name is no change; a moved slide
   assert.match(lutOnlyDiff(lut27.replace("5:Saturation=100.0000", "5:Saturation=100.0000~"), base), /keyframes/);
   assert.match(lutOnlyDiff(lut27 + "|6:X=1", base), /not one Asistent knows/);
 });
+
+// 0.10.142: colour learning records every Lumetri setting the editor changed, from the two fingerprints
+test("lumetriDiff: only what differs from the untouched Lumetri, keyed by index and name", () => {
+  const { lumetriDiff } = require("../panel/colorplans.js");
+  const fresh = '0:Exposure=0.0000|1:Saturation=100.0000|2:Look=""|3:Saturation=100.0000|4:Curve={"a":1}';
+  const snap = '0:Exposure=1.5000|1:Saturation=100.0000|2:Look="x.cube"|3:Saturation=120.0000~|4:Curve={"a":1}';
+  assert.deepStrictEqual(lumetriDiff(snap, fresh), {
+    "0:Exposure": 1.5, "2:Look": '"x.cube"', "3:Saturation": { value: 120, keyframed: true },
+  });
+  assert.deepStrictEqual(lumetriDiff(fresh, fresh), {});
+  assert.strictEqual(lumetriDiff(snap, null), null);                                  // untouched one never seen
+  assert.strictEqual(lumetriDiff(snap, "0:Exposure=0.0000|1:Tint=0.0000"), null);     // another Lumetri layout
+});

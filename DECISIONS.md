@@ -1,5 +1,16 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-22: colour is learned from every editor; Saturation and Contrast allowed per client (the colour audit)
+- After the colour audit (docs/CLIENT_COLOR/AUDIT_2026-11-22.md) the user decided: Auto color learns from the grades of **all**
+  editors in the exported projects, not only the user's.
+- Auto color **may set Saturation and Contrast per client**, learned from the editors (lifts the rule "only Exposure / Temperature /
+  Tint" for single clips once it is built and measured; a hand-made Lumetri is still never touched, low confidence never applied).
+  Not built yet: TODO COL.
+- One **read-only** pass over the office raw files of the existing learning records is allowed, to add the measurements the old
+  records lack (nothing written, renamed or moved on the server; results only on this computer).
+- Why: Auto color's white balance disagrees with the editors about as often as it agrees, and its exposure-only result looks like
+  "almost nothing" next to an editor's grade that also lifts saturation and shapes contrast.
+
 ## 2026-11-22: Move off faces places by a lane per Style and moves only on a collision (0.10.141)
 - **Measured before building** (docs/SUBTITLE_PLACEMENT.md): editors keep a lane, move under a face (never above), off other
   text either way, and do not follow zooms. The old rule (ReShape's chin + 0.11 for everyone) landed where the lines already

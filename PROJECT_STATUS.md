@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.141 (2026-11-22)
+# Project status: Asistent 0.10.142 (2026-11-22)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,6 +6,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
+- 0.10.142 (colour learning fixed after the colour audit: client from the project name, old records re-filed with a backup, footage only, measurements and every changed Lumetri setting kept, report in stops plus the editors' Contrast / Saturation): Python 1138 passed / 24 skipped, Node 614 pass. Installed (engine 0.10.142 running); the user tries it at the office on Monday. Audit: docs/CLIENT_COLOR/AUDIT_2026-11-22.md, next steps TODO COL.
 - 0.10.141 (Move off faces rebuilt: a lane per Style, moves only when a face or other text would be covered, also after a zoom; measured on 25 client videos, docs/SUBTITLE_PLACEMENT.md): installed, Node 613 pass, Python 1131 passed, rules-reviewer PASS with notes. The user: "works splendid" on one video; more clients to follow. Bridge probes (zoom keyframe times, adjustment layers, press time) not run.
 - 0.10.140 (Export transcript: every sentence on its own line with its own time; short paragraphs): installed, Python 1114 passed / 24 skipped, Node 580 pass, pushed. Awaiting the user's export.
 - 0.10.139 (Subtitles: Line break, up to 5 words, the last 1-2 on a second line in the client's colour via `<font color>` in the .srt): installed, ReShape golden identical, pushed. Untested in Premiere: whether Premiere keeps the colour.
@@ -37,6 +38,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - Local recognition experiments (`NEXT` profile) paused behind a development switch; the held-back runs were stopped.
 
 ## Waiting for a check in Premiere (newest first)
+- 0.10.142 after install: export a graded client video, then Color > What the editors did (right client, Contrast / Saturation line). TODO COL.
 - 0.10.141 Move off faces on more clients (the user is trying it); a press over zooms and on a ReShape project. TODO MOF.
 - 0.10.138-0.10.140 subtitles: Max words, Case, Line break (does the bottom line come in colour, white, or with the tag shown as
   text?), Export transcript with times. TODO SUB. [subtitles](docs/features/subtitles.md)

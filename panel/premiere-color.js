@@ -9,7 +9,7 @@ const { TickTime, Constants } = ppro;
 const P = require("./premiere.js");
 const engine = require("./engine.js");
 const { covered, analysisMoments } = require("./moments.js");
-const { mergeValues, whiteWithinCheck, WHITE_OK } = require("./colorplans.js");
+const { mergeValues, whiteWithinCheck, WHITE_OK, lumetriDiff } = require("./colorplans.js");
 
 const { UserError, transaction, has, maybe, debug } = P;
 
@@ -894,6 +894,7 @@ async function readLumetri(clip) {
     if (!out.animated.length && snap.includes("~")) out.animated = ["other settings"];       // keyframes on any parameter
     const used = Object.keys(values).some((k) => Math.abs(values[k] - DEFAULTS[k]) > 1e-6);
     const fresh = freshSnapshot();
+    out.changed = lumetriDiff(snap, fresh);                    // colour learning: every setting the editor changed
     // the five at default and not untouched, or the five changed by hand: something beyond what is carried may be set
     out.extra = !out.owned && (used ? true : !(fresh && snap === fresh));
     if (used) out.values = values;

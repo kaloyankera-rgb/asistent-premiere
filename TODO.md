@@ -7,6 +7,18 @@
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 
+## COL. Colour accuracy (the audit of 2026-11-22, docs/CLIENT_COLOR/AUDIT_2026-11-22.md; the user's decisions in DECISIONS)
+- [ ] Installed 2026-11-22. USER (Monday, at the office): export one graded client
+      video, Color > What the editors did: the right client, a Contrast / Saturation line. The first report re-files the old lines
+      (backup in `learning/color/backup/`).
+- [ ] At the office (approved, read only): re-measure the existing records' raw files (`/Volumes/...` paths in the records) so the
+      old lines get `measured` / `look`; results written only on this computer.
+- [ ] Fit per-client (and camera / picture profile) targets from the records: skin and mid-tone brightness, the editors' white
+      balance lean, Saturation and Contrast. Judge on held-out videos (never fitted on): share of clips within 0.25 stop and within
+      5 Temperature units of the editors, against today's engine. Today's engine stays the default until the fit wins.
+- [ ] White balance per camera and shoot (one value for the clips of one setup, like the editors), not per clip.
+- [ ] Saturation and Contrast per client in Auto color (approved 2026-11-22), after the fit shows what the editors do.
+
 ## MOF. Move off faces 0.10.141 (2026-11-22)
 - [x] USER: one video, "works splendid".
 - [ ] USER: more clients (the user will report), a sequence with punch-ins / Scale keyframes, a ReShape project.

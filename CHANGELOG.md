@@ -31,6 +31,31 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.142 - Colour learning fixed after the colour audit: right clients, footage only, measurements kept (2026-11-22, installed, untested in Premiere: the user tries it at the office on Monday)
+The colour audit of 2026-11-22 (`docs/CLIENT_COLOR/AUDIT_2026-11-22.md`) compared ~1,600 recorded clips (the editors' Lumetri next
+to Auto color's suggestion). It found the learning records unfit for fitting targets; this version fixes the recording and the
+report. Nothing in Premiere is written; Auto color itself is unchanged.
+- **Client from the project name**: a video folder mounted as its own volume (`/Volumes/Видео 7 - .../Assets/x.prproj`) filed the
+  clips under "Assets" (733 clip ranges, 1,525 lines, of Credissimo, RoboHubPro, Pulse Fitness, GStroy, Fornetti, ЕКОПАК). The client
+  now comes from the project file name (`Credissimo КП-14 - ...` → Credissimo) after the Subtitle Learning folder and `01_CLIENTS`.
+  Existing lines are re-filed once per engine run on the first report (`colorlearn.repair`, every changed file copied to
+  `learning/color/backup/<time>/` first, nothing dropped, time order kept). Dry run on a copy of this Mac's records: 1,525 moved,
+  4,033 lines before and after.
+- **Footage only**: stills and graphics (png, jpg, psd, ...) and files in render, graphics, stock, transition, overlay, SFX,
+  02_RESOURCES, Downloads, logo, mockup, Kling / Higgsfield folders are neither analysed nor recorded, and older such lines are left
+  out of the report (`colorlearn.footage`).
+- **Measurements kept** (record format 2): what Auto color measured on the file (face and mid-tone brightness, casts on neutrals and
+  the whole picture, neutral and skin area, clipping, the raw exposure need) and the look (`color.look_stats`: black / white point,
+  contrast, saturation), so per-client targets can be fitted from the records without the raw files. `color.decide` returns a new
+  `measured` block (additive).
+- **Every Lumetri setting the editor changed**: the panel compares the Lumetri's full fingerprint, already read for ownership, with
+  the untouched Lumetri (`colorplans.lumetriDiff`, no extra Premiere calls) and sends the differences (`editor_all`, `layer_all`):
+  Whites, Blacks, Highlights, Shadows, Vibrance, Creative, curves, LUTs.
+- **Report in stops**: the editors' Exposure was Lumetri units against Auto color's stops (about 0.85 stop per unit at skin), which
+  made Auto color look like it overshot; now converted with the probe's curve at the measured brightness. The report also shows the
+  editors' own Contrast and Saturation per camera (how often and the middle change); the panel's "What the editors did" prints them.
+- Tests: Python 1138 passed / 24 skipped (7 new in `test_colorlearn.py`), Node 614 pass (1 new in `colorplans.test.js`).
+
 ## 0.10.141 - Move off faces rebuilt from 25 client videos: a lane per Style, moves only when something is covered (2026-11-22, installed, the user: "works splendid" on one video)
 
 - **The user's report:** "it doesn't do anything almost": every client got ReShape's chin rule, which lands where the
