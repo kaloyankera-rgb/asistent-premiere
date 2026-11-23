@@ -156,16 +156,16 @@
       </div>
     </div>
     <div class="feat" id="secAudio">
-      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span><div class="fname" data-tip="Select the clips (video or audio). The left and right channels go on two tracks: L/L above, R/R below, linked to the picture. Loudness goes to −17 LUFS, the peak stays under −6 dB.">Audio</div><div id="audio" class="btn action" data-tip="Each stereo clip: a copy with L/L in place of the audio and a copy with R/R on the track below (Audio Channels, no Fill effects), linked to the video. Then evens out the level of both. A second press makes no new copies.">Fix audio</div><div class="btn more" data-more="optAudio" data-tip="Options for Audio."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
+      <div class="frow"><span class="ico"><svg class="i" width="16" height="16" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></span><div class="fname" data-tip="Select the clips (video or audio). The left and right channels go on two tracks: L/L above, R/R below, linked to the picture. The levels stay as they are; Level only and Even out phrases set them (−17 LUFS, peak under −6 dB).">Audio</div><div id="audio" class="btn action" data-tip="Each stereo clip: a copy with L/L in place of the audio and a copy with R/R on the track below (Audio Channels, no Fill effects), linked to the video. The Volume is not changed. A second press makes no new copies.">Fix audio</div><div class="btn more" data-more="optAudio" data-tip="Options for Audio."><svg class="i" width="14" height="14" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></div></div>
       <div id="optAudio" class="fopts" hidden>
-      <p id="aboutAudio" class="desc">Select the clips (video or audio). The left and right channels go on two tracks: L/L above, R/R below, linked to the picture. Loudness goes to −17 LUFS, the peak stays under −6 dB.</p>
+      <p id="aboutAudio" class="desc">Select the clips (video or audio). The left and right channels go on two tracks: L/L above, R/R below, linked to the picture. The levels stay as they are; Level only and Even out phrases set them (−17 LUFS, peak under −6 dB).</p>
       <div id="audioManual" class="row buttons">
         <div class="btn small" data-force="split" data-tip="The same as Fix audio: L/L in place of the audio, R/R on the track below.">Split L/R</div>
         <div class="btn small" data-force="split_rl" data-tip="Like Split L/R, but the other way round: R/R in place of the audio, L/L on the track below.">Split R/L</div>
         <div class="btn small" data-force="use_left" data-tip="Puts a copy with L/L (the left channel on both sides) in place of the audio.">L only</div>
         <div class="btn small" data-force="use_right" data-tip="Puts a copy with R/R (the right channel on both sides) in place of the audio.">R only</div>
-        <div class="btn small" data-force="none" data-tip="Leaves the channels alone and only evens out the level.">Level only</div>
-        <div class="btn small" data-force="phrases" data-tip="Like Fix audio, plus keyframes that even out quiet and loud sentences.">Even out phrases</div>
+        <div class="btn small" data-force="none" data-tip="Leaves the channels alone and only evens out the level: −17 LUFS, peak under −6 dB, Limiter −6 dB.">Level only</div>
+        <div class="btn small" data-force="phrases" data-tip="Like Fix audio, plus the levels and keyframes that even out quiet and loud sentences.">Even out phrases</div>
       </div>
       </div>
     </div>

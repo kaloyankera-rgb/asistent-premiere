@@ -1,5 +1,11 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-23: Fix audio does not set levels (0.10.151)
+- The user: "Fixing audio still changes the levels", and chose "split only, no levels": Fix audio and the split / L only / R only
+  options make the L/L and R/R copies and nothing else (no Volume, no limiter). Levelling is only Level only and Even out phrases.
+- Why: each piece levelled to -17 LUFS by itself gave every cut of the same recording its own gain (one press: -10.8 to +0.4 dB),
+  so the sound jumped between cuts. Supersedes the levelling part of 2026-11-22 for Fix audio; the levelling code is unchanged.
+
 ## 2026-11-22: Fix audio does not balance the two speakers (0.10.143)
 - The user turned off speaker balance "for now": Fix audio only splits L/L and R/R, levels each side on its own (-17 LUFS, peak
   under -6 dBFS, the pair together under the ceiling) and puts the Dynamics Limiter at -6 dB. Nothing else.

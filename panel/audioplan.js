@@ -55,6 +55,15 @@ function engineJobs(items, force) {
   return { jobs, index };
 }
 
+/**
+ * Whether a press sets levels (0.10.151, the user 2026-11-23: "Fixing audio still changes the levels"). Fix audio and the
+ * split options only make the L/L and R/R copies: Volume and Dynamics stay as they were. Only "Level only" (force "none")
+ * and "Even out phrases" level (-17 LUFS, peak -6 dBFS, the limiter).
+ */
+function levelsFor(force) {
+  return force === "none" || force === "phrases";
+}
+
 /** The host's routing for the engine's answer, or null (nothing to route: level only, or ask). */
 function routeFor(it, res, force) {
   if (it.side || it.route || !res || res.error) return null;
@@ -161,4 +170,4 @@ function limiterState(dynamics, db = LIMITER_DB) {
   return { state: "configure" };
 }
 
-module.exports = { lowerTracks, sideOf, forceFor, engineJobs, routeFor, levelTargets, routeLine, limiterState, dynValue, LIMITER_DB };
+module.exports = { lowerTracks, sideOf, forceFor, engineJobs, routeFor, levelsFor, levelTargets, routeLine, limiterState, dynValue, LIMITER_DB };

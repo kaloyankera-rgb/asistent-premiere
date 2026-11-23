@@ -3,7 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
 const path = require("node:path");
-const { sideOf, forceFor, engineJobs, routeFor, levelTargets, routeLine, limiterState, dynValue, LIMITER_DB } = require("../panel/audioplan.js");
+const { sideOf, forceFor, engineJobs, routeFor, levelsFor, levelTargets, routeLine, limiterState, dynValue, LIMITER_DB } = require("../panel/audioplan.js");
 
 const out = (route, gain) => ({ route, gain_db: gain, lufs: -30, result_lufs: -17, result_peak_db: -8 });
 
@@ -151,4 +151,12 @@ test("lowerTracks: a track busy anywhere under a source's clips is skipped for a
   const splits = [{ track: 0, start: 0, end: 10 }, { track: 0, start: 20, end: 30 }];
   const music = { track: 1, start: 25, end: 40 };
   assert.deepStrictEqual(lowerTracks(splits, [...splits, music], 4), { 0: 2 });
+});
+
+test("Fix audio and the splits leave the levels alone; only Level only and Even out phrases level (0.10.151)", () => {
+  for (const f of [null, undefined, "split", "split_rl", "use_left", "use_right"]) assert.strictEqual(levelsFor(f), false, String(f));
+  assert.strictEqual(levelsFor("none"), true);
+  assert.strictEqual(levelsFor("phrases"), true);
+  const main = require("fs").readFileSync(require("path").join(__dirname, "../panel/main.js"), "utf8");
+  assert.match(main, /const levels = audioplan\.levelsFor\(force\);[\s\S]*?if \(levels\) \{[\s\S]*?applyLevels\(/);
 });

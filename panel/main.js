@@ -622,8 +622,13 @@ async function fixAudio(project, sel, force) {
     engine.log("info", `audio route: ${JSON.stringify(answer.items)}`);
   }
   if (state.cancelRequested && todo.length) throw new premiere.UserError("Cancelled after the channels were split: the levels were not set (Cmd/Ctrl+Z takes the split back).");
-  progress(0.95, "Setting the levels…");
-  const { undoSteps } = await premiereAudio.applyLevels(project, sel.timeline.sequence, audioplan.levelTargets(plans));
+  // 0.10.151: only Level only and Even out phrases touch the Volume and the limiter; Fix audio and the splits do not
+  const levels = audioplan.levelsFor(force);
+  let undoSteps = 0;
+  if (levels) {
+    progress(0.95, "Setting the levels…");
+    ({ undoSteps } = await premiereAudio.applyLevels(project, sel.timeline.sequence, audioplan.levelTargets(plans)));
+  }
 
   const blocks = [];
   let changed = 0;
@@ -633,12 +638,13 @@ async function fixAudio(project, sel, force) {
     box.appendChild(el("div", "name", p.it.name));
     // a side Asistent made earlier: its analysis lines describe the pair, not this clip
     if (p.it.side) {
-      box.appendChild(el("div", "reason", "Already split by Asistent: level only."));
+      box.appendChild(el("div", "reason", levels ? "Already split by Asistent: level only." : "Already split by Asistent: left as it is."));
       // what the pair's analysis said about the balance of the two speakers still applies
       for (const r of (p.res && p.res.reasons) || []) if (/The speakers differed|has no speaker of its own/.test(r)) box.appendChild(el("div", "reason", r));
     }
-    else if (p.it.route) box.appendChild(el("div", "reason", "Has a Fill effect from before: channels left alone, level only."));
-    else for (const r of (p.res && p.res.reasons) || []) if (r) box.appendChild(el("div", "reason", r));
+    else if (p.it.route) box.appendChild(el("div", "reason", levels ? "Has a Fill effect from before: channels left alone, level only." : "Has a Fill effect from before: left as it is."));
+    // without levelling, the engine's "both were lowered" line describes nothing that happened
+    else for (const r of (p.res && p.res.reasons) || []) if (r && (levels || !/were lowered/.test(r))) box.appendChild(el("div", "reason", r));
     const line = audioplan.routeLine(p.routed);
     if (line) box.appendChild(el("div", p.routed.ok ? "line" : "warn", line));
     for (const l of p.lines) box.appendChild(el("div", "line", l));
@@ -650,8 +656,9 @@ async function fixAudio(project, sel, force) {
     blocks.push(box);
   }
   for (const s of sel.skipped) blocks.push(el("div", "warn", `Skipped: ${s}.`));
-  blocks.push(el("div", "hint", `The limiter (Dynamics → Limiter ${audioplan.LIMITER_DB} dB) is on every clip, not on the Mix track: Premiere's ` +
+  if (levels) blocks.push(el("div", "hint", `The limiter (Dynamics → Limiter ${audioplan.LIMITER_DB} dB) is on every clip, not on the Mix track: Premiere's ` +
     "scripts cannot reach the main track. The sum of both tracks is kept under −6 dB by the levels themselves."));
+  else blocks.push(el("div", "hint", "Levels were not changed: the copies play as loud as the clip did. For levels use Level only or Even out phrases (▾)."));
   const split = plans.filter((p) => p.routed && p.routed.ok && p.routed.status === "done").length;
   const clips = (n) => `${n} ${n === 1 ? "clip" : "clips"}`;
   const undo = [undoSteps ? `the levels and the limiter are ${undoSteps === 1 ? "one step" : `${undoSteps} steps`} of Cmd/Ctrl+Z` : "",

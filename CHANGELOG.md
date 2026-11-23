@@ -31,6 +31,16 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.151 - Fix audio only splits; the levels stay as they are (2026-11-23)
+- The user (2026-11-23, after a press on 30 clips of fx30-3-9944…9951): "Fixing audio still changes the levels". 0.10.143 only took
+  away the speaker balance; every press still levelled each L/L and R/R piece by itself (that press: -10.8 to +0.4 dB, different on
+  every cut of the same file). The user chose "split only, no levels".
+- Fix audio, Split L/R, Split R/L, L only and R only now only make the copies: no Volume change, no Dynamics Limiter. A second
+  press over copies only relabels them. Level only and Even out phrases still level (-17 LUFS, peak under -6 dBFS, Limiter -6 dB).
+  Sync's redo of Fix audio follows the same rule. Rule: `audioplan.levelsFor`; the result says the levels were not changed.
+- Tooltips of the Audio row, Fix audio, Level only and Even out phrases say so. Engine unchanged.
+- Tests: Node 631 pass (1 new in `audioplan.test.js`). Not tried in Premiere.
+
 ## 0.10.150 - Export transcript follows the lines changed in Premiere; brand colours copied without # (2026-11-23, installed, not tried in Premiere)
 - The user's reminders 13 and 14 (2026-11-23). **Copy without #**: the Brand tab's Copy row (and the copy an Apply makes) puts
   `FF7000` on the clipboard, not `#FF7000`, so it pastes straight into Premiere's colour fields (`brandplan.clipHex`).

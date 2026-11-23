@@ -3,17 +3,20 @@
 ## What it does
 The Audio row (Tools > Run, button "Fix audio"). For every selected stereo clip it makes a copy that plays only
 the left channel (L/L) in place of the audio and a copy that plays only the right channel (R/R) on the track below,
-linked to the picture. Then it levels each side on its own: loudness to -17 LUFS, the peak kept under -6 dBFS, and puts a
-Dynamics Limiter at -6 dB. Since 0.10.143 it does not balance the two speakers against each other.
+linked to the picture. Since 0.10.151 that is all: the Volume is not changed and no limiter is added. Levelling is under the
+arrow: Level only (and Even out phrases) levels each side on its own: loudness to -17 LUFS, the peak kept under -6 dBFS, and a
+Dynamics Limiter at -6 dB. Since 0.10.143 nothing balances the two speakers against each other.
 
 ## How to use it
 1. Select the clips in the timeline (the video or the audio; a selected video clip brings its own audio).
-2. Press Fix audio. The result lists each clip with its reasons, the channels placed and the levels set.
-3. A second press makes no new copies: it only sets the same levels again.
-4. Options under the arrow (Manual): Split L/R, Split R/L, L only, R only, Level only, Even out phrases (adds
-   keyframes that even out quiet and loud sentences).
+2. Press Fix audio. The result lists each clip with its reasons and the channels placed.
+3. A second press makes no new copies: it only relabels the old ones.
+4. Options under the arrow (Manual): Split L/R, Split R/L, L only, R only (no levels, like Fix audio), Level only and
+   Even out phrases (the levels, plus keyframes that even out quiet and loud sentences).
 
 ## Key points: do not break
+- Fix audio, Split L/R, Split R/L, L only, R only and Sync's redo never touch Volume or Dynamics (0.10.151, the user
+  2026-11-23); only Level only and Even out phrases level (`audioplan.levelsFor`).
 - Main microphone peak at most -6 dBFS (`audio.PEAK_CEILING`); the SUM of both sides is held under it by the gains.
   Boosts may not lift the room noise above -55 dBFS (`NOISE_MAX`); gain limited to +-30 dB.
 - The channels are never done with Fill effects (0.9.56). The host makes audio-only subclips with their own channel
@@ -35,6 +38,7 @@ Dynamics Limiter at -6 dB. Since 0.10.143 it does not balance the two speakers a
 - Sync runs this again on its new sequence for files that had the copies (`fixAudio` shared with Sync, 0.10.38).
 
 ## Decisions
+- Fix audio does not set levels: DECISIONS 2026-11-23.
 - L/L and R/R through subclips with their own channel mapping, never Fill effects: DECISIONS 2026-11-03.
 - Limiter per clip instead of on the Mix track; balance only lowers: DECISIONS 2026-11-03.
 - Speaker balance off by default (one person ended up much quieter): DECISIONS 2026-11-22.
@@ -53,6 +57,7 @@ Dynamics Limiter at -6 dB. Since 0.10.143 it does not balance the two speakers a
 - Host: `host/host.jsx` `as_audio_route`, `as_route_one`, `as_side_clip`, `as_add_audio_track`, `as_target`.
 
 ## Status
+- 0.10.151: Fix audio only splits, levels only from Level only / Even out phrases; not tried in Premiere.
 - 0.10.143: speaker balance off; awaiting the user's check on a two-person video.
 - Since 0.9.56 (split) and 0.9.57 (balance, limiter), Phase 3 "Partial verification". Verified in Premiere by the user:
   Audio Channels A1 L/L, A2 R/R (0.9.56). Several projects open: verified in 26.5.2 (0.10.25). Track order A1+A2 /
