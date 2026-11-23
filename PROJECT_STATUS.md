@@ -30,9 +30,10 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - 0.10.131 (stray-press fix on every page; the preview no longer recreates its SVG shapes after 0.10.130 crashed Premiere in the SVG painter at 18:18:44): pushed to GitHub 2026-11-21 with the user's yes (`improvements/2026-11` at `c2397d0`); installed, Node 487 pass, pytest 954 passed / 24 skipped, not released. The user has not confirmed the click fix.
 - 0.10.146 installed on the development Mac (0.10.142-0.10.148 pushed and published as v0.10.148 on 2026-11-23). Two sessions both used 0.10.143 on 2026-11-22 (Fix audio and Folders); Folders was renumbered 0.10.144 so the installer replaces the panel. Earlier line: 0.10.141 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`
   and `origin/main` at the same commit.
-- Last published release: v0.10.148 (2026-11-23, the user's word "push the update to the others"; main fast-forwarded to 6cf89db). It carries
-  0.10.142-0.10.148: colour learning fixes, Fix audio without speaker balance, the Folders tab and CEP panel, Move off faces
-  ignoring transparent layers. None of these has been tried in Premiere by the user except the Folders panel. Before: v0.10.141.
+- Last published release: v0.10.154 (2026-11-23, the user's word "push the update to the others so they can test it"; main
+  fast-forwarded to 516b953). It carries 0.10.149-0.10.154: Sync (two cameras in one folder, main POV order, clock-guided
+  comparing), Export transcript following lines changed in Premiere, Fix audio only splitting, the Tracker's saved tracks and
+  TRACK clips. None of these has been tried in Premiere by the user. Before: v0.10.148.
   Releases only when the user asks (`scripts/publish_release.sh`).
 - Windows: largely untested (`scripts/setup_win.ps1` and the Windows installer never run by the user). See
   [install-and-update](docs/features/install-and-update.md).
