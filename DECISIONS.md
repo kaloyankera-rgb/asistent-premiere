@@ -812,3 +812,18 @@ a lot): settings were chosen for what they prevent, then checked on synthetic co
   sync contradicts the numbers (a loop), the clock decides and the place is reported, never silently.
 - **Replaces:** "clips with no partner stay in their place in recording time" (0.10.38) where it disagreed with the numbers.
 - **Known limit:** a counter that wraps (9999 -> 0001) inside one selection would be ordered wrongly; not seen yet.
+- **Same day, the engine too:** one folder holding two numbered series (prefixes with 2+ files each) is two cameras
+  (`groups._cameras`). As one camera, two clocks 3068 s apart vetoed three good pairs. Kept conservative: one series per folder,
+  names without numbers or one file per prefix keep "one folder = one camera", so nothing changes for the usual layout.
+  Known limit: two cameras writing the same prefix into one folder are still one camera.
+
+## 2026-11-23: Export transcript reads the saved project and saves it first; part of a text cannot be coloured (0.10.150)
+- **Why:** the user wants subtitles changed in Premiere's Text panel in the transcript. No API reads a caption's text (UXP
+  `CaptionTrack` gives times; ExtendScript nothing; Adobe's published types up to 27.1 beta add none). The `.prproj` holds each
+  caption track item's own text, so it is read there (read only). The press saves the project first, as Cmd/Ctrl+S would:
+  without it the file is behind what the editor sees. Only the project the subtitles were made in, only while it is open.
+- **Rule:** the run's words stay the base; only differences from the timeline are taken over, so untouched subtitles give the
+  same transcript as before. If the track cannot be found, the run's lines are used and the message says why.
+- **Not possible (reminder 11):** colouring only the selected part of a text. Scripts see neither the selection inside the
+  Program monitor nor a text's runs (27.1 beta: MogrtText styles apply "across all runs" and have no colour). A Tint colours the
+  whole clip. Premiere's own route stays: select the words, Properties > Fill, paste the HEX (copied without # since 0.10.150).

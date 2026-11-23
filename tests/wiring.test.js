@@ -429,7 +429,14 @@ test("Captions: Export transcript is a button of its own, wired to the engine (0
   assert.match(html, /<div id="captionTranscript" class="btn small" data-tip="[^"]+">Export transcript<\/div>/);
   assert.match(html, /id="captionTranscriptTimes"/);
   assert.match(main, /onTap\(\$\("captionTranscript"\), onTranscript\)/);
-  assert.match(main, /engine\.transcript\(r\.json, \$\("captionTranscriptTimes"\)\.checked\)/);
+  assert.match(main, /engine\.transcript\(r\.json, \$\("captionTranscriptTimes"\)\.checked, r\.where && saved !== null \? r\.where : null\)/);
+});
+
+// 0.10.150 (the user: lines changed in Premiere's Text panel must be in the transcript)
+test("Export transcript saves the subtitles' own project first and names their sequence to the engine", () => {
+  const main = fs.readFileSync(path.join(__dirname, "..", "panel", "main.js"), "utf8");
+  assert.match(main, /result\.where = \{ project: project\.path, guid: premiereCaptions\.seqGuid\(source\) \|\| "", sequence: source\.name \|\| "" \}/);
+  assert.match(main, /project && project\.path === r\.where\.project \? await premiere\.maybe\(project, "save"\) : null/);
 });
 
 // 0.10.111 (the user: the Keyframer's Apply "always visible ... without scrolling")

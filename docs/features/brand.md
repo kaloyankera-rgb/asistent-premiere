@@ -11,7 +11,8 @@ press and its Premiere limits): [docs/BRAND_KIT.md](../BRAND_KIT.md), 113 lines.
    above the project); otherwise pick one in the dropdown (remembered per project). Nothing is guessed.
 2. Add (at the playhead, on the track just above every clip there) or At end (an outro) for logos, video and sound.
    Presets: Add a MOGRT. Fonts: Install or Copy. References: Open.
-3. Colours: a click in the Apply row colours the selected clips, a click in the Copy row copies the HEX.
+3. Colours: a click in the Apply row colours the selected clips, a click in the Copy row copies the HEX without # (0.10.150),
+   ready to paste into Premiere's colour fields (for part of a text: select the words, Properties > Fill, paste).
 4. Manage: create, rename, duplicate, delete (moved to `_Deleted kits`), forget a client folder, library folder, add
    files with "Add files…" (a drop from Finder does not reach the panel: measured 2026-11-22, the page no longer offers it).
 
@@ -53,6 +54,9 @@ press and its Premiere limits): [docs/BRAND_KIT.md](../BRAND_KIT.md), 113 lines.
   Premiere text (0.10.112, letters measured 232,28,40 for #ED1C24) and the colour range. The user has not confirmed the
   tab as a whole in Premiere. The rest of "Still to check" in BRAND_KIT.md (placement over clips, At end, MOGRT, drop,
   offline) is unverified.
+- 0.10.150: Copy without #. Open (the user's reminders 2026-11-23): one Ctrl+Z for an Apply (today a clip without a Tint
+  takes two: add the Tint, then its colour; probe `tint_one_step_probe` in the bridge, not run); colour only the selected part
+  of a text is not possible by script (DECISIONS 2026-11-23).
 - Latest: 0.10.115-0.10.116 colour Apply on text made in Premiere: confirmed fine by the user 2026-11-21. Latest release v0.10.118.
 - Windows: untested (font install with the registry entry, `clip`, `explorer /select`).
 - Limits: BUGS "Platform limitations" (Brand tab line). Open TODO: section BK (Premiere checks, user run, Windows, SVG to

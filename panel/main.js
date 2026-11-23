@@ -998,10 +998,29 @@ async function onTranscript() {
   }
   const typed = captionEdit.inputs.some((i) => i.value !== i.getAttribute("data-original"));
   try {
-    const t = await engine.transcript(r.json, $("captionTranscriptTimes").checked);
+    // 0.10.150 (the user: lines changed in Premiere's Text panel must be in the transcript): no script can read a caption's
+    // text, the saved project can, so the project is saved first (Premiere's own Save, as Cmd/Ctrl+S) and the engine reads
+    // the subtitles' lines from it. Only the project the subtitles were made in, and only while it is the one open.
+    let saved = null;
+    if (r.where) {
+      try {
+        const project = await premiere.activeProject();
+        saved = project && project.path === r.where.project ? await premiere.maybe(project, "save") : null;
+      } catch (e) {
+        saved = false;
+      }
+      engine.log("info", `transcript: project saved first: ${saved}`);
+    }
+    const t = await engine.transcript(r.json, $("captionTranscriptTimes").checked, r.where && saved !== null ? r.where : null);
     const name = String(t.path).split(/[\\/]/).pop();
-    finish(`Transcript saved: ${name} (${t.paragraphs} ${t.paragraphs === 1 ? "paragraph" : "paragraphs"}), shown in Finder.` +
-      (typed ? " What you typed in the lines is not in it yet: press Apply and rebuild, then export again." : ""), true);
+    const pr = t.premiere;
+    const fromPremiere = !pr ? (r.where ? " The project is not open, so the lines are as Asistent made them." : "")
+      : pr.why ? ` Premiere's lines were not used (${pr.why}): the lines are as Asistent made them.`
+      : pr.changed ? ` ${pr.changed} line${pr.changed > 1 ? "s" : ""} changed in Premiere ${pr.changed > 1 ? "are" : "is"} in it.`
+      : " The lines in Premiere match the subtitles.";
+    finish(`Transcript saved: ${name} (${t.paragraphs} ${t.paragraphs === 1 ? "paragraph" : "paragraphs"}), shown in Finder.` + fromPremiere +
+      (saved !== null && saved !== true ? " The project could not be saved first: changes since your last save are not in it." : "") +
+      (typed ? " What you typed in the lines here is not in it yet: press Apply and rebuild, then export again." : ""), true);
   } catch (e) {
     finish(e.message || String(e), false);
   }
@@ -1158,6 +1177,8 @@ async function onSubtitles(opts = {}) {
         ? { cls: "warn", text: `${r.local === r.windows ? "ElevenLabs did not read this" : `ElevenLabs did not read ${r.local} of ${r.windows} parts`} (${r.fallback.join("; ")}): recognised on this computer instead.` }
         : { cls: "muted", text: `Words by ${r.name}.` });
     }
+    // 0.10.150: where these subtitles live, so Export transcript can read their lines as the editor changes them in Premiere
+    result.where = { project: project.path, guid: premiereCaptions.seqGuid(source) || "", sequence: source.name || "" };
     renderCaptionEditor(result);
     renderSpeakers(result, project.path);
     loadLearned(project.path);

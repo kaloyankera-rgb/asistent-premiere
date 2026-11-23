@@ -64,7 +64,7 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
 - Engine: `subtitle_job.py` + `dialoguemix.py` (the `/subtitles` job), `asr.py`, `cloudasr.py`, `recognition.py`,
   `subtitles.py` (`PRESETS`, `build_captions`), `bgtext.py`, `bgnorm.py`, `numbers.py`, `english.py`, `lexicon.py`,
   `consensus.py`, `suspects.py`, `agreement.py`, `align.py`, `corrections.py`, `learning.py`, `audiocheck.py`,
-  `subtitle_settings.py` (per-project text and speakers), `review.py`, `transcript.py`, `translate.py`, `framefaces.py`,
+  `subtitle_settings.py` (per-project text and speakers), `review.py`, `transcript.py` (+ `prcaptions.py`, the caption lines of a saved project, 0.10.150), `translate.py`, `framefaces.py`,
   `captionstate.py`, `hostbridge.py`; endpoints `/subtitles*`, `/captions/*`, `/cloud` in `server.py`.
 - Host: `host/host.jsx` `as_captions`. Dev: `scripts/check_subtitles.py`, `bench_subtitles.py`, `reshape_golden.py`.
 
@@ -78,6 +78,8 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
 - 0.10.138 Max words and Case, 0.10.139 Line break, 0.10.140 Export transcript with a time on every sentence: installed,
   awaiting the user's look (TODO SUB); open: whether Premiere keeps the .srt colour.
 - 0.10.141 Move off faces by lane: installed, the user: "works splendid" on one video; bridge probes open (TODO MOF).
+- 0.10.150 Export transcript follows the lines changed in Premiere (saves the project, reads its caption lines,
+  `prcaptions.py`): installed, not tried; the user's check: change a line in the Text panel, export, see it in the .txt.
 - 0.10.148: clips whose file has transparency (safe-zone templates, logos, graphics) are layers, not shots; built, not installed.
 - Windows: untested (host install, CEP path, learning folder). Latest release v0.10.118. Open: BUGS "Limits of
   subtitles by ElevenLabs"; TODO V119, SEG, SL, S, A.
@@ -86,6 +88,6 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
 - Text: `test_subtitles.py`, `test_subtitle_job.py`, `test_max_words.py`, `test_case.py`, `test_line_break.py`, `test_chunking.py`, `test_delivery.py`, `test_guide_regressions.py`,
   `test_bgnorm.py`, `test_numbers.py`, `test_english.py`, `test_lexicon_by_ear.py`, `test_consensus.py`, `test_corrections.py`.
 - Recognition and ReShape: `test_asr.py`, `test_recognition_profiles.py`, `test_cloudasr.py`, `test_reshape_baseline.py`.
-- Learning, review, styles, bench: `test_learning.py`, `test_speakers.py`, `test_review.py`, `test_transcript.py`,
+- Learning, review, styles, bench: `test_learning.py`, `test_speakers.py`, `test_review.py`, `test_transcript.py`, `test_prcaptions.py`,
   `test_framefaces.py`, `test_placement_replay.py`, `test_hostbridge.py`, `test_*_style.py`, `test_bench*.py`; node: `subtitleplan`, `captionplan`,
   `captionplace`, `captionedit`, `reviewplan`, `placementplan`, `placementpress` (`tests/*.test.js`).

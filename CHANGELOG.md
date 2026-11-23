@@ -31,7 +31,35 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
-## 0.10.149 - Sync: each camera's clips follow their file numbers (2026-11-23, installed, not tried in Premiere)
+## 0.10.150 - Export transcript follows the lines changed in Premiere; brand colours copied without # (2026-11-23, installed, not tried in Premiere)
+- The user's reminders 13 and 14 (2026-11-23). **Copy without #**: the Brand tab's Copy row (and the copy an Apply makes) puts
+  `FF7000` on the clipboard, not `#FF7000`, so it pastes straight into Premiere's colour fields (`brandplan.clipHex`).
+- **Export transcript after edits in Premiere's Text panel**: no script can read a caption's text (UXP `CaptionTrack` has times
+  only; still so in Adobe's published types of 27.1 beta), but the saved project has it. The button now saves the project
+  first (Premiere's own Save, as Cmd/Ctrl+S; only the project the subtitles were made in, while it is open), and the engine
+  reads the subtitles' caption lines from the `.prproj` (`prcaptions.py`, read only): each caption track item keeps its own
+  text block, a FlatBuffer whose text runs were the same layout in all 1194 caption texts of four projects on this Mac.
+  Asistent's track is found by the sequence guid (else name) and the times of the run's lines; the editor's words are laid
+  over the run's words (`transcript.edited_words`): an unchanged word keeps the run's case, punctuation and time, a changed or
+  added word is the editor's (lower case when the line is in capitals), a deleted word is gone, a moved line takes its new
+  time. An untouched track gives exactly the old transcript (checked on 4a1a ALPHA, two runs, 55 lines each). The message says
+  how many lines changed in Premiere, or why the timeline's lines were not used (then the run's lines, as before).
+- Dev bridge: `tint_one_step_probe` and `tint_state` (test projects only) to measure whether a new Tint can be added and
+  coloured in one Undo step (reminder 12); not run yet.
+- Tests: `tests/test_prcaptions.py` (6, a real test-project caption buffer and synthetic projects), `brandplan.test.js` (+1),
+  `wiring.test.js` (+1, one changed). Python 1150 passed / 24 skipped, Node 630 pass.
+
+## 0.10.149 - Sync: two cameras in one folder are two cameras; each camera's clips follow their file numbers (2026-11-23, installed, not tried in Premiere)
+- The user's second report (same video): 668 and 2038 were not synced, Premiere synced them. Cause: both FX30s' files were in one
+  folder ("СКЕЧ"), and one folder was one camera, so both shared one clock, though the fx30-3 runs 3068 s ahead. The clock check
+  then took three good pairs for "the same line from another take" (666/2036, 668/2038, 679/2047). The quiet sound (2038 at
+  -48 dB) was not the cause: the pair alone scored High.
+- Now `groups._cameras`: a folder holding two or more numbered series (file-name prefixes with at least two files each) is that
+  many cameras (folder + prefix); one series, or names without a number, keep the folder as before. The key is used for the
+  same-camera rule, the clocks (`chrono`), the clock check and the overlaps, returned per clip as `camera` and used by the layout
+  for the tracks (one POV per track even from one folder). The clocks list says "СКЕЧ fx30-3-…".
+- Measured on the real files (read only): 16 groups instead of 12, 3 clips alone (663, 677, 678, which have no partner),
+  nothing uncertain, fx30-3's clock learnt at +3067.6 s from 16 pairs (spread 1.46 s), 304 pairs compared instead of 595.
 - The user's report (MASTERHAUS КП-4 Видео 4, two FX30s, 35 clips): the sync itself was right (12 pairs, worst 7.88 ms), but the
   SYNC sequence opened with fx30668 and fx30669 before fx30661. The order came from the learnt camera clocks (`chrono.py`), which
   put those two earliest. The user: sort by the names, 661 first, then 662, "synced with each POV in order".
@@ -39,7 +67,8 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   keep their own counters even in one folder) the file numbers decide; synced partners stay together; the clock only decides how
   the cameras' clips interleave where the numbers say nothing. A clip without a number keeps the old rule (clock, else the
   timeline). If the sync contradicts the numbers, the clock breaks the tie and the place is listed as uncertain.
-- Tests: `tests/layout.test.js` (three expectations changed to the new rule, five new cases incl. the MASTERHAUS layout). Node 627 pass.
+- Tests: `tests/layout.test.js` (three expectations changed to the new rule, six new cases incl. the MASTERHAUS layout),
+  `tests/test_groups.py` (three new: camera keys, and the MASTERHAUS clock veto before and after). Python 1144 passed / 24 skipped, Node 628 pass.
 
 ## 0.10.148 - Move off faces: a layer with transparency over the video is not a shot (2026-11-22, not installed)
 - The user's report (a client video, two speakers, a safe-zone template SAFETY.png left on above the whole sequence): lines sat

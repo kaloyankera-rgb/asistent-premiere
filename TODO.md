@@ -276,6 +276,22 @@ The user, 2026-11-21: the five 0.10.115 checks (tab row, Keyframer buttons, Bran
 
 - [ ] The user to look: are the SYNC clips in the POV colours on the timeline (scripts cannot read a clip's colour)?
 
+Added 2026-11-23 (the user: "add to the reminders"), Brand tab colour apply (section BK); "Execute them now" the same day:
+- [ ] Brand colour on selected text only (select only the second of two subtitle lines in the Program monitor, Apply colours
+  only that). NOT POSSIBLE by script: no API sees the text selection in the Program monitor or a text's runs (checked again in
+  Adobe's published types, 27.1 beta), and a Tint colours the whole clip (DECISIONS 2026-11-23). Premiere's route: select the
+  words, Properties > Fill, paste the HEX (copied without # since 0.10.150). Revisit when Adobe adds text-run colour.
+- [ ] Brand colour Undo in one Ctrl+Z. Cause found: a clip without a Tint takes two steps (add the Tint, then its colour; a
+  detached Tint shows no parameters), and after the first Ctrl+Z the default Tint greys a coloured text. NEXT: run
+  `tint_one_step_probe` in NEW TEST (select a text clip; `dev_cmd.py tint_one_step_probe`), then `host eval
+  qe.project.undo()` once and `tint_state`: if `inside` >= 3 and one undo removes the Tint, build it into `premiere-brand.js
+  tint()`. Premiere was busy with a client project on 2026-11-23, so not run.
+- [x] Brand colour Copy without "#" (0.10.150, `brandplan.clipHex`). USER: copy a colour, paste into a Fill HEX field.
+
+Added 2026-11-23 (the user), Captions tab:
+- [x] Subtitle edits made in Premiere's Text panel are in Export transcript (0.10.150, installed: the project is saved first, the
+  caption lines read from it, `prcaptions.py`). USER: change a word in the Text panel, Export transcript, see it in the .txt.
+
 ## FILL. Picture fills the frame (0.10.44, the user 2026-11-11)
 - [x] Verified in NEW TEST 2026-11-12 (Premiere 26.5.2, C0737 on V2 of SYNC – кам2, values put back after): 88 % -> 130 / 230 px,
   Anchor Point 0.45 -> 108 px left (Anchor Point is a fraction of the frame), Crop Left 5 -> 108 px left (names "Crop Left" ...),

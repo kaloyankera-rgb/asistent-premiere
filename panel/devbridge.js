@@ -628,6 +628,77 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
     async brand_color(a) {
       return hooks.brand().color(a.hex, a.index || 0);
     },
+    // 0.10.150 probe (the user's reminder: "CTRL + Z needs to be insta on what was applied"): can a new Tint be added AND
+    // coloured in ONE transaction? A detached Tint shows no parameters (Phase 0, P-A3), so today it is two steps. This adds
+    // the insert action, then asks the same component for its parameters inside the transaction: if Premiere ran the insert
+    // already, Map White To is set in the same step. Test projects only, one selected video clip. Undo is then measured with
+    // `host eval` qe.project.undo() and tint_state.
+    async tint_one_step_probe(a) {
+      const { p, ok } = await project();
+      if (!ok) throw new Error("tint_one_step_probe runs only in TEST.prproj / NEW TEST.prproj");
+      const ppro = require("premierepro");
+      const BP = require("./brandplan.js");
+      const t = await premiere.readTimeline(p);
+      const x = t.items.find((i) => i.selected && i.kind === "video");
+      if (!x) throw new Error("Select one video clip (a text made in Premiere) first.");
+      const chain = await x.ti.getComponentChain();
+      const before = await chain.getComponentCount();
+      let at = -1;
+      for (let i = 0; i < before; i++) {
+        if (((await premiere.maybe(await chain.getComponentAtIndex(i), "getMatchName")) || "") === "AE.ADBE Graphic Group") { at = i; break; }
+      }
+      const comp = await ppro.VideoFilterFactory.createComponent("AE.ADBE Tint");
+      const kind = (v) => (v && typeof v.then === "function" ? "promise" : typeof v);
+      let detached = null;
+      try {
+        detached = comp.getParamCount();
+        detached = kind(detached) === "promise" ? "promise" : detached;
+      } catch (e) {
+        detached = `error: ${e.message}`;
+      }
+      const seen = { inside: null, set: 0, error: null };
+      premiere.transaction(p, "Asistent probe: Tint in one step", (c) => {
+        c.addAction(at >= 0 ? chain.createInsertComponentAction(comp, at) : chain.createAppendComponentAction(comp));
+        try {
+          const n = comp.getParamCount();
+          seen.inside = kind(n) === "number" ? n : kind(n);
+          if (typeof n === "number" && n >= 2) {
+            const white = comp.getParam(1);
+            const rgba = BP.colorArgs(a.hex || "#ED1C24");
+            c.addAction(white.createSetValueAction(white.createKeyframe(new ppro.Color(rgba[0], rgba[1], rgba[2], rgba[3])), true));
+            seen.set = 1;
+          }
+        } catch (e) {
+          seen.error = e.message || String(e);
+        }
+      });
+      await sleep(100);
+      return { clip: x.name, groupAt: at, before, detached, ...seen, state: await commands.tint_state() };
+    },
+    // the selected clip's Tints: [{at, params: [display name, value]}] (for the probe above and its Undo check)
+    async tint_state() {
+      const { p, ok } = await project();
+      if (!ok) throw new Error("tint_state runs only in TEST.prproj / NEW TEST.prproj");
+      const t = await premiere.readTimeline(p);
+      const x = t.items.find((i) => i.selected && i.kind === "video");
+      if (!x) return { tints: null };
+      const chain = await x.ti.getComponentChain();
+      const n = await chain.getComponentCount();
+      const tints = [];
+      for (let i = 0; i < n; i++) {
+        const co = await chain.getComponentAtIndex(i);
+        if (((await premiere.maybe(co, "getMatchName")) || "") !== "AE.ADBE Tint") continue;
+        const params = [];
+        for (let k = 0; k < (await co.getParamCount()); k++) {
+          const pr = await co.getParam(k);
+          const v = await premiere.maybe(pr, "getStartValue");
+          const val = v && v.value !== undefined ? v.value : v;
+          params.push([pr.displayName, val && typeof val === "object" ? [val.red, val.green, val.blue].map((c) => Math.round(c * 255)) : val]);
+        }
+        tints.push({ at: i, params });
+      }
+      return { count: n, tints };
+    },
     // the Keyframer page (0.10.72): its status lines and the live update's state
     async keyframer_info() {
       if (!hooks.keyframer || !hooks.keyframer()) throw new Error("no Keyframer page in this panel");

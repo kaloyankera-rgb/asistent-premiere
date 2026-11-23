@@ -19,7 +19,8 @@ drive the engine. The Host header is checked against DNS rebinding.
   POST /host/result          {id, ok, data} from the host
   POST /anchor/alpha        {path, threshold?, invert?} -> {width, height, bounds, alpha}: visible pixels of a still (0.10.69)
   POST /anchor/drawn        {before, after} -> {width, height, hull, bounds}: what one clip draws (two renders, 0.10.91)
-  POST /subtitles/transcript {json, times?} -> {path, paragraphs}: the subtitles as a .txt next to the SRT, shown in Finder (0.10.66)
+  POST /subtitles/transcript {json, times?, project?, guid?, sequence?} -> {path, paragraphs, premiere}: the subtitles as a .txt
+       next to the SRT, shown in Finder (0.10.66); with the project, the caption lines as saved in it (edits made in Premiere, 0.10.150)
   POST /subtitles/review     {json} -> what to check per caption line (review.py; reads the run's JSON, changes nothing)
   GET  /panel/store         the panel's settings {values}; POST /panel/store {key, value|null} (survive panel updates)
   POST /captions/faces      {frames: [{path, t}], project, graphics: [{id, start, end}]} -> {frames, preset, reshape, ocr}: per frame
@@ -731,12 +732,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, anchoralpha.bounds(body.get("path"), body.get("threshold", 1), bool(body.get("invert"))))
             if self.path == "/subtitles/transcript":
                 # 0.10.66: the subtitles as a transcript (.txt next to the SRT), shown in Finder / Explorer
-                res = transcript.export(body.get("json"), bool(body.get("times")))
+                # 0.10.150: with the project and the sequence, the caption lines as the editor left them in Premiere (read only)
+                res = transcript.export(body.get("json"), bool(body.get("times")), body.get("project") or None,
+                                        body.get("guid") or None, body.get("sequence") or None)
                 try:
                     reveal.reveal(res["path"])
                 except OSError as e:
                     log.warning("transcript: not shown (%s)", e)
-                log.info("transcript: %s (%d paragraphs)", os.path.basename(res["path"]), res["paragraphs"])
+                log.info("transcript: %s (%d paragraphs; Premiere %s)", os.path.basename(res["path"]), res["paragraphs"], res.get("premiere"))
                 return self._send(200, res)
             if self.path == "/tracker/frame":
                 # 0.10.51: the frame the editor boxes the object on (the file at media time t, upright)

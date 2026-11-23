@@ -176,8 +176,8 @@ function mount({ $, el, button, bindTips, premiere, hooks = {} }) {
     state.controls = [];
     render();
     try {
-      await engine.brandCopy(c.hex);
-      say(`${c.hex} copied${c.name && c.name !== c.hex ? ` (${c.name})` : ""}.`, "ok");
+      await engine.brandCopy(BP.clipHex(c.hex));
+      say(`${BP.clipHex(c.hex)} copied${c.name && c.name !== c.hex ? ` (${c.name})` : ""}.`, "ok");
     } catch (e) {
       say(`Could not copy ${c.hex}: ${e.message}`, "err");
     }
@@ -187,7 +187,7 @@ function mount({ $, el, button, bindTips, premiere, hooks = {} }) {
     const hex = state.hex;
     if (!hex) return;
     run(`Putting ${hex} on the selected clips…`, async () => {
-      engine.brandCopy(hex).catch(() => {});
+      engine.brandCopy(BP.clipHex(hex)).catch(() => {});
       const project = await premiere.activeProject();
       const r = await PB.applyColor(project, hex, { index });
       state.controls = r.controls.length > 1 ? r.controls : [];
@@ -413,7 +413,7 @@ function mount({ $, el, button, bindTips, premiere, hooks = {} }) {
 
   function swatch(it, row, fn) {
     const name = `${it.hex}${it.name && it.name !== it.hex ? ` · ${it.name}` : ""}${it.note ? `\n${it.note}` : ""}`;
-    const tip = row === "apply" ? `${name}\n\n${APPLY_TIP}` : `${name}\nClick to copy the HEX.`;
+    const tip = row === "apply" ? `${name}\n\n${APPLY_TIP}` : `${name}\nClick to copy the HEX (without #, ready to paste into Premiere's colour field).`;
     const sw = button(`bk-sw${state.hex === it.hex && state.hexRow === row ? " on" : ""}`, "", tip, fn);
     sw.style.backgroundColor = it.hex;
     const lab = el("div", "bk-hex", it.hex.slice(1));

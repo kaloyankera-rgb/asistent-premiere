@@ -102,3 +102,10 @@ test("a drop carries every file: the files list first, else uri-list lines, else
   assert.deepStrictEqual(BP.droppedPaths({ files: [], text: "/a/b.png\nhello" }), ["/a/b.png"]);
   assert.deepStrictEqual(BP.droppedPaths({}), []);
 });
+
+test("a copied colour has no # (0.10.150): Premiere's HEX field takes the six digits", () => {
+  assert.strictEqual(BP.clipHex("#FF7000"), "FF7000");
+  assert.strictEqual(BP.clipHex(" #0c0d10 "), "0c0d10");
+  assert.strictEqual(BP.clipHex("FFFFFF"), "FFFFFF");
+  assert.strictEqual(BP.clipHex(null), "");
+});

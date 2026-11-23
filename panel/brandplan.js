@@ -68,6 +68,14 @@ function colorArgs(hex, range = COLOR_RANGE) {
   return range === 255 ? [...rgb, 255] : [...rgb.map((v) => Math.round((v / 255) * 10000) / 10000), 1];
 }
 
+/**
+ * The HEX as it goes to the clipboard: without "#" (0.10.150, the user: "the copy of the colour should be without #"), so it
+ * pastes straight into Premiere's colour fields, whose HEX box takes the six digits only.
+ */
+function clipHex(hex) {
+  return String(hex || "").trim().replace(/^#/, "");
+}
+
 /** Dark or light text on a swatch of this colour (WCAG relative luminance). */
 function textOn(hex) {
   const rgb = hexToRgb(hex);
@@ -183,5 +191,5 @@ function droppedPaths(parts) {
   return [...new Set(out)];
 }
 
-module.exports = { LABELS, ORDER, COLOR_RANGE, VERB, VERB_TIP, placeOn, sequenceEnd, hexToRgb, colorArgs, textOn, actionsFor, quick,
+module.exports = { LABELS, ORDER, COLOR_RANGE, VERB, VERB_TIP, placeOn, sequenceEnd, hexToRgb, colorArgs, clipHex, textOn, actionsFor, quick,
   filter, chooseKit, presetFor, duration, binName, droppedPaths };

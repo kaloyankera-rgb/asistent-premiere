@@ -330,9 +330,10 @@ function anchorAlpha(path, threshold, invert) {
   return call("POST", "/anchor/alpha", { path, threshold, invert: !!invert });
 }
 
-// 0.10.66: the subtitles as a transcript (.txt next to the SRT, shown in Finder)
-function transcript(json, times) {
-  return call("POST", "/subtitles/transcript", { json, times: !!times });
+// 0.10.66: the subtitles as a transcript (.txt next to the SRT, shown in Finder); 0.10.150: `where` = {project, guid, sequence}
+// of the subtitles' sequence, so the engine reads their caption lines as edited in Premiere from the saved project
+function transcript(json, times, where) {
+  return call("POST", "/subtitles/transcript", { json, times: !!times, ...(where || {}) });
 }
 
 function playFrom(start) {
