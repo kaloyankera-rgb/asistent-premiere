@@ -55,3 +55,5 @@ About 89 % of lines stay in the lane, as with the editors; per Style the rule is
 - 16:9: no data; 16:9 sequences keep the old rule until a few 16:9 videos are measured.
 - More GStroy videos (one of its two files was a flat grey picture).
 - Profile faces: YuNet misses them (TODO); such shots stay in the lane.
+- Shots are the picture clips only (0.10.148): a clip whose file has transparency (a safe-zone template, a logo) is a layer over
+  them. Before, a full-length safe-zone PNG made the whole video one shot with one base height.

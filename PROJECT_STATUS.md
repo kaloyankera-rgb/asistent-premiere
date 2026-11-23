@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.147 (2026-11-22)
+# Project status: Asistent 0.10.148 (2026-11-22)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,6 +6,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
+- 0.10.148 (Move off faces: a file with transparency, such as a safe-zone PNG left on, is a layer, not a shot; it had made one 104 s shot of a whole video): built, Node 623 pass, not installed.
 - 0.10.147 (Folders: a colour fills the whole button, in the CEP panel and on the tab): installed. The user confirmed the Asistent Folders panel works (drag and drop, 0.10.146).
 - 0.10.146 (Asistent Folders panel, CEP, Window > Extensions: drag folders from Finder, right-click menu, shared list with the Folders tab; drop hints on Folders / Auto import / Brand corrected after the UXP drop was measured empty): installed, Node 621, Python 1141 / 24 skipped. Not tried in Premiere. [folders](docs/features/folders.md)
 - 0.10.144 (Folders tab: favourite folders as buttons that open them in Finder; drop or Add folder…, Edit: name, colour, order, delete, follows the project): installed, Node 620 pass, Python 1141 passed / 24 skipped, browser preview at 240 / 300 / 420 px. Not tried in Premiere. [folders](docs/features/folders.md)

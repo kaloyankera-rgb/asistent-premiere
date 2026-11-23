@@ -89,6 +89,17 @@ function cover(start, end, clips) {
   return pieces;
 }
 
+// the clips that are the picture, not a layer over it (0.10.148): a clip whose file has transparency (a safe-zone template, a
+// logo, a ProRes 4444 graphic) lets the shot under it through, so it is never a shot. Before, a safe-zone PNG left on above
+// the whole video became ONE shot of 104 s: its base came from the first line's frames and every later line was set by it
+// (the user, 2026-11-22). clips [{path, ...}], files [{path, alpha} | {path, error}] (engine /export/frames) -> {clips, overlays};
+// a file the engine could not read stays a shot (as before).
+function pictureClips(clips, files) {
+  const alpha = new Set((files || []).filter((f) => f && f.alpha === true).map((f) => f.path));
+  const overlays = clips.filter((c) => alpha.has(c.path));
+  return { clips: clips.filter((c) => !alpha.has(c.path)), overlays };
+}
+
 // the moments to measure in each shot: the middles of up to `per` line pieces over it, spread over the shot.
 // graphics carry `pieces` [{from, to, shot}].
 function moments(shots, graphics, per = 3) {
@@ -676,7 +687,7 @@ function describe(r) {
 }
 
 module.exports = {
-  RULE, mainFace, shotTop, roles, cover, moments, plan, movable, median, calibrate,
+  RULE, mainFace, shotTop, roles, cover, pictureClips, moments, plan, movable, median, calibrate,
   LANES, LANE_RULE, laneFor, obstacles, shotChin, shotBase, lineHeight, momentsPerLine, planLanes,
   keySeconds, mergeTimes, zoomSeconds, lineCountsOf, selectChanges, laneName, choosePath, reasonCounts, describe, LANE_LABELS,
 };

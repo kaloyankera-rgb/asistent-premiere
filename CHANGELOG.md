@@ -31,6 +31,18 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.148 - Move off faces: a layer with transparency over the video is not a shot (2026-11-22, not installed)
+- The user's report (a client video, two speakers, a safe-zone template SAFETY.png left on above the whole sequence): lines sat
+  too low where nothing covered them, and on other lines over faces. Cause, from the engine log of the press (18:41): the
+  shots were the topmost visible clips with media, so the PNG became ONE shot of 0-104 s; the base height came from the first
+  line's frames and was used for all 118 lines (0 in the lane, 86 under a face, 18 "a face moved in", 12 "no free place").
+- Now the engine's `/export/frames` (FFprobe, read only) says which clip files have transparency; those are layers over the
+  shots, not shots (`placementplan.pictureClips`, `premiere-placement.pictureClips`, logged per file). A JPG photo or a file
+  that cannot be read stays a shot, as before.
+- Tests: `placementplan` (the user's case: a PNG over two shots gives two pieces at the cut), `placementpress` (the press with a
+  SAFETY.png on top; fails on 0.10.147). Node 623 pass.
+- Still open: profile (side-on) faces are often missed by YuNet, so such a line stays in the lane over the face (TODO MOF).
+
 ## 0.10.147 - Folders: a colour fills the whole button (2026-11-22, installed)
 - The user, after trying the Asistent Folders panel ("It works"): a colour should be the whole button, not a thin line on the left.
   Coloured buttons are now filled with their colour, the name in dark bold text, in the CEP panel and on the Folders tab (which

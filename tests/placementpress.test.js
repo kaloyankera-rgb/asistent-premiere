@@ -258,18 +258,21 @@ function press({ size, engineFrames, preset = "gstroy", reshape = false }) {
     { getMatchName: async () => "AE.ADBE Motion", getParamCount: () => 3, getParam: (j) => [motion, prm("Anchor Point", [0.5, 0.5]), prm("Scale", 100)][j] }][i] }) };
   const clip = { kind: "video", path: "/a.mp4", track: 0, start: 0, end: 10, inPt: 0, speed: 1, name: "A.MP4", ti: { getComponentChain: async () => ({ getComponentCount: () => 0 }) } };
   const graphic = { kind: "video", selected: true, track: 1, start: 1, end: 2, inPt: 0, speed: 1, name: "Graphic", ti: graphicTi };
+  // a safe-zone template with transparency left on above everything (the user's SAFETY.png, 2026-11-22): a layer, not a shot
+  const overlay = { kind: "video", path: "/SAFETY.png", track: 3, start: 0, end: 10, inPt: 0, speed: 1, name: "SAFETY.png", ti: { getComponentChain: async () => ({ getComponentCount: () => 0 }) } };
   const stubs = {
     premierepro: { PointF: class { constructor(x, y) { this.x = x; this.y = y; } }, TickTime: { createWithSeconds: (s) => ({ seconds: s }) } },
     "./store.js": { getItem: () => null, setItem() {} },
     "./engine.js": {
       status: async () => ({ frames_dir: "/frames" }),
+      exportFrames: async (paths) => ({ items: paths.map((p) => ({ path: p, alpha: p.endsWith(".png") })) }),
       log: (level, msg) => calls.logs.push(msg),
       captionFaces: async (sent, project, g) => { calls.captionFaces.push(sent.length); return sent.length ? { frames: engineFrames, preset, reshape, ocr: true, lines: { 0: { bg: ["a"] } } } : { frames: [], preset, reshape, ocr: true, lines: { 0: { bg: ["a"] } } }; },
     },
     "./premiere-color.js": { exportFrames: async (seq, list) => list.map((f, i) => `/frames/f${i}.png`) },
     "./premiere.js": {
       transaction: (project, label, build) => { calls.transactions++; build({ addAction: (a) => { if (a && a.set) calls.values.push(a.set.y); } }); },
-      readTimeline: async () => ({ sequence: { guid: "s", getFrameSize: async () => size }, items: [clip, graphic], fps: 30 }),
+      readTimeline: async () => ({ sequence: { guid: "s", getFrameSize: async () => size }, items: [clip, graphic, overlay], fps: 30 }),
       maybe: async (o, name, ...a) => { if (!o || typeof o[name] !== "function") return undefined; try { return await o[name](...a); } catch (e) { return undefined; } },
     },
   };
@@ -289,6 +292,8 @@ test("the press, 9:16: the style comes from the engine before any frame, one wri
   assert.strictEqual(calls.transactions, 1);
   assert.strictEqual(r.moved, 1);
   assert.ok(Math.abs(calls.values[0] - (0.5 + 0.458 + 0.0175 - 0.8)) < 1e-3, String(calls.values));
+  assert.deepStrictEqual(r.shots.map((s) => s.name), ["A.MP4"]);                                  // the PNG over it is not a shot
+  assert.ok(calls.logs.some((l) => /SAFETY\.png has transparency/.test(l)), calls.logs.join("\n"));
 });
 
 test("the press, nothing measured: nothing is written and it says so", async () => {

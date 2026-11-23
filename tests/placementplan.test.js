@@ -264,3 +264,27 @@ test("calibrate with a line count keeps offsets per role and number of lines; wi
   const old = P.calibrate(g, measured);
   assert.deepStrictEqual(old.map((x) => Math.round(x.center * 1000) / 1000), [0.52, 0.55, 0.535, 0.535]);
 });
+
+test("a file with transparency over the whole video is a layer, not a shot: the cuts under it stay (0.10.148)", () => {
+  // the user's case 2026-11-22: SAFETY.png on a top track, eye on, 0-104 s, over two camera shots
+  const safety = { path: "/x/SAFETY.png", name: "SAFETY.png", start: 0, end: 104, track: 4 };
+  const a = { path: "/x/IMG_1.MOV", name: "IMG_1.MOV", start: 0, end: 50, track: 0 };
+  const b = { path: "/x/IMG_2.MOV", name: "IMG_2.MOV", start: 50, end: 104, track: 0 };
+  const files = [{ path: safety.path, alpha: true }, { path: a.path, alpha: false }, { path: b.path, alpha: false }];
+  const r = P.pictureClips([safety, a, b], files);
+  assert.deepStrictEqual(r.overlays, [safety]);
+  assert.deepStrictEqual(r.clips, [a, b]);
+  const before = P.cover(40, 60, [safety, a, b]);                            // the old way: one piece over the PNG
+  assert.strictEqual(before.length, 1);
+  assert.strictEqual(before[0].clip, safety);
+  const after = P.cover(40, 60, r.clips);                                    // now: the cut at 50 s gives two shots
+  assert.deepStrictEqual(after.map((p) => [p.from, p.to, p.clip.name]), [[40, 50, "IMG_1.MOV"], [50, 60, "IMG_2.MOV"]]);
+});
+
+test("a file the engine could not read, or a photo without transparency, stays a shot", () => {
+  const photo = { path: "/x/photo.jpg", start: 0, end: 5, track: 2 };
+  const odd = { path: "/x/odd.mov", start: 0, end: 5, track: 3 };
+  const r = P.pictureClips([photo, odd], [{ path: photo.path, alpha: false }, { path: odd.path, error: "the file could not be read" }]);
+  assert.deepStrictEqual(r.clips, [photo, odd]);
+  assert.deepStrictEqual(P.pictureClips([photo], undefined).clips, [photo]);
+});

@@ -78,6 +78,7 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
 - 0.10.138 Max words and Case, 0.10.139 Line break, 0.10.140 Export transcript with a time on every sentence: installed,
   awaiting the user's look (TODO SUB); open: whether Premiere keeps the .srt colour.
 - 0.10.141 Move off faces by lane: installed, the user: "works splendid" on one video; bridge probes open (TODO MOF).
+- 0.10.148: clips whose file has transparency (safe-zone templates, logos, graphics) are layers, not shots; built, not installed.
 - Windows: untested (host install, CEP path, learning folder). Latest release v0.10.118. Open: BUGS "Limits of
   subtitles by ElevenLabs"; TODO V119, SEG, SL, S, A.
 

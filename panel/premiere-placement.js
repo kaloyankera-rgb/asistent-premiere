@@ -66,10 +66,25 @@ async function selectedGraphics(timeline) {
   return out;
 }
 
-// the shots under the graphics: the visible clips with media seen during each line (two POVs cut against each other, or a
-// new scene, split a line into pieces); one shot per clip. Sets g.pieces [{from, to, shot}] on every graphic.
-function shotsUnder(timeline, graphics) {
+// the visible clips with media that are the picture: a file with transparency (a safe-zone template, a logo, a graphic) is a layer
+// over the shot, not a shot (placementplan.pictureClips, 0.10.148). The engine reads the files' transparency (read only); if it
+// cannot, every clip counts as before.
+async function pictureClips(timeline) {
   const clips = timeline.items.filter((x) => x.kind === "video" && x.path && !x.unused && !x.hidden);
+  let files = [];
+  try {
+    files = ((await engine.exportFrames([...new Set(clips.map((c) => c.path))])) || {}).items || [];
+  } catch (e) {
+    engine.log("warn", `move off faces: transparency of the clips not read (${e && e.message ? e.message : e}): every clip counts as a shot`);
+  }
+  const r = placementplan.pictureClips(clips, files);
+  for (const name of new Set(r.overlays.map((c) => c.name))) engine.log("info", `move off faces: ${name} has transparency: a layer over the shots, not a shot`);
+  return r.clips;
+}
+
+// the shots under the graphics: the picture clips seen during each line (two POVs cut against each other, or a new scene,
+// split a line into pieces); one shot per clip. Sets g.pieces [{from, to, shot}] on every graphic.
+function shotsUnder(clips, graphics) {
   const shots = [];
   for (const g of graphics) {
     g.pieces = placementplan.cover(g.start, g.end, clips).map((p) => {
@@ -225,7 +240,7 @@ async function writeChanges(project, changes, byId, written, seqKey) {
 
 async function moveLegacy(project, onProgress, ctx) {
   const { timeline, usable, kept, written, seqKey } = ctx;
-  const shots = shotsUnder(timeline, usable);
+  const shots = shotsUnder(await pictureClips(timeline), usable);
   const when = placementplan.moments(shots, usable);
   const frames = [];
   when.forEach((list, i) => list.forEach((seconds, k) => frames.push({ shot: i, name: `face_${i}_${k}.png`, seconds })));
@@ -288,7 +303,7 @@ function ownBoxes(b) {
 // moments (momentsPerLine), exported once at 1080 px; one transaction, one Undo, as the older rule.
 async function moveLanes(project, onProgress, ctx, size, opts) {
   const { timeline, usable, kept, written, seqKey } = ctx;
-  const shots = shotsUnder(timeline, usable);
+  const shots = shotsUnder(await pictureClips(timeline), usable);
   onProgress(0.1, "Reading the zooms…");
   const zooms = await zoomTimes(timeline, shots);
   const graphicsArg = usable.map((g) => ({ id: g.id, start: g.start, end: g.end }));
@@ -414,4 +429,4 @@ async function moveLanes(project, onProgress, ctx, size, opts) {
     measured: centers.size, estimated, ocr: info.ocr === undefined ? reply.ocr : info.ocr, overCuts: changes.filter((p) => p.keys).length, preset: pick.preset };
 }
 
-module.exports = { moveOffFaces, zoomTimes, point, number };
+module.exports = { moveOffFaces, zoomTimes, shotsUnder, point, number };

@@ -33,6 +33,9 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] Bridge probes in NEW TEST: zoom keyframe times on a footage clip, a Transform effect, an adjustment layer and a reversed
       clip; seconds per press (frames + OCR in batches); a two-row caption's text position.
 - [ ] Measure a few 16:9 subtitled videos, then give 16:9 the lane rule. More GStroy videos.
+- [ ] 0.10.148: USER presses Move off faces again on the same video (SAFETY.png on): the log should list each IMG clip as a shot.
+- [ ] Profile (side-on) faces: YuNet misses many (the user's screenshots 2026-11-22: lines over a man seen from the side). Measure a
+      profile detector on the 25-video replay before adopting it; nothing uncertain applied.
 - [ ] Long ReShape edits (more than about 80 shots) lose the per-line collision frames (the base frames are outside the cap).
 
 ## SUB. Verify 0.10.138-0.10.140 (2026-11-22): subtitles options and the transcript
