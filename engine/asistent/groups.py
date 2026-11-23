@@ -9,6 +9,7 @@ that would overlap) is reported and not applied.
 from __future__ import annotations
 
 import os
+import re
 import threading
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
@@ -37,6 +38,41 @@ WORKERS = max(2, min(8, (os.cpu_count() or 4) - 2))
 
 def _folder(path: str) -> str:
     return os.path.dirname(os.path.abspath(path))
+
+
+_NUMBERED = re.compile(r"^(.*?)(\d+)$")
+
+
+def _cameras(paths: list[str]) -> list[str]:
+    """A key per clip for the camera that recorded it: its folder, or, when one folder clearly holds two numbered series
+    (two or more file-name prefixes with at least two files each), the folder plus the prefix before the file number.
+
+    2026-11-23 (MASTERHAUS КП-4 Видео 4): both FX30s' files were in one folder, "СКЕЧ" (fx306xx and fx30-3-20xx). As one
+    camera they shared one clock, though the fx30-3 runs 3068 s ahead; the clock check then took three good pairs for "the
+    same line from another take" (666/2036, 668/2038, 679/2047), and the order and the tracks mixed the cameras up.
+    One prefix in a folder, or names without a number, keep the folder alone, as before."""
+    folders = [_folder(p) for p in paths]
+    prefix: list[str | None] = []
+    for p in paths:
+        m = _NUMBERED.match(os.path.splitext(os.path.basename(p))[0])
+        prefix.append(m.group(1).lower() if m else None)
+    count: dict[tuple[str, str], int] = defaultdict(int)
+    for f, x in zip(folders, prefix):
+        if x is not None:
+            count[(f, x)] += 1
+    series: dict[str, int] = defaultdict(int)
+    for (f, _), n in count.items():
+        if n >= 2:
+            series[f] += 1
+    return [f"{f}|{x}" if x is not None and series[f] >= 2 and count[(f, x)] >= 2 else f
+            for f, x in zip(folders, prefix)]
+
+
+def camera_name(key: str) -> str:
+    """What the panel calls a camera: the folder's name, plus the file prefix when the folder holds two cameras."""
+    folder, _, prefix = key.partition("|")
+    base = os.path.basename(folder) or folder
+    return f"{base} {prefix}…" if prefix else base
 
 
 def sync_groups(paths: list[str], progress: ProgressFn | None = None,
@@ -68,7 +104,7 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
     pool = ThreadPoolExecutor(max_workers=WORKERS, thread_name_prefix="pair", initializer=sync.set_fft_workers, initargs=(1,))
     try:
         clips: list[Clip] = list(pool.map(load, paths))
-        folders = [_folder(p) for p in paths]
+        folders = _cameras(paths)                  # camera keys (a folder, or a folder + file prefix): see _cameras
         split_by_folder = len(set(folders)) > 1
         pairs = [(i, j) for i in range(len(clips)) for j in range(i + 1, len(clips))
                  if not (split_by_folder and folders[i] == folders[j])]
@@ -107,10 +143,10 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
     progress(1.0, "Done")
     return {
         "clips": [{"path": c.info.path, "name": c.name, "duration": round(c.info.duration, 3),
-                   "fps": c.info.fps, "has_video": c.info.has_video,
+                   "fps": c.info.fps, "has_video": c.info.has_video, "camera": folders[i],
                    "rec_time": when["time"][i], "rec_note": when["note"][i]} for i, c in enumerate(clips)],
-        "clocks": [{**x, "name": os.path.basename(x["camera"]) or x["camera"]} for x in when["cameras"]],
-        "clock_reference": os.path.basename(when["reference"]) or when["reference"],
+        "clocks": [{**x, "name": camera_name(x["camera"])} for x in when["cameras"]],
+        "clock_reference": camera_name(when["reference"]),
         "groups": groups,
         "conflicts": conflicts,
         "unsynced": [i for i in range(len(clips)) if i not in grouped],

@@ -3,7 +3,8 @@
 ## What it does
 The Sync row ("Sync cameras", Tools > Run). The editor selects clips from two or more cameras, a recorder or a
 lavalier; Asistent lines them up by their shared sound and builds a new sequence "SYNC – <sequence>" in the bin
-"SYNC". The editor's own sequence is only read. Clips with no partner stay in their place in recording time.
+"SYNC". The editor's own sequence is only read. Within each camera the clips follow their file numbers (fx30661, fx30662…),
+synced partners stay together, and clips with no partner keep their place in that order (0.10.149).
 
 ## How to use it
 1. Select the clips in the timeline (all of them is fine, at least two different files from two folders or more).
@@ -25,6 +26,8 @@ lavalier; Asistent lines them up by their shared sound and builds a new sequence
   once). With one folder only, two clips on one track move to the next free track (0.10.6, BUG-011).
 - Camera clocks are a witness, never the truth: learnt only from sure pairs (`chrono.py`). A spread up to 2.0 s
   (`CLOCK_PRECISE`, 0.10.117) lets the clocks decide a short take or a two-offset pair. Raw clocks and file dates never.
+- Order (0.10.149): a camera's file numbers beat any clock. Camera = folder + the name before the last number. The clock
+  only interleaves cameras; a sync that contradicts the numbers is placed by the clock and listed as uncertain.
 - No markers in the new sequence (0.9.52) and no gap between recordings (`GAP` 0, 0.10.38).
 - Files that had Asistent's L/R copies get Fix audio again in SYNC (it is built from whole files, 0.10.38).
 - The sequence takes its settings from the first clip with picture (`seed`); verification fails on extra video clips.
@@ -36,10 +39,11 @@ lavalier; Asistent lines them up by their shared sound and builds a new sequence
 - Fix audio redone inside SYNC, no gap between recordings: DECISIONS 2026-11-11 (0.10.38).
 - Learnt clock counts as witness up to 2.0 s of spread, reverse with `CLOCK_PRECISE = 1.0`: DECISIONS 2026-11-18.
 - Track names after Sync on by default: DECISIONS 2026-11-10.
+- File numbers decide the order within a camera, the clock only interleaves: DECISIONS 2026-11-23 (0.10.149).
 
 ## Code map
 - Panel: `panel/main.js` `onSync`, `describe` (flow and report); `panel/engine.js` `startGroups`;
-  `panel/layout.js` `syncLayout`, `chronological` (pure, node-tested); `panel/premiere.js` `buildSyncSequence`
+  `panel/layout.js` `syncLayout`, `chronological`, `byFileNumber` (pure, node-tested); `panel/premiere.js` `buildSyncSequence`
   (touches Premiere); `panel/premiere-labels.js` `colorFiles`; `panel/index.html` row `secSync`, button `sync`.
 - Engine: `engine/asistent/sync.py` (pair analysis: GCC-PHAT, windows, `analyze_pair`), `groups.py` (`sync_groups`,
   `_clock_check`, `_build_groups`), `chrono.py` (recording order, `chronology`); `server.py` `POST /sync_groups`.
@@ -47,6 +51,8 @@ lavalier; Asistent lines them up by their shared sound and builds a new sequence
 - Host: none.
 
 ## Status
+- 0.10.149 (2026-11-23, installed): file-number order per camera, after the MASTERHAUS КП-4 Видео 4 report (fx30668/669
+  placed before fx30661 by a learnt clock). Not tried in Premiere.
 - Since 0.2 to 0.3.1 (Phase 2, "Done + verified": 28/28 clips placed, max 8.3 ms = half a frame, in Premiere).
   Latest change 0.10.117 (2026-11-18, installed): not tried in Premiere; 7 more pairs on GStroy КП11 Видео 8 offline.
 - 0.10.45-0.10.47: every-other-audio-track layout and camera files coloured before placing verified through the bridge
@@ -60,4 +66,4 @@ lavalier; Asistent lines them up by their shared sound and builds a new sequence
 ## Tests
 - `tests/test_sync.py` (synthetic recordings with a known answer), `test_groups.py` (groups, short takes, clock rules),
   `test_chrono.py`, `test_server.py` (`/sync` guards), `test_real_footage.py` (GStroy footage, skipped elsewhere).
-- `tests/layout.test.js` (placements, tracks, chronology), `wiring.test.js` (Sync calls `fixAudio`), `selection.test.js`.
+- `tests/layout.test.js` (placements, tracks, chronology, file-number order incl. the MASTERHAUS case), `wiring.test.js` (Sync calls `fixAudio`), `selection.test.js`.

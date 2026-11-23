@@ -191,3 +191,41 @@ def test_clock_overlaps_name_unconfirmed_pairs():
     assert G._clock_overlaps(clips, ["/A", "/B", "/B"], [{"members": [{"clip": 0}, {"clip": 1}]}], when) == []
     when["cameras"][0]["pairs"] = 0
     assert G._clock_overlaps(clips, ["/A", "/B", "/B"], [], when) == []
+
+
+# ---- two cameras in one folder (0.10.149, MASTERHAUS КП-4 Видео 4: fx306xx and fx30-3-20xx both in "СКЕЧ")
+
+def test_one_folder_with_two_numbered_series_is_two_cameras():
+    D = "/v/СКЕЧ"
+    keys = G._cameras([f"{D}/fx30661.MP4", f"{D}/fx30-3-2032.MP4", f"{D}/fx30662.MP4", f"{D}/fx30-3-2033.MP4",
+                       f"{D}/intro.MP4"])
+    assert keys[0] == keys[2] == f"{os.path.abspath(D)}|fx"
+    assert keys[1] == keys[3] == f"{os.path.abspath(D)}|fx30-3-"
+    assert keys[4] == os.path.abspath(D)                      # no file number: the folder, as before
+    assert G.camera_name(keys[1]) == "СКЕЧ fx30-3-…" and G.camera_name(keys[4]) == "СКЕЧ"
+
+
+def test_one_series_per_folder_or_lone_prefixes_keep_the_folder():
+    # one camera per folder (GStroy); a folder of one series with a stray file; per-clip names (A001C002_230101)
+    assert G._cameras(["/m/fx30/C9013.MP4", "/m/fx30/C9025.MP4", "/m/fx3/fx39013.MP4"]) == \
+        [os.path.abspath("/m/fx30")] * 2 + [os.path.abspath("/m/fx3")]
+    assert G._cameras(["/m/a/C0001.MP4", "/m/a/C0002.MP4", "/m/a/IMG_0357.MOV"]) == [os.path.abspath("/m/a")] * 3
+    assert G._cameras(["/m/b/A001C002_230101.MP4", "/m/b/A001C003_230102.MP4"]) == [os.path.abspath("/m/b")] * 2
+
+
+def test_two_cameras_in_one_folder_learn_their_own_clocks_and_keep_good_pairs():
+    # the MASTERHAUS case: camera fx30-3- runs 3068 s ahead of camera fx. As one folder = one camera, the strict pairs
+    # taught nothing and the raw clocks vetoed a good scattered pair ("+3094 s: another take"); as two cameras the strict
+    # pairs teach the 3068 s and the same pair is confirmed.
+    keys = G._cameras(["/v/S/fx30661.MP4", "/v/S/fx30-3-2032.MP4", "/v/S/fx30662.MP4", "/v/S/fx30-3-2033.MP4",
+                       "/v/S/fx30668.MP4", "/v/S/fx30-3-2038.MP4"])
+    strict = [_edge(0, 1, 2.57, "high"), _edge(2, 3, 0.33, "high")]
+    loose = _edge(4, 5, 26.396, "high", loose=True)
+    rec = [1000.0, 1000.0 + 2.57 + 3068.0, 1100.0, 1100.0 + 0.33 + 3067.0, 1300.0, 1300.0 + 26.4 + 3068.0]
+    G._clock_check(_clips(6), keys, True, strict + [loose], rec, ["metadata"] * 6)
+    assert loose["confidence"] == "high" and "confirm" in loose["reasons"][-1]
+    # the old keys (one folder) veto it: the bug
+    old = _edge(4, 5, 26.396, "high", loose=True)
+    G._clock_check(_clips(6), ["/v/S"] * 6, False, [_edge(0, 1, 2.57, "high"), _edge(2, 3, 0.33, "high"), old],
+                   rec, ["metadata"] * 6)
+    assert old["confidence"] == "medium" and "another take" in old["reasons"][-1]

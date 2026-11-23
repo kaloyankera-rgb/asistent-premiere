@@ -802,3 +802,13 @@ a lot): settings were chosen for what they prevent, then checked on synthetic co
     a moment."). This came from the rules-reviewer BLOCK: a save before the load would have written a list without the earlier presets.
 - **Review:** the fixes made after the review (the store guard, the deferred reload, a press on the graph disarming Delete, the Save
   sentence) passed the reviewer's re-check. The reviewer judged the tile refill safe on reasoning and asks for a soak through the bridge first.
+
+## 2026-11-23: Sync orders each camera's clips by their file numbers; the clock only interleaves cameras (0.10.149)
+- **Why:** MASTERHAUS КП-4 Видео 4 (two FX30s): the learnt camera clock put fx30668 and fx30669 before fx30661 in the SYNC
+  sequence. The user: "it needs to sort it on the timeline by the names so 661 is first, 662 and so on", "synced with each POV in
+  order". A camera numbers files in the order it recorded them; that counter is surer than any clock.
+- **Rule:** camera = folder + the file name before its last number. Within a camera the numbers decide; synced groups stay
+  together; where the numbers say nothing (between cameras) the corrected clock decides, then the editor's timeline. When the
+  sync contradicts the numbers (a loop), the clock decides and the place is reported, never silently.
+- **Replaces:** "clips with no partner stay in their place in recording time" (0.10.38) where it disagreed with the numbers.
+- **Known limit:** a counter that wraps (9999 -> 0001) inside one selection would be ordered wrongly; not seen yet.

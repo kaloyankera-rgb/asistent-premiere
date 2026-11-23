@@ -31,6 +31,16 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.149 - Sync: each camera's clips follow their file numbers (2026-11-23, installed, not tried in Premiere)
+- The user's report (MASTERHAUS КП-4 Видео 4, two FX30s, 35 clips): the sync itself was right (12 pairs, worst 7.88 ms), but the
+  SYNC sequence opened with fx30668 and fx30669 before fx30661. The order came from the learnt camera clocks (`chrono.py`), which
+  put those two earliest. The user: sort by the names, 661 first, then 662, "synced with each POV in order".
+- Now `panel/layout.js` `byFileNumber`: within one camera (folder + the name before the last number, so `fx30-3-` and `fx30`
+  keep their own counters even in one folder) the file numbers decide; synced partners stay together; the clock only decides how
+  the cameras' clips interleave where the numbers say nothing. A clip without a number keeps the old rule (clock, else the
+  timeline). If the sync contradicts the numbers, the clock breaks the tie and the place is listed as uncertain.
+- Tests: `tests/layout.test.js` (three expectations changed to the new rule, five new cases incl. the MASTERHAUS layout). Node 627 pass.
+
 ## 0.10.148 - Move off faces: a layer with transparency over the video is not a shot (2026-11-22, not installed)
 - The user's report (a client video, two speakers, a safe-zone template SAFETY.png left on above the whole sequence): lines sat
   too low where nothing covered them, and on other lines over faces. Cause, from the engine log of the press (18:41): the

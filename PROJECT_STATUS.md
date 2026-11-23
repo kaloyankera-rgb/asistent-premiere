@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.148 (2026-11-22)
+# Project status: Asistent 0.10.149 (2026-11-23)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,7 +6,8 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
-- 0.10.148 (Move off faces: a file with transparency, such as a safe-zone PNG left on, is a layer, not a shot; it had made one 104 s shot of a whole video): built, Node 623 pass, not installed.
+- 0.10.149 (Sync: within each camera the clips follow their file numbers, 661 before 668; synced pairs stay together; the clock only interleaves the cameras): installed together with 0.10.148, Node 627 pass. Not tried in Premiere (MASTERHAUS КП-4 Видео 4). [sync](docs/features/sync.md)
+- 0.10.148 (Move off faces: a file with transparency, such as a safe-zone PNG left on, is a layer, not a shot; it had made one 104 s shot of a whole video): installed with 0.10.149, not tried in Premiere.
 - 0.10.147 (Folders: a colour fills the whole button, in the CEP panel and on the tab): installed. The user confirmed the Asistent Folders panel works (drag and drop, 0.10.146).
 - 0.10.146 (Asistent Folders panel, CEP, Window > Extensions: drag folders from Finder, right-click menu, shared list with the Folders tab; drop hints on Folders / Auto import / Brand corrected after the UXP drop was measured empty): installed, Node 621, Python 1141 / 24 skipped. Not tried in Premiere. [folders](docs/features/folders.md)
 - 0.10.144 (Folders tab: favourite folders as buttons that open them in Finder; drop or Add folder…, Edit: name, colour, order, delete, follows the project): installed, Node 620 pass, Python 1141 passed / 24 skipped, browser preview at 240 / 300 / 420 px. Not tried in Premiere. [folders](docs/features/folders.md)
@@ -22,10 +23,11 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - 0.10.133 (In & Out page as Tiles, the user's choice of layout A): installed, Node 495 pass, rules-reviewer BLOCK fixed (stepper with a focused box), bridge-tested in NEW TEST, not pushed, not released. The user has not seen it in Premiere. Open: at a 523 px tall panel only about 2 tile rows show above the dock.
 - 0.10.132 (compact In & Out page, replaced by 0.10.133 before the user's look): local only (`7552dca`), installed and bridge-tested earlier; not pushed.
 - 0.10.131 (stray-press fix on every page; the preview no longer recreates its SVG shapes after 0.10.130 crashed Premiere in the SVG painter at 18:18:44): pushed to GitHub 2026-11-21 with the user's yes (`improvements/2026-11` at `c2397d0`); installed, Node 487 pass, pytest 954 passed / 24 skipped, not released. The user has not confirmed the click fix.
-- 0.10.146 installed on the development Mac (0.10.141 published; 0.10.142-0.10.147 local, not pushed). Two sessions both used 0.10.143 on 2026-11-22 (Fix audio and Folders); Folders was renumbered 0.10.144 so the installer replaces the panel. Earlier line: 0.10.141 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`
+- 0.10.146 installed on the development Mac (0.10.142-0.10.148 pushed and published as v0.10.148 on 2026-11-23). Two sessions both used 0.10.143 on 2026-11-22 (Fix audio and Folders); Folders was renumbered 0.10.144 so the installer replaces the panel. Earlier line: 0.10.141 installed on the development Mac (Premiere 2026, 26.5.x; 2027 also installed). Branch `improvements/2026-11`
   and `origin/main` at the same commit.
-- Last published release: v0.10.141 (2026-11-22, the user's word "publish to the others"; main fast-forwarded to 6a0b5bc). It carries
-  0.10.119-0.10.141, including parts the user has not seen in Premiere (Cut silences audit, In & Out, Max words / Case / Line break).
+- Last published release: v0.10.148 (2026-11-23, the user's word "push the update to the others"; main fast-forwarded to 6cf89db). It carries
+  0.10.142-0.10.148: colour learning fixes, Fix audio without speaker balance, the Folders tab and CEP panel, Move off faces
+  ignoring transparent layers. None of these has been tried in Premiere by the user except the Folders panel. Before: v0.10.141.
   Releases only when the user asks (`scripts/publish_release.sh`).
 - Windows: largely untested (`scripts/setup_win.ps1` and the Windows installer never run by the user). See
   [install-and-update](docs/features/install-and-update.md).

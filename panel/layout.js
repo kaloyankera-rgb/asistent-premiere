@@ -49,17 +49,72 @@ function chronological(engine, when) {
     e.sortKey = e.key !== null ? e.key : last;
     e.rank = k;
   });
-  entries.sort((a, b) => (a.sortKey === b.sortKey ? 0 : a.sortKey - b.sortKey) ||
-    (a.key === null) - (b.key === null) || a.rank - b.rank);
+  const byClock = (a, b) => (a.sortKey === b.sortKey ? 0 : a.sortKey - b.sortKey) ||
+    (a.key === null) - (b.key === null) || a.rank - b.rank;
+  const { ordered, clashes, named } = byFileNumber(entries, clips, byClock);
   const uncertain = [];
-  for (const e of entries) {
+  for (const e of ordered) {
     const ids = e.members ? e.members.map((m) => m.clip) : [e.clip];
     const name = ids.map((i) => clips[i].name).join(" + ");
     const why = ids.map((i) => clips[i].rec_note).find((x) => x);
-    if (e.key === null) uncertain.push({ name, reason: `${why || "no recording time"}: placed by the timeline` });
+    if (clashes.has(e)) uncertain.push({ name, reason: "the file numbers and the sync disagree: placed by the camera clock" });
+    else if (e.key === null) uncertain.push({ name, reason: `${why || "no recording time"}: placed by ${named.has(e) ? "its file number" : "the timeline"}` });
     else if (!e.members && why) uncertain.push({ name, reason: why });
   }
-  return { entries, uncertain };
+  return { entries: ordered, uncertain };
+}
+
+// 2026-11-23 (the user, MASTERHAUS КП-4 Видео 4, two FX30s: "it needs to sort it on the timeline by the names so 661 is first,
+// 662 and so on", "synced with each POV in order"): a camera numbers its files in the order it recorded them, which is surer
+// than any clock (the learnt clock put fx30668/669 before fx30661). So within one camera the file numbers decide, synced
+// partners stay together, and the clocks only decide how the cameras' clips interleave where the numbers say nothing.
+// A camera is the file's folder plus the name before its last number ("fx30-3-2032" -> "fx30-3-", "fx30661" -> "fx"), so two
+// cameras sharing one folder keep their own counters.
+function fileNumber(clip) {
+  const stem = clip.name.replace(/\.[^.]*$/, "");
+  const m = /^(.*?)(\d+)$/.exec(stem);
+  return m ? { camera: `${folderOf(clip.path)}|${m[1].toLowerCase()}`, n: Number(m[2]) } : null;
+}
+
+/**
+ * Entries in file-number order per camera (a topological order: an entry comes after every entry holding an earlier file of
+ * any of its cameras). Among entries free to go next, the clock order (`byClock`) picks. When the numbers contradict the sync
+ * (a loop: a group holds 661 and 2033 while another holds 662 and 2032), the clock breaks the loop and that entry is reported.
+ */
+function byFileNumber(entries, clips, byClock) {
+  const after = new Map(entries.map((e) => [e, new Set()]));     // e -> entries that must come after e
+  const need = new Map(entries.map((e) => [e, 0]));
+  const named = new Set();
+  const perCamera = {};
+  for (const e of entries) {
+    for (const i of e.members ? e.members.map((m) => m.clip) : [e.clip]) {
+      const f = fileNumber(clips[i]);
+      if (f) (perCamera[f.camera] = perCamera[f.camera] || []).push({ n: f.n, e });
+    }
+  }
+  for (const list of Object.values(perCamera)) {
+    if (list.length < 2) continue;
+    list.sort((a, b) => a.n - b.n);
+    for (let k = 1; k < list.length; k += 1) {
+      const a = list[k - 1].e;
+      const b = list[k].e;
+      named.add(a); named.add(b);
+      if (a !== b && !after.get(a).has(b)) { after.get(a).add(b); need.set(b, need.get(b) + 1); }
+    }
+  }
+  const ordered = [];
+  const clashes = new Set();
+  const left = new Set(entries);
+  while (left.size) {
+    let pool = [...left].filter((e) => need.get(e) === 0);
+    if (!pool.length) { pool = [...left]; }
+    const next = pool.sort(byClock)[0];
+    if (need.get(next) > 0) clashes.add(next);
+    left.delete(next);
+    ordered.push(next);
+    for (const b of after.get(next)) need.set(b, need.get(b) - 1);
+  }
+  return { ordered, clashes, named };
 }
 
 function syncLayout(engine, order) {
@@ -93,15 +148,18 @@ function syncLayout(engine, order) {
 
   // the sequence is created from the first clip with picture (its settings, on V1/A1), so that clip's
   // camera gets track 0; the other cameras follow in order of appearance
+  // 0.10.149: the engine names each clip's camera (a folder, or a folder + file prefix when two cameras share one folder,
+  // groups._cameras); with an older engine the folder is the camera, as before
+  const cameraOf = (i) => clips[i].camera || folderOf(clips[i].path);
   const seed = placements.findIndex((p) => clips[p.clip].has_video !== false);
   const cameras = [];
-  if (seed >= 0) cameras.push(folderOf(clips[placements[seed].clip].path));
+  if (seed >= 0) cameras.push(cameraOf(placements[seed].clip));
   for (const p of placements) {
-    const cam = folderOf(clips[p.clip].path);
+    const cam = cameraOf(p.clip);
     if (!cameras.includes(cam)) cameras.push(cam);
   }
   for (const p of placements) {
-    p.track = cameras.indexOf(folderOf(clips[p.clip].path));
+    p.track = cameras.indexOf(cameraOf(p.clip));
     p.path = clips[p.clip].path;
     p.name = clips[p.clip].name;
     p.hasVideo = clips[p.clip].has_video !== false;
