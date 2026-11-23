@@ -8,7 +8,7 @@ status, tests. Status as of 0.10.129 (2026-11-21).
 
 | Feature | What it does | Page | Mac / Premiere | Windows |
 |---|---|---|---|---|
-| Sync | Lines up cameras and lavaliers by shared sound in a new SYNC sequence | [sync](features/sync.md) | Verified; 0.10.117 not tried | Untested |
+| Sync | Lines up cameras and lavaliers by shared sound in a new SYNC sequence | [sync](features/sync.md) | Verified; 0.10.154 not tried | Untested |
 | Fix audio | L/L and R/R copies (levels only from Level only / Even out phrases, -17 LUFS, peak under -6 dBFS) | [fix-audio](features/fix-audio.md) | Split verified; Undo count unverified | Untested |
 | Cut silences | Silences, off-mic voices and repeated takes cut in a duplicate sequence | [cut-silences](features/cut-silences.md) | Audit fixes 0.10.122 not installed; odd frame rates stop (probe open) | Untested |
 | Track names | Tracks named POV 1, POV 2, Mic n, Subtitles BG / EN; camera colours | [track-names](features/track-names.md) | Bridge-tested; Cmd+Z unverified | Untested |

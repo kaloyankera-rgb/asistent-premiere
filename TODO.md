@@ -4,6 +4,11 @@
 > ([docs/INDEX.md](docs/INDEX.md)). Finished sections moved out on 2026-11-21:
 > [docs/history/TODO_done_to_0.10.120.md](docs/history/TODO_done_to_0.10.120.md).
 
+## SYN. Sync 0.10.154 (2026-11-23): main POV order, faster comparing
+- [ ] USER: after a Premiere restart, press Sync cameras on MASTERHAUS КП-4 Видео 4 (СКЕЧ): fx30661… in order on V1, each
+      fx30-3-20xx against its partner on V2, the first line of the report names the main POV. Say if the wrong camera was taken
+      as main (then a setting to pick it by hand is the next step).
+
 Work rule for every step: implement → tests → bump version (manifest + config) → `scripts/release_mac.sh` →
 ask the user to try in `TEST.prproj` → read `engine.log` → commit → update `PROJECT_STATUS.md`.
 

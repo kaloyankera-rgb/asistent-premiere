@@ -8,6 +8,7 @@ that would overlap) is reported and not applied.
 """
 from __future__ import annotations
 
+import copy
 import os
 import re
 import threading
@@ -108,31 +109,84 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
         split_by_folder = len(set(folders)) > 1
         pairs = [(i, j) for i in range(len(clips)) for j in range(i + 1, len(clips))
                  if not (split_by_folder and folders[i] == folders[j])]
+        rec = [c.info.recorded for c in clips]
+        src = [c.info.recorded_from for c in clips]
+        dur = [c.info.duration for c in clips]
         done[0] = 0
+        planned = [0]
 
-        def compare(pair: tuple[int, int]) -> dict | None:
-            i, j = pair
+        def compare(job: tuple[int, int, float | None]) -> tuple[tuple[int, int], dict | None]:
+            i, j, expect = job
             check()
             ref, oth = (i, j) if clips[i].length >= clips[j].length else (j, i)
-            r = analyze_pair(clips[ref], clips[oth], check, quick=True)
-            tick(0.65, 0.3, len(pairs), "Comparing {} of {}")
+            if expect is None:
+                r = analyze_pair(clips[ref], clips[oth], check, quick=True)
+            else:
+                # the confirmed clocks say where this pair should line up: look there too, and at every stretch
+                near = expect if ref == i else -expect
+                r = analyze_pair(clips[ref], clips[oth], check, near=(near, CLOCK_LOOK))
+            tick(0.65, 0.3, planned[0], "Comparing {} of {}")
             # a Low pair is kept only when two stretches agree: the clocks may confirm it (short takes, 0.10.45)
             keep = r["confidence"] in ("high", "medium") or (r.get("windows_agree") or 0) >= SHORT_MIN_WINDOWS
             if keep and r.get("offset") is not None:
-                return {"a": ref, "b": oth, "offset": r["offset"], "confidence": r["confidence"],
+                return (i, j), {"a": ref, "b": oth, "offset": r["offset"], "confidence": r["confidence"],
                         "agree": f'{r.get("windows_agree")}/{r.get("windows_total")}', "loose": bool(r.get("loose")),
                         "ambiguous": bool(r.get("ambiguous")), "drifting": bool(r.get("drifting")),
                         "n_agree": r.get("windows_agree") or 0, "n_info": r.get("windows_informative") or 0,
                         "peak_ratio": r.get("peak_ratio") or 0.0, "runner_offset": r.get("runner_offset"),
                         "reasons": r["reasons"], "warnings": r["warnings"]}
-            return None
+            return (i, j), None
 
-        edges = [e for e in pool.map(compare, pairs) if e]
+        found: dict[tuple[int, int], dict | None] = {}
+
+        def run(jobs: list[tuple[int, int, float | None]]) -> None:
+            planned[0] += len(jobs)
+            for key, e in pool.map(compare, jobs):
+                found[key] = e
+
+        # 0.10.154 (the user: "make the syncing faster and more accurate"): nearly every pair of a shooting day was never
+        # recorded together (MASTERHAUS: 304 pairs compared for 16 matches). The cameras' own recording times say which takes
+        # could be: those are compared first, and once the sound of three sure pairs confirms how far apart the two clocks
+        # are, the takes the clocks put far apart are left out. A clip that found no partner that way is still compared with
+        # everything, as before, so a clock that jumped costs time and never a sync.
+        plan = _clock_plan(pairs, folders, rec, src, dur)
+        run([(i, j, None) for i, j in pairs if plan.get((i, j), True)])
+        sure = _clock_confirm(found, folders, rec, src)
+
+        def gap(i: int, j: int) -> float | None:
+            """How far apart the confirmed clocks put two takes (negative: recording together); None = not known."""
+            d = sure.get(_cam_pair(folders, i, j))
+            if d is None or rec[i] is None or rec[j] is None or src[i] != "metadata" or src[j] != "metadata":
+                return None
+            return _gap(folders, rec, dur, i, j, d)
+
+        # a guess the sound did not confirm leaves nothing out; a confirmed one leaves out what it puts far apart
+        run([(i, j, None) for i, j in pairs if (i, j) not in found and (gap(i, j) is None or gap(i, j) <= CLOCK_VETO)])
+        # second look, where the confirmed clocks put two takes side by side and the first look found nothing sure:
+        # the same rules decide, but the search also starts from where the clocks say the offset is
+        first = dict(found)
+        again = []
+        for i, j in pairs:
+            e = found.get((i, j))
+            g = gap(i, j) if (i, j) in found else None
+            if g is not None and g <= -OVERLAP_HINT and not (e and e["confidence"] == "high"):
+                d = sure[_cam_pair(folders, i, j)]
+                again.append((i, j, (rec[j] - rec[i]) - d if folders[i] < folders[j] else (rec[j] - rec[i]) + d))
+        run(again)
+        for key, e in first.items():                 # a second look never takes away what the first one found
+            if _rank(e) > _rank(found[key]):
+                found[key] = e
+        # who has a partner already, counting the pairs the clocks will confirm (a trial run on a copy: the real check
+        # runs once, below, on everything)
+        trial = copy.deepcopy([found[p] for p in pairs if found.get(p)])
+        _clock_check(clips, folders, split_by_folder, trial, rec, src)
+        partnered = {x for e in trial if e["confidence"] == "high" for x in (e["a"], e["b"])}
+        run([(i, j, None) for i, j in pairs if (i, j) not in found and not (i in partnered and j in partnered)])
+
+        edges = [found[p] for p in pairs if found.get(p)]
     finally:
         pool.shutdown(wait=True, cancel_futures=True)
 
-    rec = [c.info.recorded for c in clips]
-    src = [c.info.recorded_from for c in clips]
     _clock_check(clips, folders, split_by_folder, edges, rec, src)
     groups, conflicts = _build_groups(clips, folders if split_by_folder else None,
                                       [e for e in edges if e["confidence"] == "high"])
@@ -156,10 +210,84 @@ def sync_groups(paths: list[str], progress: ProgressFn | None = None,
         "accepted_notes": [{"a": e["a"], "b": e["b"], "text": " ".join(e["reasons"] + e["warnings"])}
                            for e in edges if e["confidence"] == "high" and (e.get("loose") or e.get("clock_confirmed"))
                            and {e["a"], e["b"]} <= grouped],
-        "pairs_checked": len(pairs),
+        "pairs_checked": len(found),
+        "pairs_possible": len(pairs),
         # not synced, but the learnt clocks say these were recording at the same time: the editor syncs them by hand
         "clock_overlaps": together,
     }
+
+
+# ---------------------------------------------------------------- which pairs are worth comparing (0.10.154)
+
+VOTE_TOL = 3.0         # s: recording times of takes shot together differ by the same amount on both cameras, this closely
+VOTE_MIN = 3           # takes that must agree on the difference before it is used as a guess, and sure pairs to confirm it
+CLOCK_LOOK = 3.0       # s: how far around the clocks' offset the second look searches (CLOCK_PRECISE plus a second)
+
+
+def _cam_pair(folders: list[str], i: int, j: int) -> tuple[str, str]:
+    return (folders[i], folders[j]) if folders[i] < folders[j] else (folders[j], folders[i])
+
+
+def _clock_plan(pairs: list[tuple[int, int]], folders: list[str], rec: list, src: list, dur: list) -> dict:
+    """pair -> False for the pairs to leave for later: per two cameras, the difference between their clocks is guessed
+    from the recording times alone (the takes shot together all give the same difference, the others scatter), and a pair
+    the guess puts further apart than CLOCK_VETO waits. No guess (no times, too few takes agreeing) = every pair now."""
+    by_cams: dict[tuple[str, str], list[tuple[int, int]]] = defaultdict(list)
+    for i, j in pairs:
+        if folders[i] != folders[j] and src[i] == "metadata" and src[j] == "metadata" \
+                and rec[i] is not None and rec[j] is not None:
+            by_cams[_cam_pair(folders, i, j)].append((i, j))
+    plan: dict[tuple[int, int], bool] = {}
+    for cams, ps in by_cams.items():
+        diffs = sorted(_diff(folders, rec, i, j) for i, j in ps)
+        best, at, k = 0, 0.0, 0
+        for n, x in enumerate(diffs):                 # the fullest window of VOTE_TOL
+            while diffs[n] - diffs[k] > VOTE_TOL:
+                k += 1
+            if n - k + 1 > best:
+                best, at = n - k + 1, diffs[(n + k) // 2]
+        if best < VOTE_MIN:
+            continue
+        for i, j in ps:
+            plan[(i, j)] = _gap(folders, rec, dur, i, j, at) <= CLOCK_VETO + VOTE_TOL
+    return plan
+
+
+def _diff(folders: list[str], rec: list, i: int, j: int) -> float:
+    """The second camera's recording time minus the first's (cameras in key order)."""
+    return rec[j] - rec[i] if folders[i] < folders[j] else rec[i] - rec[j]
+
+
+def _gap(folders: list[str], rec: list, dur: list, i: int, j: int, d: float) -> float:
+    """How far apart (s) two takes were recorded when the second camera's clock (in key order) runs `d` ahead of the
+    first's; negative = they overlap by that much."""
+    a, b = (i, j) if folders[i] < folders[j] else (j, i)
+    a0, b0 = rec[a], rec[b] - d
+    return max(a0, b0) - min(a0 + dur[a], b0 + dur[b])
+
+
+def _rank(e: dict | None) -> int:
+    return 0 if not e else {"high": 3, "medium": 2}.get(e["confidence"], 1)
+
+
+def _clock_confirm(found: dict, folders: list[str], rec: list, src: list) -> dict:
+    """(camera, camera) -> the difference between the two clocks, measured by the sound: the median over the strict High
+    pairs compared so far, when VOTE_MIN or more of them agree within CLOCK_PRECISE."""
+    seen: dict[tuple[str, str], list[float]] = defaultdict(list)
+    for (i, j), e in found.items():
+        if not e or e["confidence"] != "high" or e.get("loose") or rec[i] is None or rec[j] is None \
+                or src[i] != "metadata" or src[j] != "metadata":
+            continue
+        a, b = (i, j) if folders[i] < folders[j] else (j, i)
+        real = e["offset"] if e["a"] == a else -e["offset"]         # where b starts on a's clock, by the sound
+        seen[_cam_pair(folders, i, j)].append((rec[b] - rec[a]) - real)
+    out = {}
+    for cams, vals in seen.items():
+        vals.sort()
+        mid = vals[len(vals) // 2]
+        if sum(1 for v in vals if abs(v - mid) <= CLOCK_PRECISE) >= VOTE_MIN:
+            out[cams] = mid
+    return out
 
 
 def _clock_overlaps(clips: list[Clip], folders: list[str], groups: list[dict], when: dict) -> list[dict]:

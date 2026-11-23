@@ -1,5 +1,21 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-23: Sync is ordered by the main POV; the clocks choose which pairs are compared (0.10.154)
+- **Order.** The user: the main POV (usually V1) makes the order, the second POV is synced to it. Since 0.10.149 both cameras'
+  file numbers had an equal say and the clock chose among what was free, so the second POV could hold main clips back. Now only
+  the main POV's numbers order the spine; other cameras' numbers only choose the stretch a lone clip is slotted into.
+- **Which camera is main.** The lowest video track of the editor's timeline. With everything on one track (MASTERHAUS: all 35
+  on V1) nothing says it, so: most clips there, then most footage, then first. A guess, so the report names the main POV.
+  Not built: a setting to pick it by hand (ask the user if the guess is ever wrong).
+- **Pair pruning** was open since the 0.10.1 audit for lack of a safe criterion ("camera clocks can be years off"). The
+  criterion now: never the raw clocks. The difference between two cameras is only a guess from the recording times until three
+  strict High pairs measure it by sound within `CLOCK_PRECISE`; only then are far pairs left out, and any clip left without a
+  partner is compared with everything as before. A pair that is skipped is one whose both clips already have a partner where
+  the clocks say they belong.
+- **Second look.** More candidates only, from the range the confirmed clocks point at; the acceptance rules are untouched, so
+  "nothing uncertain is applied" holds as before. This is the one part that is not bit-identical to the old code (it can find
+  a pair the old code missed); the user asked for accuracy, and the pair it found on real footage was checked independently.
+
 ## 2026-11-23: a transparent TRACK clip marks each track on the timeline (0.10.153)
 - The user chose "an invisible marker clip" over a disabled duplicate (takes a whole track, shows footage) and a sequence marker
   (cannot be selected like a clip). It covers the whole tracked clip, not only the tracked part, so it never has to change

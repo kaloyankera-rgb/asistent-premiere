@@ -1,7 +1,7 @@
 // node --test tests/layout.test.js
 const test = require("node:test");
 const assert = require("node:assert");
-const { syncLayout, folderOf, GAP } = require("../panel/layout.js");
+const { syncLayout, mainCamera, folderOf, GAP } = require("../panel/layout.js");
 
 function engineOf(clips, groups, unsynced) {
   return { clips: clips.map(([path, duration, has_video = true]) => ({ path, name: path.split("/").pop(), duration, has_video })),
@@ -19,17 +19,20 @@ const E = engineOf([
 const ORDER = { "/m/fx3/fx39013.MP4": 0, "/m/fx30/C9013.MP4": 100, "/m/fx3/fx39027.MP4": 200, "/m/fx30/C9025.MP4": 300,
   "/m/fx3/fx39025.MP4": 400 };
 
+// the editor's timeline: the FX30 on V1 (the main POV), the FX3 on V2
+const MAIN = { tracks: Object.fromEntries(E.clips.map((c) => [c.path, folderOf(c.path) === "/m/fx30" ? 0 : 1])) };
+
 test("groups keep the timeline order, first clip opens the sequence on V1 at 0", () => {
-  const { placements, cameras } = syncLayout(E, ORDER);
+  const { placements, cameras } = syncLayout(E, ORDER, MAIN);
   assert.strictEqual(placements[0].name, "C9013.MP4");
   assert.strictEqual(placements[0].zero, 0);
   assert.strictEqual(placements[0].track, 0);
   assert.deepStrictEqual(cameras, ["/m/fx30", "/m/fx3"]);
-  assert.strictEqual(syncLayout(E, ORDER).seed, 0);
+  assert.strictEqual(syncLayout(E, ORDER, MAIN).seed, 0);
 });
 
 test("offsets inside a group are kept exactly", () => {
-  const { placements } = syncLayout(E, ORDER);
+  const { placements } = syncLayout(E, ORDER, MAIN);
   const z = Object.fromEntries(placements.map((p) => [p.name, p.zero]));
   assert.ok(Math.abs((z["fx39013.MP4"] - z["C9013.MP4"]) - 0.0265) < 1e-9);
   assert.ok(Math.abs((z["fx39028.MP4"] - z["C9025.MP4"]) - 23.6952) < 1e-9);
@@ -37,7 +40,7 @@ test("offsets inside a group are kept exactly", () => {
 });
 
 test("one track per camera and nothing overlaps on a track", () => {
-  const { placements } = syncLayout(E, ORDER);
+  const { placements } = syncLayout(E, ORDER, MAIN);
   for (const p of placements) assert.strictEqual(p.track, folderOf(p.path) === "/m/fx30" ? 0 : 1);
   for (const a of placements) {
     for (const b of placements) {
@@ -51,7 +54,7 @@ test("one track per camera and nothing overlaps on a track", () => {
 test("without recording times the file numbers decide; entries follow each other with the gap; no markers", () => {
   // 2026-11-23: fx39025 is numbered between fx39013 (first group) and fx39027 (second group), so it sits between them,
   // although the editor's timeline had it last
-  const lay = syncLayout(E, ORDER);
+  const lay = syncLayout(E, ORDER, MAIN);
   const { placements } = lay;
   assert.deepStrictEqual(placements.map((p) => p.name),
     ["C9013.MP4", "fx39013.MP4", "fx39025.MP4", "C9025.MP4", "fx39027.MP4", "fx39028.MP4", "fx39029.MP4"]);
@@ -151,16 +154,79 @@ test("two cameras in one folder keep their own counters (folder + name before th
   assert.deepStrictEqual(names, ["fx30661.MP4", "fx30-3-2032.MP4", "fx30-3-2033.MP4", "fx30662.MP4"]);
 });
 
-test("when the sync contradicts the file numbers the clock breaks the tie and the place is reported", () => {
+test("0.10.154: the second POV's file numbers never move a main clip", () => {
+  // a1+b2 and a2+b1 are synced: B's numbers say the other order, the main POV's (A) decide, and nothing is uncertain
   const e = engineOf([["/v/A/a1.mp4", 10], ["/v/A/a2.mp4", 10], ["/v/B/b1.mp4", 10], ["/v/B/b2.mp4", 10]],
     [{ anchor: 0, members: [{ clip: 0, offset: 0 }, { clip: 3, offset: 0 }] },
       { anchor: 1, members: [{ clip: 1, offset: 0 }, { clip: 2, offset: 0 }] }], []);
   withTimes(e, [10, 50, 50, 10]);
-  const { placements, uncertain } = syncLayout(e, {});
-  assert.strictEqual(placements.length, 4);
-  assert.deepStrictEqual(placements.map((p) => p.name), ["a1.mp4", "b2.mp4", "a2.mp4", "b1.mp4"]);
-  assert.strictEqual(uncertain.length, 1);
-  assert.match(uncertain[0].reason, /file numbers and the sync disagree/);
+  const lay = syncLayout(e, {});
+  assert.strictEqual(lay.main, "/v/A");
+  assert.deepStrictEqual(lay.placements.map((p) => p.name), ["a1.mp4", "b2.mp4", "a2.mp4", "b1.mp4"]);
+  assert.deepStrictEqual(lay.uncertain, []);
+});
+
+test("0.10.154: the main POV is the camera on the lowest video track, and it gets V1 and the order", () => {
+  // the user's report: the main POV's clips ended up at the back because the second POV's files were laid out first.
+  // B holds more clips and comes first in the timeline, but A is on V1: A's numbers make the order, B hangs on it
+  const A = "/v/A";
+  const B = "/v/B";
+  const e = engineOf([[`${B}/b1.mp4`, 10], [`${B}/b2.mp4`, 10], [`${B}/b3.mp4`, 10], [`${B}/b4.mp4`, 10],
+    [`${A}/a1.mp4`, 12], [`${A}/a2.mp4`, 12], [`${A}/a3.mp4`, 12]],
+  [{ anchor: 5, members: [{ clip: 5, offset: 0 }, { clip: 1, offset: 1 }] },
+    { anchor: 6, members: [{ clip: 6, offset: 0 }, { clip: 3, offset: 2 }] }], [0, 2, 4]);
+  // B's clock was never checked against A's for b1 and b3 (no times): the old order put a1 after them
+  withTimes(e, [null, 201, null, 301, 100, 200, 300]);
+  const tracks = Object.fromEntries(e.clips.map((c) => [c.path, c.path.startsWith(A) ? 0 : 1]));
+  const order = Object.fromEntries(e.clips.map((c, i) => [c.path, i * 100]));
+  const lay = syncLayout(e, order, { tracks });
+  assert.strictEqual(lay.main, A);
+  assert.deepStrictEqual(lay.cameras, [A, B]);
+  // b1 is numbered before b2 (a2's partner): anywhere before a2, and by the timeline it comes first; b3 between b2 and b4
+  assert.deepStrictEqual(lay.placements.map((p) => p.name),
+    ["b1.mp4", "a1.mp4", "a2.mp4", "b2.mp4", "b3.mp4", "a3.mp4", "b4.mp4"]);
+  for (const p of lay.placements) assert.strictEqual(p.track, p.path.startsWith(A) ? 0 : 1);
+  assert.strictEqual(lay.placements[lay.seed].name, "a1.mp4");
+  const mains = lay.placements.filter((p) => p.track === 0).map((p) => p.name);
+  assert.deepStrictEqual(mains, ["a1.mp4", "a2.mp4", "a3.mp4"]);
+});
+
+test("0.10.154: a second-POV clip alone goes where the clock puts it between its numbered neighbours", () => {
+  const A = "/v/A";
+  const B = "/v/B";
+  const e = engineOf([[`${A}/a1.mp4`, 10], [`${A}/a2.mp4`, 10], [`${A}/a3.mp4`, 10], [`${A}/a4.mp4`, 10],
+    [`${B}/b1.mp4`, 10], [`${B}/b2.mp4`, 5], [`${B}/b3.mp4`, 10]],
+  [{ anchor: 0, members: [{ clip: 0, offset: 0 }, { clip: 4, offset: 0 }] },
+    { anchor: 3, members: [{ clip: 3, offset: 0 }, { clip: 6, offset: 0 }] }], [1, 2, 5]);
+  withTimes(e, [100, 200, 300, 400, 100, 250, 400]);          // b2 was recorded between a2 and a3
+  const lay = syncLayout(e, {}, { tracks: Object.fromEntries(e.clips.map((c) => [c.path, c.path.startsWith(A) ? 0 : 1])) });
+  assert.deepStrictEqual(lay.placements.map((p) => p.name), ["a1.mp4", "b1.mp4", "a2.mp4", "b2.mp4", "a3.mp4", "a4.mp4", "b3.mp4"]);
+  assert.deepStrictEqual(lay.uncertain, []);
+});
+
+test("0.10.154: a lone second-POV clip whose number contradicts the main order is placed by the clock and reported", () => {
+  const A = "/v/A";
+  const B = "/v/B";
+  // a1+b5 and a2+b3 are synced, so B's numbers run against A's; b4 (alone) cannot sit between b3 and b5 without moving a clip
+  const e = engineOf([[`${A}/a1.mp4`, 10], [`${A}/a2.mp4`, 10], [`${B}/b5.mp4`, 10], [`${B}/b3.mp4`, 10], [`${B}/b4.mp4`, 10]],
+    [{ anchor: 0, members: [{ clip: 0, offset: 0 }, { clip: 2, offset: 0 }] },
+      { anchor: 1, members: [{ clip: 1, offset: 0 }, { clip: 3, offset: 0 }] }], [4]);
+  withTimes(e, [100, 200, 100, 200, 150]);
+  const lay = syncLayout(e, {}, { tracks: Object.fromEntries(e.clips.map((c) => [c.path, c.path.startsWith(A) ? 0 : 1])) });
+  assert.deepStrictEqual(lay.placements.map((p) => p.name), ["a1.mp4", "b5.mp4", "b4.mp4", "a2.mp4", "b3.mp4"]);
+  assert.deepStrictEqual(lay.uncertain.map((u) => u.name), ["b4.mp4"]);
+  assert.match(lay.uncertain[0].reason, /file numbers and the sync disagree/);
+});
+
+test("0.10.154: mainCamera, with everything on one track the camera with the most clips, then the most footage", () => {
+  const clips = [{ path: "/a/1.mp4", duration: 10 }, { path: "/a/2.mp4", duration: 10 }, { path: "/b/1.mp4", duration: 50 },
+    { path: "/z/rec.wav", duration: 500, has_video: false }];
+  const cam = (i) => folderOf(clips[i].path);
+  const when = (i) => i;
+  assert.strictEqual(mainCamera(clips, cam, when, { "/a/1.mp4": 0, "/a/2.mp4": 0, "/b/1.mp4": 0 }), "/a");   // more clips
+  assert.strictEqual(mainCamera(clips, cam, when, { "/a/1.mp4": 1, "/a/2.mp4": 1, "/b/1.mp4": 0 }), "/b");   // lowest track
+  assert.strictEqual(mainCamera(clips.slice(1), (i) => folderOf(clips[i + 1].path), when, null), "/b");      // 1 clip each: more footage
+  assert.strictEqual(mainCamera([clips[3]], () => "/z", when, null), null);                                   // sound only
 });
 
 test("Windows paths split cameras by folder too", () => {

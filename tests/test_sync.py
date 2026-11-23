@@ -207,3 +207,23 @@ def test_band_cluster_and_drift_shape():
     assert not _drifting(scattered)                                       # 35 s: drift not measurable
     line = [w(t, t * 0.09) for t in range(10, 310, 30)]                  # 90 ppm over 300 s
     assert _drifting(line)
+
+
+# ---- 0.10.154: the second look also starts from where the cameras' clocks put the pair
+
+from asistent import sync as S
+
+def test_near_puts_the_clocks_candidate_first_and_changes_no_sure_result(tmp_path):
+    s1, s2 = synth.scene(120.0, seed=31)
+    a = S.load_clip(synth.write_wav(tmp_path / "a.wav", [synth.mic([(s1, 1), (s2, .8)], 10, 40, seed=1)]))
+    b = S.load_clip(synth.write_wav(tmp_path / "b.wav", [synth.mic([(s1, .7), (s2, 1)], 16, 20, seed=2)]))
+    plain = S.analyze_pair(a, b)
+    near = S.analyze_pair(a, b, near=(5.0, 3.0))                       # the clocks say about 5 s; the truth is 6 s
+    assert plain["confidence"] == near["confidence"] == "high"
+    assert abs(near["offset"] - 6.0) < 0.002 and near["offset"] == plain["offset"]
+    cands = S._coarse(a, b, lambda: None, near=(5.0, 3.0))
+    assert len(cands) <= S.MAX_CANDIDATES + S.NEAR_CANDIDATES
+    assert all(abs(x.offset - y.offset) >= S.CLUSTER_TOL for i, x in enumerate(cands) for y in cands[i + 1:])
+    # a range holding no shared sound adds candidates but can never make a match by itself
+    wrong = S.analyze_pair(a, b, near=(-12.0, 3.0))
+    assert wrong["confidence"] == "high" and wrong["offset"] == plain["offset"]

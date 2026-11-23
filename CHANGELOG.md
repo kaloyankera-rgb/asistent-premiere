@@ -31,6 +31,32 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.154 - Sync: the main POV makes the order, the second POV is synced to it; faster, and one more look where the clocks point (2026-11-23, installed, not tried in Premiere)
+- The user: "prioritize to order the clips in the timeline by the main POV which is usually on V1 and on V2 is the second POV
+  and when it's organized then you sync to that the 2nd POV", "some clips are at the back because the 2nd POV's files are
+  prioritized", "make the syncing faster and more accurate".
+- **Order** (`panel/layout.js` `mainCamera`, `chronological`): the main POV is the camera on the lowest video track of the
+  editor's timeline (`meta.tracks` from `main.js`); when everything lies on one track, the camera with the most clips there,
+  then the most footage, then the first. Its entries are the spine, in its file-number order, and it has V1 and the seed.
+  Every other entry is slotted in: between the spine entries its own camera's numbers allow, inside that stretch by the clock
+  (or the timeline). The second POV's numbers no longer hold a main clip back; a lone clip whose number contradicts the spine
+  is placed by the clock and listed as uncertain. The report names the main POV first.
+- **Faster** (`groups.sync_groups`, `_clock_plan`, `_clock_confirm`, `_gap`): the difference between two cameras' clocks is
+  guessed from the recording times alone (takes shot together all give the same difference), the pairs the guess puts together
+  are compared first, and when three or more strict High pairs confirm the difference by sound, pairs further apart than
+  `CLOCK_VETO` are not compared. A clip left without a partner is still compared with everything, so a clock that jumped costs
+  time and never a sync. No recording times, or no confirmation: every pair, as before. `pairs_possible` in the result.
+- **More accurate** (`sync.analyze_pair(near=…)`, `_coarse`): where the confirmed clocks put two takes side by side and the
+  first look found nothing sure, the pair is looked at again with up to 3 more candidates from ±3 s around the clocks' offset.
+  The rules for High / Medium / Low and the clock check are unchanged; a second look never takes away a first result.
+- Measured on real files (read only, warm cache, old code from `git show HEAD:` against new): MASTERHAUS КП-4 Видео 4 (35 clips)
+  22.1 -> 6.6 s, 304 -> 67 pairs, the same 16 groups and offsets; GStroy brand 9x16 (28 clips) 5.8 -> 3.4 s, 195 -> 92 pairs,
+  the same 15 pairs; GStroy КП11 Видео 8 (49 clips) 12.4 -> 7.6 s, 570 -> 431 pairs, the same 13 pairs plus one new:
+  fx30232 + fx30-2-1835 at 2.371 s (a short quiet take; its loudness curves line up best at 2.37 s, checked separately).
+- Not bit-identical by design where the second look finds a pair; everything else compared identical on the three shoots.
+- Tests: Python 1162 pass / 24 skipped (6 new: plan, confirm, gap, a whole clock-guided run with a jumped clock, `near`),
+  Node 640 pass (5 new layout tests, 2 changed for the main POV), real-footage regression 14 pass.
+
 ## 0.10.153 - Tracker: Track / Saved tabs, and a TRACK clip on the timeline for each track (2026-11-23)
 - The user: "make it a bit more organized and easy to use", choosing two tabs and "an invisible marker clip" on top of the
   timeline, labelled, for each track.

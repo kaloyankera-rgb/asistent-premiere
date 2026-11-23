@@ -229,3 +229,101 @@ def test_two_cameras_in_one_folder_learn_their_own_clocks_and_keep_good_pairs():
     G._clock_check(_clips(6), ["/v/S"] * 6, False, [_edge(0, 1, 2.57, "high"), _edge(2, 3, 0.33, "high"), old],
                    rec, ["metadata"] * 6)
     assert old["confidence"] == "medium" and "another take" in old["reasons"][-1]
+
+
+# ---- 0.10.154: the recording times say which pairs are worth comparing (groups._clock_plan, _clock_confirm)
+
+def _day(n=6, ahead=3000.0):
+    """n takes shot by two cameras, B's clock `ahead` of A's; one A clip between the takes that B did not record."""
+    folders = ["/A"] * n + ["/B"] * n + ["/A"]
+    rec = [100.0 * k for k in range(n)] + [100.0 * k + 2.0 + ahead for k in range(n)] + [150.0]
+    dur = [20.0] * (2 * n + 1)
+    pairs = [(i, j) for i in range(len(folders)) for j in range(i + 1, len(folders)) if folders[i] != folders[j]]
+    return folders, rec, dur, pairs
+
+
+def test_clock_plan_keeps_the_takes_recorded_together_and_leaves_the_rest_for_later():
+    folders, rec, dur, pairs = _day()
+    plan = G._clock_plan(pairs, folders, rec, ["metadata"] * len(rec), dur)
+    now = {p for p in pairs if plan[p]}
+    assert now == {(k, 6 + k) for k in range(6)}            # each take with its partner; the lone clip with nobody
+    assert len(plan) == len(pairs)
+
+
+def test_clock_plan_makes_no_guess_without_recording_times_or_with_too_few_takes():
+    folders, rec, dur, pairs = _day()
+    assert G._clock_plan(pairs, folders, rec, ["file"] * len(rec), dur) == {}
+    assert G._clock_plan(pairs, folders, [None] * len(rec), ["metadata"] * len(rec), dur) == {}
+    two = [(0, 2), (0, 3), (1, 2), (1, 3)]                  # two takes agree: not enough for a guess
+    assert G._clock_plan(two, ["/A", "/A", "/B", "/B"], [0.0, 100.0, 3000.0, 3100.0], ["metadata"] * 4, [20.0] * 4) == {}
+
+
+def test_clock_confirm_needs_three_sure_pairs_that_agree():
+    folders, rec, dur, pairs = _day()
+    src = ["metadata"] * len(rec)
+    found = {(k, 6 + k): _edge(k, 6 + k, 2.0 + 0.3 * k, "high") for k in range(3)}        # B starts 2.0-2.6 s into A
+    sure = G._clock_confirm(found, folders, rec, src)
+    assert abs(sure[("/A", "/B")] - 3000.0) < 1.0
+    # a scattered (loose) match or a Medium one is not a witness; two sure pairs are too few
+    weak = {(0, 6): _edge(0, 6, 2.0, "high"), (1, 7): _edge(1, 7, 2.0, "high"),
+            (2, 8): _edge(2, 8, 2.0, "high", loose=True), (3, 9): _edge(3, 9, 2.0, "medium")}
+    assert G._clock_confirm(weak, folders, rec, src) == {}
+    # sure pairs that disagree by more than CLOCK_PRECISE confirm nothing
+    wild = {(k, 6 + k): _edge(k, 6 + k, 2.0 + 30.0 * k, "high") for k in range(3)}
+    assert G._clock_confirm(wild, folders, rec, src) == {}
+    # the edge may name the pair the other way round (the longer clip is "a")
+    flipped = {(k, 6 + k): _edge(6 + k, k, -2.0, "high") for k in range(3)}
+    assert abs(G._clock_confirm(flipped, folders, rec, src)[("/A", "/B")] - 3000.0) < 1e-6
+
+
+def test_gap_between_two_takes_on_the_confirmed_clocks():
+    folders, rec, dur = ["/A", "/B"], [100.0, 3110.0], [20.0, 20.0]
+    assert G._gap(folders, rec, dur, 0, 1, 3000.0) == -10.0            # B started 10 s into A's 20 s
+    assert G._gap(folders, rec, dur, 1, 0, 3000.0) == -10.0
+    assert G._gap(folders, [100.0, 3200.0], dur, 0, 1, 3000.0) == 80.0
+
+
+def test_clock_guided_sync_finds_the_same_groups_with_fewer_comparisons(tmp_path, monkeypatch):
+    """Six takes on two cameras whose clocks are 3000 s apart, a lone clip, and one take whose camera clock jumped:
+    the takes the clocks put far apart are not compared, the jumped take is still found (compared with everything)."""
+    s1, s2 = synth.scene(400.0, seed=21)
+    os.makedirs(tmp_path / "camA")
+    os.makedirs(tmp_path / "camB")
+    truth, times = {}, {}
+
+    def take(cam, name, start, length, seed, clock):
+        truth[name] = start
+        times[name] = float(int(clock))                      # cameras write whole seconds
+        return synth.write_wav(tmp_path / cam / name, [synth.mic([(s1, 1), (s2, .8)], start, length, seed=seed)])
+
+    paths = []
+    for k in range(6):
+        paths.append(take("camA", f"a{k + 1}.wav", 10 + 50 * k, 24, 10 + k, 10 + 50 * k))
+        paths.append(take("camB", f"b{k + 1}.wav", 12 + 50 * k, 20, 30 + k, 12 + 50 * k + 3000))
+    paths.append(take("camA", "a7.wav", 320, 24, 50, 320))
+    paths.append(take("camB", "b7.wav", 322, 20, 51, 322 + 9000))           # this camera's clock jumped before the take
+    o1, o2 = synth.scene(40.0, seed=5)
+    truth["a8.wav"], times["a8.wav"] = None, 380.0
+    paths.append(synth.write_wav(tmp_path / "camA" / "a8.wav", [synth.mic([(o1, 1), (o2, 1)], 0, 22, seed=52)]))
+
+    real_load = G.load_clip
+
+    def load(path):
+        clip = real_load(path)
+        clip.info.recorded, clip.info.recorded_from = times[os.path.basename(path)], "metadata"
+        return clip
+
+    monkeypatch.setattr(G, "load_clip", load)
+    res = sync_groups(paths)
+    names = [c["name"] for c in res["clips"]]
+    got = {frozenset(names[m["clip"]] for m in g["members"]) for g in res["groups"]}
+    assert got == {frozenset({f"a{k}.wav", f"b{k}.wav"}) for k in range(1, 8)}
+    assert [names[i] for i in res["unsynced"]] == ["a8.wav"]
+    for g in res["groups"]:
+        anchor = names[g["anchor"]]
+        for m in g["members"]:
+            assert abs(m["offset"] - (truth[names[m["clip"]]] - truth[anchor])) < 0.002
+    assert res["pairs_possible"] == 8 * 7
+    # 6 takes with their partners, then a7, b7 and a8 (no partner by the clocks) with everything on the other camera
+    assert res["pairs_checked"] == 6 + 7 + 7 + 6
+    assert not res["conflicts"]

@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.153 (2026-11-23)
+# Project status: Asistent 0.10.154 (2026-11-23)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,6 +6,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
+- 0.10.154 (Sync: the main POV, the camera on the lowest video track, makes the order and has V1, the second POV is placed against it; the camera clocks choose which pairs are compared, MASTERHAUS 22.1 -> 6.6 s with the same 16 groups; a second look where the clocks point found one more real pair on GStroy КП11 Видео 8): installed, Python 1162 / 24 skipped, Node 640. Not tried in Premiere (new panel after a Premiere restart). [sync](docs/features/sync.md)
 - 0.10.153 (Tracker: Track / Saved tabs, tracks numbered TRACK n, a transparent TRACK clip above each tracked clip, Attach / Lock with a selected TRACK clip): installed, Node 636, Python 1156 / 24 skipped. Not tried in Premiere; the TRACK clip import and placement need the first check. [tracker](docs/features/tracker.md)
 - 0.10.152 (committed d31f8c6; Tracker: every track saved, a Saved list opens one again after another track or a Premiere restart, the clip found where it is now): installed, Node 634, Python 1076 / 114 skipped. Not tried in Premiere. [tracker](docs/features/tracker.md)
 - 0.10.151 (Fix audio only splits L/L and R/R: no Volume, no limiter; Level only and Even out phrases still level): installed, committed a7e3159, Node 631 pass, engine unchanged. Not tried in Premiere. [fix-audio](docs/features/fix-audio.md)

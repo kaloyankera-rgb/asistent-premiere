@@ -3,8 +3,9 @@
 ## What it does
 The Sync row ("Sync cameras", Tools > Run). The editor selects clips from two or more cameras, a recorder or a
 lavalier; Asistent lines them up by their shared sound and builds a new sequence "SYNC – <sequence>" in the bin
-"SYNC". The editor's own sequence is only read. Within each camera the clips follow their file numbers (fx30661, fx30662…),
-synced partners stay together, and clips with no partner keep their place in that order (0.10.149).
+"SYNC". The editor's own sequence is only read. The main POV (the camera on the lowest video track, usually V1) makes the
+order: its clips follow their file numbers (fx30661, fx30662…) on V1, each synced partner sits against its main clip, and
+clips with no partner go where they were recorded (0.10.154).
 
 ## How to use it
 1. Select the clips in the timeline (all of them is fine, at least two different files from two folders or more).
@@ -27,8 +28,13 @@ synced partners stay together, and clips with no partner keep their place in tha
   (one camera cannot record two clips at once). With one folder only, two clips on one track move to the next free track (0.10.6, BUG-011).
 - Camera clocks are a witness, never the truth: learnt only from sure pairs (`chrono.py`). A spread up to 2.0 s
   (`CLOCK_PRECISE`, 0.10.117) lets the clocks decide a short take or a two-offset pair. Raw clocks and file dates never.
-- Order (0.10.149): a camera's file numbers beat any clock. Camera = folder + the name before the last number. The clock
-  only interleaves cameras; a sync that contradicts the numbers is placed by the clock and listed as uncertain.
+- Order (0.10.154): the main POV's file numbers make the spine and beat any clock; no other camera's numbers move a main
+  clip. Main POV = lowest video track in the editor's timeline, else most clips, most footage, first (`mainCamera`); it gets
+  V1 and the seed, and the report names it. Other entries are slotted between the spine entries their own numbers allow, by
+  the clock inside that stretch; a lone clip whose number contradicts the spine goes by the clock and is listed as uncertain.
+- Which pairs are compared (0.10.154): the clocks' difference is a guess until 3 strict High pairs confirm it by sound; then
+  pairs further apart than `CLOCK_VETO` are skipped, but a clip without a partner is always compared with everything. Raw
+  clocks never decide. The second look (`near`) only adds candidates; what counts as High does not change.
 - No markers in the new sequence (0.9.52) and no gap between recordings (`GAP` 0, 0.10.38).
 - Files that had Asistent's L/R copies get Fix audio again in SYNC (it is built from whole files, 0.10.38).
 - The sequence takes its settings from the first clip with picture (`seed`); verification fails on extra video clips.
@@ -41,17 +47,20 @@ synced partners stay together, and clips with no partner keep their place in tha
 - Learnt clock counts as witness up to 2.0 s of spread, reverse with `CLOCK_PRECISE = 1.0`: DECISIONS 2026-11-18.
 - Track names after Sync on by default: DECISIONS 2026-11-10.
 - File numbers decide the order within a camera, the clock only interleaves: DECISIONS 2026-11-23 (0.10.149).
+- Main POV makes the order; clock-guided comparing with a fallback; second look: DECISIONS 2026-11-23 (0.10.154).
 
 ## Code map
 - Panel: `panel/main.js` `onSync`, `describe` (flow and report); `panel/engine.js` `startGroups`;
-  `panel/layout.js` `syncLayout`, `chronological`, `byFileNumber` (pure, node-tested); `panel/premiere.js` `buildSyncSequence`
+  `panel/layout.js` `syncLayout`, `mainCamera`, `chronological`, `byFileNumber` (pure, node-tested); `panel/premiere.js` `buildSyncSequence`
   (touches Premiere); `panel/premiere-labels.js` `colorFiles`; `panel/index.html` row `secSync`, button `sync`.
-- Engine: `engine/asistent/sync.py` (pair analysis: GCC-PHAT, windows, `analyze_pair`), `groups.py` (`sync_groups`, `_cameras`, `camera_name`,
-  `_clock_check`, `_build_groups`), `chrono.py` (recording order, `chronology`); `server.py` `POST /sync_groups`.
+- Engine: `engine/asistent/sync.py` (pair analysis: GCC-PHAT, windows, `analyze_pair`, `near`), `groups.py` (`sync_groups`, `_cameras`, `camera_name`,
+  `_clock_plan`, `_clock_confirm`, `_gap`, `_clock_check`, `_build_groups`), `chrono.py` (recording order, `chronology`); `server.py` `POST /sync_groups`.
   `POST /sync` (two-clip `sync_clips`) is older and not used by the row.
 - Host: none.
 
 ## Status
+- 0.10.154 (2026-11-23, installed): main POV order, clock-guided comparing, second look. Offline on real files: MASTERHAUS
+  22.1 -> 6.6 s with the same 16 groups, GStroy КП11 Видео 8 12.4 -> 7.6 s with one more real pair. Not tried in Premiere.
 - 0.10.149 (2026-11-23, installed): two cameras in one folder told apart by file prefix, and file-number order per camera,
   after the MASTERHAUS КП-4 Видео 4 reports (wrong order; 668/2038 and two more pairs vetoed by a shared clock). Offline on
   the real files: 16 groups (was 12), nothing uncertain. Not tried in Premiere.
@@ -63,9 +72,9 @@ synced partners stay together, and clips with no partner keep their place in tha
 - Windows: untested (`setup_win.ps1` never run, TODO W).
 - Limits (BUGS "Algorithm limitations"): clips under about 8 s or nearly silent stay Low unless two stretches agree and
   the clocks confirm; up to half a frame of error; VFR may drift; no sub-frame alignment; no manual sync tool.
-  Open: sync pair pruning (no safe criterion). Bridge `select` in a SYNC sequence is unreliable (TODO P item 3).
+  Many clips without a partner still cost the full comparison (the fallback). Bridge `select` in a SYNC sequence is unreliable (TODO P item 3).
 
 ## Tests
 - `tests/test_sync.py` (synthetic recordings with a known answer), `test_groups.py` (groups, short takes, clock rules),
   `test_chrono.py`, `test_server.py` (`/sync` guards), `test_real_footage.py` (GStroy footage, skipped elsewhere).
-- `tests/layout.test.js` (placements, tracks, chronology, file-number order incl. the MASTERHAUS case), `wiring.test.js` (Sync calls `fixAudio`), `selection.test.js`.
+- `tests/layout.test.js` (placements, tracks, main POV, chronology, file-number order incl. the MASTERHAUS case), `wiring.test.js` (Sync calls `fixAudio`), `selection.test.js`.

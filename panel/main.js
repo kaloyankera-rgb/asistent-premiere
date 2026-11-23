@@ -460,6 +460,11 @@ async function runJob(id) {
 function describe(result, timeline, lay) {
   const name = (i) => result.clips[i].name;
   const blocks = [];
+  // 0.10.154: which camera was taken as the main POV (it has V1 and its clips make the order), so a wrong pick is seen at once
+  if (lay && lay.main && lay.cameras.length > 1) {
+    const cam = (result.clocks || []).find((c) => c.camera === lay.main);
+    blocks.push(el("div", "hint", `Main POV on V1: ${cam ? cam.name : lay.main.split(/[\\/]/).pop()}. Its clips follow their file numbers; the other cameras are placed against them.`));
+  }
   // groups in the order they sit in the new sequence (recording order), when it was built
   const first = (g) => (lay ? lay.placements.findIndex((p) => g.members.some((m) => m.clip === p.clip)) : 0);
   result.groups.slice().sort((a, b) => first(a) - first(b)).forEach((g, n) => {
@@ -534,7 +539,15 @@ async function onSync() {
     }
     progress(0.95, "Making the SYNC sequence…");
     const order = Object.fromEntries(timeline.clips.map((c) => [c.path, c.start]));
-    const lay = layout.syncLayout(result, order);
+    // 0.10.154: the main POV is the camera on the lowest video track here (layout.mainCamera); its clips make the order
+    const tracks = {};
+    for (const x of timeline.items) {
+      if (x.kind === "video" && x.selected && x.path && Number.isInteger(x.track)) {
+        tracks[x.path] = Math.min(x.track, tracks[x.path] === undefined ? Infinity : tracks[x.path]);
+      }
+    }
+    const lay = layout.syncLayout(result, order, { tracks });
+    engine.log("info", `sync: main POV ${lay.main}, cameras ${lay.cameras.length}, ${result.pairs_checked} of ${result.pairs_possible || result.pairs_checked} pairs compared`);
     const blocks = describe(result, timeline, lay);
     // 0.10.45: the cameras' colours go on the files first, so the clips Sync places come out in them (a placed clip keeps the
     // colour its file had at that moment)

@@ -124,8 +124,7 @@
   the learned tree (and outside Premiere's last export folder) is still found only through the preferences; the tree is
   learned only after exports of 3 clients were seen; Windows has no tree (share notifications include other computers).
 
-- **Audit of 0.10.1 (2026-11-08): all valid findings fixed in 0.10.6** (CHANGELOG). Still open from it: sync pair pruning (no
-  criterion proven safe: camera clocks can be years off), caption TEXT edits that keep every line's time are not seen (no API
+- **Audit of 0.10.1 (2026-11-08): all valid findings fixed in 0.10.6** (CHANGELOG). Still open from it: caption TEXT edits that keep every line's time are not seen (no API
   reads caption text in 26.0.2; timing edits are), Windows CUDA pins and the Windows lock file untried, UXP right-click/long
   press not observed in Premiere.
 - **Test bridge: a command sent while a job runs reaches the panel only when the job ends** (2026-11-08: `click "Cancel" now` waited

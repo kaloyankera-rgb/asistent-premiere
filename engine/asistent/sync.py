@@ -34,6 +34,7 @@ BAND = (150.0, 4000.0)
 PHAT_BETA = 0.8            # partial whitening: sharper peaks than plain correlation, less noise than full PHAT
 MAX_CHANNELS = 3           # per clip, loudest first; a mono mix is added on top
 MAX_CANDIDATES = 5
+NEAR_CANDIDATES = 3        # more, from the range the cameras' clocks point at (the second look, 0.10.154)
 CLUSTER_TOL = 0.02         # s, coarse candidates closer than this are the same candidate
 # Two cameras a metre or two apart hear each source over different paths (1 ms = 34 cm), so real
 # windows scatter by a few ms around the true offset. 5 ms stays under half a frame at 60p.
@@ -219,25 +220,40 @@ def _min_overlap(a: Clip, b: Clip) -> float:
     return min(10.0, 0.6 * min(a.length, b.length))
 
 
-def _coarse(a: Clip, b: Clip, check: Callable[[], None]) -> list[Candidate]:
+def _coarse(a: Clip, b: Clip, check: Callable[[], None], near: tuple[float, float] | None = None) -> list[Candidate]:
+    """near (0.10.154): (offset, tolerance) from the cameras' confirmed clocks. The best peaks inside that range are
+    candidates too, in front of the others: a short or quiet take's true peak is often not among the highest of the
+    whole length, but it is the highest where the clocks say the take was. Every candidate is validated the same way."""
     cands: list[Candidate] = []
+    local: list[Candidate] = []
     min_ov = _min_overlap(a, b)
     csr = SR / COARSE_DECIM
     esr = csr / ENV_HOP
 
-    def add(offset: float, score: float, method: str):
-        for c in cands:
+    def add(offset: float, score: float, method: str, into: list[Candidate] | None = None):
+        into = cands if into is None else into
+        for c in into:
             if abs(c.offset - offset) < CLUSTER_TOL:
                 c.score += score
                 c.methods.add(method)
                 return
-        cands.append(Candidate(offset, score, {method}))
+        into.append(Candidate(offset, score, {method}))
 
     def scan(r: np.ndarray, zero: int, rate: float, method: str, la: float, lb: float):
         lags = (np.arange(len(r)) - zero) / rate
         ov = np.minimum(la, lags + lb) - np.maximum(0.0, lags)
         r = np.where(ov >= min_ov, r, 0.0)
         excl = max(1, int(0.05 * rate))
+        if near is not None:
+            inside = np.abs(np.where(np.abs(lags - near[0]) <= near[1], r, 0.0))
+            for rank in range(2):
+                if not inside.size:
+                    break
+                i, ratio, z = _peak_stats(inside, excl)
+                if inside[i] <= 0:
+                    break
+                add(float(lags[i]), max(0.0, ratio - 1.0) * (1.0 if rank == 0 else 0.5), f"{method} (by the clocks)", local)
+                inside[max(0, i - excl): i + excl + 1] = 0
         work = np.abs(r)
         for rank in range(3):
             i, ratio, z = _peak_stats(work, excl)
@@ -261,7 +277,12 @@ def _coarse(a: Clip, b: Clip, check: Callable[[], None]) -> list[Candidate]:
             r, zero = _xcorr_spec(spec_a[ia][1], spec_b[ib][1], ne, len(a.env[ia]), len(b.env[ib]), 0.0)
             scan(r, zero, esr, f"envelope {ca.label}×{cb.label}", la, lb)
     cands.sort(key=lambda c: c.score, reverse=True)
-    return cands[:MAX_CANDIDATES]
+    cands = cands[:MAX_CANDIDATES]
+    if local:
+        local.sort(key=lambda c: c.score, reverse=True)
+        extra = [c for c in local[:NEAR_CANDIDATES] if all(abs(c.offset - x.offset) >= CLUSTER_TOL for x in cands)]
+        cands = extra + cands
+    return cands
 
 
 # ---------------------------------------------------------------- window validation
@@ -448,9 +469,12 @@ def _tc_seconds(tc: str | None, fps: float | None) -> float | None:
 
 # ---------------------------------------------------------------- pair analysis
 
-def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, quick: bool = False) -> dict:
+def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, quick: bool = False,
+                 near: tuple[float, float] | None = None) -> dict:
     """quick: first look at the two best candidates in a few windows and stop early when none of them
-    holds (most pairs in a whole-day selection are takes that were never recorded together)."""
+    holds (most pairs in a whole-day selection are takes that were never recorded together).
+    near: (offset of b on a's clock, tolerance) from the cameras' confirmed clocks: candidates from that range are
+    checked as well (see _coarse); what counts as High, Medium or Low does not change."""
     res: dict = {"path": b.info.path, "name": b.name, "reasons": [], "warnings": []}
     fps = a.info.fps or b.info.fps or 30.0
     half_frame = 0.5 / fps
@@ -472,7 +496,7 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
             res["reasons"].append("There is timecode, but it is only a guide: check by hand.")
         return res
 
-    cands = _coarse(a, b, check)
+    cands = _coarse(a, b, check, near)
     memo: dict = {}                         # windows of the quick look are not measured twice
     # a candidate survives the quick look when two windows agree, tightly or within the scatter band
     if quick and all(max(len(v.inliers), len(_band_cluster(v.windows))) < 2
