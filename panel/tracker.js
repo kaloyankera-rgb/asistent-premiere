@@ -41,7 +41,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   const root = $("paneTracker");
   const state = { source: null, preview: null, box: null, boxAt: -1, track: null, thumbs: [], cur: 0, timer: null, job: null,
     busy: false, loading: false, live: null, liveLo: -1, liveHi: -1, progress: 0, part: null, mode: "attach", sync: true,
-    lastSeek: 0, timelineW: 0, viewW: 0, range: null, rangeDrag: -1, zoom: { z: 1, cx: 0.5, cy: 0.5 }, hand: false };
+    lastSeek: 0, timelineW: 0, viewW: 0, range: null, rangeDrag: -1, zoom: { z: 1, cx: 0.5, cy: 0.5 }, hand: false,
+    project: "", saved: { open: false, all: false, items: [], ask: null, note: "" } };          // saved tracks (0.10.152)
   let vp = null;
   let lay = null;                                                      // the layout as last drawn: { side, w, h, aspect, key } (0.10.75)                                                       // the viewer's zoom in pixels, as last drawn (0.10.73)
   const checks = {};
@@ -76,6 +77,18 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
   const clipName = div(clipText, "tr-clipname", "No clip loaded");
   const clipLine = div(clipText, "tr-clipmeta", "");
   const top = div(clipBar, "row tr-clipact");
+
+  // ---- 0.10.152 saved tracks: every finished track, to open again after another track or a Premiere restart
+  const savedCard = div(root, "tr-card tr-saved");
+  savedCard.hidden = true;
+  const savedHead = div(savedCard, "row tr-card-h");
+  div(savedHead, "tr-card-t", "Saved tracks");
+  const savedMeta = div(savedHead, "tr-card-m", "");
+  const savedList = div(savedCard, "tr-saved-list");
+  const savedFoot = div(savedCard, "row tr-saved-foot");
+  const savedNote = div(savedFoot, "tr-hint tr-saved-note", "");
+  div(savedFoot, "spacer");
+  let savedButtons = [];                                             // [button, usable when not busy]: drawControls switches them
 
   // ---- 0.10.75 side by side (a vertical clip in a wide panel): the viewer card left, timeline and the cards in a column right;
   // the same nodes are moved between the two layouts, nothing is built twice
@@ -849,8 +862,9 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     Object.assign(state, { track: res, thumbs: [], cur: res.k0, box: null, boxAt: -1 });
     hint.textContent = "";
     redraw();
+    const kept = await autoSave();
     await fetchThumbs(res.id, res.range ? res.range[0] : 0, res.range ? res.range[1] + 1 : res.frames.length);
-    report(res.stopped ? "Stopped: what was tracked is kept." : "");
+    report(res.stopped ? "Stopped: what was tracked is kept." : "", kept);
   }
 
   // 0.10.63: from a frame with a new box (a fix), or on from a tracked frame with the box the tracker had there (to go on
@@ -872,18 +886,143 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     state.track = TP.merge(t, part, 0, drawn ? part.box : null);
     Object.assign(state, { box: null, boxAt: -1 });
     hint.textContent = "";
+    const kept = await autoSave();
     await fetchThumbs(t.id, range[0], range[1] + 1);
     const got = part.frames.filter((f) => f.state !== "none").length;
-    report(`${part.stopped ? "Stopped: " : ""}${dir > 0 ? "From" : "Back from"} frame ${k + 1}: ${got} frames tracked${drawn ? " again" : ""}.`);
+    report(`${part.stopped ? "Stopped: " : ""}${dir > 0 ? "From" : "Back from"} frame ${k + 1}: ${got} frames tracked${drawn ? " again" : ""}.`, kept);
   }
 
-  function report(first) {
+  function report(first, kept) {
     const c = { sure: 0, unsure: 0, lost: 0, none: 0 };
     for (const f of state.track.frames) c[f.state] = (c[f.state] || 0) + 1;
     const lines = [first || "Tracked.", `${state.track.frames.length - c.none} frames: ${c.sure} sure, ${c.unsure} unsure, ${c.lost} lost.` +
       (c.none ? ` ${c.none} not tracked (outside the range or after Stop): go to the last tracked frame and press Track from here to go on.` : "")];
     if (c.lost || c.unsure) lines.push("The arrows at the right of the transport jump to them; draw a new box there and Track from here to fix a stretch.");
+    if (kept) lines.push(kept);
     say(lines, c.lost ? "warn" : "ok");
+  }
+
+  // ---------------------------------------------------------------- saved tracks (0.10.152)
+  function showClip(s, p) {
+    clipName.textContent = s.clip.name;
+    clipLine.textContent = `${s.at.toFixed(2)} s  ·  V${s.clip.track + 1}${Math.abs(s.clip.speed - 1) > 0.01 ? `  ·  speed ${Math.round(s.clip.speed * 100)} %` : ""}  ·  ${p.width} × ${p.height}  ·  ${TP.aspectName(p.width, p.height)}`;
+  }
+
+  // every finished track (and every fixed or continued part of it, under the same id) goes to <app>/tracks/; a failure
+  // never spoils the track itself, it is only said -> the line for the report
+  async function autoSave() {
+    const s = state.source;
+    const t = state.track;
+    if (!s || !t || !t.id) return "";
+    try {
+      await engine.trackerSave({ id: t.id, name: TP.savedName(s), project: state.project, sequence: s.sequence, source: s, track: t });
+      if (state.saved.open) await loadSaved();
+      return "Saved: Saved tracks opens it again later, also after Premiere restarts.";
+    } catch (e) {
+      premiere.debug(`tracker: not saved: ${e && e.stack ? e.stack : e}`);
+      return `Not saved for later (${e.message || e}); the track itself is fine.`;
+    }
+  }
+
+  async function loadSaved() {
+    if (!state.project) {
+      const project = await premiere.activeProject().catch(() => null);
+      state.project = (project && project.path) || "";
+    }
+    const r = await engine.trackerSaved(state.project);
+    state.saved.items = r.items || [];
+    state.saved.mine = r.mine || 0;
+    drawSaved();
+  }
+
+  function drawSaved() {
+    const sv = state.saved;
+    savedCard.hidden = !sv.open;
+    flag(savedBtn, "on", sv.open);
+    if (!sv.open) return;
+    while (savedList.firstChild) savedList.removeChild(savedList.firstChild);
+    savedButtons = [];
+    while (savedFoot.childNodes.length > 2) savedFoot.removeChild(savedFoot.lastChild);
+    const shown = TP.savedShown(sv.items, sv.all);
+    savedMeta.textContent = sv.items.length ? `${shown.length} of ${sv.items.length}` : "";
+    if (!sv.items.length) div(savedList, "tr-hint", "Nothing saved yet: every track is kept here when it finishes, to attach a picture to it later.");
+    else if (!sv.all && !sv.mine) div(savedList, "tr-hint", "None from this project: these are from other projects.");
+    for (const x of shown) {
+      const row = div(savedList, "row tr-saved-row");
+      if (x.poster) {
+        const pic = document.createElement("img");
+        pic.className = "tr-saved-pic";
+        pic.src = `data:image/jpeg;base64,${x.poster}`;
+        row.appendChild(pic);
+      }
+      const txt = div(row, "tr-saved-txt");
+      div(txt, "tr-saved-name", x.name || x.clip);
+      div(txt, "tr-saved-line", TP.savedLine(x));
+      if (x.offline) div(txt, "tr-saved-line tr-saved-warn", "The file is offline: reconnect it to open this track.");
+      else if (!x.here) div(txt, "tr-saved-line", `From ${String(x.project).split(/[\\/]/).pop() || "another project"}`);
+      const open = button("small", "Open", "Opens this track again: the frames, the box and the clip it came from. Then select a text or logo and Attach selected, or Lock to it.", () => guarded(() => openSaved(x)));
+      const asking = sv.ask === x.id;
+      const del = button("small", asking ? "Delete?" : "Delete", asking ? "Press again to delete this saved track for good. The keys it gave clips stay." : "Deletes this saved track (press twice). Keys it gave clips stay.", () => guarded(async () => {
+        if (sv.ask !== x.id) {
+          sv.ask = x.id;
+          return drawSaved();
+        }
+        sv.ask = null;
+        await engine.trackerSavedDelete(x.id);
+        await loadSaved();
+      }));
+      if (asking) flag(del, "tr-hot", true);
+      savedButtons.push([open, !x.offline], [del, true]);
+      enable(open, !state.busy && !x.offline);
+      enable(del, !state.busy);
+      row.appendChild(open);
+      row.appendChild(del);
+    }
+    if (sv.mine && sv.items.length > sv.mine) {
+      savedFoot.appendChild(button("small", sv.all ? "This project only" : "All projects", sv.all ? "Shows only the tracks made in this project." : "Shows the tracks of every project.", () => {
+        sv.all = !sv.all;
+        drawSaved();
+      }));
+    }
+    savedNote.textContent = sv.note;
+  }
+
+  async function openSaved(x) {
+    const rec = await engine.trackerSavedGet(x.id);
+    const project = await premiere.activeProject();
+    state.project = project.path || state.project;
+    const found = await TR.findSource(project, rec.source);
+    say("Opening the saved track: making its frames again…");
+    const started = await engine.trackerReopen(x.id);
+    let res = null;
+    for (;;) {
+      const j = await engine.job(started.job);
+      if (j.state === "done") {
+        res = j.result;
+        break;
+      }
+      if (j.state === "error") throw new premiere.UserError(j.error || "The saved track did not open.");
+      if (j.state === "cancelled") throw new premiere.UserError("Cancelled.");
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    const t = rec.track;
+    const range = Array.isArray(t.range) && t.range.length === 2 ? [t.range[0], t.range[1]] : null;
+    Object.assign(state, { source: found.source, preview: res.preview, track: t, thumbs: [], cur: t.k0 || 0, box: null, boxAt: -1,
+      range, zoom: { z: 1, cx: 0.5, cy: 0.5 }, hand: false });
+    showClip(found.source, res.preview);
+    boxMeta.textContent = "";
+    hint.textContent = "";
+    state.saved.open = false;
+    drawSaved();
+    redraw();
+    await fetchThumbs(t.id, res.from, res.to);
+    const name = rec.name || found.source.clip.name;
+    const next = "Select the text or logo, placed where it belongs on the boxed frame, and press Attach selected (or Lock to it).";
+    if (found.how === "same") say([`Opened: ${name}.`, next], "ok");
+    else if (found.how === "moved") say([`Opened: ${name}. The clip has moved on the timeline since: the keys go to where it is now (V${found.source.clip.track + 1}, ${found.source.clip.start.toFixed(2)} s).`, next], "ok");
+    else say([`Opened: ${name}, but its clip is not in the open sequence ${found.sequence}${rec.sequence && rec.sequence !== found.sequence ? ` (it was tracked in ${rec.sequence})` : ""}` +
+      `${found.twins > 1 ? `: ${found.twins} clips of that file could be it` : ""}.`, "Open that sequence and press Open again before Attach or Lock. The frames can be looked at."], "warn");
+    seekPremiere(true);
   }
 
   // ---------------------------------------------------------------- buttons
@@ -914,11 +1053,11 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     try {
       const project = await premiere.activeProject();
       const s = await TR.readSource(project);
+      state.project = project.path || "";
       // 0.10.73: 1280 px on the long side (was 640), so the frame stays sharp zoomed in
       const p = await engine.trackerFrame({ path: s.clip.path, t: s.t0, width: 1280 });
       Object.assign(state, { source: s, preview: p, box: null, boxAt: -1, track: null, thumbs: [], cur: 0, range: null, zoom: { z: 1, cx: 0.5, cy: 0.5 }, hand: false });
-      clipName.textContent = s.clip.name;
-      clipLine.textContent = `${s.at.toFixed(2)} s  ·  V${s.clip.track + 1}${Math.abs(s.clip.speed - 1) > 0.01 ? `  ·  speed ${Math.round(s.clip.speed * 100)} %` : ""}  ·  ${p.width} × ${p.height}  ·  ${TP.aspectName(p.width, p.height)}`;
+      showClip(s, p);
       boxMeta.textContent = "";
       hint.textContent = "Drag a box around something with detail (a logo, a face, an edge), not a plain area.";
       say("");
@@ -927,6 +1066,13 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     }
   }));
   top.appendChild(loadBtn);
+  const savedBtn = button("tr-savedbtn", "Saved", "Every track you made, kept after another track or a Premiere restart: open one to attach a picture to it later.", () => guarded(async () => {
+    state.saved.open = !state.saved.open;
+    state.saved.ask = null;
+    if (state.saved.open) await loadSaved();
+    else drawSaved();
+  }));
+  top.appendChild(savedBtn);
 
   const trackBtn = button("action", "Track", "Follows the boxed object through the range (the golden handles; the whole clip unless you moved them), forwards then backwards from the boxed frame. Stop ends it when you want and keeps what is tracked.", () => guarded(trackAll));
   const cancelBtn = button("", "Stop", "Stops the tracking now and keeps every frame tracked so far.", async () => {
@@ -1003,6 +1149,8 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     const t = state.track;
     const fixable = !!(t && ((state.box && state.boxAt === state.cur) || TP.usable(t.frames[state.cur])));
     enable(loadBtn, !state.busy);
+    enable(savedBtn, !state.busy);
+    for (const [b, ok] of savedButtons) enable(b, !state.busy && ok);
     enable(trackBtn, !state.busy && !!state.box && !!state.source);
     enable(cancelBtn, !!state.job);
     enable(fromHere, !state.busy && fixable);
@@ -1068,6 +1216,17 @@ function mount({ $, el, button, enable, bindTips, premiere }) {
     },
     track() {
       return state.track;
+    },
+    // 0.10.152 saved tracks for the test bridge: the list as the page holds it, and Open on one of them
+    async saved() {
+      state.saved.open = true;
+      await loadSaved();
+      return { items: state.saved.items.map((x) => ({ ...x, poster: !!x.poster })), mine: state.saved.mine };
+    },
+    async openSaved(id) {
+      const x = state.saved.items.find((i) => i.id === id) || { id };
+      await guarded(() => openSaved(x));
+      return { source: state.source, cur: state.cur, n: state.track && state.track.frames.length, status: status.textContent };
     },
     busy() {
       return state.busy;

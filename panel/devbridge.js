@@ -611,6 +611,15 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       if (!hooks.tracker) throw new Error("no Tracker page in this panel");
       return hooks.tracker().mode(a.mode);
     },
+    // 0.10.152 saved tracks: the list (posters as true / false) and Open on one ({id})
+    async tracker_saved() {
+      if (!hooks.tracker) throw new Error("no Tracker page in this panel");
+      return hooks.tracker().saved();
+    },
+    async tracker_open(a) {
+      if (!hooks.tracker) throw new Error("no Tracker page in this panel");
+      return hooks.tracker().openSaved(String(a.id || ""));
+    },
     async tracker_range(a) {
       if (!hooks.tracker) throw new Error("no Tracker page in this panel");
       return hooks.tracker().range(a.from, a.to);

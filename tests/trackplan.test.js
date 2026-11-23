@@ -279,3 +279,40 @@ test("layoutFor: landscape stacks even in a big panel (the timeline keeps the fu
   assert.equal(P.layoutFor(1920, 1080, 1000, 640).side, false);
   assert.equal(P.layoutFor(1440, 1080, 1400, 900).side, false);
 });
+
+// ---------------------------------------------------------------- saved tracks (0.10.152)
+test("a saved track's clip is found where it was, where it moved, or said missing (never guessed between two)", () => {
+  const clip = { name: "C1.MP4", path: "/m/C1.MP4", track: 0, start: 4, end: 10, inPt: 2, speed: 1, kind: "video" };
+  const at = (track, start, extra = {}) => ({ kind: "video", path: "/m/C1.MP4", track, start, end: start + 6, inPt: 2, speed: 1, ...extra });
+  assert.strictEqual(P.relocate(clip, [at(0, 4)]).how, "same");
+  const moved = P.relocate(clip, [at(1, 12.5)]);
+  assert.strictEqual(moved.how, "moved");
+  assert.deepStrictEqual([moved.clip.track, moved.clip.start, moved.clip.end], [1, 12.5, 18.5]);
+  assert.strictEqual(P.relocate(clip, [at(1, 12.5), at(2, 20)]).how, "missing");               // two candidates: not guessed
+  assert.strictEqual(P.relocate(clip, [at(1, 12.5, { inPt: 3 })]).how, "missing");            // trimmed: another range of the file
+  assert.strictEqual(P.relocate(clip, [at(1, 12.5, { speed: 0.5 })]).how, "missing");
+  assert.strictEqual(P.relocate(clip, [{ ...at(0, 4), kind: "audio" }]).how, "missing");
+  assert.strictEqual(P.relocate(clip, []).how, "missing");
+  const src = { clip, at: 5.2, t0: 3.2 };
+  assert.strictEqual(P.movedSource(src, moved.clip).at, 13.7);                                  // the boxed moment moves with it
+});
+
+test("saved tracks: the name, the list line and which ones are shown", () => {
+  assert.strictEqual(P.savedName({ clip: { name: "C1.MP4" }, at: 5.234 }), "C1.MP4 · 5.23 s");
+  const now = Date.UTC(2026, 10, 23, 18, 0, 0);
+  const item = { track: 1, sequence: "MAIN", frames: 120, counts: { sure: 100, unsure: 5, lost: 5, none: 10 }, saved: now / 1000 - 3 * 3600 };
+  assert.strictEqual(P.savedLine(item, now), "V2  ·  MAIN  ·  110 frames, 5 lost  ·  3 h ago");
+  assert.match(P.savedLine({ ...item, saved: now / 1000 - 20 }, now), /just now$/);
+  assert.match(P.savedLine({ ...item, saved: now / 1000 - 26 * 3600 }, now), /yesterday$/);
+  const items = [{ id: "a", here: true }, { id: "b", here: false }];
+  assert.deepStrictEqual(P.savedShown(items, false).map((x) => x.id), ["a"]);
+  assert.deepStrictEqual(P.savedShown(items, true).map((x) => x.id), ["a", "b"]);
+  assert.deepStrictEqual(P.savedShown([{ id: "b", here: false }], false).map((x) => x.id), ["b"]);   // none here: all of them
+});
+
+test("the Tracker page saves every finished track and part, and opens one again with its pictures", () => {
+  const src = require("fs").readFileSync(require("path").join(__dirname, "../panel/tracker.js"), "utf8");
+  assert.strictEqual((src.match(/const kept = await autoSave\(\);/g) || []).length, 2);        // after Track and after a part
+  assert.match(src, /engine\.trackerSave\(\{ id: t\.id,/);
+  assert.match(src, /async function openSaved[\s\S]*?TR\.findSource\(project, rec\.source\)[\s\S]*?engine\.trackerReopen\(x\.id\)[\s\S]*?fetchThumbs\(t\.id, res\.from, res\.to\)/);
+});

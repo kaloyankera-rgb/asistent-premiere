@@ -1216,6 +1216,34 @@ def thumbs(tid: str, first: int, count: int) -> dict:
     return {"items": items, "from": first, "size": list(e["size"]), "total": len(e["thumbs"])}
 
 
+def reopen(tid: str, path: str, frames: list, k0: int, progress=None, cancelled=None) -> dict:
+    """A saved track opened again (0.10.152, trackstore.py): the boxed frame's picture and the pictures of every tracked frame,
+    made again from the file into this track's id, so the panel scrubs it and "Track from here" goes on in the same track.
+    frames: the saved [{t, state}]; only the tracked span is decoded. -> {preview, id, from, to}"""
+    if not os.path.isfile(path):
+        raise ValueError("The clip's file is missing (offline media?): " + os.path.basename(path))
+    if not frames:
+        raise ValueError("The saved track has no frames.")
+    k0 = max(0, min(len(frames) - 1, int(k0)))
+    pv = preview(path, float(frames[k0]["t"]), 1280)
+    used = [i for i, f in enumerate(frames) if f.get("state") != "none"]
+    if not used:
+        return {"preview": pv, "id": tid, "from": 0, "to": 0}
+    lo, hi = used[0], used[-1]
+    _TRACKS.pop(tid, None)                              # the pictures are made again, never mixed with older ones
+    store = _store(tid, len(frames), display_size(path))
+    tsize = store["size"]
+    step = (float(frames[-1]["t"]) - float(frames[0]["t"])) / (len(frames) - 1) if len(frames) > 1 else 1 / 30
+    n = hi - lo + 1
+    for i, (_, i420) in enumerate(decode(path, float(frames[lo]["t"]), step, n, tsize, cancelled, colour=True)):
+        if frames[lo + i].get("state") != "none":
+            store["thumbs"][lo + i] = _thumb(i420, tsize, tsize)
+        if progress and i % 10 == 0:
+            progress(i / n)
+    store["used"] = time.time()
+    return {"preview": pv, "id": tid, "from": lo, "to": hi + 1}
+
+
 def track(path: str, t_from: float, t_to: float, step: float, t0: float, box: list, progress=None, cancelled=None,
           live=None, into: dict | None = None, rng=None, stopping=None) -> dict:
     """Track the region `box` [x, y, w, h] (fractions of the upright picture) boxed at media time t0, over the media range

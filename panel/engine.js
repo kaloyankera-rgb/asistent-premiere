@@ -233,6 +233,23 @@ function trackerThumbs(id, from, n) {
   return call("GET", `/tracker/thumbs?id=${encodeURIComponent(id)}&from=${from}&n=${n}`);
 }
 
+// Saved tracks (0.10.152): every finished track is kept in <app>/tracks/ and can be opened again (its pictures made again)
+function trackerSaved(project) {
+  return call("GET", `/tracker/saved?project=${encodeURIComponent(project || "")}`);
+}
+function trackerSave(track) {
+  return call("POST", "/tracker/saved/save", { track });
+}
+function trackerSavedGet(id) {
+  return call("POST", "/tracker/saved/get", { id });
+}
+function trackerSavedDelete(id) {
+  return call("POST", "/tracker/saved/delete", { id });
+}
+function trackerReopen(id) {
+  return call("POST", "/tracker/reopen", { id });
+}
+
 // Stash clips (0.10.50): a new stash's folder and empty sequence; the host saves the stash sequence as a project file
 function stashClipsBegin(payload) {
   return call("POST", "/stash/clips/begin", payload);
@@ -404,4 +421,4 @@ function log(level, message) {
 
 module.exports = { brandKits, brandKit, brandThumbs, brandResolve, brandFavorite, brandCopy, brandReveal, brandOpen, brandFont,
   brandManage, brandAdd, brandMogrt, brandColor, anchorAlpha, anchorDrawn, transcript, status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, folderOpen, foldersExist, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, trackerFrame, startTracking, trackerThumbs, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, roughCut, exportSettings, cloud, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, stop, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, folderOpen, foldersExist, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, trackerFrame, startTracking, trackerThumbs, trackerSaved, trackerSave, trackerSavedGet, trackerSavedDelete, trackerReopen, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, roughCut, exportSettings, cloud, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, stop, log };

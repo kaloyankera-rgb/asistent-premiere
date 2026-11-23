@@ -188,6 +188,12 @@ The user, 2026-11-21: the five 0.10.115 checks (tab row, Keyframer buttons, Bran
 - [ ] Remove short pauses on a talking head: does it sound natural; Energetic.
 - [ ] Open: audio crossfades / J-L cuts need a probe in Premiere (QE addTransition through the host), not built.
 
+## TRS. Tracker saved tracks (0.10.152, the user 2026-11-23)
+- [ ] USER: track a face, track something else (or restart Premiere), Saved > Open the face, attach a picture. Also: move the
+  tracked clip on the timeline first, then Open (the keys should go where it is now).
+- [ ] Bridge run in NEW TEST: tracker_saved / tracker_open after a track and an engine restart.
+- [ ] Later if wanted: rename a saved track; open a saved track whose clip was trimmed (another in point) by mapping its frames.
+
 ## N. The user's tweaks of 2026-11-12 (night)
 - [x] Tracker: range, Stop that keeps, go on (0.10.64). USER: drag the golden handles on a real clip, Stop mid-way, go on.
 - [x] Tracker: small, blurry, low-detail, fast objects (0.10.76, engine on the 4K test clip).

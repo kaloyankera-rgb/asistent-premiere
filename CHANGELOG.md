@@ -31,6 +31,23 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.152 - Tracker: saved tracks, opened again after another track or a Premiere restart (2026-11-23)
+- The user: "I tracked a face and after a while I want to add a picture and attach it to the tracker, I can't do it if I tracked
+  something else afterwards or restarted Premiere". The page held one track in memory only.
+- **Every finished track is saved** (Track, Stop, Track from here / back from here: a fixed or continued track replaces its own
+  record) to `<app>/tracks/<id>.json` (`trackstore.py`): the clip it came from, every tracked frame, the project and sequence,
+  and a small picture of the boxed frame. The result says "Saved". A failed save never spoils the track.
+- **Saved** button next to Load frame: the list of this project's tracks (All projects shows the others), newest first, each with
+  the picture, clip, track, sequence, frames and lost count, and when; Open, Delete (press twice). An offline file cannot be opened.
+- **Open** finds the clip in the open sequence: where it was, or moved (exactly one clip of the same file, in point and speed:
+  the keys go where it is now); otherwise it says which sequence to open. The engine makes the frame pictures again from the
+  file (`POST /tracker/reopen`, a job), under the same track id, so scrubbing, Attach selected, Lock to it and Track from here
+  work as right after tracking.
+- Endpoints `GET /tracker/saved`, `POST /tracker/saved/save` (up to 8 MB), `/tracker/saved/get`, `/tracker/saved/delete`,
+  `/tracker/reopen`; bridge `tracker_saved`, `tracker_open`; preview scenario `tracker-saved`.
+- Tests: Node 634 pass (3 new), Python 1076 passed / 114 skipped in a scratch HOME (4 new in `test_trackstore.py`, a reopen after
+  a simulated engine restart on a synthetic clip). Browser preview at 240 / 300 / 420 px. Not tried in Premiere.
+
 ## 0.10.151 - Fix audio only splits; the levels stay as they are (2026-11-23)
 - The user (2026-11-23, after a press on 30 clips of fx30-3-9944…9951): "Fixing audio still changes the levels". 0.10.143 only took
   away the speaker balance; every press still levelled each L/L and R/R piece by itself (that press: -10.8 to +0.4 dB, different on

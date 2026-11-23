@@ -1,5 +1,13 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-23: every track is saved, its pictures are made again on Open (0.10.152)
+- The user wanted a track back after tracking something else or restarting Premiere. Every finished track is saved without a
+  question (no Save button to forget); the editor deletes what they do not want.
+- Only data is stored (frames, clip, project, one small picture): the scrubbing pictures (about 5 MB per 300 frames) are made
+  again from the file on Open, so the folder stays small and nothing of the footage is kept besides one thumbnail per track.
+- A moved clip is followed only when exactly one clip of the same file, in point and speed is in the sequence; anything else is
+  said, never guessed (wrong keys are worse than none, DECISIONS 2026-11-15).
+
 ## 2026-11-23: Fix audio does not set levels (0.10.151)
 - The user: "Fixing audio still changes the levels", and chose "split only, no levels": Fix audio and the split / L only / R only
   options make the L/L and R/R copies and nothing else (no Volume, no limiter). Levelling is only Level only and Even out phrases.

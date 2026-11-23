@@ -417,5 +417,61 @@ function aspectName(fw, fh) {
   return a >= 1 ? `${a.toFixed(2)}:1` : `1:${(1 / a).toFixed(2)}`;
 }
 
-module.exports = { motion, screenPoint, attach, lock, gaussian, runs, boxFrom, toSeq, toMedia, corners, problem, merge, ticks, usable, boxAt,
+// ---------------------------------------------------------------- saved tracks (0.10.152)
+// The user (2026-11-23): "I tracked a face and after a while I want to add a picture and attach it to the tracker, I can't do
+// it if I tracked something else afterwards or restarted Premiere". Every finished track is saved (trackstore.py); these
+// rules decide where its clip is now and what the list says.
+
+/**
+ * Where a saved track's clip is in the open sequence. clip: the saved source clip; items: the timeline's items.
+ * -> {how: "same" | "moved" | "missing", clip} ("moved": exactly one video clip of the same file, in point and speed, now at
+ * another place or track; two or more such clips are not guessed between).
+ */
+function relocate(clip, items) {
+  const video = (items || []).filter((x) => x.kind === "video" && !x.unused && x.path === clip.path);
+  const same = video.find((x) => x.track === clip.track && Math.abs(x.start - clip.start) < 1e-3);
+  if (same) return { how: "same", clip };
+  const twins = video.filter((x) => Math.abs((x.inPt || 0) - (clip.inPt || 0)) < 1e-3 &&
+    Math.abs(Math.abs(x.speed || 1) - Math.abs(clip.speed || 1)) < 0.01 && !x.reversed);
+  if (twins.length !== 1) return { how: "missing", clip, twins: twins.length };
+  const x = twins[0];
+  return { how: "moved", clip: { ...clip, track: x.track, start: x.start, end: x.end } };
+}
+
+/** The saved source with its clip where `relocate` found it (the boxed moment moves with the clip). */
+function movedSource(source, clip) {
+  return { ...source, clip, at: source.at + (clip.start - source.clip.start) };
+}
+
+/** A saved track's name: the clip and the boxed moment on the timeline. */
+function savedName(source) {
+  return `${source.clip.name} · ${Number(source.at || 0).toFixed(2)} s`;
+}
+
+/** The line under a saved track's name in the list. item: trackstore's summary; now: Date.now(). */
+function savedLine(item, now = Date.now()) {
+  const c = item.counts || {};
+  const done = (item.frames || 0) - (c.none || 0);
+  const when = item.saved ? agoText(now - item.saved * 1000) : "";
+  const parts = [`V${(item.track || 0) + 1}`, item.sequence, `${done} frames${c.lost ? `, ${c.lost} lost` : ""}`, when];
+  return parts.filter(Boolean).join("  ·  ");
+}
+
+function agoText(ms) {
+  const m = Math.round(ms / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} h ago`;
+  const d = Math.round(h / 24);
+  return d === 1 ? "yesterday" : `${d} days ago`;
+}
+
+/** Which saved tracks the list shows: this project's, or every one when `all` (or when this project has none). */
+function savedShown(items, all) {
+  const mine = (items || []).filter((x) => x.here);
+  return all || !mine.length ? (items || []) : mine;
+}
+
+module.exports = { relocate, movedSource, savedName, savedLine, savedShown, motion, screenPoint, attach, lock, gaussian, runs, boxFrom, toSeq, toMedia, corners, problem, merge, ticks, usable, boxAt,
   ZOOMS, viewport, zoomAt, zoomStep, panBy, follow, layoutFor, aspectName };

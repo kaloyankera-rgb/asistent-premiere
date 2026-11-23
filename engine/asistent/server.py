@@ -55,6 +55,9 @@ drive the engine. The Host header is checked against DNS rebinding.
                               "into": {id, offset} re-tracks a part of an earlier track, 0.10.55; "range": [first, last] frame indexes of the
                               clip to track, frames outside it come back "none", 0.10.63); the job's extra.live
                               is the frame being tracked; GET /tracker/thumbs?id=&from=&n= every tracked frame as a JPEG
+  GET  /tracker/saved?project=  saved tracks, newest first (trackstore.py, <app>/tracks/, 0.10.152); POST /tracker/saved/save
+                              {track: {id, name, project, sequence, source, track}}, /tracker/saved/get {id}, /tracker/saved/delete
+                              {id}; POST /tracker/reopen {id} -> job: {preview, id, from, to} (the pictures made again)
   POST /stash/clips/begin {name, fps, width, height, video, audio, seconds}, /stash/clips/export {id, sequence, guid,
                               project} (Stash clips, 0.10.50); /host/tracks {sequence, guid, project, video, audio}
   POST /colorlearn/record    {project, sequence, clips: [{path, start, end, lumetri, owned, layer, lut, animated}]} -> queued:
@@ -130,6 +133,7 @@ from . import colorlearn
 from . import stash as STASH
 from . import brandkit as BRAND
 from . import tracker as TRACKER
+from . import trackstore as TRACKSTORE
 from . import transcript
 from . import anchoralpha
 from . import reveal
@@ -320,7 +324,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def _body(self) -> dict:
         n = int(self.headers.get("Content-Length") or 0)
-        if n > 1_000_000:
+        # a saved track carries every tracked frame (0.10.152): up to trackstore.MAX_BYTES; every other request 1 MB
+        if n > (TRACKSTORE.MAX_BYTES if self.path == "/tracker/saved/save" else 1_000_000):
             raise ValueError("The request is too large.")
         raw = self.rfile.read(n) if n else b"{}"
         data = json.loads(raw.decode("utf-8") or "{}")
@@ -428,6 +433,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, TRACKER.thumbs((q.get("id") or [""])[0], int((q.get("from") or ["0"])[0]), int((q.get("n") or ["40"])[0])))
             except ValueError as e:
                 return self._send(404, {"error": str(e)})
+        if url.path == "/tracker/saved":
+            return self._send(200, TRACKSTORE.listing((parse_qs(url.query).get("project") or [""])[0]))
         if url.path == "/stash/list":
             return self._send(200, STASH.listing())
         if url.path == "/stash/get":
@@ -767,6 +774,33 @@ class Handler(BaseHTTPRequestHandler):
                                          body.get("t0") or 0, box, progress, lambda: job.cancelled, live, into,
                                          rng=rng, stopping=lambda: job.stopping)
                 return self._send(200, {"job": JOBS.submit("tracker", work_track).id})
+            if self.path == "/tracker/saved/save":
+                # 0.10.152: every finished track is kept, so it can be opened again after another track or a restart
+                return self._send(200, TRACKSTORE.save(body.get("track")))
+            if self.path == "/tracker/saved/get":
+                try:
+                    rec = TRACKSTORE.get(str(body.get("id") or ""))
+                except FileNotFoundError:
+                    raise ValueError("That saved track is gone.")
+                rec.pop("poster", None)
+                return self._send(200, rec)
+            if self.path == "/tracker/saved/delete":
+                return self._send(200, TRACKSTORE.delete(str(body.get("id") or "")))
+            if self.path == "/tracker/reopen":
+                # the saved track's pictures made again from the file (a job: a long track takes a few seconds)
+                tid = str(body.get("id") or "")
+                try:
+                    rec = TRACKSTORE.get(tid)
+                except FileNotFoundError:
+                    raise ValueError("That saved track is gone.")
+
+                def work_reopen(job):
+                    def progress(f):
+                        job.progress, job.message = f, f"Making the frames again: {int(100 * f)} %"
+                    trk = rec["track"]
+                    return TRACKER.reopen(tid, rec["source"]["clip"]["path"], trk["frames"], trk.get("k0") or 0,
+                                          progress, lambda: job.cancelled)
+                return self._send(200, {"job": JOBS.submit("tracker", work_reopen).id})
             if self.path == "/export/peaks":
                 items = body.get("items") or []
                 if not all(isinstance(i, dict) and isinstance(i.get("path"), str) for i in items):

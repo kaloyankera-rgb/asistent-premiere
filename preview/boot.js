@@ -59,6 +59,7 @@
     playStop: async () => ({ ok: true }),
     devPoll: () => Promise.reject(new Error("bridge off in the preview")),
     stashList: async () => engineState.stash || { items: [], bytes: 0 },
+    trackerSaved: async () => engineState.trackerSaved || { items: [], mine: 0 },      // saved tracks (0.10.152)
     brandKits: async () => engineState.brandKits || { kits: [], detected: null, roots: [], missing: [] },
     foldersExist: async (paths) => ({ exist: paths.map((p) => !/Old drive/.test(p)) }),   // the Folders page (0.10.144)
     folderOpen: async () => ({ ok: true }),

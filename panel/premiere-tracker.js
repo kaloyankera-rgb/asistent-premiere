@@ -111,6 +111,18 @@ async function readSource(project) {
     fps, step, t0, from: inPt, to: outPt, at: clip.start + Math.max(0, k0) * step / speed, sequence: timeline.sequence.name };
 }
 
+/**
+ * A saved track's clip in the open sequence (0.10.152): where it is now (moved is fine: the same file, in point and speed),
+ * or missing (another sequence is open, or the clip was cut or changed). Only reads. -> {source, how, sequence}
+ */
+async function findSource(project, source) {
+  const timeline = await P.readTimeline(project);
+  const r = TP.relocate(source.clip, timeline.items);
+  const sequence = timeline.sequence ? timeline.sequence.name : "";
+  if (r.how === "moved") return { source: { ...TP.movedSource(source, r.clip), sequence }, how: "moved", sequence };
+  return { source: r.how === "same" ? { ...source, sequence } : source, how: r.how, twins: r.twins || 0, sequence };
+}
+
 /** The source's Motion for every tracked frame (one object when nothing in it is keyframed). */
 async function sourceMotion(project, source, frames) {
   const timeline = await P.readTimeline(project);
@@ -298,4 +310,4 @@ async function seek(project, at) {
   return true;
 }
 
-module.exports = { readSource, attach, lockClip, detach, seek, motionParams };
+module.exports = { readSource, findSource, attach, lockClip, detach, seek, motionParams };
