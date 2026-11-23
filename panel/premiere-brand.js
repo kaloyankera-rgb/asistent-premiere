@@ -86,7 +86,7 @@ function moved(before, after, tol) {
 const trackName = (kind, t) => `${kind === "video" ? "V" : "A"}${t + 1}`;
 
 /**
- * Put a kit file on the active sequence. asset: {name, kind, duration?, has_audio?}; opts: {bin, mode: "playhead"|"end"}.
+ * Put a kit file on the active sequence. asset: {name, kind, duration?, has_audio?}; opts: {bin, mode: "playhead"|"end", at?}.
  * -> {lines, ok, track, at, imported}
  */
 async function place(project, asset, path, opts) {
@@ -95,7 +95,8 @@ async function place(project, asset, path, opts) {
   const got = await ensureItem(project, path, opts.bin);
   const fps = (await P.frameRate(sequence)) || 30;
   const before = await P.readItems(sequence);
-  const at = await where(sequence, before.items, opts.mode, fps);
+  // 0.10.153: the Tracker's marker clip goes at a given time (the tracked clip's start), not at the playhead
+  const at = Number.isFinite(opts.at) ? Math.round(Math.max(0, opts.at) * fps) / fps : await where(sequence, before.items, opts.mode, fps);
   const hasVideo = asset.kind !== "audio" && asset.has_video !== false;
   const hasAudio = asset.kind === "audio" || (asset.kind === "video" && !!asset.has_audio);
   const dur = (await itemSeconds(got.clip)) || asset.duration || null;

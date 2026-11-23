@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.152 (2026-11-23)
+# Project status: Asistent 0.10.153 (2026-11-23)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,7 +6,8 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
-- 0.10.152 (Tracker: every track saved, a Saved list opens one again after another track or a Premiere restart, the clip found where it is now): installed, Node 634, Python 1076 / 114 skipped. Not tried in Premiere. [tracker](docs/features/tracker.md)
+- 0.10.153 (Tracker: Track / Saved tabs, tracks numbered TRACK n, a transparent TRACK clip above each tracked clip, Attach / Lock with a selected TRACK clip): installed, Node 636, Python 1156 / 24 skipped. Not tried in Premiere; the TRACK clip import and placement need the first check. [tracker](docs/features/tracker.md)
+- 0.10.152 (committed d31f8c6; Tracker: every track saved, a Saved list opens one again after another track or a Premiere restart, the clip found where it is now): installed, Node 634, Python 1076 / 114 skipped. Not tried in Premiere. [tracker](docs/features/tracker.md)
 - 0.10.151 (Fix audio only splits L/L and R/R: no Volume, no limiter; Level only and Even out phrases still level): installed, committed a7e3159, Node 631 pass, engine unchanged. Not tried in Premiere. [fix-audio](docs/features/fix-audio.md)
 - 0.10.150 (Export transcript reads the caption lines as changed in Premiere's Text panel from the saved project, saving it first; Brand colours copied without #; Tint one-step Undo probe in the bridge): built, Python 1150 / 24 skipped, Node 630 pass. Installed 2026-11-23 (new panel after a Premiere restart), not tried in Premiere. [subtitles](docs/features/subtitles.md), [brand](docs/features/brand.md)
 - 0.10.149 (Sync: two cameras in one folder are told apart by file prefix, so their clocks no longer veto good pairs (MASTERHAUS: 16 pairs instead of 12) and each POV gets its own track; within each camera the clips follow their file numbers; the clock only interleaves the cameras): installed together with 0.10.148, Python 1144 / 24 skipped, Node 628 pass. Not tried in Premiere (MASTERHAUS КП-4 Видео 4). [sync](docs/features/sync.md)

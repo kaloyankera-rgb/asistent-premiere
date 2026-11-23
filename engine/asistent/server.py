@@ -57,7 +57,8 @@ drive the engine. The Host header is checked against DNS rebinding.
                               is the frame being tracked; GET /tracker/thumbs?id=&from=&n= every tracked frame as a JPEG
   GET  /tracker/saved?project=  saved tracks, newest first (trackstore.py, <app>/tracks/, 0.10.152); POST /tracker/saved/save
                               {track: {id, name, project, sequence, source, track}}, /tracker/saved/get {id}, /tracker/saved/delete
-                              {id}; POST /tracker/reopen {id} -> job: {preview, id, from, to} (the pictures made again)
+                              {id}; POST /tracker/reopen {id} -> job: {preview, id, from, to} (the pictures made again);
+                              POST /tracker/marker {id, seconds, fps, width, height} -> {path, label, made} (0.10.153)
   POST /stash/clips/begin {name, fps, width, height, video, audio, seconds}, /stash/clips/export {id, sequence, guid,
                               project} (Stash clips, 0.10.50); /host/tracks {sequence, guid, project, video, audio}
   POST /colorlearn/record    {project, sequence, clips: [{path, start, end, lumetri, owned, layer, lut, animated}]} -> queued:
@@ -784,6 +785,13 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("That saved track is gone.")
                 rec.pop("poster", None)
                 return self._send(200, rec)
+            if self.path == "/tracker/marker":
+                # 0.10.153: the track's transparent marker clip, placed by the panel above the tracked clip
+                try:
+                    return self._send(200, TRACKSTORE.marker(str(body.get("id") or ""), body.get("seconds") or 0, body.get("fps") or 0,
+                                                             body.get("width") or 0, body.get("height") or 0))
+                except FileNotFoundError:
+                    raise ValueError("That saved track is gone.")
             if self.path == "/tracker/saved/delete":
                 return self._send(200, TRACKSTORE.delete(str(body.get("id") or "")))
             if self.path == "/tracker/reopen":

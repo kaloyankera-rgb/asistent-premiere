@@ -388,21 +388,25 @@ svg .kf-pt.on { fill: var(--sel); }
 #paneTracker .btn.tr-hot { background-color: var(--accent); background-image: linear-gradient(135deg, #8745a5, #9b58ba); border-color: var(--accent); color: var(--on-accent); font-weight: bold; }
 #paneTracker .btn.tr-hot:hover { background-color: var(--accent-hover); border-color: var(--accent-hover); }
 #paneTracker .btn.tr-loading { border-color: var(--accent); color: var(--accent-text); cursor: progress; opacity: 1; }
-/* 0.10.152 saved tracks: a picture of the boxed frame, the clip and when, Open / Delete */
-#paneTracker .btn.on { border-color: var(--sel); color: var(--text); }
-.tr-clipact .btn.tr-savedbtn { margin-left: 6px; }
-.tr-saved-foot .btn { margin-left: 6px; }
-.tr-saved { margin-top: 0; margin-bottom: 8px; }
-.tr-saved-list { max-height: 240px; overflow-y: auto; }
-.tr-saved-row { align-items: center; padding: 5px 0; border-top: 1px solid var(--glass-line); }
-.tr-saved-row:first-child { border-top: 0; padding-top: 0; }
-.tr-saved-pic { flex: none; width: 48px; margin-right: 8px; border-radius: 3px; }
+/* 0.10.152-0.10.153 the Track / Saved tabs and the saved tracks: a picture of the boxed frame, the label, Open / Delete */
+.tr-tabs { margin-bottom: 10px; }
+.tr-tabs .btn.tr-mode { flex: 1; text-align: center; }
+.tr-saved-h { align-items: flex-start; margin-bottom: 8px; }
+.tr-saved-help { flex: 1; margin-top: 0; margin-right: 8px; }
+.tr-saved-empty { padding: 28px 12px; text-align: center; }
+.tr-saved-row { align-items: center; padding: 6px; margin-bottom: 6px; border-radius: 6px; background-color: var(--glass); border: 1px solid var(--glass-line); }
+.tr-saved-row.on { border-color: var(--sel); }
+.tr-saved-pic { flex: none; width: 56px; margin-right: 8px; border-radius: 3px; }
 .tr-saved-txt { flex: 1; min-width: 0; margin-right: 6px; }
-.tr-saved-name { font-size: 11px; line-height: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-saved-name { font-size: 11px; line-height: 15px; font-weight: bold; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tr-saved-line { font-size: 10px; line-height: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tr-saved-warn { color: var(--unsure); }
-#paneTracker .tr-saved-row .btn { flex: none; margin-left: 4px; padding: 3px 8px; }
-.tr-saved-foot { align-items: center; margin-top: 4px; }
+.tr-saved-row { align-items: flex-start; }
+.tr-saved-acts { margin-top: 5px; }
+#paneTracker .tr-saved-acts .btn { flex: none; margin-right: 6px; padding: 3px 10px; }
+.tr-saved-foot { align-items: center; margin-top: 2px; }
+.tr-saved-foot .btn { margin-left: 6px; }
+.tr-markrow { margin-top: 8px; align-items: center; }
 .tr-btns { flex-wrap: wrap; margin-bottom: -6px; }
 .tr-btns .btn { margin: 0 6px 6px 0; }
 

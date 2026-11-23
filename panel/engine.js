@@ -246,6 +246,9 @@ function trackerSavedGet(id) {
 function trackerSavedDelete(id) {
   return call("POST", "/tracker/saved/delete", { id });
 }
+function trackerMarker(payload) {
+  return call("POST", "/tracker/marker", payload);
+}
 function trackerReopen(id) {
   return call("POST", "/tracker/reopen", { id });
 }
@@ -421,4 +424,4 @@ function log(level, message) {
 
 module.exports = { brandKits, brandKit, brandThumbs, brandResolve, brandFavorite, brandCopy, brandReveal, brandOpen, brandFont,
   brandManage, brandAdd, brandMogrt, brandColor, anchorAlpha, anchorDrawn, transcript, status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, folderOpen, foldersExist, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, trackerFrame, startTracking, trackerThumbs, trackerSaved, trackerSave, trackerSavedGet, trackerSavedDelete, trackerReopen, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, roughCut, exportSettings, cloud, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, stop, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, folderOpen, foldersExist, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, trackerFrame, startTracking, trackerThumbs, trackerSaved, trackerSave, trackerSavedGet, trackerSavedDelete, trackerReopen, trackerMarker, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, roughCut, exportSettings, cloud, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, stop, log };

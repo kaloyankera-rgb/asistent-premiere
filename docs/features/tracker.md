@@ -15,11 +15,15 @@ keys so the object stays put on screen ("Lock to it"). Each frame is marked sure
    fix a bad stretch when a new box is drawn on it.
 3. Attach: select the text or logo, press "Attach selected" (Position; Scale and Rotation when ticked). One Undo step.
 4. Lock: press "Lock to it" on the tracked clip (Smooth, Centre it and Zoom options). One Undo step.
-5. Saved (0.10.152): every finished track is kept. Saved lists this project's tracks (All projects: the others); Open brings one
-   back, also after another track or a Premiere restart, then Attach or Lock as usual. Delete is two presses.
+5. Saved tab (0.10.152-0.10.153): every finished track is kept as "TRACK n · clip". The tab lists this project's tracks (All
+   projects: the others); Open brings one back, also after another track or a Premiere restart. Delete is two presses.
+   Each new track also gets an invisible TRACK clip above the tracked clip (option on the Track card; Mark now for the open
+   one): select it with the text or logo and press Attach selected (or Lock to it) to use that track any time later.
 6. "Detach" takes the tracker's own keys off the selected clip. The viewer has - / Fit / + and Move; Alt + click zooms.
 
 ## Key points: do not break
+- A TRACK clip (0.10.153) is known by its file's folder (`<app>/tracks/markers/<id>/`, `trackplan.markerId`): it never gets
+  keys, is never the tracked clip, and is never deleted by Asistent (its file stays when the saved track is deleted).
 - Every finished track and every part of it is saved under its track id (`trackstore.py`, `<app>/tracks/`); a failed save is only
   said. Open makes the pictures again from the file under the same id (`tracker.reopen`), so Track from here goes on in it.
 - Open follows a moved clip only when exactly one video clip of the same file, in point and speed is in the open sequence
@@ -43,6 +47,7 @@ keys so the object stays put on screen ("Lock to it"). Each frame is marked sure
 
 ## Decisions
 - Every track saved, pictures made again on Open: DECISIONS 2026-11-23.
+- A transparent TRACK clip over the whole tracked clip marks each track: DECISIONS 2026-11-23.
 - Placed box first, no smoothing, no key where lost: DECISIONS 2026-11-11 ("the tracker follows a placed box first").
 - Say unsure or lost rather than guess: DECISIONS 2026-11-15 ("the tracker says unsure or lost rather than guess").
 - Colour as a gate, not a pick-up rule: DECISIONS 2026-11-15 ("the tracker uses colour, but never picks an object up again").
@@ -50,6 +55,8 @@ keys so the object stays put on screen ("Lock to it"). Each frame is marked sure
 ## Code map
 - Panel: `panel/tracker.js` the page (viewer, timeline, zoom, transport). Pure, node-tested: `panel/trackplan.js` (the
   tracked point through Motion, `attach`, `lock`, `merge`, `boxAt`, `viewport`, `layoutFor`).
+- TRACK clips: `trackstore.marker`, `POST /tracker/marker`, `premiere-tracker.placeMarker` / `selectedMarker` (through
+  `premiere-brand.place` with `opts.at`), `tracker.js` `markIt`, `trackFromSelection`, `showTab`.
 - Saved tracks: `engine/asistent/trackstore.py`, `tracker.reopen`, endpoints `/tracker/saved*`, `/tracker/reopen`; panel
   `tracker.js` `autoSave`, `drawSaved`, `openSaved`; `trackplan.js` `relocate`, `savedLine`, `savedShown`; `premiere-tracker.js`
   `findSource`. Bridge `tracker_saved`, `tracker_open`.
@@ -60,7 +67,7 @@ keys so the object stays put on screen ("Lock to it"). Each frame is marked sure
 - Benchmarks: `scripts/bench_tracker.py`, `scripts/bench_tracker_hard.py`. Test bridge: `tracker_box`, `tracker_info`.
 
 ## Status
-- 0.10.152 saved tracks: installed, not tried in Premiere (browser preview only).
+- 0.10.153 tabs and TRACK clips, 0.10.152 saved tracks: installed, not tried in Premiere (browser preview only).
 - Since 0.10.51 (engine, Attach), 0.10.54 Lock, 0.10.55-0.10.58 the page, 0.10.64 range and Stop, 0.10.73-0.10.75 zoom
   and layout, 0.10.76 hard cases, 0.10.77 colour, 0.10.130 the stray-press net skips hidden panes. Current build 0.10.130.
 - Tried in Premiere 26.5.2 through the test bridge on a synthetic 4K clip: within 0.5 px in Premiere's own frames, scale

@@ -316,3 +316,30 @@ test("the Tracker page saves every finished track and part, and opens one again 
   assert.match(src, /engine\.trackerSave\(\{ id: t\.id,/);
   assert.match(src, /async function openSaved[\s\S]*?TR\.findSource\(project, rec\.source\)[\s\S]*?engine\.trackerReopen\(x\.id\)[\s\S]*?fetchThumbs\(t\.id, res\.from, res\.to\)/);
 });
+
+// ---------------------------------------------------------------- TRACK clips (0.10.153)
+test("a TRACK clip's file names its track; other files and lookalikes do not", () => {
+  const mac = "/Users/x/Library/Application Support/Asistent/tracks/markers/abc123def456/TRACK 2 · C0412.mov";
+  const win = "C:\\Users\\x\\AppData\\Local\\Asistent\\tracks\\markers\\abc123def456\\TRACK 2 · C0412.mov";
+  assert.strictEqual(P.markerId(mac), "abc123def456");
+  assert.strictEqual(P.markerId(win), "abc123def456");
+  assert.strictEqual(P.markerId("/Volumes/Production/tracks/C0412.mov"), null);
+  assert.strictEqual(P.markerId("/x/tracks/markers/abc123def456/TRACK 2.mp4"), null);
+  assert.strictEqual(P.markerId(""), null);
+  // a TRACK clip is never taken for the tracked clip it marks
+  const clip = { name: "m.mov", path: mac, track: 0, start: 4, end: 10, inPt: 0, speed: 1, kind: "video" };
+  assert.strictEqual(P.relocate(clip, [{ kind: "video", path: mac, track: 0, start: 4, end: 10, inPt: 0, speed: 1 }]).how, "missing");
+});
+
+test("the Tracker page has Track / Saved tabs, marks a new track, and a selected TRACK clip picks its track", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const src = fs.readFileSync(path.join(__dirname, "../panel/tracker.js"), "utf8");
+  assert.match(src, /const kept = await autoSave\(\);\s*const marked = state\.mark \? await markIt\(false\) : "";/);   // after Track only
+  assert.strictEqual((src.match(/await markIt\(/g) || []).length, 2);                            // Track and Mark now
+  assert.strictEqual((src.match(/const using = await trackFromSelection\(project\);/g) || []).length, 2);   // Attach and Lock
+  const pt = fs.readFileSync(path.join(__dirname, "../panel/premiere-tracker.js"), "utf8");
+  assert.match(pt, /!sameClip\(x, source\.clip\) && !TP\.markerId\(x\.path\)/);                    // a TRACK clip never gets keys
+  assert.match(pt, /x\.path && !TP\.markerId\(x\.path\)\);/);                                      // nor is tracked
+  assert.match(pt, /\{ bin: "Asistent tracks", at: c\.start \}/);
+});

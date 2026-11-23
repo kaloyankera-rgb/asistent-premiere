@@ -31,6 +31,25 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.153 - Tracker: Track / Saved tabs, and a TRACK clip on the timeline for each track (2026-11-23)
+- The user: "make it a bit more organized and easy to use", choosing two tabs and "an invisible marker clip" on top of the
+  timeline, labelled, for each track.
+- **Tabs** at the top of the Tracker: Track (the page as before) and Saved (n) (this project's tracks; All projects for the rest).
+  The Saved button next to Load frame is gone. Open switches to the Track tab; the open track is outlined in the list.
+- **Numbers**: tracks are numbered per project, "TRACK 1 · fx30-3-9948", "TRACK 2 · …"; a fixed or continued track keeps its own.
+- **TRACK clip**: after each new track (option "TRACK clip on the timeline", on), an invisible clip named after the track goes on
+  the track above the tracked clip, exactly as long as it (a transparent QuickTime Animation file at the sequence's rate and
+  size, about 10 KB a second, no sound, `<app>/tracks/markers/<id>/`, bin "Asistent tracks"; Brand's placer, so a track is added
+  when none is free). One Undo step. "Mark now" places it for the open track (an older one, or after it was deleted).
+- **Attach selected / Lock to it with a TRACK clip selected** use that track: it is opened first when another one is open, so
+  the picture can be attached any time later without the Saved tab. A TRACK clip never gets keys and is never tracked. Two
+  different TRACK clips selected are refused.
+- Deleting a saved track keeps its TRACK file, so a placed TRACK clip never goes offline.
+- Engine: `trackstore.save` numbers and labels, `trackstore.marker`, `POST /tracker/marker`. Panel: `premiere-brand.place` takes
+  `opts.at`; `premiere-tracker.placeMarker`, `selectedMarker`; `trackplan.markerId`.
+- Tests: Node 636 pass, Python 1156 passed / 24 skipped (marker: transparent, frame count, no sound, made once, size). Browser
+  preview at 240 / 300 / 420 px. Not tried in Premiere: importing and placing the TRACK clip is unverified.
+
 ## 0.10.152 - Tracker: saved tracks, opened again after another track or a Premiere restart (2026-11-23)
 - The user: "I tracked a face and after a while I want to add a picture and attach it to the tracker, I can't do it if I tracked
   something else afterwards or restarted Premiere". The page held one track in memory only.

@@ -1,5 +1,11 @@
 # Decisions (and the reasons behind them)
 
+## 2026-11-23: a transparent TRACK clip marks each track on the timeline (0.10.153)
+- The user chose "an invisible marker clip" over a disabled duplicate (takes a whole track, shows footage) and a sequence marker
+  (cannot be selected like a clip). It covers the whole tracked clip, not only the tracked part, so it never has to change
+  length when a stretch is fixed or the track goes on; its file folder is the track's id, which is how a selected one is known.
+- Placed above everything over the clip (Brand's placer): it covers nothing (fully transparent) and nothing is cut.
+
 ## 2026-11-23: every track is saved, its pictures are made again on Open (0.10.152)
 - The user wanted a track back after tracking something else or restarting Premiere. Every finished track is saved without a
   question (no Save button to forget); the editor deletes what they do not want.

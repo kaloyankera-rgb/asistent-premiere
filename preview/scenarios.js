@@ -277,10 +277,10 @@ window.PREVIEW_SCENARIOS = (function () {
     "log-page": { run: (api) => { api.openTab("paneLog"); } },
     "tracker-saved": {
       engine: { trackerSaved: { mine: 2, items: [
-        { id: "a1", name: "fx30-3-9948.MP4 · 12.40 s", here: true, track: 1, sequence: "MAIN", frames: 312, counts: { sure: 290, unsure: 12, lost: 4, none: 6 }, saved: Date.now() / 1000 - 600, project: "/p/A.prproj" },
-        { id: "a2", name: "C0412.MP4 · 3.07 s", here: true, track: 0, sequence: "MAIN", frames: 96, counts: { sure: 96, unsure: 0, lost: 0, none: 0 }, saved: Date.now() / 1000 - 26 * 3600, project: "/p/A.prproj", offline: true },
+        { id: "a1", label: "TRACK 2 · fx30-3-9948", marker: true, name: "fx30-3-9948.MP4 · 12.40 s", here: true, track: 1, sequence: "MAIN", frames: 312, counts: { sure: 290, unsure: 12, lost: 4, none: 6 }, saved: Date.now() / 1000 - 600, project: "/p/A.prproj" },
+        { id: "a2", label: "TRACK 1 · C0412", name: "C0412.MP4 · 3.07 s", here: true, track: 0, sequence: "MAIN", frames: 96, counts: { sure: 96, unsure: 0, lost: 0, none: 0 }, saved: Date.now() / 1000 - 26 * 3600, project: "/p/A.prproj", offline: true },
         { id: "b1", name: "IMG_0357.MOV · 40.12 s", here: false, track: 2, sequence: "SYNC – кам2", frames: 1800, counts: { sure: 1500, unsure: 200, lost: 100, none: 0 }, saved: Date.now() / 1000 - 5 * 86400, project: "/p/B.prproj" }] } },
-      run: async (api) => { api.openTab("paneTracker"); trackerDemo(api, 52); const b = document.querySelector("#paneTracker .tr-savedbtn"); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); await new Promise((r) => setTimeout(r, 300)); },
+      run: async (api) => { api.openTab("paneTracker"); trackerDemo(api, 52); const b = document.querySelector("#paneTracker .tr-tab-saved"); if (b) b.dispatchEvent(new MouseEvent("click", { bubbles: true })); await new Promise((r) => setTimeout(r, 300)); },
     },
     "tracker-empty": { run: (api) => { api.openTab("paneTracker"); } },
     "tracker-range": { run: (api) => { api.openTab("paneTracker"); trackerDemo(api, 90, "range"); } },

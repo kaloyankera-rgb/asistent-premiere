@@ -192,6 +192,8 @@ The user, 2026-11-21: the five 0.10.115 checks (tab row, Keyframer buttons, Bran
 - [ ] USER: track a face, track something else (or restart Premiere), Saved > Open the face, attach a picture. Also: move the
   tracked clip on the timeline first, then Open (the keys should go where it is now).
 - [ ] Bridge run in NEW TEST: tracker_saved / tracker_open after a track and an engine restart.
+- [ ] 0.10.153 first check in NEW TEST: the TRACK clip imports (QuickTime Animation with alpha), lands above the clip at its
+  start with its full length, is invisible in the Program monitor, one Undo step; Attach with a TRACK clip selected.
 - [ ] Later if wanted: rename a saved track; open a saved track whose clip was trimmed (another in point) by mapping its frames.
 
 ## N. The user's tweaks of 2026-11-12 (night)

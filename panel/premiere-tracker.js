@@ -91,7 +91,7 @@ const sameClip = (a, b) => a && b && a.kind === b.kind && a.track === b.track &&
 /** The clip to track (the selected clip with a file on the lowest track) and the boxed moment at the playhead. */
 async function readSource(project) {
   const timeline = await P.readTimeline(project);
-  const picked = timeline.items.filter((x) => x.selected && x.kind === "video" && !x.unused && x.path);
+  const picked = timeline.items.filter((x) => x.selected && x.kind === "video" && !x.unused && x.path && !TP.markerId(x.path));
   if (!picked.length) throw new UserError("Select the clip with the moving object (a clip with a file) and park the playhead on a clear frame of it.");
   const clip = picked.sort((a, b) => a.track - b.track)[0];
   if (clip.reversed) throw new UserError(`${clip.name} plays in reverse: the tracker does not follow reversed clips.`);
@@ -123,6 +123,38 @@ async function findSource(project, source) {
   return { source: r.how === "same" ? { ...source, sequence } : source, how: r.how, twins: r.twins || 0, sequence };
 }
 
+/** The track id of a selected marker clip (0.10.153), or null. Two different ones selected: refused, never guessed. */
+async function selectedMarker(project) {
+  const timeline = await P.readTimeline(project);
+  const ids = [...new Set(timeline.items.filter((x) => x.selected && x.kind === "video").map((x) => TP.markerId(x.path)).filter(Boolean))];
+  if (ids.length > 1) throw new UserError("Two TRACK clips are selected: select only the one to use, with the text or logo.");
+  return ids[0] || null;
+}
+
+/**
+ * The track's marker clip (0.10.153, the user's choice: an invisible clip labelled with the track, on top of the timeline):
+ * the engine makes the transparent file as long as the tracked clip at the sequence's rate and size, the Brand placer puts it
+ * at the clip's start on the track above everything there (a track is added when none is free). Not placed again when that
+ * track's marker is already over the clip. One Undo step (two when a track is added). -> {placed, track, label, lines}
+ */
+async function placeMarker(project, source, trackId) {
+  const engine = require("./engine.js");
+  const brand = require("./premiere-brand.js");
+  const timeline = await P.readTimeline(project);
+  const c = source.clip;
+  const there = timeline.items.find((x) => x.kind === "video" && TP.markerId(x.path) === trackId && x.start < c.end - 1e-3 && x.end > c.start + 1e-3);
+  if (there) return { placed: false, track: `V${there.track + 1}`, label: there.name, lines: [] };
+  if (!timeline.items.some((x) => sameClip(x, c))) throw new UserError(`${c.name} is not in the open sequence: open the sequence it was tracked in.`);
+  const fps = (await P.frameRate(timeline.sequence)) || timeline.fps || 30;
+  const frame = await frameSize(timeline.sequence);
+  if (!frame) throw new UserError("Premiere did not say the sequence's frame size.");
+  const seconds = c.end - c.start;
+  const m = await engine.trackerMarker({ id: trackId, seconds, fps, width: frame.width, height: frame.height });
+  const r = await brand.place(project, { name: m.label, kind: "video", has_video: true, has_audio: false, duration: seconds }, m.path,
+    { bin: "Asistent tracks", at: c.start });
+  return { placed: true, track: r.track, label: m.label, lines: r.lines, ok: r.ok };
+}
+
 /** The source's Motion for every tracked frame (one object when nothing in it is keyframed). */
 async function sourceMotion(project, source, frames) {
   const timeline = await P.readTimeline(project);
@@ -141,7 +173,8 @@ async function sourceMotion(project, source, frames) {
 /** Writes the attached clip's keys. -> {written, lines, clip} */
 async function attach(project, source, track, opts) {
   const { motions, timeline, moving } = await sourceMotion(project, source, track.frames);
-  const picked = timeline.items.filter((x) => x.selected && x.kind === "video" && !x.unused && !sameClip(x, source.clip));
+  // a selected marker clip (0.10.153) only says which track: it never gets keys
+  const picked = timeline.items.filter((x) => x.selected && x.kind === "video" && !x.unused && !sameClip(x, source.clip) && !TP.markerId(x.path));
   if (!picked.length) throw new UserError("Select the text, logo or clip to attach (on a track above the tracked clip), placed where it belongs on the boxed frame.");
   const target = picked.sort((a, b) => b.track - a.track)[0];
   if (target.reversed) throw new UserError(`${target.name} plays in reverse: not attached.`);
@@ -310,4 +343,4 @@ async function seek(project, at) {
   return true;
 }
 
-module.exports = { readSource, findSource, attach, lockClip, detach, seek, motionParams };
+module.exports = { readSource, findSource, selectedMarker, placeMarker, attach, lockClip, detach, seek, motionParams };

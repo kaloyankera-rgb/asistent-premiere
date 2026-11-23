@@ -428,7 +428,7 @@ function aspectName(fw, fh) {
  * another place or track; two or more such clips are not guessed between).
  */
 function relocate(clip, items) {
-  const video = (items || []).filter((x) => x.kind === "video" && !x.unused && x.path === clip.path);
+  const video = (items || []).filter((x) => x.kind === "video" && !x.unused && x.path === clip.path && !markerId(x.path));
   const same = video.find((x) => x.track === clip.track && Math.abs(x.start - clip.start) < 1e-3);
   if (same) return { how: "same", clip };
   const twins = video.filter((x) => Math.abs((x.inPt || 0) - (clip.inPt || 0)) < 1e-3 &&
@@ -436,6 +436,12 @@ function relocate(clip, items) {
   if (twins.length !== 1) return { how: "missing", clip, twins: twins.length };
   const x = twins[0];
   return { how: "moved", clip: { ...clip, track: x.track, start: x.start, end: x.end } };
+}
+
+/** The track id of a marker clip's file (<app>/tracks/markers/<id>/TRACK n · clip.mov, 0.10.153), or null. */
+function markerId(path) {
+  const m = /[\\/]tracks[\\/]markers[\\/]([a-z0-9]{8,32})[\\/][^\\/]+\.mov$/i.exec(String(path || ""));
+  return m ? m[1].toLowerCase() : null;
 }
 
 /** The saved source with its clip where `relocate` found it (the boxed moment moves with the clip). */
@@ -473,5 +479,5 @@ function savedShown(items, all) {
   return all || !mine.length ? (items || []) : mine;
 }
 
-module.exports = { relocate, movedSource, savedName, savedLine, savedShown, motion, screenPoint, attach, lock, gaussian, runs, boxFrom, toSeq, toMedia, corners, problem, merge, ticks, usable, boxAt,
+module.exports = { markerId, relocate, movedSource, savedName, savedLine, savedShown, motion, screenPoint, attach, lock, gaussian, runs, boxFrom, toSeq, toMedia, corners, problem, merge, ticks, usable, boxAt,
   ZOOMS, viewport, zoomAt, zoomStep, panBy, follow, layoutFor, aspectName };

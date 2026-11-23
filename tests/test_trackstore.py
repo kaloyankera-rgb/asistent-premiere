@@ -89,3 +89,48 @@ def test_a_saved_track_reopens_with_its_pictures_after_a_restart(tmp_path, monke
     assert out["id"] == res["id"] and (out["from"], out["to"]) == (30, 56) and out["preview"]["jpeg"]
     got = T.thumbs(res["id"], 0, 90)["items"]
     assert all(got[i] for i in range(30, 56)) and not any(got[i] for i in list(range(30)) + list(range(56, 90)))
+
+
+def test_tracks_are_numbered_per_project_and_keep_their_number(tmp_path, monkeypatch):
+    """0.10.153: "TRACK 1 · C0001", "TRACK 2 · …" per project; a fix of the same track keeps its number and label."""
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    a = trackstore.save(_record(tid="aaa111aaa111"))
+    b = trackstore.save(_record(tid="bbb222bbb222"))
+    c = trackstore.save(_record(tid="ccc333ccc333", project="/p/B.prproj"))
+    assert (a["n"], b["n"], c["n"]) == (1, 2, 1)
+    assert a["label"] == "TRACK 1 · C0001"
+    again = trackstore.save(_record(tid="aaa111aaa111", n=9))
+    assert again["n"] == 1 and again["label"] == "TRACK 1 · C0001"
+    trackstore.delete("bbb222bbb222")
+    assert trackstore.save(_record(tid="ddd444ddd444"))["n"] == 2                   # the highest left is 1
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="needs FFmpeg")
+def test_the_marker_clip_is_transparent_as_long_as_asked_and_made_once(engine, tmp_path, monkeypatch):  # noqa: F811
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    trackstore.save(_record())
+    code, m = call("POST", "/tracker/marker", {"id": "abc123def456", "seconds": 6.006, "fps": 30000 / 1001, "width": 1080, "height": 1920})
+    assert code == 200 and m["made"] and os.path.basename(m["path"]) == "TRACK 1 · C0001.mov"
+    assert trackstore.marker_id(m["path"]) == "abc123def456"
+    assert trackstore.marker_id("/Volumes/x/C0001.MOV") is None
+    from asistent import media
+    import json as _json
+    import subprocess
+    out = subprocess.run([media._tool("ffprobe"), "-v", "error", "-count_frames", "-show_entries",
+                          "stream=codec_name,pix_fmt,width,height,nb_read_frames,r_frame_rate", "-of", "json", m["path"]],
+                         capture_output=True, text=True, check=True)
+    st = _json.loads(out.stdout)["streams"]
+    assert len(st) == 1                                                            # picture only, no sound
+    assert (st[0]["codec_name"], st[0]["pix_fmt"], st[0]["width"], st[0]["height"], st[0]["r_frame_rate"]) == ("qtrle", "argb", 1080, 1920, "30000/1001")
+    assert int(st[0]["nb_read_frames"]) == 180
+    alpha = subprocess.run([media._tool("ffmpeg"), "-v", "error", "-i", m["path"], "-vf",
+                            "alphaextract,signalstats,metadata=print:key=lavfi.signalstats.YMAX:file=-", "-f", "null", "-"],
+                           capture_output=True, text=True, check=True).stdout
+    assert "YMAX=" in alpha and all(line.endswith("=0") for line in alpha.split() if "YMAX=" in line)
+    assert os.path.getsize(m["path"]) < 200_000
+    again = call("POST", "/tracker/marker", {"id": "abc123def456", "seconds": 6.006, "fps": 30000 / 1001, "width": 1080, "height": 1920})[1]
+    assert not again["made"] and again["path"] == m["path"]
+    assert trackstore.listing()["items"][0]["marker"]
+    assert call("POST", "/tracker/marker", {"id": "abc123def456", "seconds": 0, "fps": 30, "width": 10, "height": 10})[0] == 400
+    trackstore.delete("abc123def456")
+    assert os.path.isfile(m["path"])                                               # a placed marker never goes offline

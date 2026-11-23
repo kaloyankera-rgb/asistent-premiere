@@ -7,14 +7,22 @@ it if I tracked something else afterwards or restarted Premiere".
 A record is only data: the clip the track came from (file, track, place, in point, speed), the tracked frames as the engine
 measured them (and the panel merged after a fix), the project and sequence it was made in, and one small picture of the
 boxed frame for the list. The frame pictures for scrubbing are not stored: `tracker.reopen` makes them again from the file.
+
+Each track has a number in its project ("TRACK 3 · fx30-3-9948", 0.10.153) and, when the panel asks, a marker clip: a fully
+transparent QuickTime Animation file as long as the tracked clip, named after the track, in `<app>/tracks/markers/<id>/`. The
+panel places it above the tracked clip, so the track is seen, labelled and kept in the project; the file's folder is the track's
+id, so a selected marker tells the panel which track it is (the user's choice 2026-11-23: "an invisible marker clip").
 Nothing here touches Premiere or the media.
 """
 from __future__ import annotations
 
 import base64
+import fractions
 import json
 import os
 import re
+import subprocess
+import sys
 import time
 
 from . import config
@@ -71,8 +79,12 @@ def save(record: dict) -> dict:
         except (OSError, ValueError):
             old = None
     now = time.time()
-    out = {"format": 1, "id": tid, "name": str(record.get("name") or src["clip"].get("name") or "Track")[:120],
-           "project": str(record.get("project") or ""), "sequence": str(record.get("sequence") or src.get("sequence") or ""),
+    project = str(record.get("project") or "")
+    n = (old or {}).get("n") or _next_number(project)
+    stem = os.path.splitext(str(src["clip"].get("name") or "Track"))[0]
+    out = {"format": 1, "id": tid, "n": n, "label": (old or {}).get("label") or f"TRACK {n} · {stem}"[:80],
+           "marker": (old or {}).get("marker"), "name": str(record.get("name") or src["clip"].get("name") or "Track")[:120],
+           "project": project, "sequence": str(record.get("sequence") or src.get("sequence") or ""),
            "created": (old or {}).get("created") or now, "saved": now, "source": src, "track": trk,
            "poster": _poster(tid, k0) or (old or {}).get("poster")}
     data = json.dumps(out, ensure_ascii=False)
@@ -83,7 +95,75 @@ def save(record: dict) -> dict:
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(data)
     os.replace(tmp, _path(tid))
-    return {"id": tid, "saved": now}
+    return {"id": tid, "saved": now, "n": n, "label": out["label"], "marker": out["marker"]}
+
+
+def _same(a: str, b: str) -> bool:
+    return bool(a) and os.path.normcase(os.path.normpath(a or "")) == os.path.normcase(os.path.normpath(b or ""))
+
+
+def _next_number(project: str) -> int:
+    """The next track number in this project (1 for the first; numbers are never reused while a higher one is saved)."""
+    top = 0
+    d = folder()
+    if os.path.isdir(d):
+        for name in os.listdir(d):
+            if name.endswith(".json"):
+                try:
+                    rec = get(name[:-5])
+                except (OSError, ValueError):
+                    continue
+                if _same(rec.get("project") or "", project) or (not project and not rec.get("project")):
+                    top = max(top, int(rec.get("n") or 0))
+    return top + 1
+
+
+def _safe(name: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[\\/:*?\"<>|\x00-\x1f]+", " ", name)).strip()[:80] or "TRACK"
+
+
+def marker_dir() -> str:
+    return os.path.join(folder(), "markers")
+
+
+def marker_id(path: str) -> str | None:
+    """The track id of a marker clip's file, or None for any other file."""
+    m = re.search(r"[\\/]tracks[\\/]markers[\\/]([a-z0-9]{8,32})[\\/][^\\/]+\.mov$", path or "", re.I)
+    return m.group(1) if m else None
+
+
+def marker(tid: str, seconds: float, fps: float, width: int, height: int) -> dict:
+    """The track's marker clip (made once; made again only when the length or frame changed): transparent, `seconds` long at
+    the sequence's `fps` and size, no sound. Recorded in the track's file. -> {path, label, made}"""
+    from . import media
+    rec = get(tid)
+    seconds, fps, width, height = float(seconds), float(fps), int(width), int(height)
+    if not (0.04 <= seconds <= 4 * 3600) or not (1 <= fps <= 240) or not (16 <= width <= 16384 and 16 <= height <= 16384):
+        raise ValueError("The marker clip's length, frame rate or size is unclear.")
+    frames = max(1, int(round(seconds * fps)))
+    want = {"frames": frames, "fps": round(fps, 4), "width": width, "height": height}
+    d = os.path.join(marker_dir(), tid)
+    path = os.path.join(d, _safe(rec.get("label") or "TRACK") + ".mov")
+    old = rec.get("marker") or {}
+    if old.get("path") == path and os.path.isfile(path) and all(old.get(k) == v for k, v in want.items()):
+        return {"path": path, "label": rec.get("label"), "made": False}
+    os.makedirs(d, exist_ok=True)
+    rate = fractions.Fraction(fps).limit_denominator(1001)
+    tmp = os.path.join(d, ".making.mov")
+    cmd = [media._tool("ffmpeg"), "-v", "error", "-nostdin", "-y", "-f", "lavfi",
+           "-i", f"color=c=black@0.0:s={width}x{height}:r={rate.numerator}/{rate.denominator},format=argb",
+           "-frames:v", str(frames), "-c:v", "qtrle", "-g", "100000", "-pix_fmt", "argb", "-an", tmp]
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    r = subprocess.run(cmd, capture_output=True, text=True, creationflags=flags, timeout=300)
+    if r.returncode or not os.path.isfile(tmp):
+        raise ValueError("The marker clip was not made: " + (r.stderr or "FFmpeg failed").strip()[-200:])
+    os.replace(tmp, path)
+    rec["marker"] = {"path": path, **want}
+    data = json.dumps(rec, ensure_ascii=False)
+    with open(_path(tid) + ".tmp", "w", encoding="utf-8") as f:
+        f.write(data)
+    os.replace(_path(tid) + ".tmp", _path(tid))
+    return {"path": path, "label": rec.get("label"), "made": True}
 
 
 def get(tid: str) -> dict:
@@ -101,7 +181,8 @@ def _summary(rec: dict) -> dict:
     counts = {s: 0 for s in _STATES}
     for f in trk.get("frames") or []:
         counts[f.get("state", "none")] = counts.get(f.get("state", "none"), 0) + 1
-    return {"id": rec.get("id"), "name": rec.get("name"), "project": rec.get("project") or "", "sequence": rec.get("sequence") or "",
+    return {"id": rec.get("id"), "name": rec.get("name"), "n": rec.get("n"), "label": rec.get("label") or rec.get("name"),
+            "marker": bool((rec.get("marker") or {}).get("path")), "project": rec.get("project") or "", "sequence": rec.get("sequence") or "",
             "created": rec.get("created"), "saved": rec.get("saved"), "clip": clip.get("name") or "", "path": clip.get("path") or "",
             "track": clip.get("track"), "at": src.get("at"), "fps": src.get("fps"), "frames": len(trk.get("frames") or []),
             "counts": counts, "poster": rec.get("poster"), "offline": not os.path.isfile(clip.get("path") or "")}
@@ -120,13 +201,13 @@ def listing(project: str = "") -> dict:
             except (OSError, ValueError):
                 continue
     items.sort(key=lambda x: x.get("saved") or 0, reverse=True)
-    same = lambda p: bool(project) and os.path.normcase(os.path.normpath(p or "")) == os.path.normcase(os.path.normpath(project))
     for x in items:
-        x["here"] = same(x["project"])
+        x["here"] = _same(x["project"], project)
     return {"items": items, "mine": sum(1 for x in items if x["here"])}
 
 
 def delete(tid: str) -> dict:
+    """The saved track goes; its marker file stays, so a marker clip still on a timeline does not go offline."""
     p = _path(tid)
     if os.path.isfile(p):
         os.remove(p)
