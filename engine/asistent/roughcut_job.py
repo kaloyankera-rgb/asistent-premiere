@@ -526,6 +526,47 @@ def _silence_words(dialogue: list[dict], fast: bool, progress, cancelled, cloud:
     return got
 
 
+MARK_TEXT = 80                                   # letters of a take's own words in its marker's comment
+
+
+def take_marks(groups: list[dict], cuts: list[tuple[float, float]], frame_of: Callable[[float], int]) -> list[dict]:
+    """Markers for repeated lines (0.10.157, the user: "remove the silences and add markers to the repeated lines just in
+    case"): one per take that is still in the new sequence, from the take's start to its end, named "Repeat 2/3" by its place
+    among the takes that stay, the comment saying which of them Asistent would keep and what was said. A take that mostly
+    lies in what goes has none and is not counted (Sirvis 2026-11-24: the line read out to the speaker from behind the camera
+    went as an off-mic voice, and "Repeat 5/6" for the second of two takes left meant nothing). One take left alone is marked
+    only when the AI rough cut took the others: the marker then says a cut was made; when the others went as silence or an
+    off-mic voice there is nothing to choose between. frame_of: sequence seconds -> the new sequence's frame.
+    -> [{frame, end, name, comment, group}]"""
+    def gone(t: dict) -> bool:
+        inside = sum(max(0.0, min(b, t["end"]) - max(a, t["start"])) for a, b in cuts)
+        return inside > 0.5 * max(t["end"] - t["start"], 1e-6)
+
+    marks = []
+    for gi, g in enumerate(groups):
+        n, best = len(g["takes"]), g["recommended"]
+        left = [k for k, t in enumerate(g["takes"]) if not gone(t)]
+        m = len(left)
+        if not m or (m == 1 and not g.get("applied")):
+            continue
+        for pos, k in enumerate(left):
+            t = g["takes"][k]
+            said = t["text"] if len(t["text"]) <= MARK_TEXT else t["text"][:MARK_TEXT] + "…"
+            if m == 1:
+                name, note = "Repeat kept", f"said {n} times, the other {'take was' if n == 2 else 'takes were'} cut"
+            else:
+                name = f"Repeat {pos + 1}/{m}"
+                note = f"said {m} times" if m == n else f"said {n} times, {m} of them here"
+                if k == best:
+                    note += ", Asistent would keep this take"
+                elif best in left:
+                    note += f", Asistent would keep take {left.index(best) + 1}"
+            a = frame_of(t["start"])
+            marks.append({"frame": a, "end": max(a, frame_of(t["end"])), "name": name,
+                          "comment": f'{g["kind_label"]}: {note}. "{said}"', "group": gi})
+    return marks
+
+
 def run_silence(p: dict, progress, cancelled, t0: float) -> dict:
     """Cut silences (0.10.65 silence.py; 0.10.96 modes, methods, preview and actions): every selected sound clip is listened
     to on its own, what goes is planned as regions (silence.plan), and either the plan comes back for the panel's preview
@@ -537,26 +578,35 @@ def run_silence(p: dict, progress, cancelled, t0: float) -> dict:
     dialogue = [d for d in p["dialogue"] if s["listen"] is None or d["track"] in s["listen"]]
     # 0.10.122: words are read only when something uses them: hesitation sounds, or repeated takes (the AI rough cut, whatever
     # the detection method: "AI rough cut" with Manual dB used to read nothing and find no takes while saying it did)
-    use_words = bool(s["fillers"]) or s["mode"] == "ai"
+    use_words = bool(s["fillers"]) or s["mode"] == "ai" or s["mark_takes"]
     progress(0.0, "Listening to the sound…")
     det = silence.detect(dialogue, t_start, t_end, progress=lambda f, m: progress((0.25 if use_words else 0.75) * f, m), cancelled=cancelled, s=s)
-    words, how, groups = [], {"asr": False}, []
+    words, how, groups, found = [], {"asr": False}, [], []
     if use_words:
         # ReShape is a run, not a folder: its footage may be anywhere the project is not
         media = [d["path"] for d in p["dialogue"]] + [i["path"] for i in p["layout"]]
         words, how = _silence_words(dialogue, p["fast"], lambda f, m: progress(0.25 + 0.5 * f, m), cancelled, use_cloud(p["out_dir"], media))
-        if s["mode"] == "ai" and words:
-            groups = takes.find(words)
+        if (s["mode"] == "ai" or s["mark_takes"]) and words:
+            found = takes.find(words)
+        if s["mode"] == "ai":
+            groups = found                                             # only the AI rough cut may cut a take; marking cuts none
     elif s["method"] == "ai":
         how = {"asr": False, "note": "AI-assisted detection read no words: nothing in this run uses them "
                                      "(turn on Remove hesitation sounds, or choose AI rough cut for repeated takes)."}
-    pl = silence.plan(det, s, t_start, words, groups)
+    # the words only place the markers when that is all they were read for: the cut is then the same cut as without them
+    # (Sirvis 2026-11-24, words read on this computer: the word guard kept 38 s of dead air more, 44 parts "not sure")
+    cut_words = words if s["fillers"] or s["mode"] == "ai" else []
+    pl = silence.plan(det, s, t_start, cut_words, groups)
     raw = pl["cuts"]
     cuts = edl.align_to_edges(pauses.snap(raw, fps), p["layout"], fps)
     cuts = [(a, b) for a, b in cuts if (b - a) * fps >= MIN_PIECE_FRAMES - 1e-6]
     kept = edl.kept_ranges(t_start, t_end, cuts)
     before = (round(t_end * fps) - round(t_start * fps)) / fps
     saved = sum(b - a for a, b in cuts)
+    # where a moment of the editor's sequence lies in the new one: after the parts that went (Remove), else where it was
+    f_start = round(t_start * fps)
+    frame_of = (lambda t: edl.output_frame(kept, fps, t)) if s["action"] == "remove" else (lambda t: max(0, round(t * fps) - f_start))
+    marks = take_marks(found, cuts, frame_of) if s["mark_takes"] else []
     by_kind: dict = {}
     for r in pl["regions"]:
         if r["cut"]:
@@ -565,6 +615,7 @@ def run_silence(p: dict, progress, cancelled, t0: float) -> dict:
     common = {
         "mode": s["mode"], "method": s["method"], "threshold": s["threshold"], "tempo": s["pacing"], "tempo_label": silence.PACING_LABEL[s["pacing"]],
         "action": s["action"], "sensitivity": s["sensitivity"], "short": s["short"], "fillers": s["fillers"],
+        "mark_takes": s["mark_takes"], "marks": marks, "marked": len({m["group"] for m in marks}),
         "quiet": {"cut": s["mode"] != "silence" and s["method"] != "manual", "under_db": silence.UNDER_DB[s["sensitivity"]],
                   "seconds": round(by_kind.get("offmic", 0.0), 2)},
         "settings": {k: s[k] for k in ("min_silence", "min_speech", "before", "after", "short_min", "short_max")},
@@ -616,9 +667,9 @@ def run_silence(p: dict, progress, cancelled, t0: float) -> dict:
     stem = f"NO SILENCE – {p['name']}"
     seq_name = f"{stem} v{_version(folder, stem)}"
     xml_path = os.path.join(folder, seq_name + ".xml")
-    layout_check = xmeml.write(xml_path, seq_name, fps, p["width"], p["height"], pieces, [])
+    layout_check = xmeml.write(xml_path, seq_name, fps, p["width"], p["height"], pieces, marks)
     shell_path = os.path.join(folder, seq_name + " (shell).xml")
-    xmeml.write(shell_path, seq_name, fps, p["width"], p["height"], pieces, [], shell=True)
+    xmeml.write(shell_path, seq_name, fps, p["width"], p["height"], pieces, marks, shell=True)
     no_sound = float((~det["covered"]).sum()) * silence.HOP_S
     result = {
         **common, "mode": "silence",
@@ -635,8 +686,8 @@ def run_silence(p: dict, progress, cancelled, t0: float) -> dict:
     }
     with open(result["json"], "w", encoding="utf-8") as f:
         json.dump({**result, "items": p["layout"]}, f, ensure_ascii=False, indent=1)
-    log.info("silences: %s %s/%s %s %s %.1f -> %.1f s (%d cuts: %s; %d flagged) from %d sound clips in %.1f s; action %s", seq_name, s["mode"],
+    log.info("silences: %s %s/%s %s %s %.1f -> %.1f s (%d cuts: %s; %d flagged; %d markers) from %d sound clips in %.1f s; action %s", seq_name, s["mode"],
              s["method"], s["pacing"], "auto" if s["threshold"] is None else f"{s['threshold']} dB", before, after, len(cuts), by_kind,
-             common["flagged"], len(dialogue), time.time() - t0, s["action"])
+             common["flagged"], len(marks), len(dialogue), time.time() - t0, s["action"])
     progress(1.0, "Done")
     return result

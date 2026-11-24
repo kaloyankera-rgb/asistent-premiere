@@ -66,6 +66,8 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
   `consensus.py`, `suspects.py`, `agreement.py`, `align.py`, `corrections.py`, `learning.py`, `audiocheck.py`,
   `subtitle_settings.py` (per-project text and speakers), `review.py`, `transcript.py` (+ `prcaptions.py`, the caption lines of a saved project, 0.10.150), `translate.py`, `framefaces.py`,
   `captionstate.py`, `hostbridge.py`; endpoints `/subtitles*`, `/captions/*`, `/cloud` in `server.py`.
+- Edit log (0.10.155): `editlog.py` journals every press and compares the placed captions with the saved project at export;
+  see [subtitle-edit-log](subtitle-edit-log.md).
 - Host: `host/host.jsx` `as_captions`. Dev: `scripts/check_subtitles.py`, `bench_subtitles.py`, `reshape_golden.py`.
 
 ## Status
@@ -81,8 +83,10 @@ file per client) and `docs/ROLLBACK.md` (switching off, restoring).
 - 0.10.150 Export transcript follows the lines changed in Premiere (saves the project, reads its caption lines,
   `prcaptions.py`): installed, not tried; the user's check: change a line in the Text panel, export, see it in the .txt.
 - 0.10.148: clips whose file has transparency (safe-zone templates, logos, graphics) are layers, not shots; built, not installed.
+- 0.10.155 subtitle edit log, step 1 (silent journal, comparison at export): built, not installed, not verified in Premiere.
+  [subtitle-edit-log](subtitle-edit-log.md).
 - Windows: untested (host install, CEP path, learning folder). Latest release v0.10.118. Open: BUGS "Limits of
-  subtitles by ElevenLabs"; TODO V119, SEG, SL, S, A.
+  subtitles by ElevenLabs"; TODO SAL (steps 2-4), V119, SEG, SL, S, A.
 
 ## Tests
 - Text: `test_subtitles.py`, `test_subtitle_job.py`, `test_max_words.py`, `test_case.py`, `test_line_break.py`, `test_chunking.py`, `test_delivery.py`, `test_guide_regressions.py`,

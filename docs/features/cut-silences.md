@@ -8,9 +8,13 @@ own clips cut. The editor's sequence is not touched. Preview shows what would go
 
 ## How to use it
 1. Select the cameras and microphones in the timeline (Range can also be In to Out or the whole sequence).
-2. Options (under the arrow, remembered): Cut = Silences only / Silences + off-mic (default) / AI rough cut;
+2. Options (under the arrow, remembered): Cut = Simple / Silences only / Silences + off-mic (default) / AI rough cut.
+   Simple (0.10.157) is one choice with the other options put away: dead air and the quiet stretches between the lines go
+   (Silences + off-mic, Automatic, Measured, Remove), and every take of a repeated line gets a marker and stays.
+   Otherwise:
    Detect = Automatic (default) / Manual dB / AI-assisted; Sensitivity; Pacing = Calm 1.3 s, Measured 0.87 s (default),
    Paced 0.65 s, Energetic 0.4 s, Custom; Remove short pauses; Remove hesitation sounds (needs AI-assisted);
+   Mark repeated lines (markers "Repeat 2/3" over each take, nothing cut for it);
    Result = Remove close the gaps / Remove keep the spaces / Split only / Mute the sound.
 3. Preview: waveform and parts by kind. Tap a part to keep or cut it; unsure parts are kept and shown yellow.
 4. Cut silences cuts exactly what the preview showed. Not what you wanted: delete the new sequence (the panel says so).
@@ -39,6 +43,10 @@ own clips cut. The editor's sequence is not touched. Preview shows what would go
   over 5 min in parts), else and for any window it cannot read local large-v3. Never when the project folder or any media
   path is ReShape (`is_reshape_run`). Words decide what goes, the 10 ms level decides where; a word guard keeps a word a cut
   would cover (not in Manual dB). The options show before the press where the words are read.
+- Mark repeated lines (0.10.157) never changes the cut: words read only for the markers are not given to the plan. A marker
+  counts only the takes still in the new sequence; one take alone is marked only when the AI rough cut took the others.
+  Markers go only into the NO SILENCE sequence (host `marks`, or the XML of the fallback), never into the editor's.
+- Simple is panel only (`silenceplan.SIMPLE`): the engine has no such mode.
 - New rules may only keep or list more (0.10.122): pooled statistics are a union with the clip's own; the dead-channel rule
   flags what Silero half-hears and is off with one microphone; far (over 12 sentences) and short (4 words or fewer) repeats
   are listed; a false start is cut only when the take is a prefix of the full sentence.
@@ -46,6 +54,7 @@ own clips cut. The editor's sequence is not touched. Preview shows what would go
   frame by frame before anything is removed. `drop_flashes` never drops sound.
 
 ## Decisions
+- Simple; repeated lines marked, not cut: DECISIONS 2026-11-24 (0.10.157).
 - AI words through ElevenLabs, ReShape local: DECISIONS 2026-11-21 (0.10.121). After the audit: DECISIONS 2026-11-21 (0.10.122).
 - Silences replaces the rough cut in the panel, no recognition: DECISIONS 2026-11-12.
 - Regions the editor can turn around; Manual dB is the level alone: DECISIONS 2026-11-15 (0.10.96).
@@ -60,13 +69,15 @@ own clips cut. The editor's sequence is not touched. Preview shows what would go
   `roughcutplan.js` (pure: plan, report, verify), `premiere-roughcut.js` (touches Premiere: `readInput`, `hostPlan`,
   `hostCut`, `placeClones`, `place`); `engine.js` `startRoughcut`, `roughCut`, `roughLink`; `index.html` row `secRough`, button `rough`.
 - Engine: `silence.py` (`measure`, `label_item`, `detect`, `plan`, `settings`), `roughcut_job.py` (`validate`, `run`,
-  `run_silence`, `read_cloud`, `use_cloud`, `is_reshape`), `vad.py` (Silero), `edl.py`, `xmeml.py`, `takes.py`; `server.py` `POST /roughcut`, `/roughcut/cut`, `/roughcut/link`.
+  `run_silence`, `take_marks`, `read_cloud`, `use_cloud`, `is_reshape`), `vad.py` (Silero), `edl.py`, `xmeml.py`, `takes.py`; `server.py` `POST /roughcut`, `/roughcut/cut`, `/roughcut/link`.
 - Older Phase 8 (Safe / Smart: `speechmap.py`, `pauses.py`, branch of `roughcut_job.run`) is still in the engine but the
   panel no longer offers it; the Fast switch (`/roughcut/model/download`) is gone from the panel.
 - Host: `host/host.jsx` `as_rough_cut` with `as_cut_start`, `as_cut_razor`, `as_cut_clean`, `as_cut_move`, `as_cut_finish`.
 
 ## Status
 - Since 0.10.65 (Silences), rebuilt 0.10.96, host cut 0.10.108, ElevenLabs words 0.10.121, audit fixes 0.10.122 (not installed).
+- 0.10.157 Simple and Mark repeated lines: built, not installed, not tried in Premiere (the markers' span, the look). On the
+  user's Sirvis clips (preview): Silences only / Calm 466 -> 358 s, Simple 466 -> 205 s with 23 markers on 8 repeated lines.
 - Real use (logs to 2026-11-21): no real-project result since 0.10.108: the host razor fails on a 59.97361 fps sequence
   (iPhone footage; stopped by 0.10.122's check on "Lokal 2", the razor's timecode rewritten in 0.10.123 from that log,
   unconfirmed), and AI-assisted left on cost minutes.
@@ -74,11 +85,11 @@ own clips cut. The editor's sequence is not touched. Preview shows what would go
 - Windows: untested.
 - Limits (BUGS "Limits of Cut silences"): odd frame rates stop instead of cutting; no audio crossfades or J/L cuts; Manual dB
   is one number for all microphones; a hesitation glued to a word stays; a take repeated without a pause is listed.
-- Open: TODO V122 (verify list and the probe), V96, AUD (what the audit left).
+- Open: TODO V157 (Simple and the markers), V122 (verify list and the probe), V96, AUD (what the audit left).
 
 ## Tests
 - `tests/test_silence.py` (levels, Silero, modes, pacing, edges), `test_roughcut.py` (speech map, pauses, EDL, XML, job),
   `test_takes.py` (repeated takes), `test_silence_cloud.py`, `test_silence_cloud_audit.py` (ElevenLabs, ReShape, fallback, shared reading, parts, retries),
-  `test_silence_audit.py` (dead channel, pooling, word guard); node `hostcutflow`, `silencespanel` (cancel, guard, words line).
+  `test_silence_audit.py` (dead channel, pooling, word guard), `test_silence_marks.py` (markers on repeated lines); node `hostcutflow`, `silencespanel` (cancel, guard, words line).
 - `tests/silenceplan.test.js`, `roughcutplan.test.js`, `roughcutclones.test.js` (copies in batches, `hostPlan`),
   `hostroughcut.test.js` (host cut against a model of Premiere), `wiring.test.js`, `tiptext.test.js` (tooltip rows).

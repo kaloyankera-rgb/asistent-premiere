@@ -9,11 +9,15 @@ const PACING = {
   paced: { min_silence: 0.65, min_speech: 0.15, before: 0.15, after: 0.2, short: false },
   energetic: { min_silence: 0.4, min_speech: 0.15, before: 0.1, after: 0.14, short: true },
 };
-const MODES = ["silence", "offmic", "ai"];
+const MODES = ["simple", "silence", "offmic", "ai"];
+// 0.10.157 Simple (the user: "a simple option to remove all these without any hassle"): one choice instead of the options.
+// Dead air and the quiet stretches between the lines go (Silences + off-mic as Automatic measures it), repeated lines get
+// markers and stay. Only the panel knows the word: the engine gets these choices.
+const SIMPLE = { mode: "offmic", method: "auto", pacing: "measured", sensitivity: 3, short: false, fillers: false, action: "remove", mark_takes: true };
 const METHODS = ["auto", "manual", "ai"];
 const ACTIONS = ["remove", "gaps", "split", "mute"];
 const RANGES = ["selection", "inout", "all"];
-const MODE_LABEL = { silence: "silences", offmic: "silences and off-mic voices", ai: "AI rough cut" };
+const MODE_LABEL = { simple: "simple", silence: "silences", offmic: "silences and off-mic voices", ai: "AI rough cut" };
 const METHOD_LABEL = { auto: "automatic", manual: "manual dB", ai: "AI-assisted" };
 const ACTION_LABEL = { remove: "removed, gaps closed", gaps: "removed, spaces kept", split: "split only, nothing removed", mute: "sound muted, timing unchanged" };
 const KIND_LABEL = { silence: "silence", nosound: "no sound clip", offmic: "off-mic voice", below: "under your dB", short: "short pause", filler: "hesitation sound", take: "repeated take" };
@@ -28,17 +32,19 @@ function num(v, what, lo, hi) {
 
 /**
  * The controls' values -> { opts } (what readInput and the engine get) or { error } (what to fix, said before anything runs).
- * v: { mode, method, db, pacing, minSilence, minSpeech, before, after, sensitivity, short, shortMin, shortMax, fillers, range, action }.
+ * v: { mode, method, db, pacing, minSilence, minSpeech, before, after, sensitivity, short, shortMin, shortMax, fillers, markTakes, range, action }.
+ * Cut = Simple is the SIMPLE choices whatever the other controls say (they are hidden then).
  * AI rough cut always detects with the words; hesitation sounds need the words too (Detect = AI-assisted or Cut = AI rough cut).
  */
 function readOptions(v) {
+  if (v.mode === "simple") return { opts: { ...SIMPLE, range: RANGES.includes(v.range) ? v.range : "selection", threshold: null } };
   const mode = MODES.includes(v.mode) ? v.mode : "offmic";
   let method = METHODS.includes(v.method) ? v.method : "auto";
   if (mode === "ai" && method === "auto") method = "ai";
   const o = { mode, method, pacing: PACING[v.pacing] || v.pacing === "custom" ? v.pacing : "measured",
     sensitivity: Math.min(5, Math.max(1, Math.round(Number(v.sensitivity) || 3))), short: !!v.short,
     fillers: !!v.fillers && (method === "ai" || mode === "ai"), action: ACTIONS.includes(v.action) ? v.action : "remove",
-    range: RANGES.includes(v.range) ? v.range : "selection", threshold: null };
+    range: RANGES.includes(v.range) ? v.range : "selection", threshold: null, mark_takes: !!v.markTakes };
   if (method === "manual") {
     const d = num(v.db, "the dB threshold", -80, -10);
     if (d.error) return { error: `${d.error} Speech into the microphone is usually around -12 to -20 dB; Suggest finds a start.` };
@@ -68,6 +74,7 @@ function payloadOptions(opts, extra = {}) {
   const p = { mode: opts.mode, method: opts.method, threshold: opts.threshold, pacing: opts.pacing, sensitivity: opts.sensitivity,
     short: opts.short, fillers: opts.fillers, action: opts.action };
   for (const k of ["min_silence", "min_speech", "before", "after", "short_min", "short_max"]) if (opts[k] !== undefined) p[k] = opts[k];
+  if (opts.mark_takes) p.mark_takes = true;
   if (extra.overrides && extra.overrides.length) p.overrides = extra.overrides;
   if (Array.isArray(extra.listen)) p.listen = extra.listen;
   if (extra.preview) p.preview = true;
@@ -181,12 +188,12 @@ function kindsLine(by) {
  * ({ mode, method, fillers }) or the engine's result ({ mode, what, method, fillers }); an older engine's plain AI-assisted counts too.
  */
 function wordsRead(r) {
-  return !!r && (r.mode === "ai" || r.what === "ai" || r.method === "ai" || !!r.fillers);
+  return !!r && (r.mode === "ai" || r.what === "ai" || r.method === "ai" || !!r.fillers || !!r.mark_takes);
 }
 
 /** The Options line about who reads the words (null when these choices read none). cloud: engine.cloud()'s answer, or null when unknown. */
 function wordsLine(opts, cloud) {
-  if (!(opts && (opts.mode === "ai" || opts.fillers)) || !cloud) return null;
+  if (!(opts && (opts.mode === "ai" || opts.fillers || opts.mark_takes)) || !cloud) return null;
   return cloud.on ? "Words: ElevenLabs Scribe (sends the sound of the selected clips; ReShape projects stay on this computer)"
     : "Words: read on this computer (slower)";
 }
@@ -226,6 +233,8 @@ function describePreview(result, regions) {
   if (kinds) lines.push({ cls: "reason", text: kinds });
   if (t.flagged) lines.push({ cls: "warn", text: `${t.flagged} ${t.flagged === 1 ? "part is" : "parts are"} not sure and kept (yellow): tap one to cut it.` });
   if (t.restored) lines.push({ cls: "reason", text: `${t.restored} kept by you.` });
+  const marks = marksLine(result, false);
+  if (marks) lines.push(marks);
   const share = removedShare(result, regions);
   if (share !== null && share > MANUAL_GUARD_PCT) lines.push({ cls: "warn", text: guardPreviewText(share) });
   const sp = result.speech || {};
@@ -234,6 +243,19 @@ function describePreview(result, regions) {
   const cloudNote = recognizerNote(sp.recognizer);
   if (wordsRead(result) && cloudNote) lines.push({ cls: "warn", text: cloudNote });
   return lines;
+}
+
+/**
+ * 0.10.157: the line about the repeated lines' markers (null when they were not asked for, or no words were read: the
+ * words' own warning says that). done: after the cut ("got"), else before it ("will get").
+ */
+function marksLine(result, done) {
+  if (!result || !result.mark_takes || !(result.speech || {}).asr) return null;
+  const n = (result.marks || []).length;
+  if (!n) return { cls: "reason", text: "No repeated lines found: no markers." };
+  const g = result.marked || 0;
+  return { cls: "line", text: `${g} repeated ${g === 1 ? "line" : "lines"}: ${n} markers (Repeat 1/2, Repeat 2/2…) ${done ? "in the new sequence" : "will be put in the new sequence"}, ` +
+    "one on each take. Nothing of them is cut; each marker's comment says which take Asistent would keep." };
 }
 
 /**
@@ -268,5 +290,5 @@ function micLines(result) {
   return lines;
 }
 
-module.exports = { recognizerNote, wordsRead, wordsLine, removedShare, guardText, guardPreviewText, MANUAL_GUARD_PCT, PACING, MODES, METHODS, ACTIONS, RANGES, MODE_LABEL, METHOD_LABEL, ACTION_LABEL, KIND_LABEL, readOptions, payloadOptions, signature,
+module.exports = { SIMPLE, marksLine, recognizerNote, wordsRead, wordsLine, removedShare, guardText, guardPreviewText, MANUAL_GUARD_PCT, PACING, MODES, METHODS, ACTIONS, RANGES, MODE_LABEL, METHOD_LABEL, ACTION_LABEL, KIND_LABEL, readOptions, payloadOptions, signature,
   clock, view, zoomed, scrolled, columns, toggled, overridesOf, totals, kindsLine, describePreview, describeRegion, micLines };

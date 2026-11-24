@@ -863,3 +863,37 @@ a lot): settings were chosen for what they prevent, then checked on synthetic co
 - **Not possible (reminder 11):** colouring only the selected part of a text. Scripts see neither the selection inside the
   Program monitor nor a text's runs (27.1 beta: MogrtText styles apply "across all runs" and have no colour). A Tint colours the
   whole clip. Premiere's own route stays: select the words, Properties > Fill, paste the HEX (copied without # since 0.10.150).
+
+## 2026-11-24: Sync: an echo inside the searched range is not a second possible offset (0.10.156)
+- **Why:** MASTERHAUS КП-4 Видео 5, a shop hall. Two pairs with 5 and 6 of 8 stretches on one offset (peak ratio 2.9 and 2.6)
+  were refused as "repeating sound" because another candidate settled 85 ms and 29 ms away. Premiere synced them; the user
+  reported it. The whole overlap correlated at once and the camera clocks both give the first offset.
+- **Rule:** a stretch's peak ratio already compares its peak with everything within 0.1 s of the candidate. So when the other
+  offset lies inside that range, and the agreeing stretches are strong and not fewer than the other's, the comparison has been
+  made and the other offset is an echo. The candidate that searched over both is the one believed, whichever came first.
+- **Kept:** a second offset outside the range, or one that does not lose clearly, is still ambiguous and never applied (a
+  metronome at 0.5 s and at 70 ms in the tests). Pairs that were not ambiguous before are not touched (nine shoots identical).
+- **Rejected:** dropping the ambiguity rule for near offsets altogether (a first version judged by each candidate's own
+  ratio, measured in different ranges: on a synthetic hall it chose the echo; caught by the test before any install).
+
+## 2026-11-24: Subtitles learn from the editor's Premiere edits: log everything, save at export, approve before learning (0.10.155)
+- **Why:** the editor has to pick the mistakes by hand in the Captions tab, but the real corrections are made in Premiere's Text
+  panel after the captions are placed, where Asistent never looked.
+- **Decisions of the user:** learning comes from what the editor does in Premiere, with nothing to select; log everything in
+  subtitles (settings, runs, placement, Captions tab fixes, Move off faces, splits); Asistent may save the project at a finished
+  export to read the Text panel's fixes (saved only when it holds Asistent captions); a fix seen once is never applied by
+  itself: fixes are counted, a fix repeated in 3 videos is offered in a recap every few days, and only an approved one goes to
+  learning; splitting rules change only after a replay on the logged splits.
+- **Built:** Step 1 in 0.10.155 (`editlog.py`, local journal only, nothing shown or learned). Plan: `docs/SUBTITLE_EDIT_LOG_PLAN.md`.
+
+## 2026-11-24: Cut silences gets Simple; repeated lines are marked, not cut (0.10.157)
+- The user asked for "a simple option to remove all these without any hassle" (a quiet stretch his Silences only / Calm run
+  kept) and for markers on repeated lines "just in case" instead of cutting them.
+- Simple is a choice in Cut, not a new engine mode: it is the choices that removed those stretches on his own clips
+  (Silences + off-mic, Automatic, Measured, Normal, Remove) plus the markers. The other options stay for the cases they exist for.
+- Markers are put only in Asistent's own NO SILENCE sequence, and only when asked (Simple, or the box). The rule "no Asistent
+  markers on the timeline" (2026-11-03) was about SYNC and stands there.
+- Marking never changes the cut: words read only for markers are not given to the plan (no word guard, no take cut).
+- A marker counts and names only the takes that are in the new sequence; a take alone is marked only when the AI rough cut
+  took the others.
+- Simple is not the default of a new install: it has the words read on every run (ElevenLabs with a key, minutes without one).

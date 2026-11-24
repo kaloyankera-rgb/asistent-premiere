@@ -23,6 +23,10 @@ clips with no partner go where they were recorded (0.10.154).
   is moved in its own step, camera colours and "Fix audio again" are separate steps (more than one Undo).
 - Agreement: 5 ms (`AGREE_TOL`), independent windows, drift only over 60 s and up to 100 ppm, High needs 60 % of all
   windows (`HIGH_COVERAGE`). Edge artefacts gave false matches, so peaks at the search edge do not count.
+- A second offset is "repeating sound" (never High) only when it could be a real repeat. One that lies inside the 0.1 s a
+  candidate's stretches searched, where those stretches chose their own peak clearly (ratio 1.3 or more, not fewer stretches),
+  is an echo: `sync._echo`, 0.10.156 (MASTERHAUS Видео 5, a shop hall, 85 ms and 29 ms). Do not widen it to offsets outside
+  the searched range: a beat or a line said twice must stay ambiguous.
 - Camera = folder, or folder + file prefix when one folder holds two numbered series (0.10.149, `groups._cameras`;
   MASTERHAUS fx306xx + fx30-3-20xx in one folder). Same-camera pairs are not compared when there are several cameras
   (one camera cannot record two clips at once). With one folder only, two clips on one track move to the next free track (0.10.6, BUG-011).
@@ -48,17 +52,21 @@ clips with no partner go where they were recorded (0.10.154).
 - Track names after Sync on by default: DECISIONS 2026-11-10.
 - File numbers decide the order within a camera, the clock only interleaves: DECISIONS 2026-11-23 (0.10.149).
 - Main POV makes the order; clock-guided comparing with a fallback; second look: DECISIONS 2026-11-23 (0.10.154).
+- An echo inside the searched range is not a second possible offset: DECISIONS 2026-11-24 (0.10.156).
 
 ## Code map
 - Panel: `panel/main.js` `onSync`, `describe` (flow and report); `panel/engine.js` `startGroups`;
   `panel/layout.js` `syncLayout`, `mainCamera`, `chronological`, `byFileNumber` (pure, node-tested); `panel/premiere.js` `buildSyncSequence`
   (touches Premiere); `panel/premiere-labels.js` `colorFiles`; `panel/index.html` row `secSync`, button `sync`.
-- Engine: `engine/asistent/sync.py` (pair analysis: GCC-PHAT, windows, `analyze_pair`, `near`), `groups.py` (`sync_groups`, `_cameras`, `camera_name`,
+- Engine: `engine/asistent/sync.py` (pair analysis: GCC-PHAT, windows, `analyze_pair`, `near`, `_echo`), `groups.py` (`sync_groups`, `_cameras`, `camera_name`,
   `_clock_plan`, `_clock_confirm`, `_gap`, `_clock_check`, `_build_groups`), `chrono.py` (recording order, `chronology`); `server.py` `POST /sync_groups`.
   `POST /sync` (two-clip `sync_clips`) is older and not used by the row.
 - Host: none.
 
 ## Status
+- 0.10.156 (2026-11-24, built, not installed): the echo rule, after the user's report on MASTERHAUS КП-4 Видео 5 (two pairs
+  Premiere synced and Asistent left apart). Offline on nine real shoots: every old group identical, four new pairs, each
+  confirmed by the clocks. Not tried in Premiere. Still apart: nine takes of 1.5-11 s that the clocks put together (TODO SYN).
 - 0.10.154 (2026-11-23, installed): main POV order, clock-guided comparing, second look. Offline on real files: MASTERHAUS
   22.1 -> 6.6 s with the same 16 groups, GStroy КП11 Видео 8 12.4 -> 7.6 s with one more real pair. Not tried in Premiere.
 - 0.10.149 (2026-11-23, installed): two cameras in one folder told apart by file prefix, and file-number order per camera,
@@ -75,6 +83,6 @@ clips with no partner go where they were recorded (0.10.154).
   Many clips without a partner still cost the full comparison (the fallback). Bridge `select` in a SYNC sequence is unreliable (TODO P item 3).
 
 ## Tests
-- `tests/test_sync.py` (synthetic recordings with a known answer), `test_groups.py` (groups, short takes, clock rules),
+- `tests/test_sync.py` (synthetic recordings with a known answer; the echo rule and a hall echo, 0.10.156), `test_groups.py` (groups, short takes, clock rules),
   `test_chrono.py`, `test_server.py` (`/sync` guards), `test_real_footage.py` (GStroy footage, skipped elsewhere).
 - `tests/layout.test.js` (placements, tracks, main POV, chronology, file-number order incl. the MASTERHAUS case), `wiring.test.js` (Sync calls `fixAudio`), `selection.test.js`.

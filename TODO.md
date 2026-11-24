@@ -4,7 +4,18 @@
 > ([docs/INDEX.md](docs/INDEX.md)). Finished sections moved out on 2026-11-21:
 > [docs/history/TODO_done_to_0.10.120.md](docs/history/TODO_done_to_0.10.120.md).
 
-## SYN. Sync 0.10.154 (2026-11-23): main POV order, faster comparing
+## SYN. Sync 0.10.154 (2026-11-23): main POV order, faster comparing; 0.10.156 (2026-11-24): echo
+- [ ] USER: 0.10.156, MASTERHAUS КП-4 Видео 5 (СКЕЧ): select the clips, press Sync cameras: fx30686 lies against fx30-3-2059
+      and fx30687 against fx30-3-2060 (9 groups, were 7).
+- [ ] USER DECIDES: very short takes. Nine pairs on MASTERHAUS КП-4 (Видео 5 fx30695 / fx30-3-2069; Видео 7 fx30772 / 2112,
+      fx30779 / 2120, fx30782 / 2124, fx30786 / 2126; Видео 8 fx30766 / 2098; Видео 9 fx30788 / 2200, fx30795 / 2207 and 2208)
+      are put together by the learnt clocks and stay apart: 1.5-11 s long, one to three stretches, so two stretches cannot
+      agree. Measured 2026-11-24: in eight the strongest shared sound within 3 s of the clocks is 0.2-0.7 s from them (peak
+      ratio 1.6-4.4, z 9-19); in fx30779 / 2120 the strongest of the whole take is another place (16.5 s, a line said twice) and
+      the one by the clocks is 19.2 s; a wrong place reached ratio 1.5, z 9 once, far from the clocks. Proposal: a take the
+      clocks put together may sync on ONE strong stretch within 1.5 s of the clocks (thresholds from these nine and from every
+      pair the clocks keep apart), listed in the report as decided by the clocks. It loosens "nothing uncertain": not built
+      until the user says so.
 - [ ] USER: after a Premiere restart, press Sync cameras on MASTERHAUS КП-4 Видео 4 (СКЕЧ): fx30661… in order on V1, each
       fx30-3-20xx against its partner on V2, the first line of the report names the main POV. Say if the wrong camera was taken
       as main (then a setting to pick it by hand is the next step).
@@ -19,6 +30,20 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] USER: the same buttons appear on the Folders tab (and a change there shows in the panel within a few seconds).
 - [ ] USER: Follows the project in a saved project, then open another project with the same folders.
 - [ ] Later if wanted: "Add from Finder" on the tab (the engine asks Finder for its selection), Windows check.
+
+## SAL. Subtitles learn from what the editor does in Premiere (the user 2026-11-24; plan docs/SUBTITLE_EDIT_LOG_PLAN.md)
+The user: "I have to go and manually select the mistakes. I want it to learn from what I'm doing automatically and just log
+whatever I most often fix." Decisions: DECISIONS 2026-11-24.
+- [x] Step 1 built in 0.10.155 (`editlog.py`, `docs/features/subtitle-edit-log.md`): silent journal, comparison at export.
+      Not installed. Outside Premiere: tests green, one real project read (55 to 55 lines, no changes).
+- [ ] USER / bridge checks (after install): one look in NEW TEST: save at a finished export, a changed word and a split line
+      show in GET /subtitles/editlog (the bridge `editlog_compare` too). Then one real client video.
+- [ ] Step 2: a fix repeated in 3 videos is offered for approval; only an approved one goes to learning (same trust rules,
+      sound check, Learned list for rollback). A fix seen once is never applied by itself.
+- [ ] Step 3: a recap card every 3 days (what the editor fixes most, the settings most used, the split causes), with Fix it from now on / Not now / Never on a fix repeated in 3 videos.
+      For Step 2: a saved comparison that confirms an identical unsaved one is not written, so the event keeps `saved: false`;
+      write it once if anything ever filters on `saved`.
+- [ ] Step 4: split rules change only after a replay on the logged splits (`scripts/placement_replay.py` style), never on one clip.
 
 ## COL. Colour accuracy (the audit of 2026-11-22, docs/CLIENT_COLOR/AUDIT_2026-11-22.md; the user's decisions in DECISIONS)
 - [ ] Installed 2026-11-22. USER (Monday, at the office): export one graded client
@@ -50,6 +75,16 @@ ask the user to try in `TEST.prproj` → read `engine.log` → commit → update
 - [ ] USER: Line break On: 4-5 word subtitles on two lines, the bottom 1-2 words in the colour. If the bottom line is white,
       Premiere ignores `<font color>`: take it out of the .srt and say "colour by hand"; if the tag shows as text, take it out at once.
 - [ ] USER: Export transcript with times: each sentence on its own line with its own time.
+
+## V157. Verify 0.10.157 (2026-11-24): Cut silences, Simple and the markers on repeated lines
+- [ ] Install (it carries 0.10.155 and 0.10.156, both not installed yet); Premiere restart for the new panel.
+- [ ] USER: Silences > options > Cut = Simple on the Sirvis sequence (fx30158-fx30165): expect about 3:25 from 7:46, the quiet
+      stretches gone, and markers "Repeat 1/3 …" over the repeated lines, each as long as its take.
+- [ ] If the markers are points, not spans: `marker.end` was refused (host.jsx `as_cut_finish`; the answer's `markers_spanned`).
+- [ ] By eye: the options with Simple chosen (only Cut, the note, the words line, Range, Preview); the Mark repeated lines row.
+- [ ] USER decides after use: Simple as the default for a new install (now Silences + off-mic: Simple reads the words every run).
+- [ ] Seen on the Sirvis clips with words read on this computer: one group held a take with other words (a different
+      sentence inside a group of another line): `takes.find`'s chains, not looked into; check with Scribe's words first.
 
 ## V122. Verify 0.10.122 (2026-11-21): Cut silences after the audit
 - [x] Install (0.10.122, then 0.10.123, 2026-11-21).

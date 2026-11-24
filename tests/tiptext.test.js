@@ -18,7 +18,7 @@ test("every Silences option explains itself as a summary and rows (the user, 202
   const html = fs.readFileSync(path.join(__dirname, "../panel/index.html"), "utf8");
   const block = html.slice(html.indexOf('id="optRough"'), html.indexOf('id="silPreview"'));
   const tips = [...block.matchAll(/data-tip="([^"]*)"/g)].map((m) => m[1].replace(/&#10;/g, "\n"));
-  assert.strictEqual(tips.length, 16);
+  assert.strictEqual(tips.length, 17);
   for (const t of tips) assert.ok(tipLines(t).length >= 2, t);
   const result = tipLines(tips.find((t) => t.startsWith("What happens to the parts that go")));
   assert.deepStrictEqual(result.slice(1).map((l) => l.label), ["Remove, close the gaps", "Remove, keep the spaces", "Split only", "Mute the sound"]);

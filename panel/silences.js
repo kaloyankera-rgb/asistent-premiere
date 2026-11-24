@@ -13,7 +13,7 @@ const FLAG_LINES = 8;
 const CONTROLS = { mode: "roughMode", method: "roughMethod", db: "roughDb", pacing: "roughPacing", minSilence: "roughMinSilence",
   minSpeech: "roughMinSpeech", before: "roughBefore", after: "roughAfter", sensitivity: "roughSensitivity", shortMin: "roughShortMin",
   shortMax: "roughShortMax", range: "roughRange", action: "roughAction" };
-const BOXES = { short: "roughShort", fillers: "roughFillers" };
+const BOXES = { short: "roughShort", fillers: "roughFillers", markTakes: "roughMarkTakes" };
 
 function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough, state, setBusy, progress, finish, show, runJob, autoLabels }) {
   // the preview that is on screen: the clips it was made from, the engine's plan, the editor's own choices
@@ -67,6 +67,11 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
   // what the choices switch on and off: the dB field only for Manual dB, the numbers only for Custom, hesitation sounds
   // only with the words, AI rough cut always with them
   function reflect() {
+    // 0.10.157: Simple is one choice: the other options are put away (their values wait for when Simple is left)
+    const simple = $("roughMode").value === "simple";
+    show("roughSimpleNote", simple);
+    show("roughAdvanced", !simple);
+    show("roughActionRow", !simple);
     if ($("roughMode").value === "ai" && $("roughMethod").value === "auto") $("roughMethod").value = "ai";
     const method = $("roughMethod").value;
     show("roughDbRow", method === "manual");
@@ -80,7 +85,8 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
 
   // 0.10.122: when the current choices read the words (hesitation sounds, AI rough cut), who reads them
   function showWords() {
-    const line = SP.wordsLine({ mode: $("roughMode").value, fillers: $("roughFillers").checked }, cloud);
+    const line = SP.wordsLine($("roughMode").value === "simple" ? SP.SIMPLE
+      : { mode: $("roughMode").value, fillers: $("roughFillers").checked, mark_takes: $("roughMarkTakes").checked }, cloud);
     $("roughWords").textContent = line || "";
     show("roughWords", !!line);
   }
@@ -356,7 +362,7 @@ function mount({ $, el, button, onTap, enable, bindTips, premiere, premiereRough
     progress(0, "Listening to the dialogue…");
     try {
       const project = await premiere.activeProject();
-      const opts = { ...options(), method: "auto", threshold: null, fillers: false, mode: "silence" };
+      const opts = { ...options(), method: "auto", threshold: null, fillers: false, mode: "silence", mark_takes: false };
       const input = await premiereRough.readInput(project, opts);
       const { job } = await engine.startRoughcut(premiereRough.withOptions(input, opts, { preview: true }));
       const r = await runJob(job);

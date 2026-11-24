@@ -44,7 +44,7 @@ def _level(gain_db: float) -> str:
 
 def write(path: str, name: str, fps: float, width: int, height: int, pieces: list[dict], markers: list[dict] | None = None,
           probe=None, shell: bool = False) -> dict:
-    """pieces: edl.pieces(); markers: [{"frame", "name", "comment"}] in output frames. -> {"frames", "video", "audio"}
+    """pieces: edl.pieces(); markers: [{"frame", "name", "comment", "end" (optional)}] in output frames. -> {"frames", "video", "audio"}
     where video/audio count the pieces per track (the panel checks the sequence it gets against them).
     shell (0.10.45): the same sequence (size, rate, tracks, markers) WITHOUT clips. Imported clips become new master clips
     with their own interpretation: Premiere 26.5.2 switched off the rotation flag of the user's FX3 files (they came in
@@ -138,8 +138,10 @@ def write(path: str, name: str, fps: float, width: int, height: int, pieces: lis
     outputs = "".join('<group><index>%d</index><numchannels>1</numchannels><downmix>0</downmix><channel><index>%d</index></channel></group>'
                       % (k, k) for k in (1, 2))
     total = max([p["end"] for p in pieces] or [0])
-    mk = "".join("<marker><comment>%s</comment><name>%s</name><in>%d</in><out>-1</out></marker>"
-                 % (escape(m.get("comment", "")), escape(m.get("name", "")), m["frame"]) for m in (markers or []))
+    # a marker with an "end" after its frame spans that range (0.10.157: a repeated line, marked from its start to its end)
+    mk = "".join("<marker><comment>%s</comment><name>%s</name><in>%d</in><out>%d</out></marker>"
+                 % (escape(m.get("comment", "")), escape(m.get("name", "")), m["frame"],
+                    m["end"] if m.get("end", -1) > m["frame"] else -1) for m in (markers or []))
     xml = ('<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE xmeml>\n<xmeml version="4"><sequence id="sequence-1">'
            '<name>%s</name><duration>%d</duration>%s%s<timecode>%s<string>00:00:00:00</string><frame>0</frame>'
            '<displayformat>NDF</displayformat></timecode><media><video><format><samplecharacteristics>%s<width>%d</width>'

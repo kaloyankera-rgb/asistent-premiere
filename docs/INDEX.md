@@ -2,21 +2,22 @@
 
 Start here. To change a feature, read its page below before the code, and update that page in the same commit.
 Each page has the same sections: what it does, how to use it, key points (do not break), decisions, code map,
-status, tests. Status as of 0.10.129 (2026-11-21).
+status, tests. Status as of 0.10.157 (2026-11-24).
 
 ## Features
 
 | Feature | What it does | Page | Mac / Premiere | Windows |
 |---|---|---|---|---|
-| Sync | Lines up cameras and lavaliers by shared sound in a new SYNC sequence | [sync](features/sync.md) | Verified; 0.10.154 not tried | Untested |
+| Sync | Lines up cameras and lavaliers by shared sound in a new SYNC sequence | [sync](features/sync.md) | Verified; 0.10.154 and 0.10.156 (built, not installed) not tried | Untested |
 | Fix audio | L/L and R/R copies (levels only from Level only / Even out phrases, -17 LUFS, peak under -6 dBFS) | [fix-audio](features/fix-audio.md) | Split verified; Undo count unverified | Untested |
-| Cut silences | Silences, off-mic voices and repeated takes cut in a duplicate sequence | [cut-silences](features/cut-silences.md) | Audit fixes 0.10.122 not installed; odd frame rates stop (probe open) | Untested |
+| Cut silences | Silences, off-mic voices and repeated takes cut in a duplicate sequence | [cut-silences](features/cut-silences.md) | Audit fixes 0.10.122 not installed; odd frame rates stop (probe open); 0.10.157 Simple + markers on repeated lines built, not installed | Untested |
 | Track names | Tracks named POV 1, POV 2, Mic n, Subtitles BG / EN; camera colours | [track-names](features/track-names.md) | Bridge-tested; Cmd+Z unverified | Untested |
 | Color | Auto color (white balance + exposure), Match POVs, Exposure ±0.5, Before / after | [color](features/color.md) | Used by the user; 0.10.118 untested | Untested |
 | Learn from exports | Editors' Lumetri noted next to Auto color's, per client and camera | [color-learning](features/color-learning.md) | Bridge-verified; real Export untried | Untested |
 | Before export | Check export: offline, gaps, picture that does not fill, safe area, peaks | [export-check-before](features/export-check-before.md) | Bridge-verified; not tried by the user | Untested |
 | Show exports, Export check | Finished export shown in Finder; FFmpeg measures the file | [exports](features/exports.md) | Seen on a real export; event unverified | Untested |
 | Subtitles | Bulgarian speech to SRT and a caption track; Captions tab fixes and learning | [subtitles](features/subtitles.md) | Core verified; ElevenLabs Auto verified 2026-11-21, ReShape and switch-off runs open | Untested |
+| Subtitle edit log | Silent journal of subtitle presses; at a finished export the placed captions are compared with the saved project's lines | [subtitle-edit-log](features/subtitle-edit-log.md) | Built 0.10.155, not installed; not verified in Premiere | Untested |
 | Auto import | Watches the project's folder, imports new files into type bins | [auto-import](features/auto-import.md) | Verified; default-on bridge-tested | Untested |
 | Brand | The client's brand kit in Premiere: place, colours, MOGRTs, fonts | [brand](features/brand.md) | Installed; not tried by the user | Untested |
 | Folders | Favourite folders as buttons that open them in Finder; tab + CEP panel for drag and drop | [folders](features/folders.md) | Tab seen; CEP drop measured; 0.10.146 not tried | Untested |
@@ -45,6 +46,7 @@ New feature: copy [features/_TEMPLATE.md](features/_TEMPLATE.md), keep it under 
 | [BULGARIAN_TRANSCRIPTION_GUIDE.md](BULGARIAN_TRANSCRIPTION_GUIDE.md) | **Read before touching the subtitle pipeline.** Rules and the regression table. |
 | [BENCHMARK.md](BENCHMARK.md) | Recognition benchmark and the table every recognition change is judged by. |
 | [SUBTITLE_STYLE.md](SUBTITLE_STYLE.md), [SUBTITLE_STYLES/](SUBTITLE_STYLES/GSTROY.md) | Subtitle styles; one measured file per client (AULA, Beauty Sector, Credissimo, ЕКОПАК, GStroy). |
+| [SUBTITLE_EDIT_LOG_PLAN.md](SUBTITLE_EDIT_LOG_PLAN.md) | Plan (TODO SAL): subtitles learn from the editor's Premiere edits. Step 1 built in 0.10.155; Steps 2-4 open. |
 | [SUBTITLE_PLACEMENT.md](SUBTITLE_PLACEMENT.md) | Where subtitles sit, measured on 25 client videos; the Move off faces rule and its replay (0.10.141). |
 | [CLIENT_COLOR/](CLIENT_COLOR/GSTROY.md) | Colour findings per client (proposals only). |
 | [../COLOR_CORRECTION_PLAN.md](../COLOR_CORRECTION_PLAN.md), [color-spec/](color-spec/00_START_HERE.md) | Colour engine plan and spec package (contrast, saturation and the rest not built). |

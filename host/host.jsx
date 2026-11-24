@@ -882,7 +882,7 @@ function as_cut_move(a, tg, until) {
 }
 
 function as_cut_finish(a, tg) {
-    var seq = tg.seq, tpf = Number(seq.timebase), marks = a.marks || [], n, cleared = 0, added = 0;
+    var seq = tg.seq, tpf = Number(seq.timebase), marks = a.marks || [], n, cleared = 0, added = 0, spanned = 0;
     if (a.i) {                                              // the pieces moved: the duplicate's own markers point at the old places
         try {
             var old = [], m = seq.markers.getFirstMarker();
@@ -896,6 +896,11 @@ function as_cut_finish(a, tg) {
             mk.name = String(marks[n].name || "Review");
             mk.comments = String(marks[n].comment || "");
             added++;
+            // 0.10.157: a repeated line is marked from its start to its end; a Premiere that refuses leaves a point marker
+            if (marks[n].end > marks[n].frame) {
+                try { var mt = new Time(); mt.ticks = String(marks[n].end * tpf); mk.end = mt; spanned++; }
+                catch (e7) { try { mk.end = marks[n].end * tpf / 254016000000; spanned++; } catch (e8) { /* a point marker */ } }
+            }
         } catch (e2) { /* a marker less */ }
     }
     // the duplicate came with the editor's In and Out, which mean nothing in the cut sequence: it is whole again (In at
@@ -918,7 +923,7 @@ function as_cut_finish(a, tg) {
             }
         }
     } catch (e6) { /* the tracks stay unlocked */ }
-    return as_result(true, "ok", { clips: all.length, there: there, markers_cleared: cleared, markers: added, relocked: relocked });
+    return as_result(true, "ok", { clips: all.length, there: there, markers_cleared: cleared, markers: added, markers_spanned: spanned, relocked: relocked });
 }
 
 function as_rough_cut(a) {

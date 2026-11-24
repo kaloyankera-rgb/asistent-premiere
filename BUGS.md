@@ -185,7 +185,8 @@ probe, `scripts/setup_win.ps1` (never run), Windows overall.
 - No local masks/HSL-by-region through the API known so far (skin tones can only be global unless the probe shows otherwise).
 
 ## Algorithm limitations
-- Sync: clips shorter than ~8 s or nearly silent stay Low (listed for manual work); frame-snapped placement
+- Sync: clips shorter than ~8 s or nearly silent stay Low (listed for manual work; nine such pairs measured on MASTERHAUS
+  КП-4, 2026-11-24, TODO SYN: the user decides whether one stretch plus the clocks may sync them); frame-snapped placement
   leaves up to half a frame (8.3 ms at 59.94); VFR footage may drift later in the clip.
 - Audio: two-mic detection needs both channels with ≥ 15 % speech and ≥ 15 % lead; borderline cases ask.
 - Colour: the plain-gain clipping estimate is pessimistic (real check needed); skin target 0.62 may be brighter

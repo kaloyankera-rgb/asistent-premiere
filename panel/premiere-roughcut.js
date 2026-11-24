@@ -514,7 +514,10 @@ async function hostCut(project, result, input, say, cancelled) {
   const steps = plan.cuts.length + (clean.removed || 0) + (moved.moved || 0) + 1;
   const notes = [{ cls: "line", text: "Cut in a duplicate of your sequence: every piece is your own clip with its rotation, Motion, colour, effects, links and Fix audio's L / R copies. Your sequence was not changed." },
     { cls: "hint", text: `Not what you wanted? Delete the new sequence (bin "No silence"): quicker than Undo, which would take about ${steps} steps (every cut, removal and move is its own).` }];
-  return { problems, notes };
+  // 0.10.157: the markers of the repeated lines, as the host counted them (never assumed from the plan)
+  const wanted = (result.marks || []).length;
+  if (wanted && (done.markers || 0) < wanted) problems.push(`${wanted - (done.markers || 0)} of ${wanted} markers for repeated lines were not placed by Premiere.`);
+  return { problems, notes, markers: done.markers || 0 };
 }
 
 /** Import the XML into the bin "Rough cut", find the new sequence, check it against the engine's EDL, carry the effects

@@ -596,6 +596,13 @@ function createBridge({ premiere, premiereColor, premiereAudio, doc, version, en
       if (!hooks.learnFromExport) throw new Error("no colour learning in this panel");
       return hooks.learnFromExport(true);
     },
+    // 0.10.155: what the panel does at an export for the subtitle edit log: when Asistent has placed captions in the open
+    // project, saves it and asks the engine to compare its caption lines with the ones Asistent placed (read the result with
+    // GET /subtitles/editlog). Export transcript does not go through here: it compares only after its own save succeeded.
+    async editlog_compare() {
+      if (!hooks.editlogCompare) throw new Error("no subtitle edit log in this panel");
+      return hooks.editlogCompare(true);
+    },
     // 0.10.39: what the panel's export-event handler sends for the after-export check (a scripted export fires no event):
     // the active sequence read by premiere-exportcheck.js, then /exports/done with the file
     // 0.10.51 Tracker: the box a drag would set (the bridge cannot drag), and what the page holds

@@ -321,3 +321,111 @@ def test_captions_faces_deletes_the_frames_when_the_face_detector_is_missing(eng
     assert not f.exists()
     status, body = call("POST", "/captions/faces", {"frames": [], "project": "", "graphics": []})
     assert status == 200 and body["frames"] == [] and body["preset"] == "" and body["lines"] == {} and body["reshape"] is False
+
+
+def _job_state(job):
+    for _ in range(200):
+        st = call("GET", f"/jobs/{job}")[1]
+        if st["state"] in ("done", "error", "cancelled"):
+            return st
+        time.sleep(0.05)
+    raise AssertionError("the job did not end")
+
+
+def test_the_subtitle_edit_log_endpoints_and_the_journal_around_the_job(engine, tmp_path, monkeypatch):
+    """0.10.155 (TODO SAL Step 1): every press is journalled where it happens; the journal never changes a job's end."""
+    from asistent import editlog, learning, subtitle_job, transcript as TR, reveal
+    from asistent.sync import Cancelled
+    monkeypatch.setattr(config, "app_dir", lambda: str(tmp_path))
+    monkeypatch.setattr(learning, "find_folder", lambda project: None)
+    proj = "/p/A.prproj"
+    q = "project=%2Fp%2FA.prproj"
+
+    def kinds():
+        return [e["kind"] for e in editlog.read("local")]
+
+    # the panel's own events: only its kinds, and the project is needed
+    assert call("POST", "/subtitles/editlog/event", {"project": proj, "sequence": "G", "kind": "placed", "data": {"lines": 40}})[1] == {"logged": True}
+    assert call("POST", "/subtitles/editlog/event", {"project": proj, "sequence": "G", "kind": "move_off_faces", "data": {"moved": 5}})[0] == 200
+    assert call("POST", "/subtitles/editlog/event", {"project": proj, "sequence": "G", "kind": "run", "data": {}})[0] == 400
+    assert call("POST", "/subtitles/editlog/event", {"project": proj, "sequence": "G", "kind": "nope", "data": {}})[0] == 400
+    assert call("POST", "/subtitles/editlog/event", {"project": "", "sequence": "G", "kind": "placed", "data": {}})[0] == 400
+    assert call("POST", "/subtitles/editlog/event", {"project": proj, "sequence": "G", "kind": "placed", "data": [1]})[0] == 400
+    assert kinds() == ["placed", "move_off_faces"]
+    # the comparison is queued and the journal gets one compare event per sequence
+    assert call("POST", "/subtitles/editlog/compare", {"project": ""})[0] == 400
+    monkeypatch.setattr(editlog, "compare", lambda project: [{"sequence": "G", "status": "ok", "counts": {"split": 1}, "fixes": [], "splits": []}])
+    assert call("POST", "/subtitles/editlog/compare", {"project": proj})[1]["queued"] == 1
+    editlog.wait()
+    assert kinds()[-1] == "compare"
+    # speakers, the Learned list, the transcript: in their own endpoints
+    assert call("POST", "/subtitles/speakers", {"project": proj, "speakers": {"0": "m"}, "sequence": "G"})[0] == 200
+    monkeypatch.setattr(learning, "set_removed", lambda p, key, removed: {"rules": [{"key": key, "heard": "а", "said": "б"}]})
+    assert call("POST", "/subtitles/learned", {"project": proj, "key": "а=>б", "action": "remove"})[0] == 200
+    assert call("POST", "/subtitles/learned", {"project": proj, "key": "а=>б", "action": "restore"})[0] == 200
+    out = tmp_path / "Asistent_subtitles" / "a.json"
+    monkeypatch.setattr(TR, "export", lambda *a: {"path": str(out), "paragraphs": 2, "premiere": {"lines": 30, "changed": 4}})
+    monkeypatch.setattr(reveal, "reveal", lambda p: None)
+    assert call("POST", "/subtitles/transcript", {"json": str(out), "project": proj, "guid": "G", "times": True})[0] == 200
+    assert kinds() == ["placed", "move_off_faces", "compare", "speakers", "learned_remove", "learned_restore", "transcript"]
+    last = editlog.read("local")[-1]["data"]
+    assert last == {"times": True, "paragraphs": 2, "lines": 30, "changed": 4, "why": None}
+    # a refused press, a done run (a rebuild with typed words: caption_apply too), a failed one, a cancelled one
+    monkeypatch.setattr(subtitle_job, "validate", lambda body: (_ for _ in ()).throw(ValueError("The speech model is not downloaded yet")))
+    assert call("POST", "/subtitles", {"project": proj, "name": "Seq", "preset": "auto"})[0] == 400
+    monkeypatch.setattr(subtitle_job, "validate", lambda body: body)
+    result = {"preset": "gstroy", "counts": {"captions": 3, "words": 9, "flagged": 0}, "review": [], "readings": {"seconds": 5.0}}
+    monkeypatch.setattr(subtitle_job, "run", lambda body, progress, cancelled: result)
+    body = {"project": proj, "name": "Seq", "guid": "G", "preset": "auto", "again": True, "items": [{"start": 0, "end": 5}],
+            "typed": {"pairs": [{"heard": "раф", "said": "рафт"}], "lines": 1}}
+    st = _job_state(call("POST", "/subtitles", body)[1]["job"])
+    assert st["state"] == "done" and st["result"] == result                                         # the job's own result, untouched
+    assert kinds()[7:] == ["run", "caption_apply", "run"]                                            # refused, then the rebuild
+    ran = [e for e in editlog.read("local") if e["kind"] == "run"]
+    assert ran[0]["data"]["status"] == "refused" and ran[-1]["data"]["status"] == "done" and ran[-1]["sequence"] == "G"
+    assert ran[-1]["data"]["settings"]["resolved"] == "gstroy" and ran[-1]["data"]["again"] is True
+    apply = [e for e in editlog.read("local") if e["kind"] == "caption_apply"]
+    assert apply[-1]["data"]["pairs"] == [{"heard": "раф", "said": "рафт"}] and apply[-1]["data"]["lines"] == 1
+
+    def boom(body, progress, cancelled):
+        raise ValueError("Select at least one audio clip")
+    monkeypatch.setattr(subtitle_job, "run", boom)
+    st = _job_state(call("POST", "/subtitles", {"project": proj, "name": "Seq", "items": []})[1]["job"])
+    assert st["state"] == "error" and "Select" in st["error"]
+    monkeypatch.setattr(subtitle_job, "run", lambda body, progress, cancelled: (_ for _ in ()).throw(Cancelled()))
+    assert _job_state(call("POST", "/subtitles", {"project": proj, "name": "Seq", "items": []})[1]["job"])["state"] == "cancelled"
+    assert [e["data"]["status"] for e in editlog.read("local") if e["kind"] == "run"] == ["refused", "done", "failed", "cancelled"]
+    # a journal that cannot be written never changes the job's end
+    (tmp_path / "run.txt").write_text("a file", encoding="utf-8")
+    with monkeypatch.context() as m:
+        m.setattr(editlog, "store_dir", lambda: str(tmp_path / "run.txt" / "nope"))
+        m.setattr(subtitle_job, "run", lambda body, progress, cancelled: result)
+        st = _job_state(call("POST", "/subtitles", {"project": proj, "name": "Seq", "items": []})[1]["job"])
+        assert st["state"] == "done" and st["result"] == result
+    # a malformed `typed` is no pairs: the press still starts (it used to be a 500 before the job)
+    monkeypatch.setattr(subtitle_job, "run", lambda body, progress, cancelled: result)
+    for typed in ({"pairs": 5}, "x", {"pairs": [1], "lines": "n"}):
+        code, res = call("POST", "/subtitles", {"project": proj, "name": "Seq", "again": True, "typed": typed, "items": []})
+        assert code == 200 and _job_state(res["job"])["state"] == "done"
+    # the counts for the panel and the bridge check
+    code, s = call("GET", f"/subtitles/editlog?{q}")
+    assert code == 200 and s["client"] == "local" and s["events"]["run"] == 7 and s["runs"] == 2 and s["pending"] == 0
+    # has Asistent placed captions here (the panel saves the project at an export only then), and `saved` goes into the event
+    assert call("GET", f"/subtitles/editlog/has?{q}")[1] == {"has": False}
+    (tmp_path / "captions.json").write_text(json.dumps({"/p/A.prproj|guid:G": {"index": 0, "count": 1}}), encoding="utf-8")
+    assert call("GET", f"/subtitles/editlog/has?{q}")[1] == {"has": True}
+    monkeypatch.setattr(editlog, "compare", lambda project: [{"sequence": "G", "status": "ok", "counts": {"split": 2}}])
+    assert call("POST", "/subtitles/editlog/compare", {"project": proj, "saved": "skipped"})[0] == 200
+    editlog.wait()
+    assert editlog.read("local")[-1]["data"]["saved"] == "skipped"
+    # a `premiere` that is not an object does not break the transcript's log
+    monkeypatch.setattr(TR, "export", lambda *a: {"path": str(out), "paragraphs": 1, "premiere": None})
+    assert call("POST", "/subtitles/transcript", {"json": str(out), "project": proj, "guid": "G"})[0] == 200
+
+
+def test_the_subtitle_edit_log_endpoints_refuse_a_request_without_the_asistent_header(engine):
+    no = {"X-Asistent": ""}
+    assert call("GET", "/subtitles/editlog?project=%2Fp%2FA.prproj", headers=no)[0] == 403
+    assert call("GET", "/subtitles/editlog/has?project=%2Fp%2FA.prproj", headers=no)[0] == 403
+    assert call("POST", "/subtitles/editlog/compare", {"project": "/p/A.prproj"}, headers=no)[0] == 403
+    assert call("POST", "/subtitles/editlog/event", {"project": "/p/A.prproj", "kind": "placed", "data": {}}, headers=no)[0] == 403

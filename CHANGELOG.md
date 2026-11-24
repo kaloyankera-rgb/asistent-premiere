@@ -31,6 +31,87 @@ Versions are the panel/engine version (`panel/manifest.json` and `engine/asisten
   „Абонирайте се!“, „млн.“ for „мм“ and rougher word times; kept out until the verified references are scored (docs/BENCHMARK.md).
   Word timing now ignores lone dialogue dashes.
 
+## 0.10.157 - Cut silences: Simple, and markers on repeated lines (2026-11-24, built, not installed, not tried in Premiere)
+The user: "a function in the cut silences that is pretty simple: remove silences and repeated lines … even better if it just
+removes the silences (dead zones) and adds markers to the repeated lines just in case", with a screenshot of a quiet stretch
+that his run of the same day had kept ("should have a simple option to remove all these without any hassle").
+- **Why the stretch stayed** (engine log and the run's JSON, Sirvis КП-1 Видео 5, fx30158-fx30165): the run was Silences only /
+  Calm. The main voice is at about -22 dB and speech opens at -47 to -58 dB there, so a murmur 20-30 dB under the voice is
+  "a voice" and stays by that mode's rule. The same clips planned again (preview, scratch HOME, nothing written to the server):
+  Silences only / Calm 466 -> 358 s; Silences + off-mic / Automatic / Measured 466 -> 205 s (off-mic 111 s, silence 151 s).
+- **Cut = Simple** (new, first in the list): one choice, the other options are put away. It is Silences + off-mic, Automatic,
+  Measured, Normal, Remove and close the gaps, with the repeated lines marked. Only the panel knows the word
+  (`silenceplan.SIMPLE`); the engine gets those choices.
+- **Mark repeated lines** (new box, also usable with every other Cut): the words are read (ElevenLabs Scribe with a key, else
+  this computer; never for ReShape, as before), `takes.find` finds the repeats, and every take that is still in the new
+  sequence gets a marker from its start to its end: "Repeat 2/3", the comment saying which take Asistent would keep and what
+  was said. Nothing is cut because of it. Takes that went are not counted; one take left alone is marked ("Repeat kept") only
+  when the AI rough cut took the others. `roughcut_job.take_marks`; the markers go through the host's existing `marks`
+  (`as_cut_finish`, now with an end) and into the XML of the fallback (`xmeml.write`, `<out>`).
+- The words read only for the markers do not touch the cut: the plan gets them only for hesitation sounds or the AI rough cut.
+  Found on the real clips: with the word guard on, words read on this computer kept 38 s more dead air (44 parts "not sure").
+- The same real clips with Simple (words read on this computer, 668 words): 466 -> 205 s, 23 markers on 8 repeated lines.
+- The result and the preview say how many markers; the panel counts what the host placed and says when fewer arrived.
+- Not tried in Premiere: the markers' span (`marker.end` through ExtendScript; a refusal leaves a point marker), the look of
+  the options with Simple chosen.
+- Tests: `tests/test_silence_marks.py` (4), `silenceplan.test.js` (+3), `silencespanel.test.js` (+1), `tiptext.test.js` (17 tips).
+  Python 1197 passed / 24 skipped (scratch HOME), Node 644 passed.
+
+## 0.10.156 - Sync: an echo is no longer taken for a second possible offset (2026-11-24, built, not installed, not tried in Premiere)
+- The user, 2026-11-24, MASTERHAUS КП-4 Видео 5 (СКЕЧ, 25 clips of two FX30s), with a screenshot of fx30-3-2059 / fx30686 /
+  fx30-3-2060 lying one after another: "Sync again didn't work on some places but with premiere pro i succesfully synced them".
+- **Measured on the real files**: 7 groups, 10 clips alone, and two pairs left as "possible": fx30686 / fx30-3-2059 (5 of 8
+  stretches at -0.059 s, peak ratio 2.9) and fx30687 / fx30-3-2060 (6 of 8 at +7.969 s, 2.6), both refused for "a second
+  possible offset (repeating sound)". The second offsets were 85 ms and 29 ms away: an echo of the shop hall. Correlating the
+  whole overlap at once gives the first offset on all nine microphone pairs of both takes, and the camera clocks say -0.5 and
+  +7.5 s.
+- **Fix** (`engine/asistent/sync.py` `_echo`, `analyze_pair`): each stretch searches 0.1 s around its candidate, and its peak
+  ratio is the peak against everything else in that range. When the other offset lies inside the range a candidate searched
+  and that candidate's agreeing stretches are strong (ratio 1.3 or more) and not fewer, the stretches have already compared the
+  two: the other offset is an echo (`echo_offset` in the result) and no longer makes the pair ambiguous. Several candidates may
+  settle on one offset; the one that searched over the other offset is the witness, and it is the one reported. A real repeat
+  (a beat, a line said twice) lies outside the range or does not lose clearly: still ambiguous, never High. Only pairs that
+  counted as ambiguous before are touched.
+- **Before / after on nine real shoots** (MASTERHAUS КП-4 Видео 2-9 and GStroy 9x16, 243 clips; old code = `git show HEAD:`):
+  every group of the old code comes out identical; four pairs are new, each within 0.6 s of what the camera clocks say:
+  Видео 5 fx30686 / fx30-3-2059 and fx30687 / fx30-3-2060 (7 -> 9 groups), Видео 3 fx30754 / fx30-3-2086 and fx30760 /
+  fx30-3-2093 (7 -> 9 groups).
+- **Not fixed, measured** (TODO SYN): nine pairs on those shoots that the clocks put together and the sound does not confirm
+  (Видео 5 fx30695 / fx30-3-2069; four in Видео 7, one in Видео 8, three in Видео 9). They are takes of 1.5-11 s: one to three
+  stretches, so "two stretches agree" cannot be met. In eight of the nine the strongest shared sound is within 0.7 s of the
+  clocks. Accepting one stretch is a change of the "nothing uncertain" rule: the user decides.
+- Tests: `test_sync.py` +3 (`test_echo_rule`, `test_echo_in_a_hall_still_syncs`, which fails on the old code as Medium,
+  `test_fast_repeating_sound_is_not_high`). Python 1193 passed / 24 skipped, Node 640 passed.
+
+## 0.10.155 - Subtitle edit log, step 1: a silent journal of every subtitle press, and a comparison with the saved project at export (2026-11-24, built, not installed, not tried in Premiere)
+- The user, 2026-11-24: "I have to go and manually select the mistakes. I want it to learn from what I'm doing automatically and
+  just log whatever I most often fix." Step 1 of `docs/SUBTITLE_EDIT_LOG_PLAN.md` (TODO SAL): Asistent records what happens and
+  learns nothing from it yet.
+- **Journal** (`engine/asistent/editlog.py`): `<app>/learning/subtitles/<client>.jsonl` on this computer, one line per event,
+  append only. Kinds: run (every Make subtitles press, with the settings as chosen and as resolved, counts, timing, failures,
+  cancels and refused presses), placed, caption_apply, speakers, learned_remove, learned_restore, move_off_faces, transcript,
+  compare. Words, numbers and settings only: no audio, frames or file contents, and the project is stored as its id, not its
+  path. Nothing goes to the office server or to a "Subtitle Learning" folder. A journal error never fails a job.
+- **Comparison** (`editlog.compare`): the caption lines left in the saved project (`prcaptions.read`) against the captions
+  Asistent placed (its `captionstate` record and the run's JSON). The track is picked by word likeness to the placed captions alone (`LIKENESS_FLOOR` 0.25: below it nothing is compared, so an English or replaced track is unlikely to become fix pairs; a short clip of brand names and numbers with only an English track left can still pass). Logged:
+  splits (per cut: word index, gap, punctuation, delivery strength, cause sentence_end / comma / pause / none), merges, deleted and
+  added lines, retimes of more than one frame, word fixes (a replaced group of 1-3 words, with the raw spelling and an all-capitals
+  flag; other changes only counted), minutes since placed, and whether the project was saved first. A comparison equal to the
+  newest one is not written again. Statuses no_run and no_track.
+- **When**: at a finished export and after Export transcript. At export the panel asks `GET /subtitles/editlog/has` first; only
+  when the project holds an Asistent caption record does it save the open project (the user's yes, 2026-11-24) and queue the
+  comparison. While another press runs only the save is skipped (the comparison runs and is marked `saved: "skipped"`); throttled to once per 20 s. Export transcript compares only the project it saved.
+- **Endpoints** (`server.py`): POST /subtitles/editlog/compare, POST /subtitles/editlog/event (placed, move_off_faces only),
+  GET /subtitles/editlog (summary: counts, most used settings from the last run per sequence, word-fix pairs with the number of
+  videos, splits by cause), GET /subtitles/editlog/has. Bridge command `editlog_compare` (development).
+- Nothing is shown in the panel. Nothing is learned or applied from the log yet (Steps 2-4 of the plan are open).
+- No ReShape-guarded file changed; `scripts/reshape_golden.py check` identical.
+- Tests: the Python suite 1190 passed / 24 skipped (scratch HOME), Node 640 passed. New `tests/test_editlog.py` (26 tests), additions
+  in `tests/test_server.py`. One real project read: 55 captions to 55 lines, no changes.
+- Not verified: everything in Premiere (the save at a finished export, what Premiere does when saving a read-only or locked
+  project, the export event firing the comparison, the placed and Move off faces entries); a real project with actual splits or
+  fixes; Windows. Not installed yet.
+
 ## 0.10.154 - Sync: the main POV makes the order, the second POV is synced to it; faster, and one more look where the clocks point (2026-11-23, installed, not tried in Premiere)
 - The user: "prioritize to order the clips in the timeline by the main POV which is usually on V1 and on V2 is the second POV
   and when it's organized then you sync to that the 2nd POV", "some clips are at the back because the 2nd POV's files are

@@ -38,6 +38,10 @@ drive the engine. The Host header is checked against DNS rebinding.
   GET  /subtitles/settings?project=   {text}: the corrections and names text (per project)
   POST /subtitles/settings   {project, text} -> saved + {errors} of the text; /subtitles also takes "text"
   POST /subtitles/speakers   {project, speakers: {track: "m"|"f"|""}} -> saved per project, the client's default (learning.py)
+  GET  /subtitles/editlog?project=   the subtitle edit log's counts (editlog.py, 0.10.155: settings most used, word fixes, splits by cause)
+  GET  /subtitles/editlog/has?project=   {has}: Asistent placed captions in this project (the panel saves the project at an export only then)
+  POST /subtitles/editlog/compare {project, saved?}   queued: the saved project's caption lines against the captions Asistent placed
+  POST /subtitles/editlog/event {project, sequence, kind, data}   panel events only (placed, move_off_faces)
   GET  /subtitles/learned?project=   the client's learned fixes (Captions tab); POST {project, key, action: remove|restore}
   GET  /captions/state?project=&sequence=   the caption track Asistent placed there before ({} when none)
   POST /captions/record      {project, sequence, signature: {index, count, first, last, srt}}; POST /captions/forget
@@ -127,6 +131,8 @@ from urllib.request import Request, urlopen
 
 from . import cloudasr, config
 from .jobs import JobManager
+from .media import Interrupted
+from .sync import Cancelled
 from .audio import analyze_items
 from . import color as COLOR
 from . import exportcheck as EXPORTCHECK
@@ -152,6 +158,7 @@ from . import hostbridge
 from . import captionstate
 from . import subtitle_settings
 from . import learning
+from . import editlog
 from . import review
 from . import framefaces
 from . import panelstore
@@ -173,6 +180,14 @@ def _guid(body: dict) -> str | None:
     """The panel's sequence id for the host (UXP `Sequence.guid` = ExtendScript `sequenceID`), when it sent one."""
     g = body.get("guid")
     return g if isinstance(g, str) and 0 < len(g) <= 64 else None
+
+
+def _seq_id(body: dict) -> str:
+    """The sequence a subtitle log event belongs to: its guid, else its name, else none."""
+    for k in ("guid", "sequence"):
+        if isinstance(body.get(k), str) and body.get(k):
+            return body[k]
+    return ""
 
 
 def _exports() -> ExportWatcher:
@@ -284,12 +299,33 @@ def _start_roughcut(body: dict) -> dict:
 
 
 def _start_subtitles(body: dict) -> dict:
-    subtitle_job.validate(body)          # fail now, with the message, not inside the job
+    # the subtitle edit log (0.10.155, editlog.py): every press is journalled, here around the job so subtitle_job.py stays as
+    # it is; the log never fails a job
+    try:
+        subtitle_job.validate(body)      # fail now, with the message, not inside the job
+    except ValueError as e:
+        editlog.log_run(body, status="refused", reason=str(e))
+        raise
+    try:                                 # the log never fails a press, whatever the body holds
+        typed = editlog.apply_data(body.get("typed")) if body.get("again") else None
+        if typed:                        # Captions tab: Apply and rebuild with words typed right
+            proj = body.get("project") if isinstance(body.get("project"), str) else ""
+            seq = body.get("guid") if isinstance(body.get("guid"), str) and body.get("guid") else body.get("name")
+            editlog.log_event(proj, seq if isinstance(seq, str) else "", "caption_apply", typed)
+    except Exception as e:               # noqa: BLE001
+        log.warning("subtitle log: caption_apply not written: %s", e)
 
     def work(job):
         def progress(f, msg):
             job.progress, job.message = f, msg
-        return subtitle_job.run(body, progress, lambda: job.cancelled)
+        try:
+            res = subtitle_job.run(body, progress, lambda: job.cancelled)
+        except BaseException as e:       # noqa: BLE001 (logged, then raised again: the job ends exactly as before)
+            editlog.log_run(body, status="cancelled" if job.cancelled or isinstance(e, (Cancelled, Interrupted, InterruptedError))
+                            else "failed", reason=str(e) or type(e).__name__)
+            raise
+        editlog.log_run(body, res, status="cancelled" if job.cancelled else "done", reason="cancelled before the end" if job.cancelled else None)
+        return res
 
     return {"job": JOBS.submit("subtitles", work).id}
 
@@ -426,6 +462,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, subtitle_settings.get((parse_qs(url.query).get("project") or [""])[0]))
         if url.path == "/subtitles/learned":
             return self._send(200, learning.listing((parse_qs(url.query).get("project") or [""])[0]))
+        if url.path == "/subtitles/editlog":                # the subtitle edit log's counts (0.10.155, read only)
+            return self._send(200, {**editlog.summary((parse_qs(url.query).get("project") or [""])[0]), **editlog.status()})
+        if url.path == "/subtitles/editlog/has":            # has Asistent placed captions in this project (the panel saves only then)
+            return self._send(200, {"has": editlog.has_record((parse_qs(url.query).get("project") or [""])[0])})
         if url.path == "/panel/store":
             return self._send(200, {"values": panelstore.get_all()})
         if url.path == "/tracker/thumbs":
@@ -606,12 +646,21 @@ class Handler(BaseHTTPRequestHandler):
                     learning.record_speakers(proj, res["speakers"])
                 except OSError as e:
                     log.warning("learning: speakers not shared: %s", e)
+                editlog.log_event(proj, _seq_id(body), "speakers", {"speakers": res["speakers"]})
                 return self._send(200, res)
             if self.path == "/subtitles/learned":
                 key, action = body.get("key"), body.get("action")
                 if not isinstance(key, str) or action not in ("remove", "restore"):
                     raise ValueError("Invalid learned fix.")
-                return self._send(200, learning.set_removed(str(body.get("project") or ""), key, action == "remove"))
+                proj = str(body.get("project") or "")
+                res = learning.set_removed(proj, key, action == "remove")
+                fix = next((r for r in res.get("rules") or [] if r.get("key") == key), {})
+                editlog.log_event(proj, _seq_id(body), "learned_" + action, {"key": key, "heard": fix.get("heard"), "said": fix.get("said")})
+                return self._send(200, res)
+            if self.path == "/subtitles/editlog/compare":        # at a finished export / Export transcript: queued, returns at once
+                return self._send(200, editlog.queue_compare(body.get("project"), body.get("saved")))
+            if self.path == "/subtitles/editlog/event":          # the panel's own events (placed, move_off_faces)
+                return self._send(200, editlog.post_event(body.get("project"), body.get("sequence"), body.get("kind"), body.get("data")))
             if self.path == "/subtitles/review":         # what to check, line by line (reads the job's JSON, changes nothing)
                 return self._send(200, review.load(str(body.get("json") or "")))
             if self.path == "/cloud":                    # {"key"?, "enabled"?}: save or remove the key, switch it
@@ -748,6 +797,10 @@ class Handler(BaseHTTPRequestHandler):
                 except OSError as e:
                     log.warning("transcript: not shown (%s)", e)
                 log.info("transcript: %s (%d paragraphs; Premiere %s)", os.path.basename(res["path"]), res["paragraphs"], res.get("premiere"))
+                pr = res.get("premiere") if isinstance(res.get("premiere"), dict) else {}
+                editlog.log_event(body.get("project") or "", body.get("guid") or body.get("sequence") or "", "transcript",
+                                  {"times": bool(body.get("times")), "paragraphs": res["paragraphs"], "lines": pr.get("lines"),
+                                   "changed": pr.get("changed"), "why": pr.get("why")})
                 return self._send(200, res)
             if self.path == "/tracker/frame":
                 # 0.10.51: the frame the editor boxes the object on (the file at media time t, upright)

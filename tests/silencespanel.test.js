@@ -156,3 +156,17 @@ test("hesitation sounds can be ticked when Detect = AI-assisted or Cut = AI roug
   t.change("roughMode", "offmic");
   assert.strictEqual(t.$("roughFillers").disabled, true);
 });
+
+test("Simple puts the other options away and says the words are read; leaving it brings them back (0.10.157)", async () => {
+  const t = setup();
+  await t.page.refreshWords();
+  t.change("roughMode", "simple");
+  assert.deepStrictEqual([t.$("roughSimpleNote").hidden, t.$("roughAdvanced").hidden, t.$("roughActionRow").hidden], [false, true, true]);
+  assert.match(t.$("roughWords").textContent, /^Words: ElevenLabs Scribe/);
+  t.change("roughMode", "offmic");
+  assert.deepStrictEqual([t.$("roughSimpleNote").hidden, t.$("roughAdvanced").hidden, t.$("roughActionRow").hidden], [true, false, false]);
+  assert.strictEqual(t.$("roughWords").hidden, true);
+  t.$("roughMarkTakes").checked = true;                          // the box alone has the words read too
+  t.change("roughMarkTakes", "");
+  assert.strictEqual(t.$("roughWords").hidden, false);
+});

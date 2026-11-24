@@ -1,4 +1,4 @@
-# Project status: Asistent 0.10.154 (2026-11-23)
+# Project status: Asistent 0.10.157 (2026-11-24)
 
 A short snapshot: replace outdated lines, keep it under ~120 lines. Per feature (what it does, rules, code,
 status, tests): [docs/INDEX.md](docs/INDEX.md) and `docs/features/`. What changed in each version: `CHANGELOG.md`.
@@ -6,6 +6,9 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 [docs/history/PROJECT_STATUS_to_0.10.120.md](docs/history/PROJECT_STATUS_to_0.10.120.md).
 
 ## Version
+- 0.10.157 (Cut silences: Cut = Simple, one choice that cuts dead air and the quiet stretches between the lines and marks repeated lines; Mark repeated lines as a box for the other modes): built, not installed. Python 1197 passed / 24 skipped, Node 644 passed. On the user's Sirvis clips of the day (preview): 466 -> 205 s, 23 markers on 8 repeated lines. Not tried in Premiere (the markers' span, the look). [cut-silences](docs/features/cut-silences.md)
+- 0.10.156 (Sync: an echo 85 ms and 29 ms from the true offset was taken for "a second possible offset", so fx30686 / fx30-3-2059 and fx30687 / fx30-3-2060 of MASTERHAUS КП-4 Видео 5 stayed apart; now the offset whose stretches looked at both and chose wins. Nine real shoots before / after: every old group identical, four new pairs): built, not installed. Python 1193 passed / 24 skipped, Node 640 passed. Not tried in Premiere. Open: nine very short takes the clocks put together still stay apart (TODO SYN). [sync](docs/features/sync.md)
+- 0.10.155 (Subtitle edit log, step 1: a silent journal of subtitle presses; at a finished export the placed captions are compared with the saved project's lines; nothing shown or learned yet): built, not installed. Python 1190 / 24 skipped, Node 640. Not verified in Premiere. [subtitle-edit-log](docs/features/subtitle-edit-log.md)
 - 0.10.154 (Sync: the main POV, the camera on the lowest video track, makes the order and has V1, the second POV is placed against it; the camera clocks choose which pairs are compared, MASTERHAUS 22.1 -> 6.6 s with the same 16 groups; a second look where the clocks point found one more real pair on GStroy КП11 Видео 8): installed, Python 1162 / 24 skipped, Node 640. Not tried in Premiere (new panel after a Premiere restart). [sync](docs/features/sync.md)
 - 0.10.153 (Tracker: Track / Saved tabs, tracks numbered TRACK n, a transparent TRACK clip above each tracked clip, Attach / Lock with a selected TRACK clip): installed, Node 636, Python 1156 / 24 skipped. Not tried in Premiere; the TRACK clip import and placement need the first check. [tracker](docs/features/tracker.md)
 - 0.10.152 (committed d31f8c6; Tracker: every track saved, a Saved list opens one again after another track or a Premiere restart, the clip found where it is now): installed, Node 634, Python 1076 / 114 skipped. Not tried in Premiere. [tracker](docs/features/tracker.md)
@@ -39,11 +42,13 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
   [install-and-update](docs/features/install-and-update.md).
 
 ## In progress
+- Subtitle edit log (0.10.155, TODO SAL): Step 1 built, not installed. Steps 2-4 open: repeated fixes to learning after approval, the recap every 3 days, the split replay. [subtitle-edit-log](docs/features/subtitle-edit-log.md)
 - Subtitles read by ElevenLabs Scribe (0.10.119-0.10.120): works in Premiere (the user, 2026-11-21: two videos, fast and
   accurate). Still open: one ReShape run, the switch-off run, and replacing the key pasted into the chat on 2026-11-21.
   TODO V119. [subtitles](docs/features/subtitles.md)
 - Cut silences (0.10.121 ElevenLabs words, 0.10.122 audit fixes): built and tested outside Premiere, not installed. Open: the
-  host razor on odd frame rates (detected, not fixed). TODO V122, AUD.
+  host razor on odd frame rates (detected, not fixed). TODO V122, AUD. 0.10.157 Simple and the markers on repeated lines:
+  built, not installed. TODO V157.
 - In & Out animations (0.10.136, plan `docs/IN_OUT_PLAN.md`): Phase 5 fully built (own presets in 0.10.135; the curve editor with
   Curves, Save as new / Rename / Delete in 0.10.136). Not installed, not run in Premiere, not bridge-tested; the bridge checks for
   NEW TEST are in TODO section IO. The user's look at the Tiles page (0.10.133-0.10.134) is still open.
@@ -51,6 +56,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - Local recognition experiments (`NEXT` profile) paused behind a development switch; the held-back runs were stopped.
 
 ## Waiting for a check in Premiere (newest first)
+- 0.10.155 edit log: install, then save at a finished export; a changed word and a split line show in GET /subtitles/editlog. TODO SAL.
 - 0.10.146 Folders: drag a folder onto the Asistent Folders panel, right-click menu, the same buttons on the Folders tab, a press opens Finder. TODO FLD.
 - 0.10.143 Fix audio on a two-person video: both speakers at a similar level, no side lowered for balance. [fix-audio](docs/features/fix-audio.md)
 - 0.10.142 after install: export a graded client video, then Color > What the editors did (right client, Contrast / Saturation line). TODO COL.
@@ -89,6 +95,7 @@ The full status log up to 0.10.120 (800 lines, per version and per phase):
 - Everything else open: `BUGS.md` (open bugs and platform limits) and `TODO.md` (tasks in priority order).
 
 ## Next
+0. Install 0.10.155 when the user says so, then the bridge checks and the user's look in TODO SAL.
 1. The user's next press of Cut silences on "Lokal 2" (0.10.123), then the checks above (TODO V122).
 2. Release 0.10.123 when the user asks.
 3. Install 0.10.136, then the bridge checks and the soak in TODO section IO (step 5). Still open: the review

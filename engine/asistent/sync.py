@@ -305,6 +305,8 @@ class Validation:
     slope: float
     resid_ms: float
     overlap: tuple[float, float]
+    d0: float = 0.0         # s: the candidate every window searched around,
+    search: float = 0.0     # s: and how far to each side
 
     @property
     def informative(self) -> list[Window]:
@@ -449,7 +451,23 @@ def _validate(a: Clip, b: Clip, d0: float, check: Callable[[], None], max_window
     mid = (os_ + oe) / 2
     offset = c + s * mid if inl else d0
     resid = float(np.sqrt(np.mean([(x.offset - (c + s * x.t)) ** 2 for x in inl]))) * 1000 if inl else 0.0
-    return Validation(offset, wins, n, inl, s if len(inl) >= 3 else 0.0, resid, (os_, oe))
+    return Validation(offset, wins, n, inl, s if len(inl) >= 3 else 0.0, resid, (os_, oe), d0, search)
+
+
+def _echo(best: Validation, other: Validation) -> bool:
+    """Is `other` only an echo of `best`, not a second place where the sound repeats?
+
+    2026-11-24 (MASTERHAUS КП-4 Видео 5, a shop hall: fx30686/fx30-3-2059 and fx30687/fx30-3-2060 stayed apart, Premiere
+    synced them). The other offset was 85 ms and 29 ms away: inside the range `best`'s own stretches searched. A stretch's
+    peak ratio is its peak against everything else in that range, so every agreeing stretch of `best` has looked at the
+    other offset and found it clearly lower (2.2-4.4 there; the whole overlap correlated at once gives the same offset on
+    every microphone pair). The other candidate found its offset only because its range did not reach the first.
+    A real repeat (a beat, a line said twice) lies outside the range, or does not lose clearly: both stay ambiguous."""
+    if not best.inliers or len(best.inliers) < len(other.inliers):
+        return False
+    if abs(other.offset - best.d0) > best.search - PEAK_EXCL:
+        return False
+    return float(np.median([w.ratio for w in best.inliers])) >= HIGH_RATIO
 
 
 # ---------------------------------------------------------------- timecode (approximate only)
@@ -509,6 +527,19 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
               reverse=True)
     best, cand = vals[0]
     runner = next((v for v, c in vals[1:] if abs(v.offset - best.offset) > CLUSTER_TOL), None)
+    echo = None
+    if runner is not None and len(runner.inliers) >= MIN_HIGH_WINDOWS and len(runner.inliers) >= 0.6 * len(best.inliers):
+        # only where the pair would count as ambiguous below, so no other result changes. Two offsets a few tens of
+        # ms apart: the one whose stretches looked at both and chose is the sound itself
+        # (several candidates may settle on one offset; the one that searched over the other offset is the witness)
+        def over(x: Validation, y: Validation):
+            return next(((v, c) for v, c in vals if abs(v.offset - x.offset) <= AGREE_TOL and _echo(v, y)), None)
+        mine, theirs = over(best, runner), over(runner, best)
+        if bool(mine) != bool(theirs):
+            echo = runner if mine else best
+            best, cand = mine or theirs
+            runner = next((v for v, c in vals if abs(v.offset - best.offset) > CLUSTER_TOL
+                           and abs(v.offset - echo.offset) > CLUSTER_TOL), None)
 
     info_w = best.informative
     n_in = len(best.inliers)
@@ -543,6 +574,8 @@ def analyze_pair(a: Clip, b: Clip, check: Callable[[], None] = lambda: None, qui
 
     coverage = n_in / max(best.total, 1)
     strong = res["peak_ratio"] >= HIGH_RATIO
+    if echo is not None:
+        res["echo_offset"] = round(echo.offset + lead_fix, 6)
     if n_in >= MIN_HIGH_WINDOWS and frac >= HIGH_FRACTION and coverage >= HIGH_COVERAGE and strong \
             and not ambiguous and ov >= min_ov and drift_total <= half_frame:
         conf = "high"

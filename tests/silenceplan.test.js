@@ -9,7 +9,7 @@ const base = { mode: "offmic", method: "auto", db: "-30", pacing: "measured", mi
 test("the options are read as the engine wants them, and a wrong number is said before anything runs", () => {
   const o = SP.readOptions(base).opts;
   assert.deepStrictEqual(o, { mode: "offmic", method: "auto", pacing: "measured", sensitivity: 3, short: false, fillers: false, action: "remove",
-    range: "selection", threshold: null });
+    range: "selection", threshold: null, mark_takes: false });
   assert.strictEqual(SP.readOptions({ ...base, mode: "ai" }).opts.method, "ai");                  // takes need the words
   assert.strictEqual(SP.readOptions({ ...base, fillers: true }).opts.fillers, false);            // no words, no hesitation sounds
   assert.strictEqual(SP.readOptions({ ...base, method: "ai", fillers: true }).opts.fillers, true);
@@ -141,4 +141,32 @@ test("Manual dB that would remove most of the selection: the share, the guard te
 test("AI rough cut with Manual dB: the preview says who read the words", () => {
   const r = { ...result, mode: "ai", method: "manual", speech: { asr: true, words: 40, recognizer: { name: "ElevenLabs Scribe v3", windows: 1, local: 0, missed: 0, fallback: [] } } };
   assert.ok(SP.describePreview(r, []).some((l) => /40 words recognised by ElevenLabs Scribe v3/.test(l.text)));
+});
+
+test("Simple is one choice: dead air and off-mic go as Automatic measures them, repeated lines are marked (0.10.157)", () => {
+  // whatever the hidden controls still say
+  const o = SP.readOptions({ ...base, mode: "simple", method: "manual", db: "", pacing: "custom", minSilence: "abc", short: true, fillers: true, action: "mute", range: "all" }).opts;
+  assert.deepStrictEqual(o, { mode: "offmic", method: "auto", pacing: "measured", sensitivity: 3, short: false, fillers: false, action: "remove",
+    mark_takes: true, range: "all", threshold: null });
+  assert.strictEqual(SP.payloadOptions(o).mark_takes, true);
+  assert.ok(SP.wordsRead(o));
+  assert.match(SP.wordsLine(SP.SIMPLE, { on: true }), /^Words: ElevenLabs Scribe/);
+});
+
+test("Mark repeated lines goes to the engine only when ticked, and has the words read", () => {
+  const off = SP.readOptions(base).opts;
+  assert.ok(!("mark_takes" in SP.payloadOptions(off)) && !SP.wordsRead(off));
+  const on = SP.readOptions({ ...base, markTakes: true }).opts;
+  assert.strictEqual(SP.payloadOptions(on).mark_takes, true);
+  assert.ok(SP.wordsRead(on));
+  assert.strictEqual(SP.wordsLine(on, { on: false }), "Words: read on this computer (slower)");
+});
+
+test("the markers' line: how many, before and after the cut; nothing when not asked or no words", () => {
+  const r = { mark_takes: true, speech: { asr: true }, marked: 2, marks: [{}, {}, {}, {}, {}] };
+  assert.match(SP.marksLine(r, false).text, /^2 repeated lines: 5 markers .* will be put in the new sequence/);
+  assert.match(SP.marksLine(r, true).text, /5 markers .* in the new sequence, one on each take\. Nothing of them is cut/);
+  assert.strictEqual(SP.marksLine({ ...r, marks: [], marked: 0 }, true).text, "No repeated lines found: no markers.");
+  assert.strictEqual(SP.marksLine({ ...r, mark_takes: false }, true), null);
+  assert.strictEqual(SP.marksLine({ ...r, speech: { asr: false } }, true), null);
 });

@@ -210,6 +210,26 @@ function recordCaptions(project, sequence, signature) {
   return call("POST", "/captions/record", { project, sequence, signature });
 }
 
+// the subtitle edit log (0.10.155, engine editlog.py): a silent journal; the panel posts its own events (placed,
+// move_off_faces), asks for the export-time comparison (queued, returns at once) and, for the bridge check, the counts
+function editlogEvent(project, sequence, kind, data) {
+  return call("POST", "/subtitles/editlog/event", { project, sequence, kind, data });
+}
+
+// saved: true / false / "skipped": whether the project was saved just before (kept in the compare event)
+function editlogCompare(project, saved) {
+  return call("POST", "/subtitles/editlog/compare", { project, saved });
+}
+
+// has Asistent placed captions in this project? (a read only look; the project is saved at an export only when it has)
+function editlogHas(project) {
+  return call("GET", `/subtitles/editlog/has?project=${encodeURIComponent(project)}`);
+}
+
+function editlog(project) {
+  return call("GET", `/subtitles/editlog?project=${encodeURIComponent(project)}`);
+}
+
 // the engine's host (CEP extension, ExtendScript) puts the SRT on a caption track; can take a few seconds
 function placeCaptions(payload) {
   return call("POST", "/captions/place", payload);
@@ -424,4 +444,4 @@ function log(level, message) {
 
 module.exports = { brandKits, brandKit, brandThumbs, brandResolve, brandFavorite, brandCopy, brandReveal, brandOpen, brandFont,
   brandManage, brandAdd, brandMogrt, brandColor, anchorAlpha, anchorDrawn, transcript, status, startSync, startGroups, startAudio, importStatus, importBind, importUnbind, importResult,
-  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, folderOpen, foldersExist, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, trackerFrame, startTracking, trackerThumbs, trackerSaved, trackerSave, trackerSavedGet, trackerSavedDelete, trackerReopen, trackerMarker, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, placeCaptions, placeGraphics, routeAudio, roughLink, roughCut, exportSettings, cloud, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, stop, log };
+  startColor, colorSliders, colorCheck, colorProbe, waitFrame, managedCheck, managedRecord, colorAudit, startShotMatch, shotMatchCheck, subtitlesModel, downloadSubtitleModel, downloadTurbo, downloadTranslator, updateCheck, startUpdate, startSubtitles, startRoughcut, startExportPeaks, exportFrames, colorLearnRecord, colorLearnReport, folderOpen, foldersExist, stashList, stashGet, stashSave, stashDelete, stashClipsBegin, stashClipsExport, addTracks, trackerFrame, startTracking, trackerThumbs, trackerSaved, trackerSave, trackerSavedGet, trackerSavedDelete, trackerReopen, trackerMarker, subtitleSettings, saveSubtitleSettings, saveSpeakers, learned, setLearned, captionsState, recordCaptions, editlogEvent, editlogCompare, editlogHas, editlog, placeCaptions, placeGraphics, routeAudio, roughLink, roughCut, exportSettings, cloud, exportsRecent, exportDone, exportReveal, review, panelStore, panelStorePut, captionFaces, playFrom, playStop, devPoll, devResult, job, cancel, stop, log };

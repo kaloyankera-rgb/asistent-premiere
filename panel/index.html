@@ -49,9 +49,11 @@
       <div id="optRough" class="fopts" hidden>
       <p id="aboutRough" class="desc">Select the cameras and the microphones. What goes is cut from every selected clip at once, in a new sequence; each microphone is listened to on its own, so nobody who speaks into one is cut. Preview shows what would go before anything is made.</p>
       <div class="row options sl-row">
-        <label for="roughMode" class="muted sl-l" data-tip="What goes.&#10;Silences only: dead air only. Every voice stays, even a quiet one.&#10;Silences + off-mic: also voices away from the microphone (talk between takes, people across the room). Unsure parts stay and show yellow in Preview.&#10;AI rough cut: also repeated takes and false starts, found from the recognised words. Whatever Detect says, the words are read: by ElevenLabs Scribe when a key is saved in Settings, else on this computer (slower).">Cut</label>
-        <select id="roughMode"><option value="silence">Silences only</option><option value="offmic" selected>Silences + off-mic</option><option value="ai">AI rough cut</option></select>
+        <label for="roughMode" class="muted sl-l" data-tip="What goes.&#10;Simple: one choice, no other options. Dead air and the quiet stretches between your lines go; repeated lines get markers and stay.&#10;Silences only: dead air only. Every voice stays, even a quiet one.&#10;Silences + off-mic: also voices away from the microphone (talk between takes, people across the room). Unsure parts stay and show yellow in Preview.&#10;AI rough cut: also repeated takes and false starts, found from the recognised words. Whatever Detect says, the words are read: by ElevenLabs Scribe when a key is saved in Settings, else on this computer (slower).">Cut</label>
+        <select id="roughMode"><option value="simple">Simple</option><option value="silence">Silences only</option><option value="offmic" selected>Silences + off-mic</option><option value="ai">AI rough cut</option></select>
       </div>
+      <div id="roughSimpleNote" class="hint" hidden>Cuts dead air and the quiet stretches between your lines. Repeated lines are not cut: each take gets a marker in the new sequence.</div>
+      <div id="roughAdvanced">
       <div class="row options sl-row">
         <label for="roughMethod" class="muted sl-l" data-tip="How speech is found.&#10;Automatic: measures each microphone&#x27;s own noise and voice level. The best start.&#10;Manual dB: your level decides, on every microphone. What stays under it goes, speech or not. With Cut set to AI rough cut the words are still read, for repeated takes only.&#10;AI-assisted: Automatic, with the words read as well so that hesitation sounds can be found. The words are read only when something needs them: Remove hesitation sounds, or Cut set to AI rough cut.">Detect</label>
         <select id="roughMethod"><option value="auto" selected>Automatic</option><option value="manual">Manual dB</option><option value="ai">AI-assisted</option></select>
@@ -98,12 +100,16 @@
       <div class="row options sl-row">
         <input type="checkbox" id="roughFillers" /><label for="roughFillers" class="muted" data-tip="Cuts sounds that are not words (ъъъ, ъм, um, uh) standing alone between two pauses.&#10;Kept: words like ами, значи, така.&#10;Needs: Detect set to AI-assisted, or Cut set to AI rough cut.&#10;Note: only sounds that the speech recognition writes down can be found, so some may stay.">Remove hesitation sounds</label>
       </div>
+      <div class="row options sl-row">
+        <input type="checkbox" id="roughMarkTakes" /><label for="roughMarkTakes" class="muted" data-tip="Puts a marker on every take of a line that was said more than once (Repeat 1/2, Repeat 2/2), from its start to its end.&#10;Cut: nothing because of it. The takes stay; with Cut set to AI rough cut, the takes that stay are marked.&#10;Comment: which take Asistent would keep, and what was said.&#10;Needs: the words. They are read by ElevenLabs Scribe when a key is saved in Settings, else on this computer (slower).">Mark repeated lines</label>
+      </div>
+      </div>
       <div id="roughWords" class="hint" hidden></div>
       <div class="row options sl-row">
         <label for="roughRange" class="muted sl-l" data-tip="Which part is cut.&#10;Selected clips: the clips you selected in the timeline.&#10;In to Out: between the sequence&#x27;s In and Out points. Clips are cut at the points. What lies outside the range is not in the new sequence.&#10;Whole sequence: every clip.">Range</label>
         <select id="roughRange"><option value="selection" selected>Selected clips</option><option value="inout">In to Out</option><option value="all">Whole sequence</option></select>
       </div>
-      <div class="row options sl-row">
+      <div class="row options sl-row" id="roughActionRow">
         <label for="roughAction" class="muted sl-l" data-tip="What happens to the parts that go. Always in a new sequence; yours is not touched.&#10;Remove, close the gaps: taken out and the rest moved together. A shorter video.&#10;Remove, keep the spaces: taken out, everything else stays in place.&#10;Split only: cut at every edge, nothing removed.&#10;Mute the sound: the picture stays whole, the sound is taken out. Same length.">Result</label>
         <select id="roughAction"><option value="remove" selected>Remove, close the gaps</option><option value="gaps">Remove, keep the spaces</option><option value="split">Split only</option><option value="mute">Mute the sound</option></select>
       </div>
@@ -285,7 +291,7 @@
   <div id="paneSettings" class="pane" hidden>
     <div class="fgroup first">Speech recognition</div>
     <div class="list"><div class="fopts open">
-      <p class="desc">Recognition by ElevenLabs Scribe: far fewer wrong Bulgarian words and a much shorter wait. With a key saved and the switch on, the sound of the selected clips is sent to ElevenLabs (sound only, deleted there after the words come back) in two places: Subtitles (Auto and the client styles) and Cut silences, only when it reads the words (Remove hesitation sounds, or Cut set to AI rough cut). ReShape is never sent: its subtitles and ReShape projects stay on this computer, and so does everything when there is no key or no internet.</p>
+      <p class="desc">Recognition by ElevenLabs Scribe: far fewer wrong Bulgarian words and a much shorter wait. With a key saved and the switch on, the sound of the selected clips is sent to ElevenLabs (sound only, deleted there after the words come back) in two places: Subtitles (Auto and the client styles) and Cut silences, only when it reads the words (Cut set to Simple or AI rough cut, Remove hesitation sounds, or Mark repeated lines). ReShape is never sent: its subtitles and ReShape projects stay on this computer, and so does everything when there is no key or no internet.</p>
       <div id="cloudStatus" class="muted">Checking…</div>
       <div class="row"><input type="text" id="cloudKey" class="cloud-key" placeholder="Paste the ElevenLabs API key" /></div>
       <div class="row buttons">

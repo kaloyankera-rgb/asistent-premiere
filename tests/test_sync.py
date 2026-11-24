@@ -227,3 +227,51 @@ def test_near_puts_the_clocks_candidate_first_and_changes_no_sure_result(tmp_pat
     # a range holding no shared sound adds candidates but can never make a match by itself
     wrong = S.analyze_pair(a, b, near=(-12.0, 3.0))
     assert wrong["confidence"] == "high" and wrong["offset"] == plain["offset"]
+
+
+# ---- 0.10.156: a second offset inside the searched range that loses clearly is an echo, not a repeat
+
+def _validation(offset, ratios, d0=None, search=0.103):
+    wins = [S.Window(5.0 * i, offset, r, 12.0, "x") for i, r in enumerate(ratios)]
+    return S.Validation(offset, wins, len(wins), wins, 0.0, 1.0, (0.0, 30.0), offset if d0 is None else d0, search)
+
+
+def test_echo_rule():
+    best = _validation(-0.059, [4.4, 2.5, 2.2, 3.4, 2.9], d0=-0.064)               # MASTERHAUS fx30686 / fx30-3-2059
+    other = _validation(-0.144, [1.36, 1.29, 1.46, 1.43, 1.32], d0=-0.242)
+    assert S._echo(best, other)
+    assert not S._echo(other, best)                                               # its stretches never reached -0.059
+    assert not S._echo(best, _validation(-0.559, [1.4] * 5))                       # outside what the stretches searched
+    assert not S._echo(best, _validation(-0.165, [1.4] * 5))                       # at the edge of the range
+    assert not S._echo(best, _validation(-0.144, [1.4] * 6))                       # more stretches agree on the other
+    assert not S._echo(_validation(-0.059, [1.1, 1.2, 1.1], d0=-0.064), other)     # no clear winner inside the range
+    assert not S._echo(_validation(-0.059, []), other)
+
+
+def test_echo_in_a_hall_still_syncs(tmp_path, monkeypatch):
+    """The second camera hears every line again 85 ms later (a far wall). A candidate whose stretches cannot reach the
+    direct sound settles on the echo and looked like a second possible offset: the pair stayed Medium until 0.10.156."""
+    s1, s2 = synth.scene(120.0, seed=41)
+    d = int(0.085 * synth.SCENE_SR)
+    hall = [np.concatenate([np.zeros(d, x.dtype), x[:-d]]) * 0.7 + x for x in (s1, s2)]
+    a = S.load_clip(synth.write_wav(tmp_path / "a.wav", [synth.mic([(s1, 1), (s2, .8)], 10, 32, seed=1)]))
+    b = S.load_clip(synth.write_wav(tmp_path / "b.wav", [synth.mic([(hall[0], 1), (hall[1], .8)], 10.06, 29.5,
+                                                                   noise_db=-45, seed=2)]))
+    coarse = S._coarse
+    monkeypatch.setattr(S, "_coarse", lambda *k, **kw: coarse(*k, **kw) + [S.Candidate(-0.10, 0.1, {"test"})])
+    r = S.analyze_pair(a, b)
+    assert r["confidence"] == "high", r
+    assert abs(r["offset"] - 0.06) < 0.002
+    assert abs(r["echo_offset"] - (0.06 - 0.085)) < 0.005
+
+
+def test_fast_repeating_sound_is_not_high(tmp_path):
+    """A repeat every 70 ms lies inside the searched range too, but no offset wins: never High."""
+    sr = 48000
+    t = np.arange(60 * sr) / sr
+    click = ((t % 0.07) < 0.004) * np.sin(2 * np.pi * 1000 * t) * 0.5
+    rng = np.random.default_rng(6)
+    a = synth.write_wav(tmp_path / "a.wav", [(click + rng.standard_normal(len(t)) * 1e-3).astype(np.float32)])
+    b = synth.write_wav(tmp_path / "b.wav", [(np.roll(click, int(1.23 * sr)) + rng.standard_normal(len(t)) * 1e-3)
+                                             .astype(np.float32)])
+    assert run(a, b)["clips"][1]["confidence"] != "high"

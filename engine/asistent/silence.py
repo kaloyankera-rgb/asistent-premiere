@@ -125,7 +125,7 @@ def _f(v, what: str, lo: float, hi: float) -> float:
 
 def settings(body: dict | None = None) -> dict:
     """The editor's choices, checked and filled in. body: {mode, method, threshold, pacing | tempo, min_silence, min_speech,
-    before, after, sensitivity, short, short_min, short_max, fillers, action, listen, overrides}; an older body
+    before, after, sensitivity, short, short_min, short_max, fillers, action, listen, overrides, mark_takes}; an older body
     ({tempo, threshold, quiet}) means what it meant: quieter voices cut in Auto unless quiet is false."""
     b = dict(body or {})
     mode = b.get("mode") or "silence"
@@ -179,7 +179,9 @@ def settings(body: dict | None = None) -> dict:
     return {"mode": mode, "method": method, "threshold": thr, "pacing": pacing, "min_silence": base["min_silence"],
             "min_speech": base["min_speech"], "before": base["before"], "after": base["after"], "sensitivity": sens,
             "short": short, "short_min": short_min, "short_max": short_max,
-            "fillers": bool(b.get("fillers")) and (method == "ai" or mode == "ai"), "action": action, "listen": listen, "overrides": ov}
+            "fillers": bool(b.get("fillers")) and (method == "ai" or mode == "ai"), "action": action, "listen": listen, "overrides": ov,
+            # 0.10.157: repeated lines get markers in the new sequence and are not cut for it (the words are read for this)
+            "mark_takes": bool(b.get("mark_takes"))}
 
 
 def clamp_threshold(db) -> float | None:

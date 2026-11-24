@@ -2,7 +2,7 @@
 // left out, how the engine's answer is told, and how the sequence Premiere made from the XML is checked against it.
 
 const { planDialogue } = require("./subtitleplan.js");
-const { recognizerNote, wordsRead } = require("./silenceplan.js");
+const { recognizerNote, wordsRead, marksLine } = require("./silenceplan.js");
 
 const MODE_LABEL = { safe: "safe", smart: "smart" };
 
@@ -142,6 +142,8 @@ function describeSilences(r, placed) {
       : { cls: "warn", text: `${clock(g.out_at)}: ${g.kind_label} ×${n}: nothing cut (${!g.safe ? "said differently" : "no clean pause to cut at"}), review it. Best is #${g.recommended + 1} "${said}".` });
   }
   if (found.length > TAKE_LINES) lines.push({ cls: "reason", text: `…and ${found.length - TAKE_LINES} more repeated takes.` });
+  const marked = marksLine(r, true);
+  if (marked) lines.push(marked);
   // 0.10.122: what is not cut is not in the new sequence at all (the host removes it from the duplicate): say so, with the kinds
   for (const s of r.skipped || []) lines.push({ cls: "warn", text: `Not in the new sequence: ${s}.` });
   lines.push({ cls: "reason", text: "Not in the new sequence: clips you did not select, and selected clips that are nested sequences, graphics, offline, speed-changed or reversed." });

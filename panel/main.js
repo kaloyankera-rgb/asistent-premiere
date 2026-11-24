@@ -1041,6 +1041,8 @@ async function onTranscript() {
     finish(`Transcript saved: ${name} (${t.paragraphs} ${t.paragraphs === 1 ? "paragraph" : "paragraphs"}), shown in Finder.` + fromPremiere +
       (saved !== null && saved !== true ? " The project could not be saved first: changes since your last save are not in it." : "") +
       (typed ? " What you typed in the lines here is not in it yet: press Apply and rebuild, then export again." : ""), true);
+    // the subtitle edit log: only for the project this transcript's own save returned true for (no second save, never another project)
+    if (saved === true) editlogCompare(true, { path: r.where.project, saved: true });
   } catch (e) {
     finish(e.message || String(e), false);
   }
@@ -1088,6 +1090,8 @@ async function onCaptionApply() {
   if (!said.length) said.push("Who speaks changed");
   $("captionEditState").textContent = `${said.join(". ")}. Rebuilding…`;
   openTab("paneTools");
+  const lines = edited.filter((v, i) => v !== captionEdit.inputs[i].getAttribute("data-original")).length;
+  typedForLog = { pairs: pairs.map((p) => ({ heard: p.heard, said: p.said })), lines, english: enChanged.length };   // read once by onSubtitles
   await onSubtitles({ again: true });
 }
 
@@ -1103,6 +1107,7 @@ async function onMoveOffFaces() {
       finish("Select the subtitle graphics first (after right-click > Upgrade Caption to Graphic on the captions).", false);
       return;
     }
+    logMoveOffFaces(project, r);
     if (r.mode === "lanes" || r.mode === "reshape") {          // the lane rule (2026-11-22): placementplan.describe makes the text
       const d = placementplan.describe(r);
       finish(d.headline, !r.nothingMeasured, d.lines.map((l) => el("div", l.cls, l.text)));
@@ -1138,7 +1143,11 @@ async function onMoveOffFaces() {
   }
 }
 
+let typedForLog = null;                                      // the words typed right in the Captions tab, for the subtitle edit log
+
 async function onSubtitles(opts = {}) {
+  const typed = opts.again ? typedForLog : null;             // taken (and cleared) first, so no early return leaves it for a later rebuild
+  typedForLog = null;
   if (state.busy) return;
   if (!state.online) {
     finish("No connection to the engine. See README.", false);
@@ -1173,6 +1182,10 @@ async function onSubtitles(opts = {}) {
     payload.english_words = englishWords(project.path);                      // and the words changed in them (learned per client)
     payload.english_words_off = englishWordsOff(project.path);               // and the word fixes taken back (0.10.6)
     payload.project = project.path;                                          // finds the client's learning folder (learning.py)
+    // for the subtitle edit log (editlog.py, 0.10.155): which sequence, a rebuild or a new reading, the words typed right
+    payload.guid = premiereCaptions.seqGuid(source) || undefined;
+    payload.again = !!opts.again;
+    if (typed) payload.typed = typed;
     engine.log("info", `subtitles: ${plan.use.length} clips, ${plan.skipped.length} skipped`);
     const { job } = await engine.startSubtitles(payload);
     const result = await runJob(job);
@@ -1185,6 +1198,11 @@ async function onSubtitles(opts = {}) {
       const where = now.path !== project.path
         ? { status: "moved", sequence: source.name || "", message: `The subtitles are for the project "${project.name}", but "${now.name}" is open now. Nothing was put on it.` }
         : await premiereCaptions.place(project, source, result, { again: !!opts.again });
+      if (where.status === "placed") {
+        editlogPost(project, premiereCaptions.seqGuid(source) || source.name || "", "placed", {
+          lines: where.track ? where.track.count : null, english: !!where.english, replaced: where.removed ? where.removed.count : 0,
+          kept_earlier: where.replaces ? where.replaces.length : 0, problems: (where.problems || []).length, again: !!opts.again });
+      }
       const placed = describePlacement(where, result.srt, !!opts.again);
       out.text = placed.ok ? `Done: ${result.counts.captions} subtitle lines, on the timeline.` : placed.text;
       out.ok = placed.ok;
@@ -1295,6 +1313,58 @@ function paintSwitches() {
     $(sw).className = yes ? "btn small sw on" : "btn small sw";
     $(st).textContent = yes ? on : "Off";
     $(st).className = yes ? "fstatus live" : "fstatus";
+  }
+}
+
+// ---------------------------------------------------------------- the subtitle edit log (TODO SAL Step 1, 0.10.155)
+// Silent: nothing is shown and nothing is learned or applied. The engine (editlog.py) journals every subtitle press; the panel
+// posts the two things only it sees (the pair placed, Move off faces) and asks the engine to compare the saved project's caption
+// lines with the captions Asistent placed: at an export (saving the open project first, only when Asistent has placed captions
+// in it) and after Export transcript (only when that press's own save succeeded; nothing is saved or compared otherwise).
+
+function editlogPost(project, sequence, kind, data) {
+  engine.editlogEvent(project.path, sequence, kind, data).catch((e) => engine.log("warning", `subtitle log: ${kind}: ${e && e.message ? e.message : e}`));
+}
+
+async function logMoveOffFaces(project, r) {
+  try {
+    const seq = await project.getActiveSequence();
+    const c = r.reasons || {};
+    const n = (v) => (typeof v === "number" ? v : 0);
+    editlogPost(project, (seq && (premiereCaptions.seqGuid(seq) || seq.name)) || "", "move_off_faces", {
+      mode: r.mode || null, moved: n(r.moved), total: typeof r.total === "number" ? r.total : null, unchanged: n(r.unchanged),
+      kept: (r.kept || []).length, no_place: n(c.noPlace), nothing_measured: !!r.nothingMeasured,
+      reasons: { lane: n(c.lane), underFace: n(c.underFace), offText: n(c.offText), zoom: n(c.zoom), faceIn: n(c.faceIn) } });
+  } catch (e) {
+    engine.log("warning", `subtitle log: move_off_faces: ${e && e.message ? e.message : e}`);
+  }
+}
+
+let lastEditlog = 0;
+// several export events fire for one export: once per 20 s (Export transcript passes now). At an export the open project is
+// saved first (the user's yes, 2026-11-24) so the latest Text panel fixes are in the file, but only when Asistent has placed
+// captions in it (the engine says), and not while a press is running (saved is then "skipped"). `known` = {path, saved}: the
+// caller has already saved that project (Export transcript): nothing is saved or looked up, that project is compared.
+async function editlogCompare(now = false, known = null) {
+  if (!state.online || (!now && Date.now() - lastEditlog < 20000)) return { skipped: true };
+  lastEditlog = Date.now();
+  try {
+    let path, saved;
+    if (known && known.path) {
+      ({ path, saved } = known);
+    } else {
+      const project = await premiere.activeProject();
+      if (!project || !project.path) return { skipped: true };
+      if (!(await engine.editlogHas(project.path)).has) return { skipped: true };      // no captions of Asistent's here: nothing to save or compare
+      path = project.path;
+      saved = state.busy ? "skipped" : (await premiere.maybe(project, "save")) === true;
+    }
+    const r = await engine.editlogCompare(path, saved);
+    engine.log("info", `subtitle log: compare queued for ${r.client} (project saved first: ${saved})`);
+    return { queued: r.queued, client: r.client, saved };
+  } catch (e) {
+    engine.log("warning", `subtitle log: compare after export: ${e && e.stack ? e.stack : e}`);
+    return { error: String(e && e.message ? e.message : e) };
   }
 }
 
@@ -2121,7 +2191,10 @@ exportEvents.listen(require("premierepro"), (kind, path, name, fields) => {
   (kind === "complete" ? premiere.activeProject().then((p) => premiereCheck.exportedSequence(p)).catch(() => null)
     : Promise.resolve(null))
     .then((sequence) => engine.exportDone(path, kind, `panel:${name}`, sequence)).catch(() => {});
-  if (kind === "complete") learnFromExport();
+  if (kind === "complete") {
+    learnFromExport();
+    editlogCompare();
+  }
 }, (msg) => engine.log("info", msg)).then((attached) => engine.log("info", `exports: listening to ${attached.join(", ") || "no export events"}`))
   .catch(() => {});
 
@@ -2370,7 +2443,7 @@ async function afterExport(path) {
   const sequence = await premiereCheck.exportedSequence(await premiere.activeProject());
   return { sequence, done: await engine.exportDone(path, "complete", "bridge", sequence) };
 }
-createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION, hooks: { learnFromExport, afterExport, tracker: () => trackerPage, brand: () => brandPage, keyframer: () => keyframerPage, inout: () => inoutPage } }).loop();
+createBridge({ premiere, premiereColor, premiereAudio, doc: document, version: PANEL_VERSION, hooks: { learnFromExport, editlogCompare, afterExport, tracker: () => trackerPage, brand: () => brandPage, keyframer: () => keyframerPage, inout: () => inoutPage } }).loop();
 setInterval(() => {
   if (!state.busy) refreshHeader();
 }, 4000);
